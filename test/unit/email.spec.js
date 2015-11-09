@@ -5,50 +5,56 @@ describe('email', function() {
     beforeEach(function() {
         if (flush){ for (var m in require.cache){ delete require.cache[m]; } flush = false; }
         path            = require('path');
-        email           = require('../../lib/email');
         handlebars      = require('handlebars');
         nodemailer      = require('nodemailer');
         htmlToText      = require('html-to-text');
         fs              = require('fs-extra');
         q               = require('q');
+        email           = require('../../lib/email');
+        logger          = require('../../lib/logger');
+
+        mockLog = {
+            trace : jasmine.createSpy('log_trace'),
+            error : jasmine.createSpy('log_error'),
+            warn  : jasmine.createSpy('log_warn'),
+            info  : jasmine.createSpy('log_info'),
+            fatal : jasmine.createSpy('log_fatal'),
+            log   : jasmine.createSpy('log_log')
+        };
+        spyOn(logger, 'createLog').and.returnValue(mockLog);
+        spyOn(logger, 'getLog').and.returnValue(mockLog);
+        
+        spyOn(email, 'compileAndSend').and.returnValue(q('success'));
     });
-
-    describe('notifyPwdChange', function() {
-        beforeEach(function() {
-            spyOn(email, 'compileAndSend').and.returnValue(q('success'));
-        });
-
+    
+    describe('updateApproved', function() {
         it('should correctly call compileAndSend', function(done) {
-            email.notifyPwdChange('send', 'recip').then(function(resp) {
+            email.updateApproved('send', 'recip', false, 'ketchupbot', 'link').then(function(resp) {
                 expect(resp).toBe('success');
-                expect(email.compileAndSend).toHaveBeenCalledWith('send','recip',
-                    'Your account password has been changed','pwdChange.html',{contact:'send'});
+                expect(email.compileAndSend).toHaveBeenCalledWith(
+                    'send',
+                    'recip',
+                    'Your Campaign Change Request Has Been Approved',
+                    'campaignUpdateApproved.html',
+                    { campName: 'ketchupbot', dashboardLink: 'link' },
+                    [{ filename: 'logo.png', cid: 'reelContentLogo' }]
+                );
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
             }).done(done);
         });
-
-        it('should pass along errors from compileAndSend', function(done) {
-            email.compileAndSend.and.returnValue(q.reject('I GOT A PROBLEM'));
-            email.notifyPwdChange('send', 'recip').then(function(resp) {
-                expect(resp).not.toBeDefined();
-            }).catch(function(error) {
-                expect(error).toBe('I GOT A PROBLEM');
-                expect(email.compileAndSend).toHaveBeenCalled();
-            }).done(done);
-        });
-    });
-
-    describe('sendActivationEmail', function() {
-        beforeEach(function() {
-            spyOn(email, 'compileAndSend').and.returnValue(q('success'));
-        });
-
-        it('should correctly call compileAndSend', function(done) {
-            email.sendActivationEmail('send', 'recip', 'link').then(function(resp) {
+        
+        it('should send a different message if this was the campaign\'s initial submit', function(done) {
+            email.updateApproved('send', 'recip', true, 'ketchupbot', 'link').then(function(resp) {
                 expect(resp).toBe('success');
-                expect(email.compileAndSend).toHaveBeenCalledWith('send','recip',
-                    'Your account is almost activated!','activationEmail.html',{contact:'send', link: 'link'});
+                expect(email.compileAndSend).toHaveBeenCalledWith(
+                    'send',
+                    'recip',
+                    'ReelContent Campaign Approved',
+                    'campaignApproved.html',
+                    { campName: 'ketchupbot', dashboardLink: 'link' },
+                    [{ filename: 'logo.png', cid: 'reelContentLogo' }]
+                );
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
             }).done(done);
@@ -56,7 +62,7 @@ describe('email', function() {
 
         it('should pass along errors from compileAndSend', function(done) {
             email.compileAndSend.and.returnValue(q.reject('I GOT 99 PROBLEMS AND THIS IS ONE'));
-            email.sendActivationEmail('send', 'recip', 'link').then(function(resp) {
+            email.updateApproved('send', 'recip', false, 'ketchupbot', 'link').then(function(resp) {
                 expect(resp).not.toBeDefined();
             }).catch(function(error) {
                 expect(error).toBe('I GOT 99 PROBLEMS AND THIS IS ONE');
@@ -65,16 +71,118 @@ describe('email', function() {
         });
     });
 
-    describe('notifyAccountActivation', function() {
-        beforeEach(function() {
-            spyOn(email, 'compileAndSend').and.returnValue(q('success'));
+    describe('updateRejected', function() {
+        it('should correctly call compileAndSend', function(done) {
+            email.updateRejected('send', 'recip', false, 'ketchupbot', 'link', 'you stink').then(function(resp) {
+                expect(resp).toBe('success');
+                expect(email.compileAndSend).toHaveBeenCalledWith(
+                    'send',
+                    'recip',
+                    'Your Campaign Change Request Has Been Rejected',
+                    'campaignUpdateRejected.html',
+                    { campName: 'ketchupbot', dashboardLink: 'link', rejectionReason: 'you stink' },
+                    [{ filename: 'logo.png', cid: 'reelContentLogo' }]
+                );
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should send a different message if this was the campaign\'s initial submit', function(done) {
+            email.updateRejected('send', 'recip', true, 'ketchupbot', 'link', 'you stink').then(function(resp) {
+                expect(resp).toBe('success');
+                expect(email.compileAndSend).toHaveBeenCalledWith(
+                    'send',
+                    'recip',
+                    'ReelContent Campaign Rejected',
+                    'campaignRejected.html',
+                    { campName: 'ketchupbot', dashboardLink: 'link', rejectionReason: 'you stink' },
+                    [{ filename: 'logo.png', cid: 'reelContentLogo' }]
+                );
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
         });
 
+        it('should pass along errors from compileAndSend', function(done) {
+            email.compileAndSend.and.returnValue(q.reject('I GOT 99 PROBLEMS AND THIS IS ONE'));
+            email.updateRejected('send', 'recip', false, 'ketchupbot', 'link', 'you stink').then(function(resp) {
+                expect(resp).not.toBeDefined();
+            }).catch(function(error) {
+                expect(error).toBe('I GOT 99 PROBLEMS AND THIS IS ONE');
+                expect(email.compileAndSend).toHaveBeenCalled();
+            }).done(done);
+        });
+    });
+    
+    describe('newUpdateRequest', function() {
         it('should correctly call compileAndSend', function(done) {
-            email.notifyAccountActivation('send', 'recip').then(function(resp) {
+            email.newUpdateRequest('send', 'recip', 'user@c6.com', 'ketchupbot', 'review.me').then(function(resp) {
                 expect(resp).toBe('success');
-                expect(email.compileAndSend).toHaveBeenCalledWith('send', 'recip', 'Your account has been activated!',
-                    'userActivation.html', {contact: 'send'});
+                expect(email.compileAndSend).toHaveBeenCalledWith(
+                    'send',
+                    'recip',
+                    'New campaign update request',
+                    'newUpdateRequest.html',
+                    { userEmail: 'user@c6.com', campName: 'ketchupbot', reviewLink: 'review.me' },
+                    [{ filename: 'logo.png', cid: 'reelContentLogo' }]
+                );
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
+        });
+
+        it('should pass along errors from compileAndSend', function(done) {
+            email.compileAndSend.and.returnValue(q.reject('I GOT 99 PROBLEMS AND THIS IS ONE'));
+            email.newUpdateRequest('send', 'recip', 'user@c6.com', 'ketchupbot', 'review.me').then(function(resp) {
+                expect(resp).not.toBeDefined();
+            }).catch(function(error) {
+                expect(error).toBe('I GOT 99 PROBLEMS AND THIS IS ONE');
+                expect(email.compileAndSend).toHaveBeenCalled();
+            }).done(done);
+        });
+    });
+
+    describe('activateAccount', function() {
+        it('should correctly call compileAndSend', function(done) {
+            email.activateAccount('send', 'recip', 'link').then(function(resp) {
+                expect(resp).toBe('success');
+                expect(email.compileAndSend).toHaveBeenCalledWith(
+                    'send',
+                    'recip',
+                    'Welcome to ReelContent Video Ads!',
+                    'activateAccount.html',
+                    { activationLink: 'link' },
+                    [{ filename: 'logo.png', cid: 'reelContentLogo' }]
+                );
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
+        });
+
+        it('should pass along errors from compileAndSend', function(done) {
+            email.compileAndSend.and.returnValue(q.reject('I GOT 99 PROBLEMS AND THIS IS ONE'));
+            email.activateAccount('send', 'recip', 'link').then(function(resp) {
+                expect(resp).not.toBeDefined();
+            }).catch(function(error) {
+                expect(error).toBe('I GOT 99 PROBLEMS AND THIS IS ONE');
+                expect(email.compileAndSend).toHaveBeenCalled();
+            }).done(done);
+        });
+    });
+
+    describe('accountWasActivated', function() {
+        it('should correctly call compileAndSend', function(done) {
+            email.accountWasActivated('send', 'recip', 'link').then(function(resp) {
+                expect(resp).toBe('success');
+                expect(email.compileAndSend).toHaveBeenCalledWith(
+                    'send',
+                    'recip',
+                    'Your Account is Now Active',
+                    'accountWasActivated.html',
+                    { dashboardLink: 'link' },
+                    [{ filename: 'logo.png', cid: 'reelContentLogo' }]
+                );
             }).catch(function(error) {
                 expect(error,toString()).not.toBeDefined();
             }).done(done);
@@ -82,7 +190,7 @@ describe('email', function() {
 
         it('should pass along errors from compileAndSend', function(done) {
             email.compileAndSend.and.returnValue(q.reject('error sending email'));
-            email.sendActivationEmail('send', 'recip', 'link').then(function(resp) {
+            email.accountWasActivated('send', 'recip', 'link').then(function(resp) {
                 expect(resp).not.toBeDefined();
             }).catch(function(error) {
                 expect(error).toBe('error sending email');
@@ -91,16 +199,56 @@ describe('email', function() {
         });
     });
 
-    describe('notifyMultipleLoginAttempts', function() {
+    describe('passwordChanged', function() {
         beforeEach(function() {
-            spyOn(email, 'compileAndSend').and.returnValue(q('success'));
+            jasmine.clock().install();
+        });
+        
+        afterEach(function() {
+            jasmine.clock().uninstall();
         });
 
         it('should correctly call compileAndSend', function(done) {
-            email.notifyMultipleLoginAttempts('send', 'recip', 'link').then(function(resp) {
+            var now = new Date();
+            jasmine.clock().mockDate(now);
+            email.passwordChanged('send', 'recip', 'support').then(function(resp) {
                 expect(resp).toBe('success');
-                expect(email.compileAndSend).toHaveBeenCalledWith('send', 'recip', 'Need help logging in?',
-                    'suggestPasswordReset.html', {contact: 'send', link: 'link'});
+                expect(email.compileAndSend).toHaveBeenCalledWith(
+                    'send',
+                    'recip',
+                    'ReelContent Password Change Notice',
+                    'passwordChanged.html',
+                    { contact: 'support', date: now.toLocaleDateString(), time: now.toTimeString() },
+                    [{ filename: 'logo.png', cid: 'reelContentLogo' }]
+                );
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
+        });
+
+        it('should pass along errors from compileAndSend', function(done) {
+            email.compileAndSend.and.returnValue(q.reject('I GOT A PROBLEM'));
+            email.passwordChanged('send', 'recip', 'support').then(function(resp) {
+                expect(resp).not.toBeDefined();
+            }).catch(function(error) {
+                expect(error).toBe('I GOT A PROBLEM');
+                expect(email.compileAndSend).toHaveBeenCalled();
+            }).done(done);
+        });
+    });
+
+    describe('emailChanged', function() {
+        it('should correctly call compileAndSend', function(done) {
+            email.emailChanged('send', 'recip', 'newEmail', 'support').then(function(resp) {
+                expect(resp).toBe('success');
+                expect(email.compileAndSend).toHaveBeenCalledWith(
+                    'send',
+                    'recip',
+                    'Your Email Has Been Changed',
+                    'emailChanged.html',
+                    { newEmail: 'newEmail', contact: 'support' },
+                    [{ filename: 'logo.png', cid: 'reelContentLogo' }]
+                );
             }).catch(function(error) {
                 expect(error,toString()).not.toBeDefined();
             }).done(done);
@@ -108,7 +256,63 @@ describe('email', function() {
 
         it('should pass along errors from compileAndSend', function(done) {
             email.compileAndSend.and.returnValue(q.reject('error sending email'));
-            email.notifyMultipleLoginAttempts('send', 'recip', 'link').then(function(resp) {
+            email.emailChanged('send', 'recip', 'newEmail', 'support').then(function(resp) {
+                expect(resp).not.toBeDefined();
+            }).catch(function(error) {
+                expect(error).toBe('error sending email');
+                expect(email.compileAndSend).toHaveBeenCalled();
+            }).done(done);
+        });
+    });
+
+    describe('failedLogins', function() {
+        it('should correctly call compileAndSend', function(done) {
+            email.failedLogins('send', 'recip', 'link').then(function(resp) {
+                expect(resp).toBe('success');
+                expect(email.compileAndSend).toHaveBeenCalledWith(
+                    'send',
+                    'recip',
+                    'ReelContent: Multiple-Failed Logins',
+                    'failedLogins.html',
+                    { link: 'link' },
+                    [{ filename: 'logo.png', cid: 'reelContentLogo' }]
+                );
+            }).catch(function(error) {
+                expect(error,toString()).not.toBeDefined();
+            }).done(done);
+        });
+
+        it('should pass along errors from compileAndSend', function(done) {
+            email.compileAndSend.and.returnValue(q.reject('error sending email'));
+            email.failedLogins('send', 'recip', 'link').then(function(resp) {
+                expect(resp).not.toBeDefined();
+            }).catch(function(error) {
+                expect(error).toBe('error sending email');
+                expect(email.compileAndSend).toHaveBeenCalled();
+            }).done(done);
+        });
+    });
+
+    describe('resetPassword', function() {
+        it('should correctly call compileAndSend', function(done) {
+            email.resetPassword('send', 'recip', 'link').then(function(resp) {
+                expect(resp).toBe('success');
+                expect(email.compileAndSend).toHaveBeenCalledWith(
+                    'send',
+                    'recip',
+                    'Forgot Your Password?',
+                    'passwordReset.html',
+                    { resetLink: 'link' },
+                    [{ filename: 'logo.png', cid: 'reelContentLogo' }]
+                );
+            }).catch(function(error) {
+                expect(error,toString()).not.toBeDefined();
+            }).done(done);
+        });
+
+        it('should pass along errors from compileAndSend', function(done) {
+            email.compileAndSend.and.returnValue(q.reject('error sending email'));
+            email.resetPassword('send', 'recip', 'link').then(function(resp) {
                 expect(resp).not.toBeDefined();
             }).catch(function(error) {
                 expect(error).toBe('error sending email');
@@ -151,6 +355,81 @@ describe('email', function() {
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
             }).done(done);
+        });
+        
+        describe('if there are all-caps links in the text', function() {
+            it('should convert the links to lowercase', function(done) {
+                htmlToText.fromString.and.returnValue('Yo go here: [HTTP://CINEMA6.COM]\n\nWait no go here: [HTTPS://REELCONTENT.COM/FOO?TOKEN=ASDF1234]');
+                
+                email.compileAndSend('sender','recip','subj','templ',{foo:'bar'}).then(function(resp) {
+                    expect(resp).toBe('success');
+                    expect(fakeTransport.sendMail).toHaveBeenCalledWith({
+                        from: 'sender',
+                        to: 'recip',
+                        subject: 'subj',
+                        html: 'compiledHtml',
+                        text: 'Yo go here: [http://cinema6.com]\n\nWait no go here: [https://reelcontent.com/foo?token=asdf1234]'
+                    }, jasmine.any(Function));
+                }).catch(function(error) {
+                    expect(error.toString()).not.toBeDefined();
+                }).done(done);
+            });
+        });
+        
+        describe('if there are attachments provided', function() {
+            var attachments;
+            beforeEach(function() {
+                spyOn(fs, 'existsSync').and.returnValue(true);
+                attachments = [
+                    { filename: 'pic1.jpg', cid: 'picNumbah1' },
+                    { filename: 'pic2.png', cid: 'picNumbah2' }
+                ];
+            });
+            
+            it('should add them to the options for sendMail', function(done) {
+                email.compileAndSend('sender', 'recip', 'subj', 'templ', { foo:'bar' }, attachments).then(function(resp) {
+                    expect(resp).toBe('success');
+                    expect(fs.existsSync).toHaveBeenCalledWith(path.join(__dirname, '../../templates/assets/pic1.jpg'));
+                    expect(fs.existsSync).toHaveBeenCalledWith(path.join(__dirname, '../../templates/assets/pic2.png'));
+                    expect(fakeTransport.sendMail).toHaveBeenCalledWith({
+                        from: 'sender',
+                        to: 'recip',
+                        subject: 'subj',
+                        html: 'compiledHtml',
+                        text: 'compiledText',
+                        attachments: [
+                            { filename: 'pic1.jpg', cid: 'picNumbah1', path: path.join(__dirname, '../../templates/assets/pic1.jpg') },
+                            { filename: 'pic2.png', cid: 'picNumbah2', path: path.join(__dirname, '../../templates/assets/pic2.png') }
+                        ]
+                    }, jasmine.any(Function));
+                }).catch(function(error) {
+                    expect(error.toString()).not.toBeDefined();
+                }).done(done);
+            });
+            
+            it('should warn and ignore any files that cannot be found', function(done) {
+                fs.existsSync.and.callFake(function(path) {
+                    if (/pic1/.test(path)) return false;
+                    else return true;
+                });
+                email.compileAndSend('sender', 'recip', 'subj', 'templ', { foo:'bar' }, attachments).then(function(resp) {
+                    expect(resp).toBe('success');
+                    expect(fs.existsSync).toHaveBeenCalledWith(path.join(__dirname, '../../templates/assets/pic1.jpg'));
+                    expect(fs.existsSync).toHaveBeenCalledWith(path.join(__dirname, '../../templates/assets/pic2.png'));
+                    expect(fakeTransport.sendMail).toHaveBeenCalledWith({
+                        from: 'sender',
+                        to: 'recip',
+                        subject: 'subj',
+                        html: 'compiledHtml',
+                        text: 'compiledText',
+                        attachments: [
+                            { filename: 'pic2.png', cid: 'picNumbah2', path: path.join(__dirname, '../../templates/assets/pic2.png') }
+                        ]
+                    }, jasmine.any(Function));
+                }).catch(function(error) {
+                    expect(error.toString()).not.toBeDefined();
+                }).done(done);
+            });
         });
 
         it('should fail if reading the template fails', function(done) {

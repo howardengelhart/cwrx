@@ -3,7 +3,7 @@
 <head>
     <meta content='text/html; charset=utf-8' http-equiv='Content-Type'>
     <meta content='width=device-width, initial-scale=1.0' name='viewport'>
-    <title>Reelcontent: email changed</title>
+    <title>Reelcontent: campaign rejected</title>
     <style>
             /*<![CDATA[*/
         #outlook a {padding:0;} /* Force Outlook to provide a "view in browser" menu link. */
@@ -56,16 +56,27 @@
                             <table border='0' cellpadding='0' cellspacing='0' width='100%'>
                                 <tr>
                                     <td align='center' valign='top'>
-                                        <h2 style="line-height: 1.5 !important; font-weight: normal; font-size: 30px; margin:0 0 16px;">Campaign Update Request</h2>
+                                        <h2 style="line-height: 1.5 !important; font-weight: normal; font-size: 30px; margin:0 0 1em;">Your Campaign Has Been Rejected</h2>
                                     </td>
                                 </tr>
                                 <tr>
-                                    <td align='center' style='border-top: 1px solid #dce1e5;' valign='top'>
-                                        <p style='margin: 16px 0 16px; text-align:left; line-height:1.5;'>
-                                            A new campaign update request has been created by {{userEmail}} for campaign &ldquo;{{campName}}.&rdquo;
-                                            <br>
-                                            You can review the campaign with this update request at <a href="{{reviewLink}}">{{reviewLink}}</a>.
+                                    <td align='left' valign='top'>
+                                        <p style='margin:0 0 16px; line-height:1.5;'>
+                                            Sorry! Your campaign <strong>&ldquo;{{campName}}&rdquo;</strong> has been rejected for the following reason:
                                         </p>
+                                        <p style='margin:0 0 16px; line-height:1.5;'>
+                                            <strong>{{rejectionReason}}</strong>
+                                        </p>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td align='center' bgcolor='#139da3' valign='top'>
+                                        <h3><a href="{{dashboardLink}}" style="color: #ffffff !important">Manage Campaigns</a></h3>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td>
+                                        <p style='margin:0 0 16px;'></p>
                                     </td>
                                 </tr>
                                 <tr>
@@ -79,7 +90,8 @@
                                                 <br><br>
                                             </td>
                                             <td align='left' bgcolor='#f1f1f1' valign='top' style='font-size:12px;'>
-                                                <br><strong>New York Office</strong><br>
+                                                <br>
+                                                <strong>New York Office</strong><br>
                                                 1115 Broadway, 12th Flr<br>
                                                 New York, NY 10010
                                                 <br><br>

@@ -250,6 +250,8 @@
 
         log.info('[%1] Initial update request for %2, switching status to pending',
                  req.uuid, req.campaign.id);
+                 
+        req.body.initialSubmit = true;
 
         // check that these required fields are now set
         var checks = [
@@ -290,24 +292,17 @@
     
     // Send email to support notifying them of new update request
     updateModule.notifySupport = function(req, next/*, done*/) {
-        var log = logger.getLog(),
-            subject = 'New campaign update request',
-            supportAddress = updateModule.config.emails.supportAddress,
-            reviewLink = updateModule.config.emails.reviewLink.replace(':campId', req.campaign.id),
-            data = {
-                userEmail: req.user.email,
-                campName: req.campaign.name,
-                reviewLink: reviewLink
-            };
+        var log = logger.getLog();
 
-        return email.compileAndSend(
+        return email.newUpdateRequest(
             updateModule.config.emails.sender,
-            supportAddress,
-            subject,
-            'newUpdateRequest.html',
-            data
+            updateModule.config.emails.supportAddress,
+            req.user.email,
+            req.campaign.name,
+            updateModule.config.emails.reviewLink.replace(':campId', req.campaign.id)
         ).then(function() {
-            log.info('[%1] Notified support at %2 of new update request', req.uuid, supportAddress);
+            log.info('[%1] Notified support at %2 of new update request',
+                     req.uuid, updateModule.config.emails.supportAddress);
             return next();
         });
     };
@@ -459,32 +454,12 @@
     // Emails the user that their update was approved/rejected
     updateModule.notifyOwner = function(svc, req, next/*, done*/) {
         var log = logger.getLog(),
-            userColl = svc._db.collection('users'),
-            subject, data, template, action;
+            userColl = svc._db.collection('users');
         
-        if (approvingUpdate(req)) {
-            subject = 'Your campaign update has been approved!';
-            data = {
-                campName: req.campaign.name,
-                contact: updateModule.config.emails.supportAddress
-            };
-            template = 'updateRequestApproved.html';
-            action = 'approved';
-        }
-        else if (rejectingUpdate(req)) {
-            subject = 'Your campaign update has been rejected';
-            data = {
-                campName: req.campaign.name,
-                reason: req.body.rejectionReason,
-                contact: updateModule.config.emails.supportAddress
-            };
-            template = 'updateRequestRejected.html';
-            action = 'rejected';
-        }
-        else {
+        if (!approvingUpdate(req) && !rejectingUpdate(req)) {
             return q(next());
         }
-        
+
         return q.npost(userColl, 'findOne', [
             { id: req.campaign.user },
             { fields: { id: 1, email: 1 } }
@@ -495,17 +470,34 @@
                          req.uuid, req.campaign.id, req.campaign.user);
                 return next();
             }
+            
+            var emailPromise, action;
+            
+            if (approvingUpdate(req)) {
+                emailPromise = email.updateApproved(
+                    updateModule.config.emails.sender,
+                    user.email,
+                    !!req.origObj.initialSubmit,
+                    req.campaign.name,
+                    updateModule.config.emails.dashboardLink
+                );
+                action = 'approved';
+            } else {
+                emailPromise = email.updateRejected(
+                    updateModule.config.emails.sender,
+                    user.email,
+                    !!req.origObj.initialSubmit,
+                    req.campaign.name,
+                    updateModule.config.emails.dashboardLink,
+                    req.body.rejectionReason
+                );
+                action = 'rejected';
+            }
 
-            log.info('[%1] Notifying user %2 at %3 that request %3 was %4',
+            log.info('[%1] Notifying user %2 at %3 that request %4 was %5',
                      req.uuid, req.campaign.user, user.email, req.origObj.id, action);
             
-            return email.compileAndSend(
-                updateModule.config.emails.sender,
-                user.email,
-                subject,
-                template,
-                data
-            );
+            return emailPromise;
         })
         .then(function() {
             return next();

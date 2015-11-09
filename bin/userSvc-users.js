@@ -107,7 +107,7 @@
         var giveActivationToken = userModule.giveActivationToken.bind(userModule,
             config.activationTokenTTL);
         var sendActivationEmail = userModule.sendActivationEmail.bind(userModule,
-            config.ses.sender, config.activationTarget);
+            config.emails.sender, config.emails.activationTarget);
         var setupSignupUser = userModule.setupSignupUser.bind(userModule, userSvc,
             config.newUserPermissions.roles, config.newUserPermissions.policies);
         var validatePassword = userModule.validatePassword;
@@ -115,7 +115,7 @@
         var createLinkedEntities = userModule.createLinkedEntities.bind(userModule, config.api,
             config.port, cache);
         var sendConfirmationEmail = userModule.sendConfirmationEmail.bind(userModule,
-            config.ses.sender);
+            config.emails.sender, config.emails.dashboardLink);
         var handleBrokenUser = userModule.handleBrokenUser.bind(userModule, userSvc);
 
         // override some default CrudSvc methods with custom versions for users
@@ -454,10 +454,11 @@
             reqEmail = req.body.email,
             log = logger.getLog();
 
+        // Add query params to target url, handling possibility url already has query params
         var link = target + ((target.indexOf('?') === -1) ? '?' : '&') +
             'id=' + id + '&token=' + token;
 
-        return email.sendActivationEmail(sender, reqEmail, link)
+        return email.activateAccount(sender, reqEmail, link)
             .then(function() {
                 delete req.tempToken;
                 return next();
@@ -473,9 +474,9 @@
             });
     };
 
-    userModule.sendConfirmationEmail = function(sender, req, next) {
+    userModule.sendConfirmationEmail = function(sender, dashboardLink, req, next) {
         var recipient = req.user.email;
-        return email.notifyAccountActivation(sender, recipient).then(function() {
+        return email.accountWasActivated(sender, recipient, dashboardLink).then(function() {
             return next();
         });
     };
@@ -563,7 +564,7 @@
     };
 
     // Custom method used to change the user's password.
-    userModule.changePassword = function changePassword(svc, req, emailSender) {
+    userModule.changePassword = function changePassword(svc, req, emailSender, supportContact) {
         var log = logger.getLog();
 
         return svc.customMethod(req, 'changePassword', function doChange() {
@@ -575,7 +576,7 @@
                 .then(function sendEmail() {
                     log.info('[%1] User %2 successfully changed their password', req.uuid, user.id);
 
-                    email.notifyPwdChange(emailSender, notifyEmail)
+                    email.passwordChanged(emailSender, notifyEmail, supportContact)
                         .then(function logSuccess() {
                             log.info('[%1] Notified user of change at %2', req.uuid, notifyEmail);
                         })
@@ -620,15 +621,11 @@
     };
 
     // Custom method to change the user's email.
-    userModule.changeEmail = function changeEmail(svc, req, emailSender) {
+    userModule.changeEmail = function changeEmail(svc, req, emailSender, supportContact) {
         var log = logger.getLog();
 
         function notifyEmailChange(oldEmail, newEmail) {
-            var SUBJECT = 'Your Account Email Address Has Changed';
-            var TEMPLATE = 'emailChange.html';
-            var TEMPLATE_VARS = { newEmail: newEmail, sender: emailSender };
-
-            return email.compileAndSend(emailSender, oldEmail, SUBJECT, TEMPLATE, TEMPLATE_VARS);
+            return email.emailChanged(emailSender, oldEmail, newEmail, supportContact);
         }
 
         return svc.customMethod(req, 'changeEmail', function doChange() {
@@ -868,10 +865,11 @@
         app.post('/__internal/sixxyUserSession', sessions, function(req, res) {
             userModule.insertSixxySession(req, res, config);
         });
-
+        
         var credsChecker = authUtils.userPassChecker();
         router.post('/email', credsChecker, audit, function(req, res) {
-            userModule.changeEmail(svc, req, config.ses.sender).then(function(resp) {
+            userModule.changeEmail(svc, req, config.emails.sender, config.emails.supportAddress)
+            .then(function(resp) {
                 res.send(resp.code, resp.body);
             }).catch(function(error) {
                 res.send(500, {
@@ -882,7 +880,8 @@
         });
 
         router.post('/password', credsChecker, audit, function(req, res) {
-            userModule.changePassword(svc, req, config.ses.sender).then(function(resp) {
+            userModule.changePassword(svc, req, config.emails.sender, config.emails.supportAddress)
+            .then(function(resp) {
                 res.send(resp.code, resp.body);
             }).catch(function(error) {
                 res.send(500, {

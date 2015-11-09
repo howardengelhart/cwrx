@@ -42,12 +42,18 @@
                 retryConnect : true
             }
         },
-        ses: {
-            region: 'us-east-1',
-            sender: 'support@cinema6.com'
+        emails: {
+            awsRegion: 'us-east-1',
+            sender: 'no-reply@cinema6.com',
+            supportAddress: 'support@cinema6.com'
         },
         forgotTargets: {
-            portal: 'https://portal.cinema6.com/forgot'
+            portal: 'http://localhost:9000/#/password/reset',
+            selfie: 'http://localhost:9000/#/pass/reset?selfie=true'
+        },
+        passwordResetPages: {
+            portal: 'http://localhost:9000/#/password/forgot',
+            selfie: 'http://localhost:9000/#/pass/forgot?selfie=true'
         },
         mongo: {
             c6Db: {
@@ -76,10 +82,6 @@
             ttl: 15*60*1000,            // 15 minutes; unit here is milliseconds
             threshold: 3
         },
-        passwordResetPages: {
-            portal: 'https://portal.cinema6.com/#/password/forgot',
-            selfie: 'https://selfie.cinema6.com/#/password/forgot'
-        },
         secretsPath     : path.join(process.env.HOME,'.auth.secrets.json')
     };
 
@@ -93,7 +95,6 @@
             userAccount,
             maxAge = config.sessions.maxAge,
             loginAttempts = config.loginAttempts,
-            emailSender = config.ses.sender,
             targets = config.passwordResetPages;
             
         req.body.email = req.body.email.toLowerCase();
@@ -117,14 +118,17 @@
                         .then(function(numAttempts) {
                             log.info('[%1] Failed login attempt #%2 for user %3: invalid password',
                                      req.uuid, numAttempts, req.body.email);
-                            if(numAttempts === loginAttempts.threshold) {
+                            if (numAttempts === loginAttempts.threshold) {
                                 log.info('[%1] Sending email to %2 suggesting password reset ' +
                                     'after %3 failed login attempts',
                                     req.uuid, req.body.email, numAttempts);
                                     
                                 var target = targets[(userAccount.external) ? 'selfie' : 'portal'];
-                                return email.notifyMultipleLoginAttempts(emailSender,
-                                    req.body.email, target);
+                                return email.failedLogins(
+                                    config.emails.sender,
+                                    req.body.email,
+                                    target
+                                );
                             }
                         })
                         .catch(function(error) {
@@ -192,18 +196,12 @@
         return deferred.promise;
     };
     
-    auth.mailResetToken = function(sender, recipient, url) {
-        var subject = 'Reset your Cinema6 Password',
-            data = {url: url};
-        return email.compileAndSend(sender, recipient, subject, 'pwdReset.html', data);
-    };
-    
-    auth.forgotPassword = function(req, users, resetTokenTTL, emailSender, targets, auditJournal) {
+    auth.forgotPassword = function(req, users, config, auditJournal) {
         var log = logger.getLog(),
             now = new Date(),
             reqEmail = req.body && req.body.email,
             targetName = req.body && req.body.target || '',
-            target = targets[targetName] || '',
+            target = config.forgotTargets[targetName] || '',
             token;
         
         if (typeof reqEmail !== 'string' || !targetName) {
@@ -212,7 +210,7 @@
         }
         if (!target) {
             log.info('[%1] Invalid target %2, only accept %3',
-                     req.uuid, targetName, Object.keys(targets));
+                     req.uuid, targetName, Object.keys(config.forgotTargets));
             return q({code: 400, body: 'Invalid target'});
         }
         
@@ -243,7 +241,10 @@
                 var updates = {
                     $set: {
                         lastUpdated: now,
-                        resetToken: {token:hashed, expires:new Date(now.valueOf() + resetTokenTTL)}
+                        resetToken: {
+                            token: hashed,
+                            expires: new Date(now.valueOf() + config.resetTokenTTL)
+                        }
                     }
                 };
                 return q.npost(users, 'update', [{email:reqEmail}, updates, {w:1, journal:true}]);
@@ -254,7 +255,7 @@
                 var url = target + ((target.indexOf('?') === -1) ? '?' : '&') +
                           'id=' + account.id + '&token=' + token;
 
-                return auth.mailResetToken(emailSender, reqEmail, url);
+                return email.resetPassword(config.emails.sender, reqEmail, url);
             })
             .then(function() {
                 log.info('[%1] Successfully sent reset email to %2', req.uuid, reqEmail);
@@ -267,7 +268,7 @@
         });
     };
     
-    auth.resetPassword = function(req, users, emailSender, cookieMaxAge, auditJournal, sessions) {
+    auth.resetPassword = function(req, users, config, auditJournal, sessions) {
         var log = logger.getLog(),
             id = req.body && req.body.id,
             token = req.body && req.body.token,
@@ -325,7 +326,11 @@
                     updatedAccount = results[0];
                     log.info('[%1] User %2 successfully reset their password', req.uuid, id);
                     
-                    email.notifyPwdChange(emailSender, account.email)
+                    email.passwordChanged(
+                        config.emails.sender,
+                        account.email,
+                        config.emails.supportAddress
+                    )
                     .then(function() {
                         log.info('[%1] Notified user of change at %2', req.uuid, account.email);
                     }).catch(function(error) {
@@ -342,7 +347,7 @@
                     return authUtils.decorateUser(mongoUtils.safeUser(updatedAccount));
                 }).then(function(decorated) {
                     req.session.user = decorated.id;
-                    req.session.cookie.maxAge = cookieMaxAge;
+                    req.session.cookie.maxAge = config.sessions.maxAge;
                     return q({ code: 200, body: decorated });
                 });
             });
@@ -368,7 +373,7 @@
                                                     state.config.appVersion, state.config.appName);
         authUtils._db = state.dbs.c6Db;
         
-        aws.config.region = state.config.ses.region;
+        aws.config.region = state.config.emails.region;
 
         var sessionOpts = {
             key: state.config.sessions.key,
@@ -443,8 +448,7 @@
         });
         
         app.post('/api/auth/password/forgot', function(req, res) {
-            auth.forgotPassword(req, users, state.config.resetTokenTTL, state.config.ses.sender,
-                                state.config.forgotTargets, auditJournal)
+            auth.forgotPassword(req, users, state.config, auditJournal)
             .then(function(resp) {
                 res.send(resp.code, resp.body);
             }).catch(function(/*error*/) {
@@ -455,8 +459,8 @@
         });
         
         app.post('/api/auth/password/reset', sessionsWrapper, function(req, res) {
-            auth.resetPassword(req, users, state.config.ses.sender, state.config.sessions.maxAge,
-                               auditJournal, state.sessionStore.db.collection('sessions'))
+            auth.resetPassword(req, users, state.config, auditJournal,
+                               state.sessionStore.db.collection('sessions'))
             .then(function(resp) {
                 res.send(resp.code, resp.body);
             }).catch(function(/*error*/) {

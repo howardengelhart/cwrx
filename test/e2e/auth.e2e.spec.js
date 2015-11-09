@@ -12,12 +12,11 @@ var q               = require('q'),
     };
 
 describe('auth (E2E):', function() {
-    var now, mockUser, mockPol, mailman, urlRegex;
+    var now, mockUser, mockPol, mailman;
     beforeEach(function(done) {
         jasmine.DEFAULT_TIMEOUT_INTERVAL = 30000;
 
         now = new Date();
-        urlRegex = /https:\/\/.*cinema6.com.*id=u-1.*token=[0-9a-f]{48}/;
 
         mockUser = {
             id : 'u-1',
@@ -277,13 +276,13 @@ describe('auth (E2E):', function() {
                     done();
                 });
 
-                var msgSubject = 'Need help logging in?';
-                urlRegex = /https:\/\/.*cinema6.com.*/;
+                var msgSubject = 'ReelContent: Multiple-Failed Logins',
+                    regex = /consecutive\s*failed\s*login\s*attempts/;
                 mailman.once(msgSubject, function(msg) {
-                    expect(msg.from[0].address).toBe('support@cinema6.com');
+                    expect(msg.from[0].address).toBe('no-reply@cinema6.com');
                     expect(msg.to[0].address).toBe('c6e2etester@gmail.com');
-                    expect(msg.text).toMatch(urlRegex);
-                    expect(msg.html).toMatch(urlRegex);
+                    expect(msg.text).toMatch(regex);
+                    expect(msg.html).toMatch(regex);
                     expect(new Date() - msg.date).toBeLessThan(30000); // message should be recent
                     
                     getCacheValue().then(function(value) {
@@ -520,7 +519,7 @@ describe('auth (E2E):', function() {
                 url: config.authUrl + '/password/forgot',
                 json: { email: 'c6e2etester@gmail.com', target: 'portal' }
             };
-            msgSubject = 'Reset your Cinema6 Password';
+            msgSubject = 'Forgot Your Password?';
             testUtils.resetCollection('users', mockUser).done(done);
         });
 
@@ -590,8 +589,9 @@ describe('auth (E2E):', function() {
                 done();
             });
             mailman.once(msgSubject, function(msg) {
-                expect(msg.from[0].address).toBe('support@cinema6.com');
+                expect(msg.from[0].address).toBe('no-reply@cinema6.com');
                 expect(msg.to[0].address).toBe('c6e2etester@gmail.com');
+                var urlRegex = /https?:\/\/.*id=u-1.*token=[0-9a-f]{48}/;
                 expect(msg.text).toMatch(urlRegex);
                 expect(msg.html).toMatch(urlRegex);
                 expect(new Date() - msg.date).toBeLessThan(30000); // message should be recent
@@ -644,7 +644,7 @@ describe('auth (E2E):', function() {
                 json: { id: 'u-1', token: 'fakeToken', newPassword: 'newPass', },
                 jar: true
             };
-            msgSubject = 'Your account password has been changed';
+            msgSubject = 'ReelContent Password Change Notice';
             mockUser.resetToken = {
                 expires: new Date(new Date().valueOf() + 40000),
                 token: '$2a$10$wP7fqLDue/lWc4eNQS9qCe0JNQGNzUTVQsUUEUi2SWHof3Xtf/PP2' // hash of fakeToken
@@ -713,10 +713,11 @@ describe('auth (E2E):', function() {
             });
 
             mailman.once(msgSubject, function(msg) {
-                expect(msg.from[0].address).toBe('support@cinema6.com');
+                expect(msg.from[0].address).toBe('no-reply@cinema6.com');
                 expect(msg.to[0].address).toBe('c6e2etester@gmail.com');
-                expect(msg.text).toBeDefined();
-                expect(msg.html).toBeDefined();
+                var regex = /Your\s*ReelContent\s*password\s*was\s*changed\s*on.*at/;
+                expect(msg.text).toMatch(regex);
+                expect(msg.html).toMatch(regex);
                 expect((new Date() - msg.date)).toBeLessThan(30000); // message should be recent
 
                 var loginOpts = {
@@ -852,7 +853,7 @@ describe('auth (E2E):', function() {
                 done();
             });
 
-            mailman.once('Reset your Cinema6 Password', function(msg) {
+            mailman.once('Forgot Your Password?', function(msg) {
                 var token = (msg.text.match(/[0-9a-f]{48}/) || [])[0];
                 expect(token).toBeDefined();
                 expect(new Date() - msg.date).toBeLessThan(30000); // message should be recent

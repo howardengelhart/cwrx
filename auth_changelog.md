@@ -1,5 +1,9 @@
 # Auth Service Changelog
 
+* Integrate designed email templates: [#553](https://github.com/cinema6/cwrx/issues/553)
+* Extra deployment steps:
+    * Deploy auth cookbook 1.3.5 to staging/production envs
+
 ### 1.5.0: Thu Nov  5 12:13:27 EST 2015
 * [FEATURE]: Email user on repeated failed login attempts to their account [#485](https://github.com/cinema6/cwrx/issues/485)
 * Expire login sessions after 30 minutes [#487](https://github.com/cinema6/cwrx/issues/487)

@@ -1,7 +1,7 @@
 var flush = true;
 describe('auth (UT)', function() {
     var auth, mockLog, req, users, q, uuid, logger, mongoUtils, authUtils, email, enums,
-        Status, bcrypt, anyFunc, auditJournal, mockCache;
+        Status, bcrypt, anyFunc, auditJournal, mockCache, config;
         
     beforeEach(function() {
         if (flush) { for (var m in require.cache){ delete require.cache[m]; } flush = false; }
@@ -31,6 +31,30 @@ describe('auth (UT)', function() {
         };
         spyOn(logger, 'createLog').and.returnValue(mockLog);
         spyOn(logger, 'getLog').and.returnValue(mockLog);
+
+        config = {
+            sessions: {
+                maxAge: 1000
+            },
+            loginAttempts: {
+                ttl: 15*60*1000,
+                threshold: 3
+            },
+            emails: {
+                sender: 'no-reply@cinema6.com',
+                supportAddress: 'support@cinema6.com'
+            },
+            forgotTargets: {
+                portal: 'https://portal.c6.com/forgot',
+                selfie: 'https://staging.cinema6.com/#/?selfie=barf',
+            },
+            passwordResetPages: {
+                portal: 'portal link',
+                selfie: 'selfie link'
+            },
+            resetTokenTTL: 1*30*60*1000
+        };
+
         req = {
             uuid: '12345',
             session: {
@@ -52,25 +76,9 @@ describe('auth (UT)', function() {
     });
     
     describe('login', function() {
-        var origUser, config;
+        var origUser;
 
         beforeEach(function() {
-            config = {
-                sessions: {
-                    maxAge: 1000
-                },
-                loginAttempts: {
-                    ttl: 15*60*1000,
-                    threshold: 3
-                },
-                ses: {
-                    sender: 'support@cinema6.com'
-                },
-                passwordResetPages: {
-                    portal: 'portal link',
-                    selfie: 'selfie link'
-                }
-            };
             req.body = { email: 'user', password: 'pass' };
             origUser = {
                 id: 'u-123',
@@ -172,7 +180,7 @@ describe('auth (UT)', function() {
                 bcrypt.compare.and.callFake(function(pass, hashed, cb) {
                     cb(null, false);
                 });
-                spyOn(email, 'notifyMultipleLoginAttempts');
+                spyOn(email, 'failedLogins');
             });
 
             it('should resolve with a 401 code', function(done) {
@@ -183,7 +191,7 @@ describe('auth (UT)', function() {
                     expect(req.session.regenerate).not.toHaveBeenCalled();
                     expect(bcrypt.compare).toHaveBeenCalled();
                     expect(authUtils.decorateUser).not.toHaveBeenCalled();
-                    expect(email.notifyMultipleLoginAttempts).not.toHaveBeenCalled();
+                    expect(email.failedLogins).not.toHaveBeenCalled();
                 }).catch(function(error) {
                     expect(error.toString()).not.toBeDefined();
                 }).done(done);
@@ -193,7 +201,7 @@ describe('auth (UT)', function() {
                 auth.login(req, users, config, auditJournal, mockCache).then(function() {
                     expect(mockCache.add).toHaveBeenCalledWith('loginAttempts:u-123', 0, 900000);
                     expect(mockCache.incrTouch).toHaveBeenCalledWith('loginAttempts:u-123', 1, 900000);
-                    expect(email.notifyMultipleLoginAttempts).not.toHaveBeenCalled();
+                    expect(email.failedLogins).not.toHaveBeenCalled();
                 }).catch(function(error) {
                     expect(error.toString()).not.toBeDefined();
                 }).done(done);
@@ -204,7 +212,7 @@ describe('auth (UT)', function() {
                 origUser.external = false;
                 
                 auth.login(req, users, config, auditJournal, mockCache).then(function() {
-                    expect(email.notifyMultipleLoginAttempts).toHaveBeenCalledWith('support@cinema6.com', 'user', 'portal link');
+                    expect(email.failedLogins).toHaveBeenCalledWith('no-reply@cinema6.com', 'user', 'portal link');
                 }).catch(function(error) {
                     expect(error.toString()).not.toBeDefined();
                 }).done(done);
@@ -216,7 +224,7 @@ describe('auth (UT)', function() {
                 
                 mockCache.incrTouch.and.returnValue(3);
                 auth.login(req, users, config, auditJournal, mockCache).then(function() {
-                    expect(email.notifyMultipleLoginAttempts).toHaveBeenCalledWith('support@cinema6.com', 'user', 'selfie link');
+                    expect(email.failedLogins).toHaveBeenCalledWith('no-reply@cinema6.com', 'user', 'selfie link');
                 }).catch(function(error) {
                     expect(error.toString()).not.toBeDefined();
                 }).done(done);
@@ -235,7 +243,7 @@ describe('auth (UT)', function() {
 
             it('should not reject if sending the notification email to the user fails', function(done) {
                 mockCache.incrTouch.and.returnValue(3);
-                email.notifyMultipleLoginAttempts.and.returnValue(q.reject('error'));
+                email.failedLogins.and.returnValue(q.reject('error'));
 
                 auth.login(req, users, config, auditJournal, mockCache).then(function(resp) {
                     expect(resp).toEqual({code:401,body:'Invalid email or password'})
@@ -443,32 +451,6 @@ describe('auth (UT)', function() {
         });
     });
     
-    describe('mailResetToken', function() {
-        beforeEach(function() {
-            spyOn(email, 'compileAndSend').and.returnValue(q('success'));
-        });
-        
-        it('should correctly call compileAndSend', function(done) {
-            auth.mailResetToken('send', 'recip', 'reset-pwd.com').then(function(resp) {
-                expect(resp).toBe('success');
-                expect(email.compileAndSend).toHaveBeenCalledWith('send','recip',
-                    'Reset your Cinema6 Password','pwdReset.html',{url:'reset-pwd.com'});
-            }).catch(function(error) {
-                expect(error.toString()).not.toBeDefined();
-            }).done(done);
-        });
-        
-        it('should pass along errors from compileAndSend', function(done) {
-            email.compileAndSend.and.returnValue(q.reject('I GOT A PROBLEM'));
-            auth.mailResetToken('send', 'recip', 'reset-pwd.com').then(function(resp) {
-                expect(resp).not.toBeDefined();
-            }).catch(function(error) {
-                expect(error).toBe('I GOT A PROBLEM');
-                expect(email.compileAndSend).toHaveBeenCalled();
-            }).done(done);
-        });
-    });
-    
     describe('forgotPassword', function() {
         var origUser, targets;
         beforeEach(function() {
@@ -485,14 +467,14 @@ describe('auth (UT)', function() {
             spyOn(crypto, 'randomBytes').and.callFake(function(bytes, cb) { cb(null, new Buffer('HELLO')); });
             spyOn(bcrypt, 'genSaltSync').and.returnValue('sodiumChloride');
             spyOn(bcrypt, 'hash').and.callFake(function(txt, salt, cb) { cb(null, 'hashToken'); });
-            spyOn(auth, 'mailResetToken').and.returnValue(q('success'));
+            spyOn(email, 'resetPassword').and.returnValue(q('success'));
         });
         
         it('should fail with a 400 if the request is incomplete', function(done) {
             var bodies = [{email: 'user@c6.com'}, {target: 'portal'}];
             q.all(bodies.map(function(body) {
                 req.body = body;
-                return auth.forgotPassword(req, users, 10000, 'test@c6.com', targets, auditJournal);
+                return auth.forgotPassword(req, users, config, auditJournal);
             })).then(function(results) {
                 results.forEach(function(resp) {
                     expect(resp.code).toBe(400);
@@ -500,7 +482,7 @@ describe('auth (UT)', function() {
                 });
                 expect(users.findOne).not.toHaveBeenCalled();
                 expect(users.update).not.toHaveBeenCalled();
-                expect(auth.mailResetToken).not.toHaveBeenCalled();
+                expect(email.resetPassword).not.toHaveBeenCalled();
                 expect(auditJournal.writeAuditEntry).not.toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
@@ -509,12 +491,12 @@ describe('auth (UT)', function() {
         
         it('should fail with a 400 if the email is not a string', function(done) {
             req.body.email = { $gt: '' };
-            auth.forgotPassword(req, users, 10000, 'test@c6.com', targets).then(function(resp) {
+            auth.forgotPassword(req, users, config, auditJournal).then(function(resp) {
                 expect(resp.code).toBe(400);
                 expect(resp.body).toBe('Need to provide email and target in the request');
                 expect(users.findOne).not.toHaveBeenCalled();
                 expect(users.update).not.toHaveBeenCalled();
-                expect(auth.mailResetToken).not.toHaveBeenCalled();
+                expect(email.resetPassword).not.toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
             }).done(done);
@@ -522,13 +504,13 @@ describe('auth (UT)', function() {
         
         it('should fail with a 400 if the target is invalid', function(done) {
             req.body.target = 'fake';
-            auth.forgotPassword(req, users, 10000, 'test@c6.com', targets, auditJournal).then(function(resp) {
+            auth.forgotPassword(req, users, config, auditJournal).then(function(resp) {
                 expect(resp).toBeDefined();
                 expect(resp.code).toBe(400);
                 expect(resp.body).toBe('Invalid target');
                 expect(users.findOne).not.toHaveBeenCalled();
                 expect(users.update).not.toHaveBeenCalled();
-                expect(auth.mailResetToken).not.toHaveBeenCalled();
+                expect(email.resetPassword).not.toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
             }).done(done);
@@ -536,7 +518,7 @@ describe('auth (UT)', function() {
         
         it('should successfully create and mail a password reset token', function(done) {
             var now = new Date();
-            auth.forgotPassword(req, users, 10000, 'test@c6.com', targets, auditJournal).then(function(resp) {
+            auth.forgotPassword(req, users, config, auditJournal).then(function(resp) {
                 expect(resp.code).toBe(200);
                 expect(resp.body).toBe('Successfully generated reset token');
                 expect(users.findOne).toHaveBeenCalledWith({email: 'user@c6.com'}, anyFunc);
@@ -547,9 +529,9 @@ describe('auth (UT)', function() {
                     { $set: { lastUpdated: jasmine.any(Date),
                               resetToken: { token: 'hashToken', expires: jasmine.any(Date) } } },
                     { w: 1, journal: true}, anyFunc);
-                expect((users.update.calls.all()[0].args[1]['$set'].resetToken.expires - now) >= 10000).toBeTruthy();
-                expect(auth.mailResetToken).toHaveBeenCalledWith('test@c6.com', 'user@c6.com',
-                    'https://c6.com/forgot?id=u-1&token=48454c4c4f');
+                expect((users.update.calls.argsFor(0)[1]['$set'].resetToken.expires - now) >= 10000).toBeTruthy();
+                expect(email.resetPassword).toHaveBeenCalledWith('no-reply@cinema6.com', 'user@c6.com',
+                    'https://portal.c6.com/forgot?id=u-1&token=48454c4c4f');
                 expect(auditJournal.writeAuditEntry).toHaveBeenCalledWith(req, 'u-1');
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
@@ -558,13 +540,13 @@ describe('auth (UT)', function() {
 
         it('should convert the request email to lowercase', function(done) {
             req.body.email = 'USER@c6.Com';
-            auth.forgotPassword(req, users, 10000, 'test@c6.com', targets, auditJournal).then(function(resp) {
+            auth.forgotPassword(req, users, config, auditJournal).then(function(resp) {
                 expect(resp.code).toBe(200);
                 expect(resp.body).toBe('Successfully generated reset token');
                 expect(users.findOne).toHaveBeenCalledWith({email: 'user@c6.com'}, anyFunc);
                 expect(users.update.calls.all()[0].args[0]).toEqual({ email: 'user@c6.com' });
-                expect(auth.mailResetToken).toHaveBeenCalledWith('test@c6.com', 'user@c6.com',
-                    'https://c6.com/forgot?id=u-1&token=48454c4c4f');
+                expect(email.resetPassword).toHaveBeenCalledWith('no-reply@cinema6.com', 'user@c6.com',
+                    'https://portal.c6.com/forgot?id=u-1&token=48454c4c4f');
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
             }).done(done);
@@ -573,12 +555,12 @@ describe('auth (UT)', function() {
         it('should handle target urls with query parameters', function(done) {
             targets.selfie = 'https://staging.cinema6.com/#/?selfie=barf';
             req.body.target = 'selfie';
-            auth.forgotPassword(req, users, 10000, 'test@c6.com', targets, auditJournal).then(function(resp) {
+            auth.forgotPassword(req, users, config, auditJournal).then(function(resp) {
                 expect(resp.code).toBe(200);
                 expect(resp.body).toBe('Successfully generated reset token');
                 expect(users.findOne).toHaveBeenCalledWith({email: 'user@c6.com'}, anyFunc);
                 expect(users.update.calls.all()[0].args[0]).toEqual({ email: 'user@c6.com' });
-                expect(auth.mailResetToken).toHaveBeenCalledWith('test@c6.com', 'user@c6.com',
+                expect(email.resetPassword).toHaveBeenCalledWith('no-reply@cinema6.com', 'user@c6.com',
                     'https://staging.cinema6.com/#/?selfie=barf&id=u-1&token=48454c4c4f');
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
@@ -587,13 +569,13 @@ describe('auth (UT)', function() {
 
         it('should fail with a 404 if the user does not exist', function(done) {
             users.findOne.and.callFake(function(query, cb) { cb(null, null); });
-            auth.forgotPassword(req, users, 10000, 'test@c6.com', targets, auditJournal).then(function(resp) {
+            auth.forgotPassword(req, users, config, auditJournal).then(function(resp) {
                 expect(resp.code).toBe(404);
                 expect(resp.body).toBe('That user does not exist');
                 expect(users.findOne).toHaveBeenCalled();
                 expect(crypto.randomBytes).not.toHaveBeenCalled();
                 expect(users.update).not.toHaveBeenCalled();
-                expect(auth.mailResetToken).not.toHaveBeenCalled();
+                expect(email.resetPassword).not.toHaveBeenCalled();
                 expect(auditJournal.writeAuditEntry).not.toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
@@ -602,13 +584,13 @@ describe('auth (UT)', function() {
 
         it('should fail with a 403 if the user is not active', function(done) {
             origUser.status = Status.Inactive;
-            auth.forgotPassword(req, users, 10000, 'test@c6.com', targets, auditJournal).then(function(resp) {
+            auth.forgotPassword(req, users, config, auditJournal).then(function(resp) {
                 expect(resp.code).toBe(403);
                 expect(resp.body).toBe('Account not active');
                 expect(users.findOne).toHaveBeenCalled();
                 expect(crypto.randomBytes).not.toHaveBeenCalled();
                 expect(users.update).not.toHaveBeenCalled();
-                expect(auth.mailResetToken).not.toHaveBeenCalled();
+                expect(email.resetPassword).not.toHaveBeenCalled();
                 expect(auditJournal.writeAuditEntry).not.toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
@@ -617,7 +599,7 @@ describe('auth (UT)', function() {
         
         it('should overwrite a previous token if one exists', function(done) {
             origUser.resetToken = { expires: new Date(), token: 'oldToken' };
-            auth.forgotPassword(req, users, 10000, 'test@c6.com', targets, auditJournal).then(function(resp) {
+            auth.forgotPassword(req, users, config, auditJournal).then(function(resp) {
                 expect(resp.code).toBe(200);
                 expect(resp.body).toBe('Successfully generated reset token');
                 expect(users.findOne).toHaveBeenCalled();
@@ -625,7 +607,7 @@ describe('auth (UT)', function() {
                     { $set: { lastUpdated: jasmine.any(Date),
                               resetToken: { token: 'hashToken', expires: jasmine.any(Date) } } },
                     { w: 1, journal: true}, anyFunc);
-                expect(auth.mailResetToken).toHaveBeenCalled();
+                expect(email.resetPassword).toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
             }).done(done);
@@ -633,10 +615,10 @@ describe('auth (UT)', function() {
 
         it('should not reject if writing to the journal fails', function(done) {
             auditJournal.writeAuditEntry.and.returnValue(q.reject('audit journal fail'));
-            auth.forgotPassword(req, users, 10000, 'test@c6.com', targets, auditJournal).then(function(resp) {
+            auth.forgotPassword(req, users, config, auditJournal).then(function(resp) {
                 expect(resp.code).toBe(200);
                 expect(resp.body).toBe('Successfully generated reset token');
-                expect(auth.mailResetToken).toHaveBeenCalled();
+                expect(email.resetPassword).toHaveBeenCalled();
                 expect(auditJournal.writeAuditEntry).toHaveBeenCalled();
                 expect(mockLog.warn).not.toHaveBeenCalled();
                 expect(mockLog.error).not.toHaveBeenCalled();
@@ -647,20 +629,20 @@ describe('auth (UT)', function() {
         
         it('should fail if looking up the user fails', function(done) {
             users.findOne.and.callFake(function(query, cb) { cb('I GOT A PROBLEM', null); });
-            auth.forgotPassword(req, users, 10000, 'test@c6.com', targets, auditJournal).then(function(resp) {
+            auth.forgotPassword(req, users, config, auditJournal).then(function(resp) {
                 expect(resp).not.toBeDefined();
             }).catch(function(error) {
                 expect(error).toBe('I GOT A PROBLEM');
                 expect(users.findOne).toHaveBeenCalled();
                 expect(crypto.randomBytes).not.toHaveBeenCalled();
                 expect(users.update).not.toHaveBeenCalled();
-                expect(auth.mailResetToken).not.toHaveBeenCalled();
+                expect(email.resetPassword).not.toHaveBeenCalled();
             }).done(done);
         });
         
         it('should fail if creating a random token fails', function(done) {
             crypto.randomBytes.and.callFake(function(bytes, cb) { cb('I GOT A PROBLEM', null); });
-            auth.forgotPassword(req, users, 10000, 'test@c6.com', targets, auditJournal).then(function(resp) {
+            auth.forgotPassword(req, users, config, auditJournal).then(function(resp) {
                 expect(resp).not.toBeDefined();
             }).catch(function(error) {
                 expect(error).toBe('I GOT A PROBLEM');
@@ -668,44 +650,44 @@ describe('auth (UT)', function() {
                 expect(crypto.randomBytes).toHaveBeenCalled();
                 expect(bcrypt.hash).not.toHaveBeenCalled();
                 expect(users.update).not.toHaveBeenCalled();
-                expect(auth.mailResetToken).not.toHaveBeenCalled();
+                expect(email.resetPassword).not.toHaveBeenCalled();
             }).done(done);
         });
         
         it('should fail if hashing the token fails', function(done) {
             bcrypt.hash.and.callFake(function(txt, salt, cb) { cb('I GOT A PROBLEM', null); });
-            auth.forgotPassword(req, users, 10000, 'test@c6.com', targets, auditJournal).then(function(resp) {
+            auth.forgotPassword(req, users, config, auditJournal).then(function(resp) {
                 expect(resp).not.toBeDefined();
             }).catch(function(error) {
                 expect(error).toBe('I GOT A PROBLEM');
                 expect(users.findOne).toHaveBeenCalled();
                 expect(bcrypt.hash).toHaveBeenCalled();
                 expect(users.update).not.toHaveBeenCalled();
-                expect(auth.mailResetToken).not.toHaveBeenCalled();
+                expect(email.resetPassword).not.toHaveBeenCalled();
             }).done(done);
         });
         
         it('should fail if saving the token to the db fails', function(done) {
             users.update.and.callFake(function(query, obj, opts, cb) { cb('I GOT A PROBLEM', null); });
-            auth.forgotPassword(req, users, 10000, 'test@c6.com', targets, auditJournal).then(function(resp) {
+            auth.forgotPassword(req, users, config, auditJournal).then(function(resp) {
                 expect(resp).not.toBeDefined();
             }).catch(function(error) {
                 expect(error).toBe('I GOT A PROBLEM');
                 expect(users.findOne).toHaveBeenCalled();
                 expect(users.update).toHaveBeenCalled();
-                expect(auth.mailResetToken).not.toHaveBeenCalled();
+                expect(email.resetPassword).not.toHaveBeenCalled();
             }).done(done);
         });
         
         it('should fail if sending the email fails', function(done) {
-            auth.mailResetToken.and.returnValue(q.reject('I GOT A PROBLEM'));
-            auth.forgotPassword(req, users, 10000, 'test@c6.com', targets, auditJournal).then(function(resp) {
+            email.resetPassword.and.returnValue(q.reject('I GOT A PROBLEM'));
+            auth.forgotPassword(req, users, config, auditJournal).then(function(resp) {
                 expect(resp).not.toBeDefined();
             }).catch(function(error) {
                 expect(error).toBe('I GOT A PROBLEM');
                 expect(users.findOne).toHaveBeenCalled();
                 expect(users.update).toHaveBeenCalled();
-                expect(auth.mailResetToken).toHaveBeenCalled();
+                expect(email.resetPassword).toHaveBeenCalled();
             }).done(done);
         });
     });
@@ -726,7 +708,7 @@ describe('auth (UT)', function() {
             spyOn(bcrypt, 'compare').and.callFake(function(orig, hashed, cb) { cb(null, true); });
             spyOn(bcrypt, 'genSaltSync').and.returnValue('sodiumChloride');
             spyOn(bcrypt, 'hash').and.callFake(function(txt, salt, cb) { cb(null, 'hashPass'); });
-            spyOn(email, 'notifyPwdChange').and.returnValue(q('success'));
+            spyOn(email, 'passwordChanged').and.returnValue(q('success'));
             spyOn(authUtils, 'decorateUser').and.returnValue(q({ id: 'u-1', decorated: true }));
             sessions = {
                 remove: jasmine.createSpy('remove()').and.callFake(function(query, concern, cb) {
@@ -743,7 +725,7 @@ describe('auth (UT)', function() {
             ];
             q.all(bodies.map(function(body) {
                 req.body = body;
-                return auth.resetPassword(req, users, 'test@c6.com', 10000, auditJournal, sessions);
+                return auth.resetPassword(req, users, config, auditJournal, sessions);
             })).then(function(results) {
                 results.forEach(function(resp) {
                     expect(resp.code).toBe(400);
@@ -781,7 +763,7 @@ describe('auth (UT)', function() {
         });
         
         it('should successfully reset a user\'s password', function(done) {
-            auth.resetPassword(req, users, 'test@c6.com', 10000, auditJournal, sessions).then(function(resp) {
+            auth.resetPassword(req, users, config, auditJournal, sessions).then(function(resp) {
                 expect(resp.code).toBe(200);
                 expect(resp.body).toEqual({id: 'u-1', decorated: true});
                 expect(users.findOne).toHaveBeenCalledWith({id: 'u-1'}, anyFunc);
@@ -792,9 +774,9 @@ describe('auth (UT)', function() {
                     { $set : { password: 'hashPass', lastUpdated: jasmine.any(Date) },
                       $unset: { resetToken: 1 } },
                     { w: 1, journal: true, new: true }, anyFunc);
-                expect(email.notifyPwdChange).toHaveBeenCalledWith('test@c6.com', 'user@c6.com');
+                expect(email.passwordChanged).toHaveBeenCalledWith('no-reply@cinema6.com', 'user@c6.com', 'support@cinema6.com');
                 expect(req.session.user).toBe('u-1');
-                expect(req.session.cookie.maxAge).toBe(10000);
+                expect(req.session.cookie.maxAge).toBe(1000);
                 expect(req.session.regenerate).toHaveBeenCalled();
                 expect(mongoUtils.safeUser).toHaveBeenCalledWith({id:'u-1',updated:true,password:'hashPass'});
                 expect(auditJournal.writeAuditEntry).toHaveBeenCalledWith(req, 'u-1');
@@ -807,7 +789,7 @@ describe('auth (UT)', function() {
         
         it('should fail with a 404 if the user does not exist', function(done) {
             users.findOne.and.callFake(function(query, cb) { cb(null, null); });
-            auth.resetPassword(req, users, 'test@c6.com', 10000, auditJournal, sessions).then(function(resp) {
+            auth.resetPassword(req, users, config, auditJournal, sessions).then(function(resp) {
                 expect(resp.code).toBe(404);
                 expect(resp.body).toBe('That user does not exist');
                 expect(users.findOne).toHaveBeenCalled();
@@ -823,7 +805,7 @@ describe('auth (UT)', function() {
 
         it('should fail with a 403 if the user is not active', function(done) {
             origUser.status = Status.Inactive;
-            auth.resetPassword(req, users, 'test@c6.com', 10000, auditJournal, sessions).then(function(resp) {
+            auth.resetPassword(req, users, config, auditJournal, sessions).then(function(resp) {
                 expect(resp.code).toBe(403);
                 expect(resp.body).toBe('Account not active');
                 expect(users.findOne).toHaveBeenCalled();
@@ -839,7 +821,7 @@ describe('auth (UT)', function() {
         
         it('should fail with a 403 if no reset token is found', function(done) {
             delete origUser.resetToken;
-            auth.resetPassword(req, users, 'test@c6.com', 10000, auditJournal, sessions).then(function(resp) {
+            auth.resetPassword(req, users, config, auditJournal, sessions).then(function(resp) {
                 expect(resp.code).toBe(403);
                 expect(resp.body).toBe('No reset token found');
                 expect(users.findOne).toHaveBeenCalled();
@@ -854,7 +836,7 @@ describe('auth (UT)', function() {
         
         it('should fail with a 403 if the reset token has expired', function(done) {
             origUser.resetToken.expires = new Date(now.valueOf() - 1000);
-            auth.resetPassword(req, users, 'test@c6.com', 10000, auditJournal, sessions).then(function(resp) {
+            auth.resetPassword(req, users, config, auditJournal, sessions).then(function(resp) {
                 expect(resp.code).toBe(403);
                 expect(resp.body).toBe('Reset token expired');
                 expect(users.findOne).toHaveBeenCalled();
@@ -869,7 +851,7 @@ describe('auth (UT)', function() {
         
         it('should fail with a 403 if the request token does not match the reset token', function(done) {
             bcrypt.compare.and.callFake(function(orig, hashed, cb) { cb(null, false); });
-            auth.resetPassword(req, users, 'test@c6.com', 10000, auditJournal, sessions).then(function(resp) {
+            auth.resetPassword(req, users, config, auditJournal, sessions).then(function(resp) {
                 expect(resp.code).toBe(403);
                 expect(resp.body).toBe('Invalid request token');
                 expect(bcrypt.compare).toHaveBeenCalled();
@@ -884,11 +866,11 @@ describe('auth (UT)', function() {
 
         it('should not reject if writing to the journal fails', function(done) {
             auditJournal.writeAuditEntry.and.returnValue(q.reject('audit journal fail'));
-            auth.resetPassword(req, users, 'test@c6.com', 10000, auditJournal, sessions).then(function(resp) {
+            auth.resetPassword(req, users, config, auditJournal, sessions).then(function(resp) {
                 expect(resp.code).toBe(200);
                 expect(resp.body).toEqual({id: 'u-1', decorated: true});
                 expect(users.findAndModify).toHaveBeenCalled();
-                expect(email.notifyPwdChange).toHaveBeenCalled();
+                expect(email.passwordChanged).toHaveBeenCalled();
                 expect(req.session.user).toBe('u-1');
                 expect(req.session.regenerate).toHaveBeenCalled();
                 expect(auditJournal.writeAuditEntry).toHaveBeenCalled();
@@ -902,7 +884,7 @@ describe('auth (UT)', function() {
         
         it('should fail if finding the user fails', function(done) {
             users.findOne.and.callFake(function(query, cb) { cb('I GOT A PROBLEM', null); });
-            auth.resetPassword(req, users, 'test@c6.com', 10000, auditJournal, sessions).then(function(resp) {
+            auth.resetPassword(req, users, config, auditJournal, sessions).then(function(resp) {
                 expect(resp).not.toBeDefined();
             }).catch(function(error) {
                 expect(error).toBe('I GOT A PROBLEM');
@@ -917,7 +899,7 @@ describe('auth (UT)', function() {
         
         it('should fail if checking the reset token fails', function(done) {
             bcrypt.compare.and.callFake(function(orig, hashed, cb) { cb('I GOT A PROBLEM', false); });
-            auth.resetPassword(req, users, 'test@c6.com', 10000, auditJournal, sessions).then(function(resp) {
+            auth.resetPassword(req, users, config, auditJournal, sessions).then(function(resp) {
                 expect(resp).not.toBeDefined();
             }).catch(function(error) {
                 expect(error).toBe('I GOT A PROBLEM');
@@ -932,7 +914,7 @@ describe('auth (UT)', function() {
         
         it('should fail if hashing the new password fails', function(done) {
             bcrypt.hash.and.callFake(function(orig, hashed, cb) { cb('I GOT A PROBLEM', null); });
-            auth.resetPassword(req, users, 'test@c6.com', 10000, auditJournal, sessions).then(function(resp) {
+            auth.resetPassword(req, users, config, auditJournal, sessions).then(function(resp) {
                 expect(resp).not.toBeDefined();
             }).catch(function(error) {
                 expect(error).toBe('I GOT A PROBLEM');
@@ -946,13 +928,13 @@ describe('auth (UT)', function() {
         
         it('should fail if updating the user fails', function(done) {
             users.findAndModify.and.callFake(function(query, sort, obj, opts, cb) { cb('I GOT A PROBLEM', null); });
-            auth.resetPassword(req, users, 'test@c6.com', 10000, auditJournal, sessions).then(function(resp) {
+            auth.resetPassword(req, users, config, auditJournal, sessions).then(function(resp) {
                 expect(resp).not.toBeDefined();
             }).catch(function(error) {
                 expect(error).toBe('I GOT A PROBLEM');
                 expect(bcrypt.hash).toHaveBeenCalled();
                 expect(users.findAndModify).toHaveBeenCalled();
-                expect(email.notifyPwdChange).not.toHaveBeenCalled();
+                expect(email.passwordChanged).not.toHaveBeenCalled();
                 expect(req.session.regenerate).not.toHaveBeenCalled();
                 expect(authUtils.decorateUser).not.toHaveBeenCalled();
                 expect(mockLog.error).toHaveBeenCalled();
@@ -960,13 +942,13 @@ describe('auth (UT)', function() {
         });
         
         it('should just log an error if sending a notification fails', function(done) {
-            email.notifyPwdChange.and.returnValue(q.reject('I GOT A PROBLEM'));
-            auth.resetPassword(req, users, 'test@c6.com', 10000, auditJournal, sessions).then(function(resp) {
+            email.passwordChanged.and.returnValue(q.reject('I GOT A PROBLEM'));
+            auth.resetPassword(req, users, config, auditJournal, sessions).then(function(resp) {
                 expect(resp.code).toBe(200);
                 expect(resp.body).toEqual({id: 'u-1', decorated: true});
                 expect(users.findOne).toHaveBeenCalled();
                 expect(users.findAndModify).toHaveBeenCalled();
-                expect(email.notifyPwdChange).toHaveBeenCalled();
+                expect(email.passwordChanged).toHaveBeenCalled();
                 expect(mockLog.error).toHaveBeenCalled();
                 expect(req.session.user).toBe('u-1');
                 expect(req.session.regenerate).toHaveBeenCalled();

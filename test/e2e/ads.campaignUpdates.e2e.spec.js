@@ -177,8 +177,8 @@ describe('ads campaignUpdates endpoints (E2E):', function() {
         expect(msg.from[0].address.toLowerCase()).toBe('no-reply@cinema6.com');
         expect(msg.to[0].address.toLowerCase()).toBe('c6e2etester@gmail.com');
         [
-            new RegExp('created\\s+by\\s+c6e2etester@gmail.com\\s+for\\s+campaign\\s+"' + camp.name + '"'),
-            new RegExp('review\\s+the\\s+campaign.*\\s*http.*' + camp.id + '\/admin')
+            new RegExp('created\\s*by\\s*c6e2etester@gmail.com\\s*for\\s*campaign.*' + camp.name),
+            new RegExp('review\\s*the\\s*campaign.*\\s*http.*' + camp.id + '\/admin')
         ].forEach(function(regex) {
             expect(msg.text).toMatch(regex);
             expect(msg.html).toMatch(regex);
@@ -186,27 +186,30 @@ describe('ads campaignUpdates endpoints (E2E):', function() {
         expect((new Date() - msg.date)).toBeLessThan(30000); // message should be recent
     }
 
-    function testApprovalMsg(msg, camp) {
+    function testApprovalMsg(msg, camp, isInitial) {
         expect(msg.from[0].address.toLowerCase()).toBe('no-reply@cinema6.com');
         expect(msg.to[0].address.toLowerCase()).toBe('c6e2etester@gmail.com');
-        expect(msg.text).toMatch(new RegExp('request\\s+to\\s+update\\s+campaign\\s+"' + camp.name + '"\\s+has\\s+been\\s+approved'));
-        expect(msg.html).toMatch(new RegExp('request\\s+to\\s+update\\s+campaign\\s+"' + camp.name + '"\\s+has\\s+been\\s+approved'));
+        
+        var regex = new RegExp('Your\\s*' + (!isInitial ? 'change\\s*request\\s*to\\s*' : '') +
+                               'campaign.*' + camp.name + '.*has\\s*been\\s*approved');
+        expect(msg.text).toMatch(regex);
+        expect(msg.html).toMatch(regex);
         expect((new Date() - msg.date)).toBeLessThan(30000); // message should be recent
     }
-
-    function testRejectMsg(msg, camp, reason) {
+    
+    function testRejectMsg(msg, camp, reason, isInitial) {
         expect(msg.from[0].address.toLowerCase()).toBe('no-reply@cinema6.com');
         expect(msg.to[0].address.toLowerCase()).toBe('c6e2etester@gmail.com');
         [
-            new RegExp('request\\s+to\\s+update\\s+campaign\\s+"' + camp.name + '"\\s+has\\s+been\\s+rejected'),
-            new RegExp('reason\\s+was.*' + reason)
+            new RegExp('Your\\s*' + (!isInitial ? 'change\\s*request\\s*to\\s*' : '') +
+                       'campaign.*' + camp.name + '.*has\\s*been\\s*rejected'),
+            new RegExp(reason)
         ].forEach(function(regex) {
             expect(msg.text).toMatch(regex);
             expect(msg.html).toMatch(regex);
         });
         expect((new Date() - msg.date)).toBeLessThan(30000); // message should be recent
     }
-
 
     describe('GET /api/campaigns/:campId/updates/:id', function() {
         var options;
@@ -809,8 +812,8 @@ describe('ads campaignUpdates endpoints (E2E):', function() {
     describe('PUT /api/campaigns/:campId/updates/:id', function() {
         var options, mockCamps, mockUpdates, approveSubject, rejectSubject, createdCamp;
         beforeEach(function(done) {
-            approveSubject = 'Your campaign update has been approved!';
-            rejectSubject = 'Your campaign update has been rejected';
+            approveSubject = 'Your Campaign Change Request Has Been Approved';
+            rejectSubject = 'Your Campaign Change Request Has Been Rejected';
             mockUpdates = [
                 {
                     id: 'ur-1', 
@@ -939,7 +942,7 @@ describe('ads campaignUpdates endpoints (E2E):', function() {
             });
 
             mailman.once(approveSubject, function(msg) {
-                testApprovalMsg(msg, mockCamps[0]);
+                testApprovalMsg(msg, mockCamps[0], false);
                 
                 // test that campaign successfully edited
                 requestUtils.qRequest('get', {
@@ -980,7 +983,7 @@ describe('ads campaignUpdates endpoints (E2E):', function() {
             });
 
             mailman.once(rejectSubject, function(msg) {
-                testRejectMsg(msg, mockCamps[0], 'yo campaign stinks');
+                testRejectMsg(msg, mockCamps[0], 'yo campaign stinks', false);
                 
                 // test that campaign successfully unlocked
                 requestUtils.qRequest('get', {
@@ -1014,12 +1017,15 @@ describe('ads campaignUpdates endpoints (E2E):', function() {
         
         describe('if an update is an inital request for approval', function() {
             beforeEach(function(done) {
+                approveSubject = 'ReelContent Campaign Approved';
+                rejectSubject = 'ReelContent Campaign Rejected';
                 var mockUpdate = {
                     id: 'ur-1',
                     status: 'pending',
                     user: 'e2e-user',
                     org: 'e2e-org',
                     campaign: 'cam-1',
+                    initialSubmit: true,
                     data: { status: 'active' }
                 };
                 mockCamps[0].status = 'pending';
@@ -1046,7 +1052,7 @@ describe('ads campaignUpdates endpoints (E2E):', function() {
                 });
 
                 mailman.once(approveSubject, function(msg) {
-                    testApprovalMsg(msg, mockCamps[0]);
+                    testApprovalMsg(msg, mockCamps[0], true);
                     
                     // test that campaign successfully edited
                     requestUtils.qRequest('get', {
@@ -1081,7 +1087,7 @@ describe('ads campaignUpdates endpoints (E2E):', function() {
                 });
 
                 mailman.once(rejectSubject, function(msg) {
-                    testRejectMsg(msg, mockCamps[0], 'I got a problem with YOU');
+                    testRejectMsg(msg, mockCamps[0], 'I got a problem with YOU', true);
                     
                     // test that campaign successfully edited
                     requestUtils.qRequest('get', {
@@ -1176,7 +1182,7 @@ describe('ads campaignUpdates endpoints (E2E):', function() {
                 });
 
                 mailman.once(approveSubject, function(msg) {
-                    testApprovalMsg(msg, createdCamp);
+                    testApprovalMsg(msg, createdCamp, false);
                     
                     // test that campaign successfully edited
                     requestUtils.qRequest('get', {

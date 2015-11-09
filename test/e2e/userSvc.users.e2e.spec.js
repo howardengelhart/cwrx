@@ -18,7 +18,7 @@ describe('userSvc users (E2E):', function() {
     beforeEach(function(done) {
         jasmine.DEFAULT_TIMEOUT_INTERVAL = 30000;
 
-        urlRegex = /https:\/\/.*cinema6\.com.*?id=u-.+token=[0-9a-f]{48}/;
+        urlRegex = /https?:\/\/.*id=u-[0-9a-z]+.*token=[0-9a-f]{48}/;
 
         if (cookieJar && cookieJar.cookies && adminJar && adminJar.cookies) {
             return done();
@@ -1018,7 +1018,7 @@ describe('userSvc users (E2E):', function() {
     describe('POST /api/account/users/email', function() {
         var mockUser, reqBody, options, msgSubject;
         beforeEach(function(done) {
-            msgSubject = 'Your Account Email Address Has Changed';
+            msgSubject = 'Your Email Has Been Changed';
             mockUser = {
                 id: 'u-1',
                 email: 'c6e2etester@gmail.com',
@@ -1113,7 +1113,7 @@ describe('userSvc users (E2E):', function() {
 
         it('should change the user\'s email successfully', function(done) {
             mailman.once(msgSubject, function(msg) {
-                expect(msg.from[0].address).toBe('support@cinema6.com');
+                expect(msg.from[0].address).toBe('no-reply@cinema6.com');
                 expect(msg.to[0].address).toBe('c6e2etester@gmail.com');
                 expect(msg.text).toMatch(/mynewemail/);
                 expect(msg.html).toMatch(/mynewemail/);
@@ -1203,7 +1203,7 @@ describe('userSvc users (E2E):', function() {
                 status: 'active',
                 password: '$2a$10$XomlyDak6mGSgrC/g1L7FO.4kMRkj4UturtKSzy6mFeL8QWOBmIWq'
             };
-            msgSubject = 'Your account password has been changed';
+            msgSubject = 'ReelContent Password Change Notice';
             reqBody = { email: 'c6e2etester@gmail.com', password: 'password', newPassword: 'foobar' };
             options = { url: config.usersUrl + '/password', json: reqBody };
             testUtils.resetCollection('users', [mockRequester, mockAdmin, user]).done(done);
@@ -1279,10 +1279,10 @@ describe('userSvc users (E2E):', function() {
 
         it('should change the user\'s password successfully', function(done) {
             mailman.once(msgSubject, function(msg) {
-                expect(msg.from[0].address).toBe('support@cinema6.com');
+                expect(msg.from[0].address).toBe('no-reply@cinema6.com');
                 expect(msg.to[0].address).toBe('c6e2etester@gmail.com');
-                expect(msg.text).toBeDefined();
-                expect(msg.html).toBeDefined();
+                expect(msg.text).toMatch(/password\s*was\s*changed\s*on.*at.*/);
+                expect(msg.html).toMatch(/password\s*was\s*changed\s*on.*at.*/);
                 expect((new Date() - msg.date)).toBeLessThan(30000); // message should be recent
 
                 var loginOpts = {url:config.authUrl + '/login', json:{email:'c6e2etester@gmail.com',password:'foobar'}};
@@ -1332,7 +1332,7 @@ describe('userSvc users (E2E):', function() {
 
         it('should lowercase the request email', function(done) {
             mailman.once(msgSubject, function(msg) {
-                expect(msg.from[0].address).toBe('support@cinema6.com');
+                expect(msg.from[0].address).toBe('no-reply@cinema6.com');
                 expect(msg.to[0].address).toBe('c6e2etester@gmail.com');
 
                 var loginOpts = {url:config.authUrl + '/login', json:{email:'c6e2etester@gmail.com',password:'foobar'}};
@@ -1446,7 +1446,7 @@ describe('userSvc users (E2E):', function() {
     describe('POST /api/account/users/signup', function() {
         var mockUser, mockRoles, mockPols, options, msgSubject;
         beforeEach(function(done) {
-            msgSubject = 'Your account is almost activated!';
+            msgSubject = 'Welcome to ReelContent Video Ads!';
             mockUser = {
                 email: 'c6e2etester@gmail.com',
                 password: 'password',
@@ -1477,7 +1477,7 @@ describe('userSvc users (E2E):', function() {
 
         it('should create a new user account', function(done) {
             mailman.once(msgSubject, function(msg) {
-                expect(msg.from[0].address).toBe('support@cinema6.com');
+                expect(msg.from[0].address).toBe('no-reply@cinema6.com');
                 expect(msg.to[0].address).toBe('c6e2etester@gmail.com');
                 expect(msg.text).toMatch(urlRegex);
                 expect(msg.html).toMatch(urlRegex);
@@ -1506,7 +1506,7 @@ describe('userSvc users (E2E):', function() {
 
         it('should lowercase the new email', function(done) {
             mailman.once(msgSubject, function(msg) {
-                expect(msg.from[0].address).toBe('support@cinema6.com');
+                expect(msg.from[0].address).toBe('no-reply@cinema6.com');
                 expect(msg.to[0].address).toBe('c6e2etester@gmail.com');
                 done();
             });        
@@ -1642,12 +1642,12 @@ describe('userSvc users (E2E):', function() {
                 status: 'new',
                 company: 'e2e-tests-company'
             };
-            msgSubject = 'Your account has been activated!';
+            msgSubject = 'Your Account is Now Active';
 
-            mockRoles = [
+            var mockRoles = [
                 { id: 'r-4', name: 'newUserRole', status: 'active'}
             ];
-            mockPols = [
+            var mockPols = [
                 { id: 'p-4', name: 'newUserPolicy', status: 'active', priority: 1}
             ];
             q.all([
@@ -1785,8 +1785,10 @@ describe('userSvc users (E2E):', function() {
 
             it('should 200 and return the saved object as the body of the response ', function(done) {
                 mailman.once(msgSubject, function(msg) {
-                    expect(msg.from[0].address).toBe('support@cinema6.com');
+                    expect(msg.from[0].address).toBe('no-reply@cinema6.com');
                     expect(msg.to[0].address).toBe('c6e2etester@gmail.com');
+                    expect(msg.html).toMatch(/account\s*is\s*now\s*active/);
+                    expect(msg.text).toMatch(/account\s*is\s*now\s*active/);
                     expect(new Date() - msg.date).toBeLessThan(30000); // message should be recent
                     done();
                 });
@@ -1921,33 +1923,35 @@ describe('userSvc users (E2E):', function() {
             it('should work properly with /api/account/users/signup', function(done) {
                 var userId;
 
-                mailman.once('Your account is almost activated!', function(msg) {
-                    var match = msg.html.match(/href="http.+id=.+token=[a-f\d]+(?=">)/);
-                    if(match.length > 0) {
-                        var confirmLink = match[0].slice(6);
-                        userId = confirmLink.match(/id=u-[a-f\d]+/)[0].slice(3);
-                        var token = confirmLink.match(/token=[a-f\d]+/)[0].slice(6);
-                        var confirmOptions = { url: config.usersUrl + '/confirm/' + userId, json: { token: token } };
-                        requestUtils.qRequest('post', confirmOptions)
-                            .then(function(resp) {
-                                expect(resp.response.statusCode).toBe(200);
+                mailman.once('Welcome to ReelContent Video Ads!', function(msg) {
+                    var match = msg.html.match(/href="https?:\/\/.*id=(u-[0-9a-z]+).*token=([0-9a-f]{48})(?=")/);
+                    if (!match || match.length === 0) {
+                        return done.fail('No url with token + user id found in message');
+                    }
+                    
+                    var userId = match[1],
+                        token = match[2],
+                        confirmOptions = { url: config.usersUrl + '/confirm/' + userId, json: { token: token } };
 
-                                // For cleaning up linked entities
-                                createdCustomer = 'newCustomer (' + resp.body.id + ')';
-                                createdAdvertiser = 'newAdvertiser (' + resp.body.id + ')';
+                    requestUtils.qRequest('post', confirmOptions)
+                        .then(function(resp) {
+                            expect(resp.response.statusCode).toBe(200);
 
-                                mailman.once(msgSubject, function(msg) {
-                                    expect(resp.body.id).toBe(userId);
-                                    expect(resp.body.status).toBe('active');
-                                    done();
-                                });
+                            // For cleaning up linked entities
+                            createdCustomer = 'newCustomer (' + resp.body.id + ')';
+                            createdAdvertiser = 'newAdvertiser (' + resp.body.id + ')';
 
-                            })
-                            .catch(function(error) {
-                                expect(util.inspect(error)).not.toBeDefined();
+                            mailman.once(msgSubject, function(msg) {
+                                expect(resp.body.id).toBe(userId);
+                                expect(resp.body.status).toBe('active');
                                 done();
                             });
-                    }
+
+                        })
+                        .catch(function(error) {
+                            expect(util.inspect(error)).not.toBeDefined();
+                            done();
+                        });
                 });
 
                 testUtils.resetCollection('users')
@@ -1959,7 +1963,7 @@ describe('userSvc users (E2E):', function() {
                         expect(resp.response.statusCode).toBe(201);
                         expect(resp.body.status).toBe('new');
                     })
-                    .catch(function() {
+                    .catch(function(error) {
                         expect(util.inspect(error)).not.toBeDefined();
                         done();
                     });
@@ -1971,7 +1975,7 @@ describe('userSvc users (E2E):', function() {
         var loginOpts, resendOpts, newUserCookieJar, newUser, msgSubject;
         
         beforeEach(function(done) {
-            msgSubject = 'Your account is almost activated!';
+            msgSubject = 'Welcome to ReelContent Video Ads!';
             newUserCookieJar = request.jar();
             loginOpts = { url: config.authUrl + '/login', json: { email: 'c6e2etester@gmail.com', password: 'password' }, jar: newUserCookieJar };
             resendOpts = { url: config.usersUrl + '/resendActivation', jar: newUserCookieJar };
@@ -2041,7 +2045,7 @@ describe('userSvc users (E2E):', function() {
         
         it('should generate a new activation token and save it on the user', function(done) {
             mailman.once(msgSubject, function(msg) {
-                expect(msg.from[0].address).toBe('support@cinema6.com');
+                expect(msg.from[0].address).toBe('no-reply@cinema6.com');
                 expect(msg.to[0].address).toBe('c6e2etester@gmail.com');
                 expect(msg.text).toMatch(urlRegex);
                 expect(msg.html).toMatch(urlRegex);

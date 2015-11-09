@@ -40,7 +40,8 @@
             awsRegion: 'us-east-1',
             sender: 'no-reply@cinema6.com',
             supportAddress: 'c6e2eTester@gmail.com',
-            reviewLink: 'http://localhost:9000/#/apps/selfie/campaigns/manage/:campId/admin'
+            reviewLink: 'http://localhost:9000/#/apps/selfie/campaigns/manage/:campId/admin',
+            dashboardLink: 'http://localhost:9000/#/apps/selfie/campaigns'
         },
         campaigns: {
             statusDelay: 1000,      // How long to delay between polls for campaigns' statuses
