@@ -94,16 +94,11 @@ describe('content public experience endpoints (E2E):', function() {
                 }).then(done,done.fail);
             });
 
-            it('should not cache if the origin is a cinema6 app', function(done) {
-                q.all(['https://staging.cinema6.com', 'https://portal.cinema6.com',
-                       'https://platform.reelcontent.com', 'https://platform.staging.reelcontent.com'].map(function(origin) {
-                    options.headers = { origin: origin };
-                    return requestUtils.qRequest('get', options);
-                })).then(function(results) {
-                    results.forEach(function(resp) {
-                        expect(resp.response.statusCode).toBe(200);
-                        expect(resp.response.headers['cache-control']).toBe('max-age=0');
-                    });
+            it('should not cache if the request is in preview mode', function(done) {
+                options.qs.preview = true;
+                requestUtils.qRequest('get', options).then(function(resp) {
+                    expect(resp.response.statusCode).toBe(200);
+                    expect(resp.response.headers['cache-control']).toBe('max-age=0');
                 }).catch(function(error) {
                     expect(util.inspect(error)).not.toBeDefined();
                 }).done(done);

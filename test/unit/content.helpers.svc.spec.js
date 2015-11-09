@@ -1252,16 +1252,10 @@ describe('content (UT)', function() {
             }).done(done);
         });
 
-        it('should not set the cache-control header if the origin is an internal endpoint', function(done) {
-            q.all(['http://platform.reelcontent.com', 'http://platform.staging.reelcontent.com',
-                   'http://portal.cinema6.com', 'http://staging.cinema6.com'].map(function(origin) {
-                var reqCopy = JSON.parse(JSON.stringify(req));
-                reqCopy.originHost = origin;
-                return expModule.handlePublicGet(reqCopy, res, caches, cardSvc, config);
-            })).then(function(results) {
-                results.forEach(function(resp) {
-                    expect(resp).toEqual({ code: 200, body: { exp: 'yes' } });
-                });
+        it('should not set the cache-control header if the request is in preview mode', function(done) {
+            req.query.preview = true;
+            expModule.handlePublicGet(req, res, caches, cardSvc, config).then(function(resp) {
+                expect(resp).toEqual({ code: 200, body: { exp: 'yes' } });
                 expect(res.header).not.toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();

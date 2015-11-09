@@ -738,8 +738,8 @@
     expModule.handlePublicGet = function(req, res, caches, cardSvc, config) {
         return expModule.getPublicExp(req.params.id, req, caches, cardSvc, config)
         .then(function(resp) {
-            // don't cache for requests from studio or selfie apps, in prod or staging
-            if (!req.originHost.match(/(platform|portal|staging)\..*(cinema6|reelcontent).com/)) {
+            // don't cache for requests in preview mode
+            if (!req.query.preview) {
                 res.header('cache-control', 'max-age=' + config.cacheTTLs.cloudFront*60);
             }
             
