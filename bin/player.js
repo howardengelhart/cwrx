@@ -112,16 +112,22 @@ function Player(config) {
  * @private methods * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  **************************************************************************************************/
 
+Player.prototype.__apiParams__ = function __apiParams__(type, params) {
+    var validParams = this.config.api[type].validParams;
+    var predicate = validParams ? function(value, key) {
+        return validParams.indexOf(key) > -1;
+    } : function() { return true; };
+
+    return filterObject(params, predicate);
+};
+
 Player.prototype.__loadExperience__ = function __loadExperience__(id, params, origin, uuid) {
     var self = this;
     var log = logger.getLog();
-    var config = this.config;
     var preview = params.preview;
     var categories = params.categories;
     var campaign = params.campaign;
-    var validParams = filterObject(params, function(value, key) {
-        return config.api.experience.validParams.indexOf(key) > -1;
-    });
+    var validParams = this.__apiParams__('experience', params);
     var adLoader = this.adLoader;
     var adLoadTimeReporter = this.adLoadTimeReporter;
 

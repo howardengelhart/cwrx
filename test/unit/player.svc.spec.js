@@ -1093,6 +1093,65 @@ describe('player service', function() {
 
         describe('@private', function() {
             describe('methods:', function() {
+                describe('__apiParams__(type, params)', function() {
+                    var type, params;
+                    var result;
+
+                    beforeEach(function() {
+                        type = 'experience';
+                        params = {
+                            type: 'lightbox',
+                            uuid: 'efh7384ry43785t',
+                            experience: 'e-92160a770b81d5',
+                            campaign: 'cam-c3de383f7e37ce',
+                            branding: 'cinema6',
+                            network: 'mopub',
+                            origin: 'http://cinema6.com/solo?id=e-92160a770b81d5&cb=fu92yr483r76472&foo=wer89437r83947r#foofurief',
+                            placementId: '1673285684',
+                            container: 'mopub',
+                            wildCardPlacement: '238974285',
+                            pageUrl: 'http://www.foo.com/bar',
+                            hostApp: 'My Talking Tom',
+                            mobileMode: 'swipe',
+                            preview: false,
+                            categories: ['food', 'tech'],
+                            playUrls: ['play1.gif', 'play2.gif'],
+                            countUrls: ['count1.gif', 'count2.gif'],
+                            launchUrls: ['launch1.gif', 'launch2.gif'],
+                            desktop: true
+                        };
+
+                        result = player.__apiParams__(type, params);
+                    });
+
+                    it('should return an object that only contains the allowed params', function() {
+                        expect(result).toEqual({
+                            campaign: 'cam-c3de383f7e37ce',
+                            branding: 'cinema6',
+                            network: 'mopub',
+                            placementId: '1673285684',
+                            container: 'mopub',
+                            wildCardPlacement: '238974285',
+                            pageUrl: 'http://www.foo.com/bar',
+                            hostApp: 'My Talking Tom',
+                            preview: false
+                        });
+                    });
+
+                    describe('if an api node has no validParams', function() {
+                        beforeEach(function() {
+                            type = 'card';
+
+                            result = player.__apiParams__(type, params);
+                        });
+
+                        it('should return a copy of the params', function() {
+                            expect(result).toEqual(params);
+                            expect(result).not.toBe(params);
+                        });
+                    });
+                });
+
                 describe('__loadExperience__(id, params, origin, uuid)', function() {
                     var id, params, origin, uuid;
                     var experience;
@@ -1140,17 +1199,7 @@ describe('player service', function() {
                     });
 
                     it('should get the experience', function() {
-                        expect(player.__getExperience__).toHaveBeenCalledWith(id, {
-                            campaign: 'cam-c3de383f7e37ce',
-                            branding: 'cinema6',
-                            network: 'mopub',
-                            placementId: '1673285684',
-                            container: 'mopub',
-                            wildCardPlacement: '238974285',
-                            pageUrl: 'http://www.foo.com/bar',
-                            hostApp: 'My Talking Tom',
-                            preview: false
-                        }, origin, uuid);
+                        expect(player.__getExperience__).toHaveBeenCalledWith(id, player.__apiParams__('experience', params), origin, uuid);
                     });
 
                     describe('when the experience is fetched', function() {
@@ -1238,17 +1287,7 @@ describe('player service', function() {
                         });
 
                         it('should call the uncached version of __getExperience__()', function() {
-                            expect(Player.prototype.__getExperience__).toHaveBeenCalledWith(id, {
-                                campaign: 'cam-c3de383f7e37ce',
-                                branding: 'cinema6',
-                                network: 'mopub',
-                                placementId: '1673285684',
-                                container: 'mopub',
-                                wildCardPlacement: '238974285',
-                                pageUrl: 'http://www.foo.com/bar',
-                                hostApp: 'My Talking Tom',
-                                preview: true
-                            }, origin, uuid);
+                            expect(Player.prototype.__getExperience__).toHaveBeenCalledWith(id, player.__apiParams__('experience', params), origin, uuid);
                             expect(Player.prototype.__getExperience__.calls.mostRecent().object).toBe(player);
                             expect(player.__getExperience__).not.toHaveBeenCalled();
                         });
