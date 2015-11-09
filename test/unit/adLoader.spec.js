@@ -1586,6 +1586,126 @@ describe('AdLoader()', function() {
                         });
                     });
                 });
+
+                describe('findCard(params, context, uuid)', function() {
+                    var params, context, uuid;
+                    var findBannerDeferred;
+                    var success, failure;
+
+                    beforeEach(function() {
+                        params = {
+                            placement: '84375943',
+                            campaign: 'cam-22c20fc774788d',
+                            categories: ['food', 'tech', 'auto', 'lifestyle', 'music', 'home']
+                        };
+                        context = {
+                            container: 'pocketmath',
+                            hostApp: 'Ruzzle',
+                            network: 'mopub',
+                            pageUrl: 'cinema6.com',
+                            experience: 'e-58e475ab5f932b',
+                            preview: true
+                        };
+                        uuid = '894yr9hfu943';
+
+                        findBannerDeferred = q.defer();
+
+                        success = jasmine.createSpy('success()');
+                        failure = jasmine.createSpy('failure()');
+
+                        spyOn(loader.client, 'findBanner').and.returnValue(findBannerDeferred.promise);
+
+                        loader.findCard(params, context, uuid).then(success, failure);
+                    });
+
+                    it('should find a banner', function() {
+                        expect(loader.client.findBanner).toHaveBeenCalledWith(params.placement, '2x2', {
+                            kwlp1: params.campaign,
+                            kwlp3: params.categories.slice(0, 4).join('+')
+                        }, uuid);
+                    });
+
+                    describe('if no categories are specified', function() {
+                        beforeEach(function() {
+                            loader.client.findBanner.calls.reset();
+                            delete params.categories;
+
+                            loader.findCard(params, context, uuid);
+                        });
+
+                        it('should find a banner with no categories', function() {
+                            expect(loader.client.findBanner).toHaveBeenCalledWith(params.placement, '2x2', {
+                                kwlp1: params.campaign,
+                                kwlp3: ''
+                            }, uuid);
+                        });
+                    });
+
+                    describe('if no banner is found', function() {
+                        beforeEach(function(done) {
+                            findBannerDeferred.fulfill(null);
+
+                            process.nextTick(done);
+                        });
+
+                        it('should fulfill with null', function() {
+                            expect(success).toHaveBeenCalledWith(null);
+                        });
+                    });
+
+                    describe('if a banner is found', function() {
+                        var banner;
+                        var getCardDeferred;
+
+                        beforeEach(function(done) {
+                            banner = {
+                                placementId: params.placement,
+                                campaignId: '39485789345',
+                                externalId: 'rc-d1812b837e9752',
+                                clickUrl: 'http://adserver.adtechus.com/adlink/5491/3507986/0/277/AdId=6603289;BnId=1;itime=105386806;ku=3208039;kwlp1=cam%2D75662e1495abfd;kwlp3=comedy%2Banimals;nodecode=yes;link=',
+                                countUrl: 'http://adserver.adtechus.com/adcount/3.0/5491/3507986/0/277/AdId=6603289;BnId=1;ct=670200808;st=15769;adcid=1;itime=105386806;reqtype=5;;kwlp1=cam%2D75662e1495abfd;kwlp3=comedy%2Banimals'
+                            };
+
+                            getCardDeferred = q.defer();
+                            spyOn(loader, '__getCard__').and.returnValue(getCardDeferred.promise);
+
+                            findBannerDeferred.fulfill(banner);
+                            process.nextTick(done);
+                        });
+
+                        it('should make a request for the card', function() {
+                            expect(loader.__getCard__).toHaveBeenCalledWith(banner.externalId, context, uuid);
+                        });
+
+                        describe('when the card is fetched', function() {
+                            var card;
+
+                            beforeEach(function(done) {
+                                card = {
+                                    id: banner.externalId,
+                                    campaign: {},
+                                    data: {}
+                                };
+
+                                spyOn(AdLoader, 'addTrackingPixels').and.callThrough();
+
+                                getCardDeferred.fulfill(card);
+                                process.nextTick(done);
+                            });
+
+                            it('should add the tracking pixels to the card', function() {
+                                expect(AdLoader.addTrackingPixels).toHaveBeenCalledWith({
+                                    playUrls: [banner.clickUrl],
+                                    countUrls: [banner.countUrl]
+                                }, card);
+                            });
+
+                            it('should be fulfilled with the card', function() {
+                                expect(success).toHaveBeenCalledWith(card);
+                            });
+                        });
+                    });
+                });
             });
         });
     });
