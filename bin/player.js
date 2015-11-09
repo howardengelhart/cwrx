@@ -112,6 +112,52 @@ function Player(config) {
  * @private methods * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  **************************************************************************************************/
 
+Player.prototype.__loadExperience__ = function __loadExperience__(id, params, origin, uuid) {
+    var self = this;
+    var log = logger.getLog();
+    var config = this.config;
+    var preview = params.preview;
+    var categories = params.categories;
+    var campaign = params.campaign;
+    var validParams = filterObject(params, function(value, key) {
+        return config.api.experience.validParams.indexOf(key) > -1;
+    });
+    var adLoader = this.adLoader;
+    var adLoadTimeReporter = this.adLoadTimeReporter;
+
+    function getExperience() {
+        // If in preview mode, call the uncached version of __getExperience__().
+        var method = preview ? Player.prototype.__getExperience__ : self.__getExperience__;
+
+        return method.apply(self, arguments);
+    }
+
+    function loadAds(experience) {
+        var start = Date.now();
+
+        if (preview || !AdLoader.hasAds(experience)) {
+            log.trace('[%1] Skipping ad calls.', uuid);
+            return AdLoader.removePlaceholders(experience);
+        }
+
+        return adLoader.loadAds(experience, categories, campaign, uuid)
+            .tap(function sendMetrics() {
+                var end = Date.now();
+
+                adLoadTimeReporter.push(end - start);
+            })
+            .catch(function trimCards(reason) {
+                log.warn('[%1] Unexpected failure loading ads: %2', uuid, inspect(reason));
+
+                AdLoader.removePlaceholders(experience);
+                AdLoader.removeSponsoredCards(experience);
+            })
+            .thenResolve(experience);
+    }
+
+    return getExperience(id, validParams, origin, uuid).then(loadAds);
+};
+
 Player.prototype.__getExperience__ = function __getExperience__(id, params, origin, uuid) {
     var log = logger.getLog();
     var config = this.config;
@@ -491,20 +537,11 @@ Player.prototype.get = function get(/*options*/) {
 
     var log = logger.getLog();
     var self = this;
-    var config = this.config;
-    var adLoader = this.adLoader;
-    var adLoadTimeReporter = this.adLoadTimeReporter;
     var type = options.type;
     var experience = options.experience;
-    var params = filterObject(options, function(value, key) {
-        return config.api.experience.validParams.indexOf(key) > -1;
-    });
     var desktop = options.desktop;
     var origin = stripURL(options.origin);
     var uuid = options.uuid;
-    var categories = options.categories;
-    var campaign = options.campaign;
-    var preview = options.preview;
     var playUrls = options.playUrls;
     var countUrls = options.countUrls;
     var launchUrls = options.launchUrls;
@@ -526,37 +563,6 @@ Player.prototype.get = function get(/*options*/) {
         return experience;
     }
 
-    function getExperience() {
-        // If in preview mode, call the uncached version of __getExperience__().
-        var method = preview ? Player.prototype.__getExperience__ : self.__getExperience__;
-
-        return method.apply(self, arguments);
-    }
-
-    function loadAds(experience) {
-        var start = Date.now();
-
-        if (preview || !AdLoader.hasAds(experience)) {
-            log.trace('[%1] Skipping ad calls.', uuid);
-            return addTrackingPixels(AdLoader.removePlaceholders(experience));
-        }
-
-        return adLoader.loadAds(experience, categories, campaign, uuid)
-            .tap(function sendMetrics() {
-                var end = Date.now();
-
-                adLoadTimeReporter.push(end - start);
-            })
-            .catch(function trimCards(reason) {
-                log.warn('[%1] Unexpected failure loading ads: %2', uuid, inspect(reason));
-
-                AdLoader.removePlaceholders(experience);
-                AdLoader.removeSponsoredCards(experience);
-            })
-            .thenResolve(experience)
-            .then(addTrackingPixels);
-    }
-
     function loadBranding(experience) {
         var branding = experience.data.branding;
 
@@ -566,28 +572,16 @@ Player.prototype.get = function get(/*options*/) {
                 uuid, experience.id
             );
 
-            return [];
+            return q([]);
         }
 
         return self.__getBranding__(branding, type, desktop, uuid);
     }
 
-    function loadExperienceData(experience) {
-        return q.all([
-            loadAds(experience),
-            loadBranding(experience)
-        ]).spread(function(experience, brandings) {
-            return { experience: experience, brandings: brandings };
-        });
-    }
-
     return q.all([
         this.__getPlayer__(type, uuid),
-        getExperience(experience, params, origin, uuid).then(loadExperienceData)
-    ]).spread(function inlineResources(document, data) {
-        var experience = data.experience;
-        var brandings = data.brandings;
-
+        this.__loadExperience__(experience, options, origin, uuid)
+    ]).spread(function processExperience(document, experience) {
         if (experience.data.deck.length < 1) {
             throw new ServiceError('Experience {' + experience.id + '} has no cards.', 409);
         }
@@ -596,20 +590,24 @@ Player.prototype.get = function get(/*options*/) {
             throw new ServiceError('VPAID does not support MiniReels.', 400);
         }
 
-        brandings.forEach(function addBrandingCSS(branding) {
-            var src = branding.src;
-            var contents = branding.styles;
+        addTrackingPixels(experience);
 
-            log.trace('[%1] Inlining branding CSS (%2) into %3 player HTML.', uuid, src, type);
+        return loadBranding(experience).then(function inlineResources(brandings) {
+            brandings.forEach(function addBrandingCSS(branding) {
+                var src = branding.src;
+                var contents = branding.styles;
 
-            document.addCSS(src, contents);
+                log.trace('[%1] Inlining branding CSS (%2) into %3 player HTML.', uuid, src, type);
+
+                document.addCSS(src, contents);
+            });
+
+            log.trace('[%1] Adding experience (%2) to %3 player HTML.', uuid, experience.id, type);
+            document.addResource('experience', 'application/json', experience);
+
+            log.trace('[%1] Stringifying document.', uuid);
+            return document.toString();
         });
-
-        log.trace('[%1] Inlining experience (%2) to %3 player HTML.', uuid, experience.id, type);
-        document.addResource('experience', 'application/json', experience);
-
-        log.trace('[%1] Stringifying document.', uuid);
-        return document.toString();
     });
 };
 

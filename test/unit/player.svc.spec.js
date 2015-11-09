@@ -839,7 +839,7 @@ describe('player service', function() {
                     var success, failure;
                     var options;
                     var document, experience, sponsoredCards;
-                    var getExperienceDeferred;
+                    var loadExperienceDeferred;
 
                     beforeEach(function(done) {
                         success = jasmine.createSpy('success()');
@@ -870,7 +870,7 @@ describe('player service', function() {
                         document = new HTMLDocument(playerHTML);
                         spyOn(document, 'addResource').and.callThrough();
 
-                        getExperienceDeferred = q.defer();
+                        loadExperienceDeferred = q.defer();
 
                         experience = {
                             id: 'e-92160a770b81d5',
@@ -884,7 +884,7 @@ describe('player service', function() {
                             }
                         };
                         sponsoredCards = AdLoader.getSponsoredCards(experience);
-                        spyOn(player, '__getExperience__').and.returnValue(getExperienceDeferred.promise);
+                        spyOn(player, '__loadExperience__').and.returnValue(loadExperienceDeferred.promise);
 
                         spyOn(player, '__getPlayer__').and.returnValue(q(document));
 
@@ -896,8 +896,251 @@ describe('player service', function() {
                         expect(player.__getPlayer__).toHaveBeenCalledWith(options.type, options.uuid);
                     });
 
+                    it('should load the experience', function() {
+                        expect(player.__loadExperience__).toHaveBeenCalledWith(options.experience, options, 'http://cinema6.com/solo', options.uuid);
+                    });
+
+                    describe('when the experience is loaded', function() {
+                        var loadAdsDeferred;
+                        var brandings;
+
+                        beforeEach(function(done) {
+                            brandings = [
+                                { src: 'theme.css', styles: 'body { padding: 10px; }' },
+                                { src: 'theme--hover.css', styles: 'body { margin: 20px; }' }
+                            ];
+                            spyOn(player, '__getBranding__').and.returnValue(q(brandings));
+
+                            spyOn(document, 'addCSS').and.callThrough();
+                            spyOn(MockAdLoader, 'addTrackingPixels').and.callThrough();
+
+                            loadExperienceDeferred.fulfill(experience);
+                            process.nextTick(done);
+                        });
+
+                        it('should loading brandings for the player', function() {
+                            expect(player.__getBranding__).toHaveBeenCalledWith(experience.data.branding, options.type, options.desktop, options.uuid);
+                        });
+
+                        it('should add the launchUrls to the experience', function() {
+                            expect(experience.data.campaign.launchUrls).toEqual(['launch.gif'].concat(options.launchUrls));
+                        });
+
+                        it('should add the custom tracking pixels to each sponsored card', function() {
+                            sponsoredCards.forEach(function(card) {
+                                expect(MockAdLoader.addTrackingPixels).toHaveBeenCalledWith({
+                                    playUrls: options.playUrls,
+                                    countUrls: options.countUrls
+                                }, card);
+                            });
+                            expect(MockAdLoader.addTrackingPixels.calls.count()).toBe(sponsoredCards.length);
+                        });
+
+                        it('should add the brandings as a resource', function() {
+                            expect(brandings.length).toBeGreaterThan(0);
+                            brandings.forEach(function(branding) {
+                                expect(document.addCSS).toHaveBeenCalledWith(branding.src, branding.styles);
+                            });
+                        });
+
+                        it('should add the experience as a resource', function() {
+                            expect(document.addResource).toHaveBeenCalledWith('experience', 'application/json', experience);
+                        });
+
+                        it('should resolve to the player as a string of HTML', function() {
+                            expect(success).toHaveBeenCalledWith(document.toString());
+                        });
+                    });
+
+                    describe('if called without an origin', function() {
+                        beforeEach(function(done) {
+                            spyOn(player, '__getBranding__').and.returnValue(q([]));
+                            player.__loadExperience__.calls.reset();
+                            loadExperienceDeferred.fulfill(experience);
+                            options.origin = undefined;
+
+                            player.get(options).finally(done);
+                        });
+
+                        it('should use the default origin', function() {
+                            expect(player.__loadExperience__).toHaveBeenCalledWith(jasmine.any(String), jasmine.any(Object), config.defaults.origin, jasmine.any(String));
+                        });
+                    });
+
+                    describe('if the experience has no launchUrls', function() {
+                        beforeEach(function(done) {
+                            spyOn(player, '__getBranding__').and.returnValue(q([]));
+                            player.__loadExperience__.and.returnValue(q(experience));
+                            delete experience.data.campaign.launchUrls;
+
+                            player.get(options).finally(done);
+                        });
+
+                        it('should copy the launchUrls', function() {
+                            expect(experience.data.campaign.launchUrls).toEqual(options.launchUrls);
+                        });
+                    });
+
+                    describe('if the experience has no cards', function() {
+                        beforeEach(function(done) {
+                            success.calls.reset();
+                            failure.calls.reset();
+                            spyOn(player, '__getBranding__').and.returnValue(q([]));
+                            player.__loadExperience__.and.callFake(function() {
+                                experience.data.deck.length = 0;
+
+                                return q(experience);
+                            });
+
+                            player.get(options).then(success, failure).finally(done);
+                        });
+
+                        it('should fail', function() {
+                            var error = failure.calls.mostRecent().args[0];
+                            expect(failure).toHaveBeenCalledWith(jasmine.any(Error));
+
+                            expect(error.constructor.name).toBe('ServiceError');
+                            expect(error.message).toBe('Experience {' + experience.id + '} has no cards.');
+                            expect(error.status).toBe(409);
+                        });
+                    });
+
+                    describe('if called with no launchUrls', function() {
+                        beforeEach(function(done) {
+                            spyOn(player, '__getBranding__').and.returnValue(q([]));
+                            player.__loadExperience__.and.returnValue(q(experience));
+                            options.launchUrls = null;
+
+                            player.get(options).finally(done);
+                        });
+
+                        it('should leave the experience\'s launchUrls alone', function() {
+                            expect(experience.data.campaign.launchUrls).toEqual(['launch.gif']);
+                        });
+                    });
+
+                    describe('if called with vpaid: true', function() {
+                        beforeEach(function() {
+                            options.vpaid = true;
+                        });
+
+                        describe('if the experience has only one card', function() {
+                            beforeEach(function(done) {
+                                success.calls.reset();
+                                failure.calls.reset();
+                                experience.data.deck.length = 1;
+                                spyOn(player, '__getBranding__').and.returnValue(q([]));
+                                player.__loadExperience__.and.returnValue(q(experience));
+
+                                player.get(options).then(success, failure).finally(done);
+                            });
+
+                            it('should succeed', function() {
+                                expect(success).toHaveBeenCalledWith(document.toString());
+                            });
+                        });
+
+                        describe('if the experience has more than one card', function() {
+                            beforeEach(function(done) {
+                                success.calls.reset();
+                                failure.calls.reset();
+                                experience.data.deck.length = 2;
+                                spyOn(player, '__getBranding__').and.returnValue(q([]));
+                                player.__loadExperience__.and.returnValue(q(experience));
+
+                                player.get(options).then(success, failure).finally(done);
+                            });
+
+                            it('should fail', function() {
+                                var error = failure.calls.mostRecent().args[0];
+                                expect(failure).toHaveBeenCalledWith(jasmine.any(Error));
+
+                                expect(error.constructor.name).toBe('ServiceError');
+                                expect(error.message).toBe('VPAID does not support MiniReels.');
+                                expect(error.status).toBe(400);
+                            });
+                        });
+                    });
+
+                    describe('if the experience has no branding', function() {
+                        beforeEach(function(done) {
+                            success.calls.reset();
+                            failure.calls.reset();
+                            spyOn(player, '__getBranding__').and.returnValue(q([]));
+                            player.__loadExperience__.and.returnValue(q(experience));
+                            player.__getBranding__.calls.reset();
+                            player.__loadExperience__.calls.reset();
+                            delete experience.data.branding;
+
+                            player.get(options).then(success, failure).finally(done);
+                        });
+
+                        it('should not __getBranding__()', function() {
+                            expect(player.__getBranding__).not.toHaveBeenCalled();
+                        });
+
+                        it('should add the experience as a resource', function() {
+                            expect(document.addResource).toHaveBeenCalledWith('experience', 'application/json', experience);
+                        });
+
+                        it('should fulfill with a String of HTML', function() {
+                            expect(success).toHaveBeenCalledWith(document.toString());
+                        });
+                    });
+                });
+            });
+        });
+
+        describe('@private', function() {
+            describe('methods:', function() {
+                describe('__loadExperience__(id, params, origin, uuid)', function() {
+                    var id, params, origin, uuid;
+                    var experience;
+                    var getExperienceDeferred;
+
+                    var success, failure;
+
+                    beforeEach(function() {
+                        id = 'e-e2614b1f75c418';
+                        params = {
+                            campaign: 'cam-c3de383f7e37ce',
+                            branding: 'cinema6',
+                            placementId: '1673285684',
+                            container: 'mopub',
+                            wildCardPlacement: '238974285',
+                            pageUrl: 'http://www.foo.com/bar',
+                            hostApp: 'My Talking Tom',
+                            network: 'mopub',
+                            id: id,
+                            mobileMode: 'swipe',
+                            preview: false,
+                            categories: ['foo', 'bar']
+                        };
+                        origin = 'jsfiddle.net';
+                        uuid = 'w9hf493rh8439r';
+
+                        success = jasmine.createSpy('success()');
+                        failure = jasmine.createSpy('failure()');
+
+                        experience = {
+                            id: 'e-92160a770b81d5',
+                            data: {
+                                branding: 'elitedaily',
+                                campaign: { launchUrls: ['launch.gif'] },
+                                deck: [null, 'cam-2955fce737e487', null, null, 'cam-1e05bbe2a3ef74', 'cam-8a2f40a0344018', null]
+                                    .map(function(campaignId, index) {
+                                        return { id: 'rc-' + index, type: 'youtube', campaignId: campaignId, data: {} };
+                                    })
+                            }
+                        };
+                        getExperienceDeferred = q.defer();
+                        spyOn(player, '__getExperience__').and.returnValue(getExperienceDeferred.promise);
+
+                        player.__loadExperience__(id, params, origin, uuid).then(success, failure);
+                    });
+
                     it('should get the experience', function() {
-                        expect(player.__getExperience__).toHaveBeenCalledWith(options.experience, {
+                        expect(player.__getExperience__).toHaveBeenCalledWith(id, {
                             campaign: 'cam-c3de383f7e37ce',
                             branding: 'cinema6',
                             network: 'mopub',
@@ -907,12 +1150,12 @@ describe('player service', function() {
                             pageUrl: 'http://www.foo.com/bar',
                             hostApp: 'My Talking Tom',
                             preview: false
-                        }, 'http://cinema6.com/solo', options.uuid);
+                        }, origin, uuid);
                     });
 
                     describe('when the experience is fetched', function() {
                         var loadAdsDeferred;
-                        var brandings;
+                        var sponsoredCards;
 
                         beforeEach(function(done) {
                             jasmine.clock().mockDate();
@@ -920,24 +1163,14 @@ describe('player service', function() {
                             loadAdsDeferred = q.defer();
                             spyOn(player.adLoader, 'loadAds').and.returnValue(loadAdsDeferred.promise);
 
-                            brandings = [
-                                { src: 'theme.css', styles: 'body { padding: 10px; }' },
-                                { src: 'theme--hover.css', styles: 'body { margin: 20px; }' }
-                            ];
-                            spyOn(player, '__getBranding__').and.returnValue(q(brandings));
-
-                            spyOn(document, 'addCSS').and.callThrough();
+                            sponsoredCards = AdLoader.getSponsoredCards(experience);
 
                             getExperienceDeferred.fulfill(experience);
                             getExperienceDeferred.promise.finally(done);
                         });
 
                         it('should load ads for the experience', function() {
-                            expect(player.adLoader.loadAds).toHaveBeenCalledWith(experience, options.categories, options.campaign, options.uuid);
-                        });
-
-                        it('should loading brandings for the player', function() {
-                            expect(player.__getBranding__).toHaveBeenCalledWith(experience.data.branding, options.type, options.desktop, options.uuid);
+                            expect(player.adLoader.loadAds).toHaveBeenCalledWith(experience, params.categories, params.campaign, uuid);
                         });
 
                         describe('if loading the ads', function() {
@@ -965,33 +1198,8 @@ describe('player service', function() {
                                     expect(MockAdLoader.removeSponsoredCards).not.toHaveBeenCalled();
                                 });
 
-                                it('should add the launchUrls to the experience', function() {
-                                    expect(experience.data.campaign.launchUrls).toEqual(['launch.gif'].concat(options.launchUrls));
-                                });
-
-                                it('should add the custom tracking pixels to each sponsored card', function() {
-                                    sponsoredCards.forEach(function(card) {
-                                        expect(MockAdLoader.addTrackingPixels).toHaveBeenCalledWith({
-                                            playUrls: options.playUrls,
-                                            countUrls: options.countUrls
-                                        }, card);
-                                    });
-                                    expect(MockAdLoader.addTrackingPixels.calls.count()).toBe(sponsoredCards.length);
-                                });
-
-                                it('should add the brandings as a resource', function() {
-                                    expect(brandings.length).toBeGreaterThan(0);
-                                    brandings.forEach(function(branding) {
-                                        expect(document.addCSS).toHaveBeenCalledWith(branding.src, branding.styles);
-                                    });
-                                });
-
-                                it('should add the experience as a resource', function() {
-                                    expect(document.addResource).toHaveBeenCalledWith('experience', 'application/json', experience);
-                                });
-
-                                it('should resolve to the player as a string of HTML', function() {
-                                    expect(success).toHaveBeenCalledWith(document.toString());
+                                it('should fulfill with the experience', function() {
+                                    expect(success).toHaveBeenCalledWith(experience);
                                 });
                             });
 
@@ -1006,167 +1214,31 @@ describe('player service', function() {
                                     expect(MockAdLoader.removeSponsoredCards).toHaveBeenCalledWith(experience);
                                 });
 
-                                it('should add the launchUrls to the experience', function() {
-                                    expect(experience.data.campaign.launchUrls).toEqual(['launch.gif'].concat(options.launchUrls));
+                                it('should fulfill with the experience', function() {
+                                    expect(success).toHaveBeenCalledWith(experience);
                                 });
-
-                                it('should add the brandings as a resource', function() {
-                                    expect(brandings.length).toBeGreaterThan(0);
-                                    brandings.forEach(function(branding) {
-                                        expect(document.addCSS).toHaveBeenCalledWith(branding.src, branding.styles);
-                                    });
-                                });
-
-                                it('should add the experience as a resource', function() {
-                                    expect(document.addResource).toHaveBeenCalledWith('experience', 'application/json', experience);
-                                });
-
-                                it('should resolve to the player as a string of HTML', function() {
-                                    expect(success).toHaveBeenCalledWith(document.toString());
-                                });
-                            });
-                        });
-                    });
-
-                    describe('if called without an origin', function() {
-                        beforeEach(function(done) {
-                            spyOn(player, '__getBranding__').and.returnValue(q([]));
-                            player.__getExperience__.calls.reset();
-                            getExperienceDeferred.fulfill(experience);
-                            options.origin = undefined;
-
-                            player.get(options).finally(done);
-                        });
-
-                        it('should use the default origin', function() {
-                            expect(player.__getExperience__).toHaveBeenCalledWith(jasmine.any(String), jasmine.any(Object), config.defaults.origin, jasmine.any(String));
-                        });
-                    });
-
-                    describe('if the experience has no launchUrls', function() {
-                        beforeEach(function(done) {
-                            spyOn(player, '__getBranding__').and.returnValue(q([]));
-                            player.__getExperience__.and.returnValue(q(experience));
-                            spyOn(player.adLoader, 'loadAds').and.returnValue(q(experience));
-                            delete experience.data.campaign.launchUrls;
-
-                            player.get(options).finally(done);
-                        });
-
-                        it('should copy the launchUrls', function() {
-                            expect(experience.data.campaign.launchUrls).toEqual(options.launchUrls);
-                        });
-                    });
-
-                    describe('if the experience has no cards', function() {
-                        beforeEach(function(done) {
-                            success.calls.reset();
-                            failure.calls.reset();
-                            spyOn(player, '__getBranding__').and.returnValue(q([]));
-                            player.__getExperience__.and.returnValue(q(experience));
-                            spyOn(player.adLoader, 'loadAds').and.callFake(function() {
-                                experience.data.deck.length = 0;
-
-                                return q(experience);
-                            });
-
-                            player.get(options).then(success, failure).finally(done);
-                        });
-
-                        it('should fail', function() {
-                            var error = failure.calls.mostRecent().args[0];
-                            expect(failure).toHaveBeenCalledWith(jasmine.any(Error));
-
-                            expect(error.constructor.name).toBe('ServiceError');
-                            expect(error.message).toBe('Experience {' + experience.id + '} has no cards.');
-                            expect(error.status).toBe(409);
-                        });
-                    });
-
-                    describe('if called with no launchUrls', function() {
-                        beforeEach(function(done) {
-                            spyOn(player, '__getBranding__').and.returnValue(q([]));
-                            player.__getExperience__.and.returnValue(q(experience));
-                            spyOn(player.adLoader, 'loadAds').and.returnValue(q(experience));
-                            options.launchUrls = null;
-
-                            player.get(options).finally(done);
-                        });
-
-                        it('should leave the experience\'s launchUrls alone', function() {
-                            expect(experience.data.campaign.launchUrls).toEqual(['launch.gif']);
-                        });
-                    });
-
-                    describe('if called with vpaid: true', function() {
-                        beforeEach(function() {
-                            options.vpaid = true;
-                        });
-
-                        describe('if the experience has only one card', function() {
-                            beforeEach(function(done) {
-                                success.calls.reset();
-                                failure.calls.reset();
-                                experience.data.deck.length = 1;
-                                spyOn(player, '__getBranding__').and.returnValue(q([]));
-                                player.__getExperience__.and.returnValue(q(experience));
-                                spyOn(player.adLoader, 'loadAds').and.returnValue(q(experience));
-
-                                player.get(options).then(success, failure).finally(done);
-                            });
-
-                            it('should succeed', function() {
-                                expect(success).toHaveBeenCalledWith(document.toString());
-                            });
-                        });
-
-                        describe('if the experience has more than one card', function() {
-                            beforeEach(function(done) {
-                                success.calls.reset();
-                                failure.calls.reset();
-                                experience.data.deck.length = 2;
-                                spyOn(player, '__getBranding__').and.returnValue(q([]));
-                                player.__getExperience__.and.returnValue(q(experience));
-                                spyOn(player.adLoader, 'loadAds').and.returnValue(q(experience));
-
-                                player.get(options).then(success, failure).finally(done);
-                            });
-
-                            it('should fail', function() {
-                                var error = failure.calls.mostRecent().args[0];
-                                expect(failure).toHaveBeenCalledWith(jasmine.any(Error));
-
-                                expect(error.constructor.name).toBe('ServiceError');
-                                expect(error.message).toBe('VPAID does not support MiniReels.');
-                                expect(error.status).toBe(400);
                             });
                         });
                     });
 
                     describe('if called with preview: true', function() {
-                        var brandings;
-
                         beforeEach(function(done) {
-                            brandings = [
-                                { src: 'theme.css', styles: 'body { padding: 10px; }' },
-                                { src: 'theme--hover.css', styles: 'body { margin: 20px; }' }
-                            ];
-                            spyOn(player, '__getBranding__').and.returnValue(q(brandings));
-                            spyOn(document, 'addCSS').and.callThrough();
                             player.__getExperience__.and.returnValue(q(experience));
                             spyOn(Player.prototype, '__getExperience__').and.returnValue(q(experience));
                             spyOn(player.adLoader, 'loadAds').and.returnValue(q(experience));
                             player.__getExperience__.calls.reset();
+                            success.calls.reset();
+                            failure.calls.reset();
                             spyOn(MockAdLoader, 'removePlaceholders').and.callThrough();
                             spyOn(MockAdLoader, 'removeSponsoredCards').and.callThrough();
                             spyOn(MockAdLoader, 'addTrackingPixels').and.callThrough();
-                            options.preview = true;
+                            params.preview = true;
 
-                            player.get(options).finally(done);
+                            player.__loadExperience__(id, params, origin, uuid).then(success, failure).finally(done);
                         });
 
                         it('should call the uncached version of __getExperience__()', function() {
-                            expect(Player.prototype.__getExperience__).toHaveBeenCalledWith(options.experience, {
+                            expect(Player.prototype.__getExperience__).toHaveBeenCalledWith(id, {
                                 campaign: 'cam-c3de383f7e37ce',
                                 branding: 'cinema6',
                                 network: 'mopub',
@@ -1176,34 +1248,13 @@ describe('player service', function() {
                                 pageUrl: 'http://www.foo.com/bar',
                                 hostApp: 'My Talking Tom',
                                 preview: true
-                            }, 'http://cinema6.com/solo', options.uuid);
+                            }, origin, uuid);
                             expect(Player.prototype.__getExperience__.calls.mostRecent().object).toBe(player);
                             expect(player.__getExperience__).not.toHaveBeenCalled();
                         });
 
                         it('should not loadAds()', function() {
                             expect(player.adLoader.loadAds).not.toHaveBeenCalled();
-                        });
-
-                        it('should add the launchUrls to the experience', function() {
-                            expect(experience.data.campaign.launchUrls).toEqual(['launch.gif'].concat(options.launchUrls));
-                        });
-
-                        it('should add the custom tracking pixels to each sponsored card', function() {
-                            sponsoredCards.forEach(function(card) {
-                                expect(MockAdLoader.addTrackingPixels).toHaveBeenCalledWith({
-                                    playUrls: options.playUrls,
-                                    countUrls: options.countUrls
-                                }, card);
-                            });
-                            expect(MockAdLoader.addTrackingPixels.calls.count()).toBe(sponsoredCards.length);
-                        });
-
-                        it('should add the brandings as a resource', function() {
-                            expect(brandings.length).toBeGreaterThan(0);
-                            brandings.forEach(function(branding) {
-                                expect(document.addCSS).toHaveBeenCalledWith(branding.src, branding.styles);
-                            });
                         });
 
                         it('should removePlaceholders() from the experience', function() {
@@ -1214,49 +1265,18 @@ describe('player service', function() {
                             expect(MockAdLoader.removeSponsoredCards).not.toHaveBeenCalled();
                         });
 
-                        it('should add the experience as a resource', function() {
-                            expect(document.addResource).toHaveBeenCalledWith('experience', 'application/json', experience);
-                        });
-                    });
-
-                    describe('if the experience has no branding', function() {
-                        beforeEach(function(done) {
-                            success.calls.reset();
-                            failure.calls.reset();
-                            spyOn(player, '__getBranding__').and.returnValue(q([]));
-                            player.__getExperience__.and.returnValue(q(experience));
-                            spyOn(player.adLoader, 'loadAds').and.returnValue(q(experience));
-                            player.__getBranding__.calls.reset();
-                            player.__getExperience__.calls.reset();
-                            player.adLoader.loadAds.calls.reset();
-                            delete experience.data.branding;
-
-                            player.get(options).then(success, failure).finally(done);
-                        });
-
-                        it('should not __getBranding__()', function() {
-                            expect(player.__getBranding__).not.toHaveBeenCalled();
-                        });
-
-                        it('should load ads', function() {
-                            expect(player.adLoader.loadAds).toHaveBeenCalled();
-                        });
-
-                        it('should add the experience as a resource', function() {
-                            expect(document.addResource).toHaveBeenCalledWith('experience', 'application/json', experience);
-                        });
-
-                        it('should fulfill with a String of HTML', function() {
-                            expect(success).toHaveBeenCalledWith(document.toString());
+                        it('should fulfill with the experience', function() {
+                            expect(success).toHaveBeenCalledWith(experience);
                         });
                     });
 
                     describe('if the experience has no ads', function() {
                         beforeEach(function(done) {
-                            spyOn(player, '__getBranding__').and.returnValue(q([]));
                             player.__getExperience__.and.returnValue(q(experience));
                             spyOn(player.adLoader, 'loadAds').and.returnValue(q(experience));
                             player.__getExperience__.calls.reset();
+                            success.calls.reset();
+                            failure.calls.reset();
                             spyOn(MockAdLoader, 'removePlaceholders').and.callThrough();
                             spyOn(MockAdLoader, 'removeSponsoredCards').and.callThrough();
                             spyOn(MockAdLoader, 'addTrackingPixels').and.callThrough();
@@ -1264,27 +1284,19 @@ describe('player service', function() {
                                 return !(card.type === 'wildcard' || typeof card.campaignId === 'string');
                             });
 
-                            player.get(options).finally(done);
+                            player.__loadExperience__(id, params, origin, uuid).then(success, failure).finally(done);
                         });
 
                         it('should not loadAds()', function() {
                             expect(player.adLoader.loadAds).not.toHaveBeenCalled();
                         });
 
-                        it('should add the launchUrls to the experience', function() {
-                            expect(experience.data.campaign.launchUrls).toEqual(['launch.gif'].concat(options.launchUrls));
-                        });
-
-                        it('should add the experience as a resource', function() {
-                            expect(document.addResource).toHaveBeenCalledWith('experience', 'application/json', experience);
+                        it('should fulfill with the experience', function() {
+                            expect(success).toHaveBeenCalledWith(experience);
                         });
                     });
                 });
-            });
-        });
 
-        describe('@private', function() {
-            describe('methods:', function() {
                 describe('__getBranding__(branding, type, hover, uuid)', function() {
                     var branding, type, hover, uuid;
                     var result;
