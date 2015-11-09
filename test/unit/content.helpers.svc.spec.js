@@ -277,6 +277,15 @@ describe('content (UT)', function() {
             expect(req.isC6Origin).toBe(false);
         });
         
+        it('should treat reelcontent.com hosts as internal sites', function() {
+            req.headers = { origin: 'http://reelcontent.com' };
+            expModule.parseOrigin(req, siteExceptions);
+            expect(req.isC6Origin).toBe(true);
+            req.headers = { origin: 'http://platform.reelcontent.com' };
+            expModule.parseOrigin(req, siteExceptions);
+            expect(req.isC6Origin).toBe(true);
+        });
+        
         it('should handle the case where the origin is not defined', function() {
             [{}, { headers: {} }, { headers: { origin: '' } }].forEach(function(testReq) {
                 expModule.parseOrigin(testReq, siteExceptions);
@@ -1197,7 +1206,7 @@ describe('content (UT)', function() {
     });
 
     describe('handlePublicGet', function() {
-        var res, cardSvc, config;
+        var res, cardSvc, config, caches;
         beforeEach(function() {
             req.params.id = 'e-1';
             req.originHost = 'http://cinema6.com';
@@ -1238,6 +1247,22 @@ describe('content (UT)', function() {
                 expect(resp).toEqual({ code: 500, body: { error: 'Error retrieving content', detail: 'I GOT A PROBLEM' } });
                 expect(res.header.calls.count()).toBe(1);
                 expect(res.header).toHaveBeenCalledWith('cache-control', 'max-age=60');
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
+        });
+
+        it('should not set the cache-control header if the origin is an internal endpoint', function(done) {
+            q.all(['http://platform.reelcontent.com', 'http://platform.staging.reelcontent.com',
+                   'http://portal.cinema6.com', 'http://staging.cinema6.com'].map(function(origin) {
+                var reqCopy = JSON.parse(JSON.stringify(req));
+                reqCopy.originHost = origin;
+                return expModule.handlePublicGet(reqCopy, res, caches, cardSvc, config);
+            })).then(function(results) {
+                results.forEach(function(resp) {
+                    expect(resp).toEqual({ code: 200, body: { exp: 'yes' } });
+                });
+                expect(res.header).not.toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
             }).done(done);

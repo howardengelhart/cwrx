@@ -1,7 +1,9 @@
 # Content Service Changelog
 
+* Treat reelcontent.com like cinema6.com for access control/caching exceptions: [#621](https://github.com/cinema6/cwrx/issues/621)
+
 ### 2.3.0: Thu Nov  5 12:13:27 EST 2015
-* [FIX]: Its videoid not videoId stupid:  [#608](https://github.com/cinema6/cwrx/issues/608)
+* [FIX]: Its videoid not videoId stupid: [#608](https://github.com/cinema6/cwrx/issues/608)
 * Support copying `adtechId` and `bannerId` from cards' `campaign` hash for public endpoints: [#603](https://github.com/cinema6/cwrx/issues/603)
 * Pass campaign's `advertiserDisplayName` as cards' `params.sponsor` on public endpoints: [#529](https://github.com/cinema6/cwrx/issues/529)
 * Support plural versions of public endpoints: [#581](https://github.com/cinema6/cwrx/issues/581)

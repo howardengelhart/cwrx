@@ -299,8 +299,9 @@ describe('content card endpoints (E2E):', function() {
                 }).done(done);
             });
 
-            it('should not cache if the origin is staging.cinema6.com or portal.cinema6.com', function(done) {
-                q.all(['http://staging.cinema6.com', 'http://portal.cinema6.com'].map(function(origin) {
+            it('should not cache if the origin is a cinema6 app', function(done) {
+                q.all(['https://staging.cinema6.com', 'https://portal.cinema6.com',
+                       'https://platform.reelcontent.com', 'https://platform.staging.reelcontent.com'].map(function(origin) {
                     options.headers.origin = origin;
                     return requestUtils.qRequest('get', options);
                 })).then(function(results) {

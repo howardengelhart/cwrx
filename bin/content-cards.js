@@ -254,7 +254,8 @@
     cardModule.handlePublicGet = function(req, res, cardSvc, config) {
         return cardSvc.getPublicCard(req.params.id, req)
         .then(function(card) {
-            if (!req.originHost.match(/(portal|staging).cinema6.com/)) {
+            // don't cache for requests from studio or selfie apps, in prod or staging
+            if (!req.originHost.match(/(platform|portal|staging)\..*(cinema6|reelcontent).com/)) {
                 res.header('cache-control', 'max-age=' + config.cacheTTLs.cloudFront*60);
             }
             

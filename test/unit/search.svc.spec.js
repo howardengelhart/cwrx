@@ -280,8 +280,7 @@ describe('search (UT)', function() {
             search.findVideosWithGoogle(req, opts, googleCfg, apiKey).then(function(resp) {
                 expect(resp).toEqual({code: 200, body: 'formatted'});
                 expect(requestUtils.qRequest).toHaveBeenCalledWith('get', {url: 'http://google.com/cse',
-                    qs: {q: 'foo', cx: 'asdf1234', key: 'zxcv5678', num: 10, start: 20, fields: 'fakeFields'},
-                    headers: {Referer: 'https://portal.cinema6.com/index.html'}});
+                    qs: {q: 'foo', cx: 'asdf1234', key: 'zxcv5678', num: 10, start: 20, fields: 'fakeFields'} });
                 expect(search.formatGoogleResults).toHaveBeenCalledWith(
                     { startIndex: 11, count: 20, totalResults: 50 }, 'fakeItems');
                 expect(mockLog.warn).not.toHaveBeenCalled();

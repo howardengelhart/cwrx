@@ -1,5 +1,9 @@
 # Search Service Changelog
 
+* [FIX]: Stop faking referer on calls to google: [#621](https://github.com/cinema6/cwrx/issues/621)
+* Extra deployment steps:
+    * Deploy search cookbook 1.0.0
+
 ### 1.3.7: Thu Oct 15 13:24:56 EDT 2015
 * [FIX]: Stop logging cookie header: [#539](https://github.com/cinema6/cwrx/issues/539)
 * Extra deployment steps: None

@@ -23,7 +23,7 @@
     expModule.parseOrigin = function(req, siteExceptions) {
         req.origin = req.headers && (req.headers.origin || req.headers.referer) || '';
         req.originHost = req.origin && String(urlUtils.parse(req.origin).hostname) || '';
-        req.isC6Origin = (req.origin && req.origin.match('cinema6.com') || false) &&
+        req.isC6Origin = (req.origin && req.origin.match(/(cinema6|reelcontent)\.com/) || false) &&
                          !siteExceptions.public.some(function(s) { return req.originHost === s;}) ||
                          siteExceptions.cinema6.some(function(s) { return req.originHost === s;});
     };
@@ -738,7 +738,8 @@
     expModule.handlePublicGet = function(req, res, caches, cardSvc, config) {
         return expModule.getPublicExp(req.params.id, req, caches, cardSvc, config)
         .then(function(resp) {
-            if (!req.originHost.match(/(portal|staging).cinema6.com/)) {
+            // don't cache for requests from studio or selfie apps, in prod or staging
+            if (!req.originHost.match(/(platform|portal|staging)\..*(cinema6|reelcontent).com/)) {
                 res.header('cache-control', 'max-age=' + config.cacheTTLs.cloudFront*60);
             }
             
