@@ -591,7 +591,7 @@ describe('auth (E2E):', function() {
             mailman.once(msgSubject, function(msg) {
                 expect(msg.from[0].address).toBe('no-reply@cinema6.com');
                 expect(msg.to[0].address).toBe('c6e2etester@gmail.com');
-                var urlRegex = /https?:\/\/.*.com.*id=u-1.*token=[0-9a-f]{48}/;
+                var urlRegex = /https?:\/\/.*id=u-1.*token=[0-9a-f]{48}/;
                 expect(msg.text).toMatch(urlRegex);
                 expect(msg.html).toMatch(urlRegex);
                 expect(new Date() - msg.date).toBeLessThan(30000); // message should be recent

@@ -48,11 +48,12 @@
             supportAddress: 'support@cinema6.com'
         },
         forgotTargets: {
-            portal: 'https://portal.cinema6.com/forgot'
+            portal: 'http://localhost:9000/#/password/reset',
+            selfie: 'http://localhost:9000/#/pass/reset?selfie=true'
         },
         passwordResetPages: {
-            portal: 'https://portal.cinema6.com/#/password/forgot',
-            selfie: 'https://selfie.cinema6.com/#/password/forgot'
+            portal: 'http://localhost:9000/#/password/forgot',
+            selfie: 'http://localhost:9000/#/pass/forgot?selfie=true'
         },
         mongo: {
             c6Db: {
