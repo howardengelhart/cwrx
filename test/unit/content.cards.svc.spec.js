@@ -860,6 +860,17 @@ describe('content-cards (UT)', function() {
             }).done(done);
         });
         
+        it('should not set the cache-control header if the request is in preview mode', function(done) {
+            req.query.preview = true;
+            cardModule.handlePublicGet(req, res, cardSvc, config).then(function(resp) {
+                expect(resp).toEqual({ code: 200, body: { card: 'yes' } });
+                expect(cardSvc.getPublicCard).toHaveBeenCalledWith('e-1', req);
+                expect(res.header).not.toHaveBeenCalled();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
+        });
+        
         describe('if the extension is js', function() {
             beforeEach(function() {
                 req.params.ext = 'js';

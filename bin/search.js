@@ -203,9 +203,6 @@
                 num     : opts.limit,
                 start   : opts.start,
                 fields  : googleCfg.fields
-            },
-            headers : {
-                'Referer' : 'https://portal.cinema6.com/index.html'
             }
         };
 
