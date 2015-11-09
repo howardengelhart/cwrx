@@ -664,7 +664,7 @@ describe('AdLoader()', function() {
                 describe('fillPlaceholders(experience, categories, campaign, uuid)', function() {
                     var experience, categories, campaign, uuid;
                     var success, failure;
-                    var getBannersDeferred;
+                    var findBannersDeferred;
 
                     beforeEach(function() {
                         experience = {
@@ -871,14 +871,14 @@ describe('AdLoader()', function() {
                         success = jasmine.createSpy('success()');
                         failure = jasmine.createSpy('failure()');
 
-                        getBannersDeferred = q.defer();
-                        spyOn(loader.client, 'getBanners').and.returnValue(getBannersDeferred.promise);
+                        findBannersDeferred = q.defer();
+                        spyOn(loader.client, 'findBanners').and.returnValue(findBannersDeferred.promise);
 
                         loader.fillPlaceholders(experience, categories, campaign, uuid).then(success, failure);
                     });
 
                     it('should get ADTECH banners for each of the cards', function() {
-                        expect(loader.client.getBanners).toHaveBeenCalledWith(3, experience.data.wildCardPlacement, ['2x2'], {
+                        expect(loader.client.findBanners).toHaveBeenCalledWith(3, experience.data.wildCardPlacement, ['2x2'], {
                             kwlp1: campaign,
                             kwlp3: 'food+gaming+tech+lifestyle'
                         }, uuid);
@@ -920,7 +920,7 @@ describe('AdLoader()', function() {
                                 });
                             });
 
-                            getBannersDeferred.fulfill(banners);
+                            findBannersDeferred.fulfill(banners);
                             q.allSettled([success, failure]).finally(done);
                         });
 
@@ -960,7 +960,7 @@ describe('AdLoader()', function() {
                                 }
                             ];
 
-                            getBannersDeferred.fulfill(banners);
+                            findBannersDeferred.fulfill(banners);
 
                             getCardDeferreds = [];
                             spyOn(loader, '__getCard__').and.callFake(function() {
@@ -971,7 +971,7 @@ describe('AdLoader()', function() {
                                 return deferred.promise;
                             });
 
-                            getBannersDeferred.promise.finally(done);
+                            findBannersDeferred.promise.finally(done);
                         });
 
                         it('should make a request for the cards that are not already in the MiniReel', function() {
@@ -996,14 +996,14 @@ describe('AdLoader()', function() {
 
                         describe('and preview mode is true', function() {
                             beforeEach(function(done) {
-                                loader.client.getBanners.and.returnValue(q(banners));
+                                loader.client.findBanners.and.returnValue(q(banners));
                                 loader.__getCard__.and.returnValue(q({ data: {} }));
                                 spyOn(AdLoader.prototype, '__getCard__').and.returnValue(q({ data: {} }));
 
                                 success.calls.reset();
                                 failure.calls.reset();
                                 loader.__getCard__.calls.reset();
-                                loader.client.getBanners.calls.reset();
+                                loader.client.findBanners.calls.reset();
 
                                 experience.$params.preview = true;
 

@@ -253,7 +253,7 @@ describe('ADTECHBannerClient(config)', function() {
                     });
                 });
 
-                describe('getBanners(amount, placement, sizes, keywords, uuid)', function() {
+                describe('findBanners(amount, placement, sizes, keywords, uuid)', function() {
                     var amount, placement, sizes, keywords, uuid;
                     var success, failure;
                     var getDeferred;
@@ -275,7 +275,7 @@ describe('ADTECHBannerClient(config)', function() {
                         getDeferred = q.defer();
                         spyOn(client, 'get').and.returnValue(getDeferred.promise);
 
-                        result = client.getBanners(amount, placement, sizes, keywords, uuid);
+                        result = client.findBanners(amount, placement, sizes, keywords, uuid);
                         result.then(success, failure);
                     });
 
@@ -286,7 +286,7 @@ describe('ADTECHBannerClient(config)', function() {
                             failure.calls.reset();
                             client.get.calls.reset();
 
-                            client.getBanners(amount, placement, sizes, keywords, uuid).then(success, failure).finally(done);
+                            client.findBanners(amount, placement, sizes, keywords, uuid).then(success, failure).finally(done);
                         });
 
                         it('should fulfill with an empty array', function() {
