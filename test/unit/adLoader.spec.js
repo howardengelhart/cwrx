@@ -1706,6 +1706,103 @@ describe('AdLoader()', function() {
                         });
                     });
                 });
+
+                describe('getCard(id, placement, params, uuid)', function() {
+                    var id, params, uuid;
+                    var getCardDeferred;
+                    var success, failure;
+
+                    beforeEach(function() {
+                        id = 'rc-a12831fe0ab18a';
+                        placement = '48573498';
+                        params = {
+                            container: 'pocketmath',
+                            hostApp: 'Ruzzle',
+                            network: 'mopub',
+                            pageUrl: 'cinema6.com',
+                            experience: 'e-58e475ab5f932b',
+                            preview: false
+                        };
+                        uuid = '8urhdf9348hf934';
+
+                        success = jasmine.createSpy('success()');
+                        failure = jasmine.createSpy('failure()');
+
+                        getCardDeferred = q.defer();
+                        spyOn(loader, '__getCard__').and.returnValue(getCardDeferred.promise);
+
+                        loader.getCard(id, placement, params, uuid).then(success, failure);
+                    });
+
+                    it('should get the card from the content service', function() {
+                        expect(loader.__getCard__).toHaveBeenCalledWith(id, params, uuid);
+                    });
+
+                    describe('when the card is fetched', function() {
+                        var card;
+                        var decorateWithCampaignDeferred;
+
+                        beforeEach(function(done) {
+                            card = {
+                                id: 'rc-24c019f713fc51',
+                                data: {},
+                                campaign: {}
+                            };
+
+                            decorateWithCampaignDeferred = q.defer();
+                            spyOn(loader, 'decorateWithCampaign').and.returnValue(decorateWithCampaignDeferred.promise);
+
+                            getCardDeferred.fulfill(card);
+                            process.nextTick(done);
+                        });
+
+                        it('should decorate the card with campaign data', function() {
+                            expect(loader.decorateWithCampaign).toHaveBeenCalledWith(card, placement, uuid);
+                        });
+
+                        describe('and decorated', function() {
+                            beforeEach(function(done) {
+                                decorateWithCampaignDeferred.fulfill(card);
+
+                                process.nextTick(done);
+                            });
+
+                            it('should fulfill with the card', function() {
+                                expect(success).toHaveBeenCalledWith(card);
+                            });
+                        });
+
+                        describe('and decoration fails', function() {
+                            var reason;
+
+                            beforeEach(function(done) {
+                                reason = new Error('Banner is not a sponsored card banner.');
+                                decorateWithCampaignDeferred.reject(reason);
+
+                                process.nextTick(done);
+                            });
+
+                            it('should reject the promise', function() {
+                                expect(failure).toHaveBeenCalledWith(new Error('Card not found in the specified placement.'));
+                            });
+                        });
+                    });
+
+                    describe('when fetching the card fails', function() {
+                        var reason;
+
+                        beforeEach(function(done) {
+                            reason = new Error('Couldn\'t find that one.');
+                            getCardDeferred.reject(reason);
+
+                            process.nextTick(done);
+                        });
+
+                        it('should reject the promise', function() {
+                            expect(failure).toHaveBeenCalledWith(reason);
+                        });
+                    });
+                });
             });
         });
     });
