@@ -1,5 +1,6 @@
 # User Service Changelog
 
+### 2.1.3: Tue Nov 10 11:25:27 EST 2015
 * Integrate designed email templates: [#553](https://github.com/cinema6/cwrx/issues/553)
 * Extra deployment steps:
     * Deploy userSvc cookbook 1.3.9 to staging/production envs

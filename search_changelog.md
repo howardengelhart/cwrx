@@ -1,5 +1,6 @@
 # Search Service Changelog
 
+### 1.3.8: Tue Nov 10 11:25:27 EST 2015
 * [FIX]: Stop faking referer on calls to google: [#621](https://github.com/cinema6/cwrx/issues/621)
 * Extra deployment steps:
     * Deploy search cookbook 1.0.0
