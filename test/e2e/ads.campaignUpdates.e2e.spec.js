@@ -96,6 +96,9 @@ describe('ads campaignUpdates endpoints (E2E):', function() {
                         status: { __allowed: true },
                         rejectionReason: { __allowed: true }
                     }
+                },
+                entitlements: {
+                    directEditCampaigns: true
                 }
             },
         ];
