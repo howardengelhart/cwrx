@@ -295,6 +295,35 @@ describe('auth (E2E):', function() {
                     }).done(done);
                 });
             });
+            
+            it('should reset the number of failed attempts after a successfull login', function(done) {
+                var getCacheValue = function() {
+                    return cacheConn.checkConnection().then(function() {
+                        return cacheConn.get('loginAttempts:u-1');
+                    });
+                };
+
+                var options = {
+                    url: config.authUrl + '/login',
+                    json: {
+                        email: 'c6e2etester@gmail.com',
+                        password: 'notpassword'
+                    }
+                };
+                return requestUtils.qRequest('post', options).then(function() {
+                    return getCacheValue();
+                }).then(function(value) {
+                    expect(value).toBe(1);
+                    options.json.password = 'password';
+                    return requestUtils.qRequest('post', options);
+                }).then(function() {
+                    return getCacheValue();
+                }).then(function(value) {
+                    expect(value).not.toBeDefined();
+                }).catch(function(error) {
+                    expect(error).not.toBeDefined();
+                }).done(done);
+            });
         });
     });
     

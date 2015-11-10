@@ -27,7 +27,8 @@ describe('auth (UT)', function() {
         };
         mockCache = {
             add: jasmine.createSpy('add()').and.returnValue(q()),
-            incrTouch: jasmine.createSpy('incrTouch()').and.returnValue(1)
+            incrTouch: jasmine.createSpy('incrTouch()').and.returnValue(1),
+            delete: jasmine.createSpy('delete()').and.returnValue(q())
         };
         spyOn(logger, 'createLog').and.returnValue(mockLog);
         spyOn(logger, 'getLog').and.returnValue(mockLog);
@@ -147,6 +148,7 @@ describe('auth (UT)', function() {
                 expect(users.findOne).toHaveBeenCalled();
                 expect(users.findOne.calls.all()[0].args[0]).toEqual({'email': 'user'});
                 expect(bcrypt.compare).toHaveBeenCalledWith('pass', 'hashpass', anyFunc);
+                expect(mockCache.delete).toHaveBeenCalledWith('loginAttempts:u-123');
                 expect(req.session.regenerate).toHaveBeenCalled();
                 expect(mongoUtils.safeUser).toHaveBeenCalledWith(origUser);
                 expect(mongoUtils.unescapeKeys).toHaveBeenCalled();

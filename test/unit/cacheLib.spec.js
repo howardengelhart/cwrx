@@ -600,6 +600,49 @@ describe('cacheLib', function() {
             });
         });
         
+        describe('incrTouch', function() {
+            var cache;
+            beforeEach(function() {
+                cache = new cacheLib.Cache('host1:11211');
+                spyOn(cache, '_memcachedCommand').and.returnValue(q(1));
+            });
+
+            it('should call incr', function(done) {
+                spyOn(cache, 'incr').and.callThrough();
+                cache.incrTouch('foo', 1, 15000).then(function() {
+                    expect(cache.incr).toHaveBeenCalledWith('foo', 1);
+                }).catch(function(error) {
+                    expect(error).not.toBeDefined();
+                }).done(done);
+            });
+            
+            it('should touch the key', function(done) {
+                cache.incrTouch('foo', 1, 15000).then(function() {
+                    expect(cache._memcachedCommand).toHaveBeenCalledWith('touch', 'write', ['foo', 15]);
+                }).catch(function(error) {
+                    expect(error).not.toBeDefined();
+                }).done(done);
+            });
+            
+            it('should pass through errors', function(done) {
+                cache._memcachedCommand.and.returnValue(q.reject('I GOT A PROBLEM'));
+                cache.incrTouch('foo', 1, 15000).then(function(resp) {
+                    expect('resolved').not.toBe('resolved');
+                }).catch(function(error) {
+                    expect(error).toBe('I GOT A PROBLEM');
+                }).done(done);
+            });
+
+            it('should reject if the cache is not ready', function(done) {
+                mockMemClient.servers = [];
+                cache.incrTouch('foo', 1, 15000).then(function(resp) {
+                    expect('resolved').not.toBe('resolved');
+                }).catch(function(error) {
+                    expect(error).toBe('Cache is not usable yet');
+                }).done(done);
+            });
+        });
+        
         describe('close', function() {
             var cache;
             beforeEach(function() {

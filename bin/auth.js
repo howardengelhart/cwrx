@@ -109,8 +109,8 @@
             userAccount = account;
             return q.npost(bcrypt, 'compare', [req.body.password, userAccount.password])
             .then(function(matching) {
+                var cacheKey = 'loginAttempts:' + userAccount.id;
                 if (!matching) {
-                    var cacheKey = 'loginAttempts:' + userAccount.id;
                     return cache.add(cacheKey, 0, loginAttempts.ttl)
                         .then(function() {
                             return cache.incrTouch(cacheKey, 1, loginAttempts.ttl);
@@ -149,7 +149,9 @@
                 log.info('[%1] Successful login for user %2', req.uuid, req.body.email);
                 var user = mongoUtils.safeUser(userAccount);
 
-                return q.npost(req.session, 'regenerate').then(function() {
+                return cache.delete(cacheKey).then(function() {
+                    return q.npost(req.session, 'regenerate');
+                }).then(function() {
                     return authUtils.decorateUser(user);
                 }).then(function(decorated) {
                     auditJournal.writeAuditEntry(req, decorated.id);
