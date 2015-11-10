@@ -268,10 +268,16 @@ describe('player service', function() {
                                         cacheTTLs: {
                                             fresh: 1,
                                             max: 5
-                                        }
+                                        },
+                                        default: 'e-00000000000000'
                                     },
                                     card: {
                                         endpoint: 'api/public/content/card/',
+                                        validParams: [
+                                            'container', 'pageUrl',
+                                            'hostApp', 'network', 'experience',
+                                            'preview'
+                                        ],
                                         cacheTTLs: {
                                             fresh: 1,
                                             max: 5
@@ -722,10 +728,16 @@ describe('player service', function() {
                         cacheTTLs: {
                             fresh: 1,
                             max: 5
-                        }
+                        },
+                        default: 'e-00000000000000'
                     },
                     card: {
                         endpoint: 'api/public/content/card/',
+                        validParams: [
+                            'container', 'pageUrl',
+                            'hostApp', 'network', 'experience',
+                            'preview'
+                        ],
                         cacheTTLs: {
                             fresh: 1,
                             max: 5
@@ -1140,7 +1152,7 @@ describe('player service', function() {
 
                     describe('if an api node has no validParams', function() {
                         beforeEach(function() {
-                            type = 'card';
+                            type = 'player';
 
                             result = player.__apiParams__(type, params);
                         });
@@ -1148,6 +1160,369 @@ describe('player service', function() {
                         it('should return a copy of the params', function() {
                             expect(result).toEqual(params);
                             expect(result).not.toBe(params);
+                        });
+                    });
+                });
+
+                describe('__loadCard__(params, origin, uuid)', function() {
+                    var params, origin, uuid;
+                    var getExperienceDeferred;
+                    var success, failure;
+
+                    beforeEach(function() {
+                        params = {
+                            type: 'lightbox',
+                            uuid: 'efh7384ry43785t',
+                            experience: 'e-92160a770b81d5',
+                            branding: 'cinema6',
+                            network: 'mopub',
+                            origin: 'http://cinema6.com/solo?id=e-92160a770b81d5&cb=fu92yr483r76472&foo=wer89437r83947r#foofurief',
+                            placementId: '1673285684',
+                            container: 'mopub',
+                            wildCardPlacement: '238974285',
+                            pageUrl: 'http://www.foo.com/bar',
+                            hostApp: 'My Talking Tom',
+                            mobileMode: 'swipe',
+                            preview: false,
+                            playUrls: ['play1.gif', 'play2.gif'],
+                            countUrls: ['count1.gif', 'count2.gif'],
+                            launchUrls: ['launch1.gif', 'launch2.gif'],
+                            desktop: true
+                        };
+                        origin = 'http://cinema6.com/solo';
+                        uuid = params.uuid;
+
+                        getExperienceDeferred = q.defer();
+                        spyOn(player, '__getExperience__').and.returnValue(getExperienceDeferred.promise);
+
+                        success = jasmine.createSpy('success()');
+                        failure = jasmine.createSpy('failure()');
+                    });
+
+                    describe('with a card id, campaign and categories', function() {
+                        beforeEach(function(done) {
+                            success.calls.reset();
+                            failure.calls.reset();
+                            spyOn(player.adLoader, 'getCard').and.returnValue(q.defer().promise);
+                            spyOn(player.adLoader, 'findCard').and.returnValue(q.defer().promise);
+                            player.__getExperience__.calls.reset();
+
+                            params.card = 'rc-4a51653fcd65ac';
+                            params.campaign = 'cam-dd8f7c06153451';
+                            params.categories = ['food', 'tech'];
+
+                            player.__loadCard__(params, origin, uuid).then(success, failure).finally(done);
+                        });
+
+                        it('should do nothing', function() {
+                            expect(player.__getExperience__).not.toHaveBeenCalled();
+                            expect(player.adLoader.findCard).not.toHaveBeenCalled();
+                            expect(player.adLoader.getCard).not.toHaveBeenCalled();
+                        });
+
+                        it('should reject the promise', function() {
+                            var error = failure.calls.mostRecent().args[0];
+
+                            expect(error.message).toBe('Cannot specify campaign or categories with card.');
+                            expect(error.status).toBe(400);
+                        });
+                    });
+
+                    describe('with a campaign id or categories', function() {
+                        beforeEach(function() {
+                            params.campaign = 'cam-dd8f7c06153451';
+                            params.categories = ['food', 'tech'];
+
+                            player.__loadCard__(params, origin, uuid).then(success, failure);
+                        });
+
+                        it('should fetch the default experience', function() {
+                            expect(player.__getExperience__).toHaveBeenCalledWith(config.api.experience.default, player.__apiParams__('experience', params), origin, uuid);
+                        });
+
+                        describe('when the default experience is fetched', function() {
+                            var experience;
+                            var findCardDeferred;
+
+                            beforeEach(function(done) {
+                                findCardDeferred = q.defer();
+                                spyOn(player.adLoader, 'findCard').and.returnValue(findCardDeferred.promise);
+
+                                jasmine.clock().mockDate();
+                                spyOn(player.adLoadTimeReporter, 'push');
+
+                                experience = {
+                                    id: config.api.experience.default,
+                                    data: {
+                                        wildCardPlacement: '475839475',
+                                        title: null,
+                                        deck: []
+                                    }
+                                };
+                                getExperienceDeferred.fulfill(experience);
+
+                                process.nextTick(done);
+                            });
+
+                            it('should find the card', function() {
+                                expect(player.adLoader.findCard).toHaveBeenCalledWith({
+                                    placement: experience.data.wildCardPlacement,
+                                    campaign: params.campaign,
+                                    categories: params.categories
+                                }, extend({ experience: experience.id }, player.__apiParams__('card', params)), uuid);
+                            });
+
+                            describe('and the card is fetched', function() {
+                                var card;
+
+                                beforeEach(function(done) {
+                                    jasmine.clock().tick(250);
+
+                                    card = {
+                                        id: params.card,
+                                        title: 'My Awesome Card!',
+                                        data: {},
+                                        campaign: {}
+                                    };
+                                    findCardDeferred.fulfill(card);
+
+                                    process.nextTick(done);
+                                });
+
+                                it('should set the experience\'s title to the card\'s', function() {
+                                    expect(experience.data.title).toBe(card.title);
+                                });
+
+                                it('should put the card in the deck', function() {
+                                    expect(experience.data.deck).toEqual([card]);
+                                });
+
+                                it('should report the time it took to load the ad', function() {
+                                    expect(player.adLoadTimeReporter.push).toHaveBeenCalledWith(250);
+                                });
+
+                                it('should fulfill with the experience', function() {
+                                    expect(success).toHaveBeenCalledWith(experience);
+                                });
+
+                                describe('in preview mode', function() {
+                                    beforeEach(function(done) {
+                                        success.calls.reset();
+                                        failure.calls.reset();
+                                        player.adLoadTimeReporter.push.calls.reset();
+
+                                        params.preview = true;
+
+                                        player.__loadCard__(params, origin, uuid).then(success, failure).finally(done);
+                                    });
+
+                                    it('should fulfill with the experience', function() {
+                                        expect(success).toHaveBeenCalledWith(experience);
+                                    });
+
+                                    it('should not send timing metrics', function() {
+                                        expect(player.adLoadTimeReporter.push).not.toHaveBeenCalled();
+                                    });
+                                });
+                            });
+
+                            describe('and no card is found', function() {
+                                beforeEach(function(done) {
+                                    findCardDeferred.fulfill(null);
+
+                                    process.nextTick(done);
+                                });
+
+                                it('should reject the promise', function() {
+                                    var error = failure.calls.mostRecent().args[0];
+
+                                    expect(error.message).toBe('No cards found.');
+                                    expect(error.status).toBe(404);
+                                });
+
+                                it('should not log an error', function() {
+                                    expect(log.error).not.toHaveBeenCalled();
+                                });
+                            });
+
+                            describe('and the card fails to be fetched', function() {
+                                var reason;
+
+                                beforeEach(function(done) {
+                                    reason = new Error('Something went wrong!');
+                                    findCardDeferred.reject(reason);
+
+                                    process.nextTick(done);
+                                });
+
+                                it('should reject the promise', function() {
+                                    var error = failure.calls.mostRecent().args[0];
+
+                                    expect(error.message).toBe(reason.message);
+                                    expect(error.status).toBe(404);
+                                });
+
+                                it('should log an error', function() {
+                                    expect(log.error).toHaveBeenCalled();
+                                });
+                            });
+                        });
+
+                        describe('if getting the experience fails', function() {
+                            var reason;
+
+                            beforeEach(function(done) {
+                                reason = new Error('Something is awful.');
+                                getExperienceDeferred.reject(reason);
+
+                                process.nextTick(done);
+                            });
+
+                            it('should reject the promise', function() {
+                                expect(failure).toHaveBeenCalledWith(reason);
+                            });
+
+                            it('should log an error', function() {
+                                expect(log.error).toHaveBeenCalled();
+                            });
+                        });
+                    });
+
+                    describe('with a card ID', function() {
+                        beforeEach(function() {
+                            params.card = 'rc-4a51653fcd65ac';
+
+                            player.__loadCard__(params, origin, uuid).then(success, failure);
+                        });
+
+                        it('should fetch the default experience', function() {
+                            expect(player.__getExperience__).toHaveBeenCalledWith(config.api.experience.default, player.__apiParams__('experience', params), origin, uuid);
+                        });
+
+                        describe('when the default experience is fetched', function() {
+                            var experience;
+                            var getCardDeferred;
+
+                            beforeEach(function(done) {
+                                getCardDeferred = q.defer();
+                                spyOn(player.adLoader, 'getCard').and.returnValue(getCardDeferred.promise);
+
+                                jasmine.clock().mockDate();
+                                spyOn(player.adLoadTimeReporter, 'push');
+
+                                experience = {
+                                    id: config.api.experience.default,
+                                    data: {
+                                        wildCardPlacement: '475839475',
+                                        title: null,
+                                        deck: []
+                                    }
+                                };
+                                getExperienceDeferred.fulfill(experience);
+
+                                process.nextTick(done);
+                            });
+
+                            it('should find the card', function() {
+                                expect(player.adLoader.getCard).toHaveBeenCalledWith(params.card, experience.data.wildCardPlacement, extend({
+                                    experience: experience.id
+                                }, player.__apiParams__('card', params)), uuid);
+                            });
+
+                            describe('and the card is fetched', function() {
+                                var card;
+
+                                beforeEach(function(done) {
+                                    jasmine.clock().tick(37);
+
+                                    card = {
+                                        id: params.card,
+                                        title: 'My Awesome Card!',
+                                        data: {},
+                                        campaign: {}
+                                    };
+                                    getCardDeferred.fulfill(card);
+
+                                    process.nextTick(done);
+                                });
+
+                                it('should set the experience\'s title to the card\'s', function() {
+                                    expect(experience.data.title).toBe(card.title);
+                                });
+
+                                it('should put the card in the deck', function() {
+                                    expect(experience.data.deck).toEqual([card]);
+                                });
+
+                                it('should report the time it took to load the ad', function() {
+                                    expect(player.adLoadTimeReporter.push).toHaveBeenCalledWith(37);
+                                });
+
+                                it('should fulfill with the experience', function() {
+                                    expect(success).toHaveBeenCalledWith(experience);
+                                });
+
+                                describe('in preview mode', function() {
+                                    beforeEach(function(done) {
+                                        success.calls.reset();
+                                        failure.calls.reset();
+                                        player.adLoadTimeReporter.push.calls.reset();
+
+                                        params.preview = true;
+
+                                        player.__loadCard__(params, origin, uuid).then(success, failure).finally(done);
+                                    });
+
+                                    it('should fulfill with the experience', function() {
+                                        expect(success).toHaveBeenCalledWith(experience);
+                                    });
+
+                                    it('should not send timing metrics', function() {
+                                        expect(player.adLoadTimeReporter.push).not.toHaveBeenCalled();
+                                    });
+                                });
+                            });
+
+                            describe('and the card fails to be fetched', function() {
+                                var reason;
+
+                                beforeEach(function(done) {
+                                    reason = new Error('Something went wrong!');
+                                    getCardDeferred.reject(reason);
+
+                                    process.nextTick(done);
+                                });
+
+                                it('should reject the promise', function() {
+                                    var error = failure.calls.mostRecent().args[0];
+
+                                    expect(error.message).toBe(reason.message);
+                                    expect(error.status).toBe(404);
+                                });
+
+                                it('should not log an error', function() {
+                                    expect(log.error).not.toHaveBeenCalled();
+                                });
+                            });
+                        });
+
+                        describe('if getting the experience fails', function() {
+                            var reason;
+
+                            beforeEach(function(done) {
+                                reason = new Error('Something is awful.');
+                                getExperienceDeferred.reject(reason);
+
+                                process.nextTick(done);
+                            });
+
+                            it('should reject the promise', function() {
+                                expect(failure).toHaveBeenCalledWith(reason);
+                            });
+
+                            it('should log an error', function() {
+                                expect(log.error).toHaveBeenCalled();
+                            });
                         });
                     });
                 });

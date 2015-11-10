@@ -121,6 +121,79 @@ Player.prototype.__apiParams__ = function __apiParams__(type, params) {
     return filterObject(params, predicate);
 };
 
+Player.prototype.__loadCard__ = function __loadCard__(params, origin, uuid) {
+    var self = this;
+    var log = logger.getLog();
+    var adLoader = this.adLoader;
+    var adLoadTimeReporter = this.adLoadTimeReporter;
+    var validParams = this.__apiParams__('experience', params);
+    var preview = params.preview;
+    var cardId = params.card;
+    var campaignId = params.campaign;
+    var categories = params.categories;
+    var experienceId = this.config.api.experience.default;
+
+    if (cardId && (campaignId || categories)) {
+        return q.reject(new ServiceError(
+            'Cannot specify campaign or categories with card.', 400
+        ));
+    }
+
+    return this.__getExperience__(experienceId, validParams, origin, uuid)
+        .catch(function logError(reason) {
+            log.error('[%1] Failed to fetch the default experience: %2.', uuid, inspect(reason));
+            throw reason;
+        })
+        .then(function fetch(experience) {
+            var wildCardPlacement = experience.data.wildCardPlacement;
+            var cardParams = extend({
+                experience: experienceId
+            }, self.__apiParams__('card', params));
+
+            function fetchCard() {
+                var start = Date.now();
+
+                return (function() {
+                    if (cardId) {
+                        return adLoader.getCard(cardId, wildCardPlacement, cardParams, uuid);
+                    }
+
+                    return adLoader.findCard({
+                        placement: wildCardPlacement,
+                        campaign: campaignId,
+                        categories: categories
+                    }, cardParams, uuid).catch(function logError(reason) {
+                        log.error(
+                            '[%1] Unexpected error finding a card: %2.',
+                            uuid, inspect(reason.message)
+                        );
+
+                        throw reason;
+                    }).then(function checkForCard(card) {
+                        if (!card) { throw new Error('No cards found.'); }
+
+                        return card;
+                    });
+                }()).tap(function sendMetrics() {
+                    var end = Date.now();
+
+                    if (!preview) {
+                        adLoadTimeReporter.push(end - start);
+                    }
+                }).catch(function createServiceError(reason) {
+                    throw new ServiceError(reason.message, 404);
+                });
+            }
+
+            return fetchCard().then(function loadCard(card) {
+                experience.data.title = card.title;
+                experience.data.deck = [card];
+
+                return experience;
+            });
+        });
+};
+
 Player.prototype.__loadExperience__ = function __loadExperience__(id, params, origin, uuid) {
     var self = this;
     var log = logger.getLog();
@@ -369,10 +442,16 @@ Player.startService = function startService() {
                     cacheTTLs: {
                         fresh: 1,
                         max: 5
-                    }
+                    },
+                    default: 'e-00000000000000'
                 },
                 card: {
                     endpoint: 'api/public/content/card/',
+                    validParams: [
+                        'container', 'pageUrl',
+                        'hostApp', 'network', 'experience',
+                        'preview'
+                    ],
                     cacheTTLs: {
                         fresh: 1,
                         max: 5
