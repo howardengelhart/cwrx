@@ -851,7 +851,7 @@ describe('player service', function() {
                     var success, failure;
                     var options;
                     var document, experience, sponsoredCards;
-                    var loadExperienceDeferred;
+                    var loadExperienceDeferred, loadCardDeferred;
 
                     beforeEach(function(done) {
                         success = jasmine.createSpy('success()');
@@ -883,6 +883,7 @@ describe('player service', function() {
                         spyOn(document, 'addResource').and.callThrough();
 
                         loadExperienceDeferred = q.defer();
+                        loadCardDeferred = q.defer();
 
                         experience = {
                             id: 'e-92160a770b81d5',
@@ -897,6 +898,7 @@ describe('player service', function() {
                         };
                         sponsoredCards = AdLoader.getSponsoredCards(experience);
                         spyOn(player, '__loadExperience__').and.returnValue(loadExperienceDeferred.promise);
+                        spyOn(player, '__loadCard__').and.returnValue(loadCardDeferred.promise);
 
                         spyOn(player, '__getPlayer__').and.returnValue(q(document));
 
@@ -910,6 +912,10 @@ describe('player service', function() {
 
                     it('should load the experience', function() {
                         expect(player.__loadExperience__).toHaveBeenCalledWith(options.experience, options, 'http://cinema6.com/solo', options.uuid);
+                    });
+
+                    it('should not load a card', function() {
+                        expect(player.__loadCard__).not.toHaveBeenCalled();
                     });
 
                     describe('when the experience is loaded', function() {
@@ -961,6 +967,147 @@ describe('player service', function() {
 
                         it('should resolve to the player as a string of HTML', function() {
                             expect(success).toHaveBeenCalledWith(document.toString());
+                        });
+                    });
+
+                    describe('if called with a card', function() {
+                        beforeEach(function(done) {
+                            success.calls.reset();
+                            failure.calls.reset();
+                            player.__loadExperience__.calls.reset();
+                            player.__loadCard__.calls.reset();
+                            player.__getPlayer__.calls.reset();
+
+                            options.card = 'rc-82f93f7e3bc236';
+                            player.get(options).then(success, failure).finally(done);
+                        });
+
+                        it('should reject the promise', function() {
+                            var error = failure.calls.mostRecent().args[0];
+
+                            expect(error.message).toBe('You may specify an experience or card, not both.');
+                            expect(error.status).toBe(400);
+                        });
+
+                        it('should not call __loadExperience__(), __loadCard__() or __getPlayer__()', function() {
+                            [player.__loadExperience__, player.__loadCard__, player.__getPlayer__].forEach(function(spy) {
+                                expect(spy).not.toHaveBeenCalled();
+                            });
+                        });
+                    });
+
+                    describe('if called without an experience', function() {
+                        beforeEach(function() {
+                            success.calls.reset();
+                            failure.calls.reset();
+                            player.__loadExperience__.calls.reset();
+                            player.__loadCard__.calls.reset();
+                            player.__getPlayer__.calls.reset();
+
+                            delete options.experience;
+                        });
+
+                        describe('and no card, campaign or categories', function() {
+                            beforeEach(function(done) {
+                                delete options.card;
+                                delete options.campaign;
+                                delete options.categories;
+
+                                player.get(options).then(success, failure).finally(done);
+                            });
+
+                            it('should reject the promise', function() {
+                                var error = failure.calls.mostRecent().args[0];
+
+                                expect(error.message).toBe('You must specify either an experience, card, campaign or categories.');
+                                expect(error.status).toBe(400);
+                            });
+
+                            it('should not call __loadExperience__(), __loadCard__() or __getPlayer__()', function() {
+                                [player.__loadExperience__, player.__loadCard__, player.__getPlayer__].forEach(function(spy) {
+                                    expect(spy).not.toHaveBeenCalled();
+                                });
+                            });
+                        });
+
+                        describe('and a card, campaign and categories', function() {
+                            beforeEach(function() {
+                                options.card = 'rc-815770d013a72c';
+                                options.campaign = 'cam-d702b101d0a046';
+                                options.categories = ['food', 'tech'];
+
+                                player.get(options).then(success, failure);
+                            });
+
+                            it('should get the player', function() {
+                                expect(player.__getPlayer__).toHaveBeenCalledWith(options.type, options.uuid);
+                            });
+
+                            it('should not load the experience', function() {
+                                expect(player.__loadExperience__).not.toHaveBeenCalled();
+                            });
+
+                            it('should load the card', function() {
+                                expect(player.__loadCard__).toHaveBeenCalledWith(options, 'http://cinema6.com/solo', options.uuid);
+                            });
+
+                            describe('when the card is loaded', function() {
+                                var loadAdsDeferred;
+                                var brandings;
+
+                                beforeEach(function(done) {
+                                    brandings = [
+                                        { src: 'theme.css', styles: 'body { padding: 10px; }' },
+                                        { src: 'theme--hover.css', styles: 'body { margin: 20px; }' }
+                                    ];
+                                    spyOn(player, '__getBranding__').and.returnValue(q(brandings));
+
+                                    spyOn(document, 'addCSS').and.callThrough();
+                                    spyOn(MockAdLoader, 'addTrackingPixels').and.callThrough();
+
+                                    experience.data.deck = [
+                                        {
+                                            id: options.card,
+                                            type: 'youtube',
+                                            campaignId: options.campaign,
+                                            data: {}
+                                        }
+                                    ];
+
+                                    loadCardDeferred.fulfill(experience);
+                                    process.nextTick(done);
+                                });
+
+                                it('should loading brandings for the player', function() {
+                                    expect(player.__getBranding__).toHaveBeenCalledWith(experience.data.branding, options.type, options.desktop, options.uuid);
+                                });
+
+                                it('should add the launchUrls to the experience', function() {
+                                    expect(experience.data.campaign.launchUrls).toEqual(['launch.gif'].concat(options.launchUrls));
+                                });
+
+                                it('should add the custom tracking pixels to each sponsored card', function() {
+                                    expect(MockAdLoader.addTrackingPixels).toHaveBeenCalledWith({
+                                        playUrls: options.playUrls,
+                                        countUrls: options.countUrls
+                                    }, experience.data.deck[0]);
+                                });
+
+                                it('should add the brandings as a resource', function() {
+                                    expect(brandings.length).toBeGreaterThan(0);
+                                    brandings.forEach(function(branding) {
+                                        expect(document.addCSS).toHaveBeenCalledWith(branding.src, branding.styles);
+                                    });
+                                });
+
+                                it('should add the experience as a resource', function() {
+                                    expect(document.addResource).toHaveBeenCalledWith('experience', 'application/json', experience);
+                                });
+
+                                it('should resolve to the player as a string of HTML', function() {
+                                    expect(success).toHaveBeenCalledWith(document.toString());
+                                });
+                            });
                         });
                     });
 
