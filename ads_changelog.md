@@ -1,5 +1,9 @@
 # Ads Service Changelog
 
+* [FEATURE]: Allow deleting campaigns through update requests: [#623](https://github.com/cinema6/cwrx/issues/623)
+* Extra deployment steps:
+    * Update selfie users' policies to allow editing campaignUpdates
+
 ### 3.0.1: Tue Nov 10 11:25:27 EST 2015
 * Integrate designed email templates: [#553](https://github.com/cinema6/cwrx/issues/553)
 * Extra deployment steps:

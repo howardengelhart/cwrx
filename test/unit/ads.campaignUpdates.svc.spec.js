@@ -323,6 +323,7 @@ describe('ads-campaignUpdates (UT)', function() {
             mockCamp = { id: 'cam-1', name: 'camp 1', updateRequest: 'ur-1', user: 'u-1', org: 'o-1' };
             campSvc = campModule.setupSvc(mockDb, updateModule.config);
             spyOn(campSvc, 'getObjs').and.callFake(function() { return q({ code: 200, body: mockCamp }); });
+            spyOn(campSvc, 'checkScope').and.callThrough();
             req.params.campId = 'cam-1';
             req.body = { data: { foo: 'bar' } };
             req.origObj = { id: 'ur-1' };
@@ -336,6 +337,7 @@ describe('ads-campaignUpdates (UT)', function() {
                 expect(errorSpy).not.toHaveBeenCalled();
                 expect(req.campaign).toEqual(mockCamp);
                 expect(req.body).toEqual({ campaign: 'cam-1', data: { foo: 'bar' } });
+                expect(campSvc.checkScope).toHaveBeenCalledWith(req.user, req.campaign, 'edit');
                 done();
             });
         });
@@ -366,7 +368,37 @@ describe('ads-campaignUpdates (UT)', function() {
                 expect(nextSpy).not.toHaveBeenCalled();
                 expect(doneSpy).toHaveBeenCalledWith({ code: 403, body: 'Not authorized to edit this campaign' });
                 expect(errorSpy).not.toHaveBeenCalled();
+                expect(campSvc.checkScope).toHaveBeenCalledWith(req.user, req.campaign, 'edit');
                 done();
+            });
+        });
+        
+        describe('if the user is trying to delete the campaign', function(done) {
+            beforeEach(function() {
+                req.body.data.status = Status.Deleted;
+            });
+
+            it('should call done if the user does not have permission to delete the campaign', function(done) {
+                updateModule.fetchCamp(campSvc, req, nextSpy, doneSpy).catch(errorSpy).finally(function() {
+                    expect(nextSpy).not.toHaveBeenCalled();
+                    expect(doneSpy).toHaveBeenCalledWith({ code: 403, body: 'Not authorized to delete this campaign' });
+                    expect(errorSpy).not.toHaveBeenCalled();
+                    expect(campSvc.checkScope).toHaveBeenCalledWith(req.user, req.campaign, 'delete');
+                    done();
+                });
+            });
+            
+            it('should call next otherwise', function(done) {
+                req.user.permissions.campaigns.delete = 'own';
+                updateModule.fetchCamp(campSvc, req, nextSpy, doneSpy).catch(errorSpy).finally(function() {
+                    expect(nextSpy).toHaveBeenCalled();
+                    expect(doneSpy).not.toHaveBeenCalled();
+                    expect(errorSpy).not.toHaveBeenCalled();
+                    expect(req.campaign).toEqual(mockCamp);
+                    expect(req.body).toEqual({ campaign: 'cam-1', data: { foo: 'bar', status: Status.Deleted } });
+                    expect(campSvc.checkScope).toHaveBeenCalledWith(req.user, req.campaign, 'delete');
+                    done();
+                });
             });
         });
 
@@ -925,7 +957,10 @@ describe('ads-campaignUpdates (UT)', function() {
             req.body = { id: 'ur-1', campaign: 'cam-1', data: { foo: 'bar' }, status: Status.Approved };
             req.origObj = { id: 'ur-1', campaign: 'cam-1', data: { foo: 'baz' }, status: Status.Pending };
             req.campaign = { id: 'cam-1', name: 'camp 1', updateRequest: 'u-1' };
-            spyOn(requestUtils, 'qRequest').and.returnValue(q({ response: { statusCode: 200 }, body: { camp: 'yes' } }));
+            spyOn(requestUtils, 'qRequest').and.callFake(function(method, opts) {
+                if (method === 'put') return q({ response: { statusCode: 200 }, body: { camp: 'yes' } });
+                else return q({ response: { statusCode: 204 } });
+            });
             spyOn(mongoUtils, 'editObject').and.returnValue(q());
             svc = { _db: mockDb };
         });
@@ -977,48 +1012,67 @@ describe('ads-campaignUpdates (UT)', function() {
             });
         });
         
-        describe('if the edit to the campaign fails', function() {
-            [
-                {
-                    description: 'with a 4xx',
-                    respValue: q({ response: { statusCode: 400 }, body: 'no editing campaigns for you' }),
-                    expected: '{ code: 400, body: \'no editing campaigns for you\' }'
-                },
-                {
-                    description: 'with a 5xx',
-                    respValue: q.reject('I GOT A PROBLEM'),
-                    expected: '\'I GOT A PROBLEM\''
-                }
-            ].forEach(function(caseObj) {
-                describe(caseObj.description, function() {
-                    beforeEach(function() {
-                        requestUtils.qRequest.and.returnValue(caseObj.respValue);
-                    });
-                    
-                    it('should attempt to re-lock the campaign and reject', function(done) {
-                        updateModule.applyUpdate(svc, req, nextSpy, doneSpy).catch(errorSpy).finally(function() {
-                            expect(nextSpy).not.toHaveBeenCalled();
-                            expect(doneSpy).not.toHaveBeenCalled();
-                            expect(errorSpy).toHaveBeenCalledWith('Failed editing campaign: ' + caseObj.expected);
-                            expect(requestUtils.qRequest).toHaveBeenCalled();
-                            expect(mongoUtils.editObject).toHaveBeenCalledWith({ collectionName: 'campaigns' },
-                                { updateRequest: 'ur-1', status: Status.Error }, 'cam-1');
-                            expect(mockLog.error.calls.count()).toBe(1);
-                            done();
+        it('should send a DELETE request if the data.status === deleted', function(done) {
+            req.body.data.status = Status.Deleted;
+            updateModule.applyUpdate(svc, req, nextSpy, doneSpy).catch(errorSpy).finally(function() {
+                expect(nextSpy).toHaveBeenCalled();
+                expect(doneSpy).not.toHaveBeenCalled();
+                expect(errorSpy).not.toHaveBeenCalled();
+                expect(requestUtils.qRequest).toHaveBeenCalledWith('delete', {
+                    url: 'https://test.com/api/campaigns/cam-1',
+                    headers: { cookie: 'chocolate' }
+                });
+                expect(mongoUtils.editObject).not.toHaveBeenCalled();
+                expect(mockLog.error).not.toHaveBeenCalled();
+                done();
+            });
+        });
+        
+        ['PUT', 'DELETE'].forEach(function(method) {
+            describe('if the ' + method + ' request to the campaign service fails', function() {
+                [
+                    {
+                        description: 'with a 4xx',
+                        respValue: q({ response: { statusCode: 400 }, body: 'no editing campaigns for you' }),
+                        expected: '{ code: 400, body: \'no editing campaigns for you\' }'
+                    },
+                    {
+                        description: 'with a 5xx',
+                        respValue: q.reject('I GOT A PROBLEM'),
+                        expected: '\'I GOT A PROBLEM\''
+                    }
+                ].forEach(function(caseObj) {
+                    describe(caseObj.description, function() {
+                        beforeEach(function() {
+                            req.body.data.status = method === 'DELETE' ? Status.Deleted : Status.Paused;
+                            requestUtils.qRequest.and.returnValue(caseObj.respValue);
                         });
-                    });
-                    
-                    it('should log an additional error if re-locking the campaign fails', function(done) {
-                        mongoUtils.editObject.and.returnValue(q.reject('Oh man everything is breaking'));
-                        updateModule.applyUpdate(svc, req, nextSpy, doneSpy).catch(errorSpy).finally(function() {
-                            expect(nextSpy).not.toHaveBeenCalled();
-                            expect(doneSpy).not.toHaveBeenCalled();
-                            expect(errorSpy).toHaveBeenCalledWith('Failed editing campaign: ' + caseObj.expected);
-                            expect(requestUtils.qRequest).toHaveBeenCalled();
-                            expect(mongoUtils.editObject).toHaveBeenCalledWith({ collectionName: 'campaigns' },
-                                { updateRequest: 'ur-1', status: Status.Error }, 'cam-1');
-                            expect(mockLog.error.calls.count()).toBe(2);
-                            done();
+                        
+                        it('should attempt to re-lock the campaign and reject', function(done) {
+                            updateModule.applyUpdate(svc, req, nextSpy, doneSpy).catch(errorSpy).finally(function() {
+                                expect(nextSpy).not.toHaveBeenCalled();
+                                expect(doneSpy).not.toHaveBeenCalled();
+                                expect(errorSpy).toHaveBeenCalledWith('Failed editing campaign: ' + caseObj.expected);
+                                expect(requestUtils.qRequest).toHaveBeenCalledWith(method.toLowerCase(), jasmine.any(Object));
+                                expect(mongoUtils.editObject).toHaveBeenCalledWith({ collectionName: 'campaigns' },
+                                    { updateRequest: 'ur-1', status: Status.Error }, 'cam-1');
+                                expect(mockLog.error.calls.count()).toBe(1);
+                                done();
+                            });
+                        });
+                        
+                        it('should log an additional error if re-locking the campaign fails', function(done) {
+                            mongoUtils.editObject.and.returnValue(q.reject('Oh man everything is breaking'));
+                            updateModule.applyUpdate(svc, req, nextSpy, doneSpy).catch(errorSpy).finally(function() {
+                                expect(nextSpy).not.toHaveBeenCalled();
+                                expect(doneSpy).not.toHaveBeenCalled();
+                                expect(errorSpy).toHaveBeenCalledWith('Failed editing campaign: ' + caseObj.expected);
+                                expect(requestUtils.qRequest).toHaveBeenCalledWith(method.toLowerCase(), jasmine.any(Object));
+                                expect(mongoUtils.editObject).toHaveBeenCalledWith({ collectionName: 'campaigns' },
+                                    { updateRequest: 'ur-1', status: Status.Error }, 'cam-1');
+                                expect(mockLog.error.calls.count()).toBe(2);
+                                done();
+                            });
                         });
                     });
                 });
