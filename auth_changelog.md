@@ -1,5 +1,6 @@
 # Auth Service Changelog
 
+### 1.5.1: Tue Nov 10 11:25:27 EST 2015
 * Integrate designed email templates: [#553](https://github.com/cinema6/cwrx/issues/553)
 * Extra deployment steps:
     * Deploy auth cookbook 1.3.5 to staging/production envs
