@@ -620,13 +620,16 @@ Player.prototype.get = function get(/*options*/) {
     var log = logger.getLog();
     var self = this;
     var type = options.type;
-    var experience = options.experience;
     var desktop = options.desktop;
     var origin = stripURL(options.origin);
     var uuid = options.uuid;
     var playUrls = options.playUrls;
     var countUrls = options.countUrls;
     var launchUrls = options.launchUrls;
+    var experience = options.experience;
+    var card = options.card;
+    var campaign = options.campaign;
+    var categories = options.categories;
 
     log.trace('[%1] Getting player with options (%2.)', uuid, inspect(options));
 
@@ -660,9 +663,22 @@ Player.prototype.get = function get(/*options*/) {
         return self.__getBranding__(branding, type, desktop, uuid);
     }
 
+    if (!(experience || card || campaign || categories)) {
+        return q.reject(new ServiceError(
+            'You must specify either an experience, card, campaign or categories.', 400
+        ));
+    }
+
+    if (experience && card) {
+        return q.reject(new ServiceError(
+            'You may specify an experience or card, not both.', 400
+        ));
+    }
+
     return q.all([
         this.__getPlayer__(type, uuid),
-        this.__loadExperience__(experience, options, origin, uuid)
+        experience ? this.__loadExperience__(experience, options, origin, uuid) :
+            this.__loadCard__(options, origin, uuid)
     ]).spread(function processExperience(document, experience) {
         if (experience.data.deck.length < 1) {
             throw new ServiceError('Experience {' + experience.id + '} has no cards.', 409);
