@@ -1,7 +1,7 @@
 var flush = true;
 describe('ads-campaigns (UT)', function() {
     var mockLog, CrudSvc, Model, logger, q, campModule, campaignUtils, bannerUtils, requestUtils,
-        mongoUtils, nextSpy, doneSpy, errorSpy, req, anyNum, mockDb, Status;
+        mongoUtils, objUtils, nextSpy, doneSpy, errorSpy, req, anyNum, mockDb, Status;
 
     beforeEach(function() {
         if (flush) { for (var m in require.cache){ delete require.cache[m]; } flush = false; }
@@ -12,6 +12,7 @@ describe('ads-campaigns (UT)', function() {
         campaignUtils   = require('../../lib/campaignUtils');
         bannerUtils     = require('../../lib/bannerUtils');
         mongoUtils      = require('../../lib/mongoUtils');
+        objUtils        = require('../../lib/objUtils');
         CrudSvc         = require('../../lib/crudSvc');
         Model           = require('../../lib/model');
         Status          = require('../../lib/enums').Status;
@@ -73,7 +74,16 @@ describe('ads-campaigns (UT)', function() {
     });
     
     describe('setupSvc', function() {
-        var svc;
+        var svc, boundFns;
+
+        function getBoundFn(original, argParams) {
+            var boundObj = boundFns.filter(function(call) {
+                return call.original === original && objUtils.compareObjects(call.args, argParams);
+            })[0] || {};
+            
+            return boundObj.bound;
+        }
+
         beforeEach(function() {
             var config = {
                 api: {
@@ -83,15 +93,28 @@ describe('ads-campaigns (UT)', function() {
                 },
                 campaigns: { statusDelay: 100, statusAttempts: 5 }
             };
+
+            boundFns = [];
+            var bind = Function.prototype.bind;
             
-            [campaignUtils.getAccountIds, campModule.extraValidation,
+            [campaignUtils.getAccountIds, campModule.extraValidation, campModule.statusCheck,
              campModule.editSponsoredCamps, campModule.createSponsoredCamps].forEach(function(fn) {
-                spyOn(fn, 'bind').and.returnValue(fn);
+                spyOn(fn, 'bind').and.callFake(function() {
+                    var boundFn = bind.apply(fn, arguments);
+
+                    boundFns.push({
+                        bound: boundFn,
+                        original: fn,
+                        args: Array.prototype.slice.call(arguments)
+                    });
+
+                    return boundFn;
+                });
             });
             
             svc = campModule.setupSvc(mockDb, config);
         });
-        
+
         it('should return a CrudSvc', function() {
             expect(svc).toEqual(jasmine.any(CrudSvc));
             expect(svc._coll).toEqual({ collectionName: 'campaigns' });
@@ -136,9 +159,8 @@ describe('ads-campaigns (UT)', function() {
         });
         
         it('should fetch advertiser + customer ids on create + edit', function() {
-            expect(campaignUtils.getAccountIds.bind).toHaveBeenCalledWith(campaignUtils, mockDb);
-            expect(svc._middleware.create).toContain(campaignUtils.getAccountIds);
-            expect(svc._middleware.edit).toContain(campaignUtils.getAccountIds);
+            expect(svc._middleware.create).toContain(getBoundFn(campaignUtils.getAccountIds, [campaignUtils, mockDb]));
+            expect(svc._middleware.edit).toContain(getBoundFn(campaignUtils.getAccountIds, [campaignUtils, mockDb]));
         });
         
         it('should fetch cards on create, edit, and delete', function() {
@@ -148,14 +170,18 @@ describe('ads-campaigns (UT)', function() {
         });
         
         it('should do extra validation on create + edit', function() {
-            expect(campModule.extraValidation.bind).toHaveBeenCalledWith(campModule, svc);
-            expect(svc._middleware.create).toContain(campModule.extraValidation);
-            expect(svc._middleware.edit).toContain(campModule.extraValidation);
+            expect(svc._middleware.create).toContain(getBoundFn(campModule.extraValidation, [campModule, svc]));
+            expect(svc._middleware.edit).toContain(getBoundFn(campModule.extraValidation, [campModule, svc]));
         });
         
         it('should default the reportingId on create + edit', function() {
             expect(svc._middleware.create).toContain(campModule.defaultReportingId);
             expect(svc._middleware.edit).toContain(campModule.defaultReportingId);
+        });
+        
+        it('should prevent editing + deleting campaigns while in certain statuses', function() {
+            expect(svc._middleware.edit).toContain(getBoundFn(campModule.statusCheck, [campModule, [Status.Draft]]));
+            expect(svc._middleware.delete).toContain(getBoundFn(campModule.statusCheck, [campModule, [Status.Draft, Status.Canceled, Status.Expired]]));
         });
         
         it('should prevent editing locked campaigns on edit', function() {
@@ -173,11 +199,9 @@ describe('ads-campaigns (UT)', function() {
         });
         
         it('should include middleware for managing adtech campaigns on create + edit', function() {
-            expect(campModule.createSponsoredCamps.bind).toHaveBeenCalledWith(campModule, svc);
-            expect(campModule.editSponsoredCamps.bind).toHaveBeenCalledWith(campModule, svc);
-            expect(svc._middleware.create).toContain(campModule.createSponsoredCamps);
-            expect(svc._middleware.edit).toContain(campModule.createSponsoredCamps);
-            expect(svc._middleware.edit).toContain(campModule.editSponsoredCamps);
+            expect(svc._middleware.create).toContain(getBoundFn(campModule.createSponsoredCamps, [campModule, svc]));
+            expect(svc._middleware.edit).toContain(getBoundFn(campModule.createSponsoredCamps, [campModule, svc]));
+            expect(svc._middleware.edit).toContain(getBoundFn(campModule.editSponsoredCamps, [campModule, svc]));
         });
         
         it('should include middleware for handling the pricingHistory', function() {
@@ -382,6 +406,35 @@ describe('ads-campaigns (UT)', function() {
                     { $or: [ { name: expectedObj }, { advertiserDisplayName: expectedObj } ] }
                 ]
             });
+        });
+    });
+    
+    describe('statusCheck', function() {
+        var permitted;
+        beforeEach(function() {
+            req.origObj = { id: 'cam-1', status: Status.Active };
+            req.user.entitlements = {};
+            permitted = [Status.Draft, Status.Canceled];
+        });
+
+        it('should call done if the campaign is not one of the permitted statuses', function() {
+            campModule.statusCheck(permitted, req, nextSpy, doneSpy);
+            expect(nextSpy).not.toHaveBeenCalled();
+            expect(doneSpy).toHaveBeenCalledWith({ code: 400, body: 'Action not permitted on ' + Status.Active + ' campaign' });
+        });
+        
+        it('should call next if the campaign is one of the permitted statuses', function() {
+            req.origObj.status = Status.Canceled;
+            campModule.statusCheck(permitted, req, nextSpy, doneSpy);
+            expect(nextSpy).toHaveBeenCalled();
+            expect(doneSpy).not.toHaveBeenCalled();
+        });
+        
+        it('should call next if the user has the directEditCampaigns entitlement', function() {
+            req.user.entitlements.directEditCampaigns = true;
+            campModule.statusCheck(permitted, req, nextSpy, doneSpy);
+            expect(nextSpy).toHaveBeenCalled();
+            expect(doneSpy).not.toHaveBeenCalled();
         });
     });
     
