@@ -90,6 +90,9 @@ describe('ads campaigns endpoints (E2E):', function() {
                             __allowed: true,
                         }
                     }
+                },
+                entitlements: {
+                    directEditCampaigns: true
                 }
             },
         ];
@@ -1203,7 +1206,7 @@ describe('ads campaigns endpoints (E2E):', function() {
             mockCamps = [
                 {
                     id: 'e2e-put1', status: 'active', advertiserId: keptAdvert.id, customerId: keptCust.id,
-                    name: 'fake camp', user: 'not-e2e-user', org: 'e2e-org'
+                    name: 'fake camp', user: 'e2e-user', org: 'e2e-org'
                 },
                 {
                     id: 'e2e-put2', status: 'active', advertiserId: keptAdvert.id, customerId: keptCust.id,
@@ -1252,7 +1255,7 @@ describe('ads campaigns endpoints (E2E):', function() {
             requestUtils.qRequest('put', options, null, { maxAttempts: 30 }).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
                 expect(resp.body._id).not.toBeDefined();
-                expect(resp.body.user).toBe('not-e2e-user');
+                expect(resp.body.user).toBe('e2e-user');
                 expect(resp.body.org).toBe('e2e-org');
                 expect(resp.body.name).toBe('updated fake camp');
                 expect(resp.body.pricing).not.toBeDefined();
@@ -1828,6 +1831,20 @@ describe('ads campaigns endpoints (E2E):', function() {
                     expect(util.inspect(error)).not.toBeDefined();
                 }).done(done);
             });
+            
+            it('should not edit a campaign not in draft mode', function(done) {
+                options = {
+                    url: config.adsUrl + '/campaign/e2e-put1',
+                    json: { name: 'mine now' },
+                    jar: selfieJar
+                };
+                requestUtils.qRequest('put', options, null, { maxAttempts: 30 }).then(function(resp) {
+                    expect(resp.response.statusCode).toBe(400);
+                    expect(resp.body).toBe('Action not permitted on active campaign');
+                }).catch(function(error) {
+                    expect(util.inspect(error)).not.toBeDefined();
+                }).done(done);
+            });
         });
     });
 
@@ -1836,7 +1853,13 @@ describe('ads campaigns endpoints (E2E):', function() {
             var mockCamps = [
                 { id: 'e2e-del1', status: 'deleted' },
                 { id: 'e2e-del2', status: 'active', user: 'e2e-user', org: 'e2e-org' },
-                { id: 'e2e-del3', status: 'active', user: 'not-e2e-user', org: 'e2e-org' }
+                { id: 'e2e-del3', status: 'draft', user: 'not-e2e-user', org: 'e2e-org' },
+                { id: 'e2e-active', status: 'active', user: 'e2e-user', org: 'e2e-org' },
+                { id: 'e2e-paused', status: 'paused', user: 'e2e-user', org: 'e2e-org' },
+                { id: 'e2e-error', status: 'error', user: 'e2e-user', org: 'e2e-org' },
+                { id: 'e2e-pending', status: 'pending', user: 'e2e-user', org: 'e2e-org' },
+                { id: 'e2e-canceled', status: 'canceled', user: 'e2e-user', org: 'e2e-org' },
+                { id: 'e2e-expired', status: 'expired', user: 'e2e-user', org: 'e2e-org' }
             ];
             
             return testUtils.mongoFind(
@@ -2012,6 +2035,33 @@ describe('ads campaigns endpoints (E2E):', function() {
                 requestUtils.qRequest('delete', options, null, { maxAttempts: 30 }).then(function(resp) {
                     expect(resp.response.statusCode).toBe(403);
                     expect(resp.body).toBe('Not authorized to delete this');
+                }).catch(function(error) {
+                    expect(util.inspect(error)).not.toBeDefined();
+                }).done(done);
+            });
+            
+            it('should not allow a user to delete a running campaign', function(done) {
+                q.all(['e2e-active', 'e2e-paused', 'e2e-error'].map(function(id) {
+                    return requestUtils.qRequest('delete', { url: config.adsUrl + '/campaigns/' + id, jar: selfieJar });
+                })).then(function(results) {
+                    expect(results[0].response.statusCode).toBe(400);
+                    expect(results[0].body).toBe('Action not permitted on active campaign');
+                    expect(results[1].response.statusCode).toBe(400);
+                    expect(results[1].body).toBe('Action not permitted on paused campaign');
+                    expect(results[2].response.statusCode).toBe(400);
+                    expect(results[2].body).toBe('Action not permitted on error campaign');
+                }).catch(function(error) {
+                    expect(util.inspect(error)).not.toBeDefined();
+                }).done(done);
+            });
+            
+            it('should allow a user to delete pending, canceled, or expired campaigns', function(done) {
+                q.all(['e2e-pending', 'e2e-canceled', 'e2e-expired'].map(function(id) {
+                    return requestUtils.qRequest('delete', { url: config.adsUrl + '/campaigns/' + id, jar: selfieJar });
+                })).then(function(results) {
+                    expect(results[0].response.statusCode).toBe(204);
+                    expect(results[1].response.statusCode).toBe(204);
+                    expect(results[2].response.statusCode).toBe(204);
                 }).catch(function(error) {
                     expect(util.inspect(error)).not.toBeDefined();
                 }).done(done);

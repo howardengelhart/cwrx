@@ -171,6 +171,7 @@
         svc.use('create', createSponsoredCamps);
         svc.use('create', campModule.handlePricingHistory);
 
+        svc.use('edit', campModule.statusCheck.bind(campModule, [enums.Status.Draft]));
         svc.use('edit', campModule.enforceLock);
         svc.use('edit', campModule.defaultAccountIds);
         svc.use('edit', getAccountIds);
@@ -184,6 +185,12 @@
         svc.use('edit', createSponsoredCamps);
         svc.use('edit', campModule.handlePricingHistory);
 
+        svc.use('delete', campModule.statusCheck.bind(campModule, [
+            enums.Status.Draft,
+            enums.Status.Pending,
+            enums.Status.Canceled,
+            enums.Status.Expired
+        ]));
         svc.use('delete', campModule.fetchCards);
         svc.use('delete', campModule.deleteContent);
         svc.use('delete', campModule.deleteSponsoredCamps);
@@ -279,6 +286,22 @@
         delete req._query.text;
 
         return next();
+    };
+
+    // Check and 400 if req.origObj.status is not one of the statuses in permitted
+    campModule.statusCheck = function(permitted, req, next, done) {
+        var log = logger.getLog();
+
+        if (permitted.indexOf(req.origObj.status) !== -1 ||
+            !!req.user.entitlements.directEditCampaigns) {
+            return q(next());
+        } else {
+            log.info('[%1] This action not permitted on %2 campaign', req.uuid, req.origObj.status);
+            return q(done({
+                code: 400,
+                body: 'Action not permitted on ' + req.origObj.status + ' campaign'
+            }));
+        }
     };
     
     // Prevent editing a campaign that has an updateRequest property

@@ -54,7 +54,7 @@ describe('ads campaignUpdates endpoints (E2E):', function() {
                 permissions: {
                     cards: { read: 'org', create: 'org', edit: 'org', delete: 'org' },
                     campaigns: { read: 'org', create: 'org', edit: 'org', delete: 'own' },
-                    campaignUpdates: { read: 'org', create: 'org' }
+                    campaignUpdates: { read: 'org', create: 'org', edit: 'org' }
                 },
                 fieldValidation: {
                     campaigns: {
@@ -66,7 +66,7 @@ describe('ads campaignUpdates endpoints (E2E):', function() {
                 }
             },
             {
-                id: 'p-e2e-selfie',
+                id: 'p-e2e-admin',
                 name: 'adminCampPolicy',
                 status: 'active',
                 priority: 1,
@@ -96,6 +96,9 @@ describe('ads campaignUpdates endpoints (E2E):', function() {
                         status: { __allowed: true },
                         rejectionReason: { __allowed: true }
                     }
+                },
+                entitlements: {
+                    directEditCampaigns: true
                 }
             },
         ];
@@ -1070,7 +1073,7 @@ describe('ads campaignUpdates endpoints (E2E):', function() {
                 });
             });
 
-            it('should switch the campaign back to draft if approving the update', function(done) {
+            it('should switch the campaign back to draft if rejecting the update', function(done) {
                 options.json.status = 'rejected';
                 options.json.rejectionReason = 'I got a problem with YOU';
                 mailman.once(approveSubject, function(msg) { expect(msg).not.toBeDefined(); });
@@ -1218,6 +1221,56 @@ describe('ads campaignUpdates endpoints (E2E):', function() {
             });
         });
         
+        it('should allow a selfie user to edit their update request but not approve it', function(done) {
+            options.jar = selfieJar;
+            options.json.status = 'approved';
+            options.json.data.pricing.cost = 0.000000001;
+
+            mailman.once(approveSubject, function(msg) { expect(msg).not.toBeDefined(); });
+            mailman.once(rejectSubject, function(msg) { expect(msg).not.toBeDefined(); });
+
+            requestUtils.qRequest('put', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.body.id).toEqual('ur-1');
+                expect(resp.body.status).toBe('pending');
+                expect(resp.body.campaign).toBe('cam-1');
+                expect(resp.body.data).toEqual({
+                    id: 'cam-1',
+                    status: 'draft',
+                    application: 'selfie',
+                    name: 'fernando',
+                    paymentMethod: 'infinite money',
+                    pricing: { budget: 500, dailyLimit: 100, cost: 0.08, model: 'cpv' },
+                    targeting: {
+                        geo: {
+                            states: ['new jersey' ],
+                            dmas: ['new york city', 'newark']
+                        },
+                        interests: ['cat-3']
+                    },
+                    updateRequest: 'ur-1',
+                    advertiserId: 'e2e-a-keepme',
+                    customerId: 'e2e-cu-keepme',
+                    user: 'e2e-user',
+                    org: 'e2e-org'
+                });
+                
+                // test that campaign not edited yet
+                return requestUtils.qRequest('get', {
+                    url: config.adsUrl + '/campaigns/cam-1',
+                    jar: selfieJar
+                });
+            }).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.body.updateRequest).toBe('ur-1');
+                expect(resp.body.name).toBe(mockCamps[0].name);
+                expect(resp.body.paymentMethod).not.toBeDefined();
+                expect(resp.body.pricing).toEqual(mockCamps[0].pricing);
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
+        
         it('should prevent editing updates for a different campaign', function(done) {
             options.url = config.adsUrl + '/campaigns/cam-2/updates/ur-1';
             requestUtils.qRequest('put', options).then(function(resp) {
@@ -1243,16 +1296,6 @@ describe('ads campaignUpdates endpoints (E2E):', function() {
             requestUtils.qRequest('put', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(404);
                 expect(resp.body).toEqual('That does not exist');
-            }).catch(function(error) {
-                expect(util.inspect(error)).not.toBeDefined();
-            }).done(done);
-        });
-
-        it('should return a 403 if the user does not have permission to edit updates', function(done) {
-            options.jar = selfieJar;
-            requestUtils.qRequest('put', options).then(function(resp) {
-                expect(resp.response.statusCode).toBe(403);
-                expect(resp.body).toEqual('Forbidden');
             }).catch(function(error) {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);

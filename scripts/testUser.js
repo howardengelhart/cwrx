@@ -131,6 +131,7 @@ function setupCampaignSvcFieldVal(policy) {
         }
     };
     policy.entitlements.adminCampaigns = true;
+    policy.entitlements.directEditCampaigns = true;
 }
     
 program
