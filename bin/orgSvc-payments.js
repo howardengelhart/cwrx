@@ -359,6 +359,7 @@
         
         return orgSvc.customMethod(req, 'getPaymentMethods', function() {
             if (!req.org.braintreeCustomer) {
+                log.info('[%1] No braintree customer for org %2', req.uuid, req.org.id);
                 return q({ code: 200, body: [] });
             }
             
@@ -403,6 +404,12 @@
             newCust.creditCard = {
                 cardholderName: req.body.cardholderName
             };
+        }
+        
+        if (req.user.org === req.org.id) {
+            newCust.firstName = req.user.firstName;
+            newCust.lastName = req.user.lastName;
+            newCust.email = req.user.email;
         }
         
         return q.npost(gateway.customer, 'create', [newCust])

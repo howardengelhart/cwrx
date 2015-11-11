@@ -1,5 +1,6 @@
 # Org Service Changelog
 
+* Set extra identifying info on braintree customers: [#627](https://github.com/cinema6/cwrx/pull/627)
 * Allow `null` to be set for validated fields: [#573](https://github.com/cinema6/cwrx/pull/573)
 
 ### 1.4.1: Thu Oct 15 13:24:56 EDT 2015
