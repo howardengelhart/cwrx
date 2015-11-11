@@ -1,5 +1,9 @@
 # Content Service Changelog
 
+
+### 2.3.2: Wed Nov 11 11:31:26 EST 2015
+* Handle protocol relative urls when accessing metaGetta: [#626](https://github.com/cinema6/cwrx/issues/626)
+
 ### 2.3.1: Tue Nov 10 11:25:27 EST 2015
 * Treat reelcontent.com like cinema6.com for access control/caching exceptions: [#621](https://github.com/cinema6/cwrx/issues/621)
 * Extra deployment steps: None

@@ -304,6 +304,25 @@ describe('content-cards (UT)', function() {
             .then(done,done.fail);
         });
 
+        it('should get duration from vast with protocol relative addr',function(done){
+            mockReq.body.data.vast  = '//myvast/is/vast.xml';
+            mockReq.body.type       = 'adUnit';
+
+            mockData.type       = 'vast';
+            mockData.duration   = 29;
+
+            cardModule.getMetaData(mockReq,mockNext,mockDone)
+            .then(function(){
+                expect(cardModule.metagetta).toHaveBeenCalledWith(jasmine.objectContaining({
+                    type : 'vast',
+                    uri : 'http://myvast/is/vast.xml'
+                }));
+                expect(mockReq.body.data.duration).toEqual(29);
+                expect(mockNext).toHaveBeenCalled();
+            })
+            .then(done,done.fail);
+        });
+
         it('logs warning, sets duration to -1 on meta err on create card',function(done){
             mockReq.body.data.vast  = 'https://myvast/is/vast.xml';
             mockReq.body.type       = 'adUnit';

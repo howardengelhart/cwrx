@@ -105,6 +105,10 @@
             return q(next());
         }
 
+        if ((opts.uri) && (opts.uri.match(/^\/\//))) {
+            opts.uri = 'http:' + opts.uri;
+        }
+
         return cardModule.metagetta(opts)
         .then(function(res){
             if ((res.duration === null) || (res.duration === undefined)){
