@@ -1221,56 +1221,6 @@ describe('ads campaignUpdates endpoints (E2E):', function() {
             });
         });
         
-        describe('if an update was a request to delete a campaign', function() {
-            beforeEach(function(done) {
-                var mockUpdate = {
-                    id: 'ur-1',
-                    status: 'pending',
-                    user: 'e2e-user',
-                    org: 'e2e-org',
-                    campaign: 'cam-1',
-                    initialSubmit: false,
-                    data: { status: 'deleted' }
-                };
-                mockCamps[0].status = 'active';
-                options.json = { status: 'approved' };
-                q.all([
-                    testUtils.resetCollection('campaignUpdates', mockUpdate),
-                    testUtils.resetCollection('campaigns', mockCamps),
-                ]).done(function() { done(); });
-            });
-            
-            it('should delete the campaign if approving the update', function(done) {
-                mailman.once(rejectSubject, function(msg) { expect(msg).not.toBeDefined(); });
-
-                requestUtils.qRequest('put', options).then(function(resp) {
-                    expect(resp.response.statusCode).toBe(200);
-                    expect(resp.body.id).toEqual('ur-1');
-                    expect(resp.body.status).toBe('approved');
-                    expect(resp.body.campaign).toBe('cam-1');
-                    expect(resp.body.data.status).toBe('deleted');
-                }).catch(function(error) {
-                    expect(util.inspect(error)).not.toBeDefined();
-                    done();
-                });
-
-                mailman.once(approveSubject, function(msg) {
-                    testApprovalMsg(msg, mockCamps[0], false);
-                    
-                    // test that campaign successfully edited
-                    requestUtils.qRequest('get', {
-                        url: config.adsUrl + '/campaigns/cam-1',
-                        jar: selfieJar
-                    }).then(function(resp) {
-                        expect(resp.response.statusCode).toBe(404);
-                        expect(resp.body).toBe('Object not found');
-                    }).catch(function(error) {
-                        expect(util.inspect(error)).not.toBeDefined();
-                    }).done(done);
-                });
-            });
-        });
-        
         it('should allow a selfie user to edit their update request but not approve it', function(done) {
             options.jar = selfieJar;
             options.json.status = 'approved';

@@ -1857,6 +1857,7 @@ describe('ads campaigns endpoints (E2E):', function() {
                 { id: 'e2e-active', status: 'active', user: 'e2e-user', org: 'e2e-org' },
                 { id: 'e2e-paused', status: 'paused', user: 'e2e-user', org: 'e2e-org' },
                 { id: 'e2e-error', status: 'error', user: 'e2e-user', org: 'e2e-org' },
+                { id: 'e2e-pending', status: 'pending', user: 'e2e-user', org: 'e2e-org' },
                 { id: 'e2e-canceled', status: 'canceled', user: 'e2e-user', org: 'e2e-org' },
                 { id: 'e2e-expired', status: 'expired', user: 'e2e-user', org: 'e2e-org' }
             ];
@@ -2054,12 +2055,13 @@ describe('ads campaigns endpoints (E2E):', function() {
                 }).done(done);
             });
             
-            it('should allow a user to delete canceled or expired campaigns', function(done) {
-                q.all(['e2e-canceled', 'e2e-expired'].map(function(id) {
+            it('should allow a user to delete pending, canceled, or expired campaigns', function(done) {
+                q.all(['e2e-pending', 'e2e-canceled', 'e2e-expired'].map(function(id) {
                     return requestUtils.qRequest('delete', { url: config.adsUrl + '/campaigns/' + id, jar: selfieJar });
                 })).then(function(results) {
                     expect(results[0].response.statusCode).toBe(204);
                     expect(results[1].response.statusCode).toBe(204);
+                    expect(results[2].response.statusCode).toBe(204);
                 }).catch(function(error) {
                     expect(util.inspect(error)).not.toBeDefined();
                 }).done(done);

@@ -157,20 +157,13 @@
                          req.uuid, req.campaign.id, req.campaign.updateRequest, req.origObj.id);
                 return done({ code: 400, body: 'Update request does not apply to this campaign' });
             }
-
-            if (req.body && req.body.data.status === Status.Deleted) {
-                if (!campSvc.checkScope(req.user, req.campaign, 'delete')) {
-                    log.info('[%1] User %2 does not have permission to delete %3',
-                             req.uuid, req.user.id, req.campaign.id);
-                    return done({ code: 403, body: 'Not authorized to delete this campaign' });
-                }
-            }
-            else if (!campSvc.checkScope(req.user, req.campaign, 'edit')) {
+            
+            if (!campSvc.checkScope(req.user, req.campaign, 'edit')) {
                 log.info('[%1] User %2 does not have permission to edit %3',
                          req.uuid, req.user.id, req.campaign.id);
                 return done({ code: 403, body: 'Not authorized to edit this campaign' });
             }
-
+            
             req.body.campaign = campId;
             
             next();
@@ -417,8 +410,7 @@
     updateModule.applyUpdate = function(svc, req, next/*, done*/) {
         var log = logger.getLog(),
             updateId = req.origObj && req.origObj.id || req.body.id,
-            campId = req.campaign.id,
-            promise, expectedCode;
+            campId = req.campaign.id;
             
         if (!approvingUpdate(req) && !req.body.autoApproved) {
             return q(next());
@@ -426,28 +418,13 @@
         
         delete req.body.data.updateRequest;
         
-        if (req.body.data.status === Status.Deleted) {
-            log.info('[%1] Deleting campaign %2 as a result of %3', req.uuid, campId, updateId);
-
-            promise = requestUtils.qRequest('delete', {
-                url: urlUtils.resolve(updateModule.config.api.campaigns.baseUrl, campId),
-                headers: { cookie: req.headers.cookie }
-            });
-            expectedCode = 204;
-        }
-        else {
-            log.info('[%1] Editing campaign %2 with data of %3', req.uuid, campId, updateId);
-            
-            promise = requestUtils.qRequest('put', {
-                url: urlUtils.resolve(updateModule.config.api.campaigns.baseUrl, campId),
-                json: req.body.data,
-                headers: { cookie: req.headers.cookie }
-            });
-            expectedCode = 200;
-        }
-        
-        return promise.then(function(resp) {
-            if (resp.response.statusCode === expectedCode) {
+        return requestUtils.qRequest('put', {
+            url: urlUtils.resolve(updateModule.config.api.campaigns.baseUrl, campId),
+            json: req.body.data,
+            headers: { cookie: req.headers.cookie }
+        })
+        .then(function(resp) {
+            if (resp.response.statusCode === 200) {
                 log.info('[%1] Applied update %2 to campaign %3', req.uuid, updateId, campId);
                 return next();
             }
@@ -455,8 +432,8 @@
             return q.reject({ code: resp.response.statusCode, body: resp.body });
         })
         .catch(function(error) {
-            log.error('[%1] Failed to apply %2 to %3: %4',
-                      req.uuid, updateId, campId, util.inspect(error));
+            log.error('[%1] Failed to edit %2 with %3: %4',
+                      req.uuid, campId, updateId, util.inspect(error));
 
             log.info('[%1] Attempting to re-lock campaign %2', req.uuid, campId);
 

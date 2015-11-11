@@ -185,8 +185,12 @@
         svc.use('edit', createSponsoredCamps);
         svc.use('edit', campModule.handlePricingHistory);
 
-        svc.use('delete', campModule.statusCheck.bind(campModule,
-            [enums.Status.Draft, enums.Status.Canceled, enums.Status.Expired]));
+        svc.use('delete', campModule.statusCheck.bind(campModule, [
+            enums.Status.Draft,
+            enums.Status.Pending,
+            enums.Status.Canceled,
+            enums.Status.Expired
+        ]));
         svc.use('delete', campModule.fetchCards);
         svc.use('delete', campModule.deleteContent);
         svc.use('delete', campModule.deleteSponsoredCamps);
