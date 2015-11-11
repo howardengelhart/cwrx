@@ -813,6 +813,19 @@ describe('content card endpoints (E2E):', function() {
             }).done(done);
         });
 
+        it('should be able to create a VAST card with protocol relative url', function(done) {
+            mockCard.data = { 
+                vast: '//s3.amazonaws.com/c6.dev/e2e/vast_test.xml'
+            };
+            mockCard.type = 'adUnit';
+            requestUtils.qRequest('post', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(201);
+                expect(resp.body.data.duration).toEqual(32);
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
+
         it('should be able to create a youtube card with meta data', function(done) {
             mockCard.data = { 
                 videoid: 'OQ83Wz_mrD0'
