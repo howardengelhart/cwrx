@@ -1026,6 +1026,9 @@ describe('orgSvc-payments (UT)', function() {
                 cb(null, { success: true, customer: mockCust });
             });
             spyOn(mongoUtils, 'editObject').and.returnValue(q());
+            req.user.firstName = 'Unit';
+            req.user.lastName = 'Tests';
+            req.user.email = 'unit@tests.com';
             req.org = { id: 'o-1', name: 'org 1' };
             req.body = { paymentMethodNonce: 'thisislegit' };
         });
@@ -1047,6 +1050,9 @@ describe('orgSvc-payments (UT)', function() {
                 });
                 expect(mockGateway.customer.create).toHaveBeenCalledWith({
                     company: 'org 1',
+                    firstName: 'Unit',
+                    lastName: 'Tests',
+                    email: 'unit@tests.com',
                     paymentMethodNonce: 'thisislegit'
                 }, jasmine.any(Function));
                 expect(mongoUtils.editObject).toHaveBeenCalledWith({ collectionName: 'orgs' }, { braintreeCustomer: '123456' }, 'o-1');
@@ -1076,6 +1082,9 @@ describe('orgSvc-payments (UT)', function() {
                 });
                 expect(mockGateway.customer.create).toHaveBeenCalledWith({
                     company: 'org 1',
+                    firstName: 'Unit',
+                    lastName: 'Tests',
+                    email: 'unit@tests.com',
                     paymentMethodNonce: 'thisislegit',
                     creditCard: {
                         cardholderName: 'Johnny Testmonkey'
@@ -1083,6 +1092,24 @@ describe('orgSvc-payments (UT)', function() {
                 }, jasmine.any(Function));
                 expect(mongoUtils.editObject).toHaveBeenCalled();
                 expect(payModule.formatMethodOutput).toHaveBeenCalled();
+                expect(payModule.handleBraintreeErrors).not.toHaveBeenCalled();
+                expect(mockLog.error).not.toHaveBeenCalled();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should not include user-specific info if the org is not the requester\'s', function(done) {
+            req.user.org = 'o-other';
+            payModule.createCustomerWithMethod(mockGateway, orgSvc, req).then(function(resp) {
+                expect(resp.code).toEqual(201);
+                expect(resp.body).toEqual(jasmine.objectContaining({ token: 'asdf1234' }));
+                expect(mockGateway.customer.create).toHaveBeenCalledWith({
+                    company: 'org 1',
+                    paymentMethodNonce: 'thisislegit'
+                }, jasmine.any(Function));
+                expect(mongoUtils.editObject).toHaveBeenCalledWith({ collectionName: 'orgs' }, { braintreeCustomer: '123456' }, 'o-1');
+                expect(payModule.formatMethodOutput).toHaveBeenCalledWith({ token: 'asdf1234', cardType: 'visa' });
                 expect(payModule.handleBraintreeErrors).not.toHaveBeenCalled();
                 expect(mockLog.error).not.toHaveBeenCalled();
             }).catch(function(error) {

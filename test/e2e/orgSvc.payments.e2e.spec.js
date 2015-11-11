@@ -32,7 +32,9 @@ describe('orgSvc payments (E2E):', function() {
         mockRequester = {
             id: 'u-e2e-payments',
             status: 'active',
-            email : 'orgsvce2euser',
+            email: 'requester@c6.com',
+            firstName: 'E2E',
+            lastName: 'Tests',
             password : '$2a$10$XomlyDak6mGSgrC/g1L7FO.4kMRkj4UturtKSzy6mFeL8QWOBmIWq', // hash of 'password'
             org: 'o-braintree1',
             policies: ['manageAllOrgs']
@@ -40,7 +42,7 @@ describe('orgSvc payments (E2E):', function() {
         readOnlyUser = {
             id: 'u-e2e-readonly',
             status: 'active',
-            email : 'orgsvcreadonly',
+            email : 'read-only@c6.com',
             password : '$2a$10$XomlyDak6mGSgrC/g1L7FO.4kMRkj4UturtKSzy6mFeL8QWOBmIWq', // hash of 'password'
             org: 'o-otherorg',
             policies: ['readOwnOrg']
@@ -66,8 +68,8 @@ describe('orgSvc payments (E2E):', function() {
             }
         ];
         var logins = [
-            {url: config.authUrl + '/login', json: {email: 'orgsvce2euser', password: 'password'}, jar: cookieJar},
-            {url: config.authUrl + '/login', json: {email: 'orgsvcreadonly', password: 'password'}, jar: readOnlyJar},
+            {url: config.authUrl + '/login', json: {email: 'requester@c6.com', password: 'password'}, jar: cookieJar},
+            {url: config.authUrl + '/login', json: {email: 'read-only@c6.com', password: 'password'}, jar: readOnlyJar},
         ];
         
         q.all([
@@ -461,6 +463,7 @@ describe('orgSvc payments (E2E):', function() {
         });
         
         it('should be able to create a new customer for an org with no braintreeCustomer', function(done) {
+            var custId, token;
             mockRequester.org = 'o-otherorg';
             testUtils.resetCollection('users', [mockRequester, readOnlyUser]).then(function() {
                 return requestUtils.qRequest('post', options);
@@ -468,6 +471,7 @@ describe('orgSvc payments (E2E):', function() {
                 expect(resp.response.statusCode).toBe(201);
                 expect(resp.body.default).toBe(true);
                 expect(resp.body.cardType).toBe('American Express');
+                token = resp.body.token;
 
                 // check that braintreeCustomer set on the org
                 return requestUtils.qRequest('get', {
@@ -477,9 +481,20 @@ describe('orgSvc payments (E2E):', function() {
             }).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
                 expect(resp.body.braintreeCustomer).toEqual(jasmine.any(String));
+                custId = resp.body.braintreeCustomer;
+                
+                return q.npost(gateway.customer, 'find', [custId]);
+            }).then(function(cust) {
+                expect(cust.id).toBe(custId);
+                expect(cust.firstName).toBe('E2E');
+                expect(cust.lastName).toBe('Tests');
+                expect(cust.email).toBe('requester@c6.com');
+                expect(cust.company).toBe('org w/o cust');
+                expect(cust.paymentMethods.length).toBe(1);
+                expect(cust.paymentMethods[0].token).toBe(token);
                 
                 // cleanup: delete this new braintree customer
-                return q.npost(gateway.customer, 'delete', [resp.body.braintreeCustomer]);
+                return q.npost(gateway.customer, 'delete', [custId]);
             }).then(function() {
                 // reset users and orgs
                 mockRequester.org = 'o-braintree1';
