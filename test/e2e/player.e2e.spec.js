@@ -19,8 +19,9 @@ function find(array, predicate) {
 describe('player service', function() {
     var request;
     var config;
+    var systemExperience;
 
-    beforeEach(function() {
+    beforeEach(function(done) {
         request = require('request-promise').defaults({
             jar: require('request-promise').jar(),
             resolveWithFullResponse: true,
@@ -38,6 +39,9 @@ describe('player service', function() {
                 query: {}
             }
         };
+
+        systemExperience = readJSONSync(require.resolve('./helpers/player/default_experience.json'));
+        resetCollection('experiences', [systemExperience]).then(done, done.fail);
     });
 
     describe('[GET] /api/public/players/:type', function() {
@@ -462,6 +466,19 @@ describe('player service', function() {
                 });
             });
 
+            describe('and a card', function() {
+                beforeEach(function(done) {
+                    config.playerUrl.query.card = 'rc-abaddbbd3e050b';
+
+                    request.get(getURL()).then(getResponse).then(done, done.fail);
+                });
+
+                it('should [400]', function() {
+                    expect(response.statusCode).toBe(400);
+                    expect(response.body.toString()).toBe('You may specify an experience or card, not both.');
+                });
+            });
+
             describe('in vpaid mode', function() {
                 beforeEach(function() {
                     config.playerUrl.query.vpaid = true;
@@ -594,14 +611,233 @@ describe('player service', function() {
             });
         });
 
-        describe('with no experience', function() {
+        describe('with a card', function() {
+            var cards;
+
+            beforeEach(function(done) {
+                cards = readJSONSync(require.resolve('./helpers/player/cards.json'));
+                resetCollection('cards', cards).then(done, done.fail);
+
+                config.playerUrl.pathname = '/api/public/players/light';
+                config.playerUrl.query.card = cards[0].id;
+            });
+
+            describe('and a campaign', function() {
+                beforeEach(function(done) {
+                    config.playerUrl.query.campaign = 'cam-d136408398ec7f';
+
+                    request.get(getURL()).then(getResponse).then(done, done.fail);
+                });
+
+                it('should [400]', function() {
+                    expect(response.statusCode).toBe(400);
+                    expect(response.body.toString()).toBe('Cannot specify campaign or categories with card.');
+                });
+            });
+
+            describe('and categories', function() {
+                beforeEach(function(done) {
+                    config.playerUrl.query.categories = 'comedy,vehicles';
+
+                    request.get(getURL()).then(getResponse).then(done, done.fail);
+                });
+
+                it('should [400]', function() {
+                    expect(response.statusCode).toBe(400);
+                    expect(response.body.toString()).toBe('Cannot specify campaign or categories with card.');
+                });
+            });
+
+            describe('with a valid placement', function() {
+                beforeEach(function(done) {
+                    config.playerUrl.query.wildCardPlacement = '3685123'; // Legit E2E test placement setup in ADTECH
+
+                    request.get(getURL()).then(getResponse).then(done, done.fail);
+                });
+
+                it('should load the card into the default experience', function() {
+                    var parsed = parseResponse('light');
+                    var experience = parsed.experience;
+
+                    expect(experience.id).toBe(systemExperience.id);
+                    expect(experience.data.title).toBe(cards[0].title);
+                    expect(experience.data.deck[0].id).toBe(cards[0].id);
+                    expect(experience.data.deck.length).toBe(1);
+                });
+
+                it('should stick some ADTECH tracking pixels in the card', function() {
+                    var card = parseResponse('light').experience.data.deck[0];
+
+                    expect(card.campaign.countUrls).toEqual(jasmine.arrayContaining([jasmine.stringMatching(/^http:\/\/adserver\.adtechus\.com\/adcount/)]));
+                    expect(card.campaign.playUrls).toEqual(jasmine.arrayContaining([jasmine.stringMatching(/^http:\/\/adserver\.adtechus\.com\/adlink/)]));
+                });
+
+                it('should load the player', function() {
+                    expect(parseResponse('light').seemsValid()).toBe(true);
+                });
+            });
+
+            describe('with an invalid placement', function() {
+                beforeEach(function(done) {
+                    config.playerUrl.query.wildCardPlacement = '3596007'; // A valid, but incorrect, placement
+
+                    request.get(getURL()).then(getResponse).then(done, done.fail);
+                });
+
+                it('should [404]', function() {
+                    expect(response.statusCode).toBe(404);
+                    expect(response.body.toString()).toBe('Card not found in the specified placement.');
+                });
+
+                describe('in preview mode', function() {
+                    beforeEach(function(done) {
+                        config.playerUrl.query.preview = true;
+
+                        request.get(getURL()).then(getResponse).then(done, done.fail);
+                    });
+
+                    it('should load the card into the default experience', function() {
+                        var parsed = parseResponse('light');
+                        var experience = parsed.experience;
+
+                        expect(experience.id).toBe(systemExperience.id);
+                        expect(experience.data.title).toBe(cards[0].title);
+                        expect(experience.data.deck[0].id).toBe(cards[0].id);
+                        expect(experience.data.deck.length).toBe(1);
+                    });
+
+                    it('should not stick ADTECH tracking pixels in the card', function() {
+                        var card = parseResponse('light').experience.data.deck[0];
+
+                        expect(card.campaign.countUrls).not.toEqual(jasmine.arrayContaining([jasmine.stringMatching(/^http:\/\/adserver\.adtechus\.com\/adcount/)]));
+                        expect(card.campaign.playUrls).not.toEqual(jasmine.arrayContaining([jasmine.stringMatching(/^http:\/\/adserver\.adtechus\.com\/adlink/)]));
+                    });
+
+                    it('should load the player', function() {
+                        expect(parseResponse('light').seemsValid()).toBe(true);
+                    });
+                });
+            });
+        });
+
+        describe('with a campaign', function() {
+            var cards;
+
+            beforeEach(function(done) {
+                cards = readJSONSync(require.resolve('./helpers/player/cards.json'));
+                resetCollection('cards', cards).then(done, done.fail);
+
+                config.playerUrl.pathname = '/api/public/players/light';
+                config.playerUrl.query.campaign = 'cam-7637703876d1f5';
+            });
+
+            describe('with a valid placement', function() {
+                beforeEach(function(done) {
+                    config.playerUrl.query.wildCardPlacement = '3685123'; // Legit E2E test placement setup in ADTECH
+
+                    request.get(getURL()).then(getResponse).then(done, done.fail);
+                });
+
+                it('should load the card into the default experience', function() {
+                    var parsed = parseResponse('light');
+                    var experience = parsed.experience;
+
+                    expect(experience.id).toBe(systemExperience.id);
+                    expect(cards.slice(0, 2).map(function(card) { return card.title; })).toContain(experience.data.title);
+                    expect(cards.slice(0, 2).map(function(card) { return card.id; })).toContain(experience.data.deck[0].id);
+                    expect(experience.data.deck.length).toBe(1);
+                });
+
+                it('should stick some ADTECH tracking pixels in the card', function() {
+                    var card = parseResponse('light').experience.data.deck[0];
+
+                    expect(card.campaign.countUrls).toEqual(jasmine.arrayContaining([jasmine.stringMatching(/^http:\/\/adserver\.adtechus\.com\/adcount/)]));
+                    expect(card.campaign.playUrls).toEqual(jasmine.arrayContaining([jasmine.stringMatching(/^http:\/\/adserver\.adtechus\.com\/adlink/)]));
+                });
+
+                it('should load the player', function() {
+                    expect(parseResponse('light').seemsValid()).toBe(true);
+                });
+            });
+
+            describe('with an invalid placement', function() {
+                beforeEach(function(done) {
+                    config.playerUrl.query.wildCardPlacement = '3596007'; // A valid, but incorrect, placement
+
+                    request.get(getURL()).then(getResponse).then(done, done.fail);
+                });
+
+                it('should [404]', function() {
+                    expect(response.statusCode).toBe(404);
+                    expect(response.body.toString()).toBe('No cards found.');
+                });
+            });
+        });
+
+        describe('with categories', function() {
+            var cards, card;
+
+            beforeEach(function(done) {
+                cards = readJSONSync(require.resolve('./helpers/player/cards.json'));
+                resetCollection('cards', cards).then(done, done.fail);
+
+                card = cards[3];
+
+                config.playerUrl.pathname = '/api/public/players/light';
+                config.playerUrl.query.categories = 'comedy';
+            });
+
+            describe('with a valid placement', function() {
+                beforeEach(function(done) {
+                    config.playerUrl.query.wildCardPlacement = '3685123'; // Legit E2E test placement setup in ADTECH
+
+                    request.get(getURL()).then(getResponse).then(done, done.fail);
+                });
+
+                it('should load the card into the default experience', function() {
+                    var parsed = parseResponse('light');
+                    var experience = parsed.experience;
+
+                    expect(experience.id).toBe(systemExperience.id);
+                    expect(experience.data.title).toBe(card.title);
+                    expect(experience.data.deck[0].id).toBe(card.id);
+                    expect(experience.data.deck.length).toBe(1);
+                });
+
+                it('should stick some ADTECH tracking pixels in the card', function() {
+                    var card = parseResponse('light').experience.data.deck[0];
+
+                    expect(card.campaign.countUrls).toEqual(jasmine.arrayContaining([jasmine.stringMatching(/^http:\/\/adserver\.adtechus\.com\/adcount/)]));
+                    expect(card.campaign.playUrls).toEqual(jasmine.arrayContaining([jasmine.stringMatching(/^http:\/\/adserver\.adtechus\.com\/adlink/)]));
+                });
+
+                it('should load the player', function() {
+                    expect(parseResponse('light').seemsValid()).toBe(true);
+                });
+            });
+
+            describe('with an invalid placement', function() {
+                beforeEach(function(done) {
+                    config.playerUrl.query.wildCardPlacement = '3596007'; // A valid, but incorrect, placement
+
+                    request.get(getURL()).then(getResponse).then(done, done.fail);
+                });
+
+                it('should [404]', function() {
+                    expect(response.statusCode).toBe(404);
+                    expect(response.body.toString()).toBe('No cards found.');
+                });
+            });
+        });
+
+        describe('with no experience, card, campaign or categories', function() {
             beforeEach(function(done) {
                 request.get(getURL()).then(getResponse).then(done, done.fail);
             });
 
             it('should [400]', function() {
                 expect(response.statusCode).toBe(400);
-                expect(response.body.toString()).toBe('experience must be specified');
+                expect(response.body.toString()).toBe('You must specify either an experience, card, campaign or categories.');
             });
         });
     });

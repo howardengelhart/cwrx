@@ -253,7 +253,7 @@ describe('ADTECHBannerClient(config)', function() {
                     });
                 });
 
-                describe('getBanners(amount, placement, sizes, keywords, uuid)', function() {
+                describe('findBanners(amount, placement, sizes, keywords, uuid)', function() {
                     var amount, placement, sizes, keywords, uuid;
                     var success, failure;
                     var getDeferred;
@@ -275,7 +275,7 @@ describe('ADTECHBannerClient(config)', function() {
                         getDeferred = q.defer();
                         spyOn(client, 'get').and.returnValue(getDeferred.promise);
 
-                        result = client.getBanners(amount, placement, sizes, keywords, uuid);
+                        result = client.findBanners(amount, placement, sizes, keywords, uuid);
                         result.then(success, failure);
                     });
 
@@ -286,7 +286,7 @@ describe('ADTECHBannerClient(config)', function() {
                             failure.calls.reset();
                             client.get.calls.reset();
 
-                            client.getBanners(amount, placement, sizes, keywords, uuid).then(success, failure).finally(done);
+                            client.findBanners(amount, placement, sizes, keywords, uuid).then(success, failure).finally(done);
                         });
 
                         it('should fulfill with an empty array', function() {
@@ -366,6 +366,82 @@ describe('ADTECHBannerClient(config)', function() {
                                 ADTECHBannerClient.__parseBanner__(response.ADTECH_MultiAd[0].Ad.AdCode),
                                 ADTECHBannerClient.__parseBanner__(response.ADTECH_MultiAd[2].Ad.AdCode)
                             ]);
+                        });
+                    });
+                });
+
+                describe('findBanner(placement, size, keywords, uuid)', function() {
+                    var placement, size, keywords, uuid;
+                    var getDeferred;
+                    var success, failure;
+
+                    beforeEach(function() {
+                        placement = '438573495';
+                        size = '2x2';
+                        keywords = {
+                            kwlp1: 'cam-dd5ba2c169952d',
+                            kwlp3: 'food+tech'
+                        };
+                        uuid = '843ytrf8349r4';
+
+                        getDeferred = q.defer();
+
+                        success = jasmine.createSpy('success()');
+                        failure = jasmine.createSpy('failure()');
+
+                        spyOn(client, 'get').and.returnValue(getDeferred.promise);
+
+                        client.findBanner(placement, size, keywords, uuid).then(success, failure);
+                    });
+
+                    it('should make a request to ADTECH', function() {
+                        expect(client.get).toHaveBeenCalledWith(client.__makeURL__('addyn', placement, extend(keywords, {
+                            Allowedsizes: size
+                        })));
+                    });
+
+                    describe('if a banner is returned', function() {
+                        var string;
+
+                        beforeEach(function(done) {
+                            string = 'window.c6.addSponsoredCard(\'8932275\',\'8673901\',\'rc-5e8dc783b81514\',\'http://adserver.adtechus.com/adlink/5491/3507986/0/277/AdId=6603289;BnId=1;itime=36041800;ku=3208039;kwlp1=cam%2D75662e1495abfd;kwlp3=comedy%2Banimals;nodecode=yes;link=\',\'http://adserver.adtechus.com/adcount/3.0/5491/3507986/0/277/AdId=6603289;BnId=1;ct=45017356;st=31604;adcid=1;itime=36041800;reqtype=5;;ku=3208039;kwlp1=cam%2D75662e1495abfd;kwlp3=comedy%2Banimals\',\'\' );\u000A\u000D\u000A\u000D\u000A';
+                            getDeferred.fulfill(string);
+
+                            process.nextTick(done);
+                        });
+
+                        it('should fulfill with the parsed banner', function() {
+                            expect(success).toHaveBeenCalledWith(ADTECHBannerClient.__parseBanner__(string));
+                        });
+                    });
+
+                    describe('if a default banner is returned', function() {
+                        var string;
+
+                        beforeEach(function(done) {
+                            string = 'document.write(\'<a href="http://adserver.adtechus.com/?adlink/5491/0/0/0/AdId=-2;BnId=0;itime=80210723;kwlp1=cam%2D75662e1495abfd;kwlp3=comedy%2Banimals;" target="_blank"><img src="http://aka-cdn-ns.adtechus.com/images/Default_Size_16_1x1.gif" border="0" alt="AdTech Ad" width="0" height="0"/></a>\');';
+                            getDeferred.fulfill(string);
+
+                            process.nextTick(done);
+                        });
+
+                        it('should fulfill with null', function() {
+                            expect(success).toHaveBeenCalledWith(null);
+                        });
+                    });
+
+                    describe('if the request fails', function() {
+                        var reason;
+
+                        beforeEach(function(done) {
+                            reason = new Error('ADTECH sucks.');
+                            getDeferred.reject(reason);
+
+                            process.nextTick(done);
+                        });
+
+                        it('should reject the promise', function() {
+                            expect(failure).toHaveBeenCalledWith(reason);
                         });
                     });
                 });

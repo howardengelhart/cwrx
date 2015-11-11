@@ -1,0 +1,52 @@
+{
+    "access": "public",
+    "appUri": "mini-reel-player",
+    "categories": [],
+    "data": [
+        {
+            "data": {
+                "title": null,
+                "autoplay": true,
+                "autoadvance": true,
+                "adConfig": {
+                    "video": {
+                        "firstPlacement": -1,
+                        "frequency": 0,
+                        "waterfall": "cinema6",
+                        "skip": 6
+                    },
+                    "display": {
+                        "waterfall": "cinema6",
+                        "enabled": false
+                    }
+                },
+                "sponsored": false,
+                "links": {},
+                "params": {
+                    "categories": []
+                },
+                "campaign": {},
+                "collateral": {
+                    "splash": null
+                },
+                "splash": {
+                    "source": "specified",
+                    "ratio": "16-9",
+                    "theme": "img-only"
+                },
+                "deck": []
+            }
+        }
+    ],
+    "versionId": "ba078234",
+    "title": null,
+    "status": "active",
+    "lastStatusChange": "2015-10-22T16:09:28.680Z",
+    "lastPublished": "2015-10-22T16:09:28.680Z",
+    "type": "minireel",
+    "id": "e-00000000000000",
+    "created": "2015-10-22T16:09:28.680Z",
+    "lastUpdated": "2015-10-22T16:09:28.680Z",
+    "user": "u-test",
+    "org": "o-test"
+}
