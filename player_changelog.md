@@ -1,5 +1,6 @@
 # Player Service Changelog
 
+### 1.1.0: Wed Nov 11 15:20:45 EST 2015
 * [FEATURE]: `card`/`experience`/`campaign`/`categories` can be
   specified for a request (`experience` is not required.)
 * **Extra Deployment Steps**
