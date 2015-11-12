@@ -62,6 +62,9 @@
             },
             campaigns: {
                 endpoint: '/api/campaigns/'
+            },
+            paymentMethods: {
+                endpoint: '/api/payments/methods/'
             }
         },
         minireelGroups: {

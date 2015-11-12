@@ -65,10 +65,14 @@
         updateModule.config.campaigns = config.campaigns;
         updateModule.config.emails = config.emails;
         updateModule.config.api = config.api;
-        updateModule.config.api.campaigns.baseUrl = urlUtils.resolve(
-            updateModule.config.api.root,
-            updateModule.config.api.campaigns.endpoint
-        );
+        Object.keys(updateModule.config.api)
+        .filter(function(key) { return key !== 'root'; })
+        .forEach(function(key) {
+            updateModule.config.api[key].baseUrl = urlUtils.resolve(
+                updateModule.config.api.root,
+                updateModule.config.api[key].endpoint
+            );
+        });
 
         var coll = db.collection('campaignUpdates'),
             svc = new CrudSvc(coll, 'ur', { statusHistory: true }, updateModule.updateSchema);
@@ -103,6 +107,7 @@
         svc.use('edit', applyUpdate);
         svc.use('edit', notifyOwner);
         
+        //TODO: need to validate payment method on autoApprove!!
         svc.use('autoApprove', autoApproveModel.midWare.bind(autoApproveModel, 'create'));
         svc.use('autoApprove', svc.setupObj.bind(svc));
         svc.use('autoApprove', fetchCamp);
@@ -233,11 +238,25 @@
         for (var i = 0; i < validResps.length; i++) {
             if (!validResps[i].isValid) {
                 log.info('[%1] %2', req.uuid, validResps[i].reason);
-                return done({ code: 400, body: validResps[i].reason });
+                return q(done({ code: 400, body: validResps[i].reason }));
             }
         }
 
-        return next();
+        return campaignUtils.validatePaymentMethod(
+            req.body.data,
+            req.campaign,
+            req.user,
+            updateModule.config.api.paymentMethods.baseUrl,
+            req
+        )
+        .then(function(validResp) {
+            if (!validResp.isValid) {
+                log.info('[%1] %2', req.uuid, validResp.reason);
+                return done({ code: 400, body: validResp.reason });
+            } else {
+                return next();
+            }
+        });
     };
     
     // On user's initial submit, check for additional props + transition campaign to 'pending'

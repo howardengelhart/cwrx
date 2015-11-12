@@ -1,10 +1,12 @@
 # Ads Service Changelog
 
+* Validate `paymentMethod` when set on campaigns or campaignUpdates: [#593](https://github.com/cinema6/cwrx/issues/593)
 * Prevent selfie users from editing non-draft campaigns: [#597](https://github.com/cinema6/cwrx/issues/597)
 * Prevent selfie users from deleting campaigns that aren't `'draft'`, `'pending'`, `'canceled'`, or `'expired'`: [#432](https://github.com/cinema6/cwrx/issues/432)
 * Extra deployment steps:
     * Update selfie users' policies to allow editing campaignUpdates
     * Update non-selfie users with `directEditCampaigns` entitlement
+    * Update test-ads environment to run orgSvc
 
 ### 3.0.1: Tue Nov 10 11:25:27 EST 2015
 * Integrate designed email templates: [#553](https://github.com/cinema6/cwrx/issues/553)
