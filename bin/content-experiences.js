@@ -12,7 +12,6 @@
         objUtils        = require('../lib/objUtils'),
         FieldValidator  = require('../lib/fieldValidator'),
         enums           = require('../lib/enums'),
-        url             = require('url'),
         Status          = enums.Status,
         Access          = enums.Access,
         Scope           = enums.Scope,
@@ -194,69 +193,16 @@
         });
     };
 
-    /* Build a mongo query for a site by host. This transforms the host 'foo.bar.baz.com' into a 
-     * query for sites with host 'foo.bar.baz.com', 'bar.baz.com', or 'baz.com' */
-    expModule.buildHostQuery = function(host, container) {
-        if (container === 'veeseo' || container === 'connatix') {
-            return { host: 'cinema6.com' };
-        }
-        if (!host) {
-            return null;
-        }
-        var query = { host: { $in: [] } };
-        do {
-            query.host.$in.push(host);
-            host = host.substring(host.search(/\./) + 1);
-        } while (!!host.match(/\./));
-        return query;
-    };
-
-    /* Choose a site to return from a list of multiple sites with similar hostnames. It returns an
-     * active site with the longest host, which will be the closest match to the request host */
-    expModule.chooseSite = function(results) {
-        return results.reduce(function(prev, curr) {
-            if (!curr || !curr.host || curr.status !== Status.Active) {
-                return prev;
-            }
-            if (prev && prev.host && prev.host.length > curr.host.length) {
-                return prev;
-            }
-            return curr;
-        }, null);
-    };
-    
-    /* Chooses a branding string from a csv list of brandings. Chooses the next string for each call
-     * with the same brandString, using expModule.brandCache to keep track of the indexes */
-    expModule.chooseBranding = function(brandString, prefix, expId) {
-        if (!brandString || !brandString.match(/(\w+,)+\w+/)) {
-            return brandString;
-        }
-
-        var log         = logger.getLog(),
-            brands      = brandString.split(','),
-            key         = prefix + ':' + brandString,
-            idx         = expModule.brandCache[key] || 0,
-            selected    = brands[idx];
-            
-        log.info('Selected brand %1, idx %2, from %3 for %4', selected, idx, key, expId);
-
-        expModule.brandCache[key] = (++idx >= brands.length) ? 0 : idx;
-        return selected;
-    };
-
     // Ensure experience has branding and placements, getting from current site or org if necessary
-    expModule.getSiteConfig = function(exp, orgId, qps, host, siteCache, orgCache, defaults) {
+    expModule.getSiteConfig = function(exp, orgId, qps, siteCache, orgCache, defaults) {
         var log = logger.getLog(),
-            props = ['branding', 'placementId', 'wildCardPlacement'],
-            siteQuery;
+            props = ['branding', 'placementId', 'wildCardPlacement'];
         qps = qps || {};
-        host = qps.pageUrl ? url.parse(qps.pageUrl).host || qps.pageUrl : host;
 
-        function setProps(exp, obj, src) {
+        function setProps(exp, obj) {
             exp.data.placementId = exp.data.placementId || obj.placementId;
             exp.data.wildCardPlacement = exp.data.wildCardPlacement || obj.wildCardPlacement;
-            exp.data.branding = exp.data.branding ||
-                                expModule.chooseBranding(obj.branding, src, exp.id);
+            exp.data.branding = exp.data.branding || obj.branding;
         }
 
         if (!exp.data) {
@@ -264,20 +210,15 @@
             return q(exp);
         }
         
-        exp.data.branding = expModule.chooseBranding(exp.data.branding, exp.id, exp.id);
-        setProps(exp, qps, 'queryParams', exp.id);
+        setProps(exp, qps);
         if (props.every(function(prop) { return !!exp.data[prop]; })) {
             return q(exp);
         }
 
-        siteQuery = expModule.buildHostQuery(host, qps.container);
-
-        return ( !!siteQuery ? siteCache.getPromise(siteQuery) : q([]) ).then(function(results) {
-            var site = expModule.chooseSite(results);
+        return siteCache.getPromise({ host: 'cinema6.com' }).then(function(results) {
+            var site = results[0];
             if (!site) {
-                if (!!host) {
-                    log.info('Site %1 not found', host);
-                }
+                log.warn('Site cinema6.com not found');
             } else {
                 var container = (site.containers || []).filter(function(cont) {
                     return cont.id === qps.container;
@@ -289,10 +230,10 @@
                                                  container.contentPlacementId;
                 } else {
                     if (!!qps.container && !!site.containers) {
-                        log.warn('Container %1 not found for %2', qps.container, host);
+                        log.warn('Container %1 not found for cinema6.com', qps.container);
                     }
                 }
-                setProps(exp, site, site.id, exp.id);
+                setProps(exp, site);
             }
             if (exp.data.branding) {
                 return q();
@@ -300,9 +241,9 @@
             return orgCache.getPromise({id: orgId});
         }).then(function(results) {
             if (results && results.length !== 0 && results[0].status === Status.Active) {
-                setProps(exp, results[0], results[0].id, exp.id);
+                setProps(exp, results[0]);
             }
-            setProps(exp, defaults, 'default', exp.id);
+            setProps(exp, defaults);
             return q(exp);
         });
     };
@@ -398,8 +339,8 @@
 
             return expModule.getAdConfig(experiences[0], results[0].org, caches.orgs)
             .then(function(exp) {
-                return expModule.getSiteConfig(exp, results[0].org, qps, req.originHost,
-                                               caches.sites, caches.orgs, config.defaultSiteConfig);
+                return expModule.getSiteConfig(exp, results[0].org, qps, caches.sites, caches.orgs,
+                                               config.defaultSiteConfig);
             })
             .then(function(exp) {
                 return expModule.handleCampaign(req, exp, qps.campaign, caches.campaigns, cardSvc);

@@ -595,98 +595,21 @@ describe('content (UT)', function() {
         });
     });
     
-    describe('buildHostQuery', function() {
-        it('should correctly build a query from a hostname', function() {
-            expect(expModule.buildHostQuery('foo.com', 'a')).toEqual({host:{$in:['foo.com']}});
-            expect(expModule.buildHostQuery('foo.bar.com', 'b')).toEqual({host:{$in:['foo.bar.com','bar.com']}});
-            expect(expModule.buildHostQuery('foo.bar.baz.com', 'c')).toEqual({host:{$in:['foo.bar.baz.com','bar.baz.com','baz.com']}});
-            expect(expModule.buildHostQuery('localhost')).toEqual({host:{$in:['localhost']}});
-            expect(expModule.buildHostQuery('', 'd')).toEqual(null);
-            expect(expModule.buildHostQuery('portal.cinema6.com')).toEqual({host:{$in:['portal.cinema6.com','cinema6.com']}});
-        });
-        
-        it('should override the query if the container is veeseo or connatix', function() {
-            expect(expModule.buildHostQuery('foo.com', 'veeseo')).toEqual({host: 'cinema6.com'});
-            expect(expModule.buildHostQuery('', 'veeseo')).toEqual({host: 'cinema6.com'});
-            expect(expModule.buildHostQuery('foo.com', 'connatix')).toEqual({host: 'cinema6.com'});
-            expect(expModule.buildHostQuery('', 'connatix')).toEqual({host: 'cinema6.com'});
-        });
-    });
-    
-    describe('chooseSite', function() {
-        var sites;
-        beforeEach(function() {
-            sites = [
-                { id: 's1', status: Status.Active, host: 'foo' },
-                { id: 's2', status: Status.Active, host: 'foobar' },
-                { id: 's3', status: Status.Active, host: 'foob' }
-            ];
-        });
-
-        it('should choose the site with the longest host property', function() {
-            expect(expModule.chooseSite(sites)).toEqual({id: 's2', status: Status.Active, host: 'foobar'});
-        });
-        
-        it('should not choose inactive sites', function() {
-            sites[1].status = Status.Inactive;
-            expect(expModule.chooseSite(sites)).toEqual({id: 's3', status: Status.Active, host: 'foob'});
-            sites[0].status = Status.Deleted;
-            sites[2].status = Status.Inactive;
-            expect(expModule.chooseSite(sites)).toBe(null);
-        });
-        
-        it('should handle arrays with 0 or 1 sites', function() {
-            expect(expModule.chooseSite([])).toBe(null);
-            expect(expModule.chooseSite([sites[0]])).toEqual({id: 's1', status: Status.Active, host: 'foo'});
-        });
-    });
-    
-    describe('chooseBranding', function() {
-        beforeEach(function() {
-            expModule.brandCache = {};
-        });
-        
-        it('should just return the brandString if it\'s undefined or not a csv list', function() {
-            expect(expModule.chooseBranding(null, 's-1', 'e-1')).toBe(null);
-            expect(expModule.chooseBranding('', 's-1', 'e-1')).toBe('');
-            expect(expModule.chooseBranding('asdf,', 's-1', 'e-1')).toBe('asdf,');
-        });
-
-        it('should cycle through a list of brandings', function() {
-            expect(expModule.chooseBranding('foo,bar,baz', 's-1', 'e-1')).toBe('foo');
-            expect(expModule.brandCache['s-1:foo,bar,baz']).toBe(1);
-            expect(expModule.chooseBranding('foo,bar,baz', 's-1', 'e-1')).toBe('bar');
-            expect(expModule.chooseBranding('foo,bar,baz', 's-1', 'e-1')).toBe('baz');
-            expect(expModule.chooseBranding('foo,bar,baz', 's-1', 'e-1')).toBe('foo');
-        });
-        
-        it('should maintain separate lists for different combos of prefix + brandString', function() {
-            expect(expModule.chooseBranding('foo,bar,baz', 's-1', 'e-1')).toBe('foo');
-            expect(expModule.chooseBranding('foo,bar,baz,buz', 's-1', 'e-1')).toBe('foo');
-            expect(expModule.chooseBranding('foo,bar,baz', 'o-1', 'e-1')).toBe('foo');
-            expect(expModule.brandCache).toEqual({'s-1:foo,bar,baz': 1, 's-1:foo,bar,baz,buz': 1, 'o-1:foo,bar,baz': 1});
-        });
-    });
-
     describe('getSiteConfig', function() {
-        var exp, queryParams, host, mockSite, mockOrg, siteCache, orgCache, defaultSiteCfg;
+        var exp, queryParams, mockSite, mockOrg, siteCache, orgCache, defaultSiteCfg;
         beforeEach(function() {
             exp = { id: 'e-1', data: { foo: 'bar' } };
             mockSite = { id: 's-1', status: Status.Active, branding: 'siteBrand', placementId: 456, wildCardPlacement: 654 };
             mockOrg = { id: 'o-1', status: Status.Active, branding: 'orgBrand' };
             queryParams = { branding: 'widgetBrand', placementId: 123, wildCardPlacement: 321 };
-            host = 'games.wired.com';
-            siteCache = { getPromise: jasmine.createSpy('siteCache.getPromise').and.returnValue(q(['fake1', 'fake2'])) };
+            siteCache = { getPromise: jasmine.createSpy('siteCache.getPromise').and.returnValue(q([mockSite])) };
             orgCache = { getPromise: jasmine.createSpy('orgCache.getPromise').and.returnValue(q([mockOrg])) };
             defaultSiteCfg = { branding: 'c6', placementId: 789, wildCardPlacement: 987 };
-            spyOn(expModule, 'buildHostQuery').and.callThrough();
-            spyOn(expModule, 'chooseSite').and.returnValue(mockSite);
-            spyOn(expModule, 'chooseBranding').and.callThrough();
         });
         
         it('should log a warning if the experience has no data', function(done) {
             delete exp.data;
-            expModule.getSiteConfig(exp, 'o-1', queryParams, host, siteCache, orgCache, defaultSiteCfg)
+            expModule.getSiteConfig(exp, 'o-1', queryParams, siteCache, orgCache, defaultSiteCfg)
             .then(function(exp) {
                 expect(exp).toEqual({ id: 'e-1' });
                 expect(siteCache.getPromise).not.toHaveBeenCalled();
@@ -698,25 +621,23 @@ describe('content (UT)', function() {
         
         it('should return the experience\'s properties if they\'re defined', function(done) {
             exp.data = { branding: 'expBranding', placementId: 234, wildCardPlacement: 543 };
-            expModule.getSiteConfig(exp, 'o-1', queryParams, host, siteCache, orgCache, defaultSiteCfg)
+            expModule.getSiteConfig(exp, 'o-1', queryParams, siteCache, orgCache, defaultSiteCfg)
             .then(function(exp) {
                 expect(exp).toEqual({id: 'e-1', data: {branding: 'expBranding', placementId: 234, wildCardPlacement: 543}});
                 expect(siteCache.getPromise).not.toHaveBeenCalled();
                 expect(orgCache.getPromise).not.toHaveBeenCalled();
-                expect(expModule.chooseBranding).toHaveBeenCalledWith('expBranding', 'e-1', 'e-1');
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
             }).done(done);
         });
         
         it('should return the queryParam properties if defined', function(done) {
-            expModule.getSiteConfig(exp, 'o-1', queryParams, host, siteCache, orgCache, defaultSiteCfg)
+            expModule.getSiteConfig(exp, 'o-1', queryParams, siteCache, orgCache, defaultSiteCfg)
             .then(function(exp) {
                 expect(exp).toEqual({id: 'e-1', data: {foo: 'bar',
                                     branding: 'widgetBrand', placementId: 123, wildCardPlacement: 321 }});
                 expect(siteCache.getPromise).not.toHaveBeenCalled();
                 expect(orgCache.getPromise).not.toHaveBeenCalled();
-                expect(expModule.chooseBranding).toHaveBeenCalledWith('widgetBrand', 'queryParams', 'e-1');
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
             }).done(done);
@@ -724,65 +645,38 @@ describe('content (UT)', function() {
         
         it('should handle the queryParams being incomplete', function(done) {
             queryParams = {};
-            expModule.getSiteConfig(exp, 'o-1', queryParams, host, siteCache, orgCache, defaultSiteCfg)
+            expModule.getSiteConfig(exp, 'o-1', queryParams, siteCache, orgCache, defaultSiteCfg)
             .then(function(exp) {
                 expect(exp).toEqual({id: 'e-1', data: {foo: 'bar', branding: 'siteBrand',
                                                        placementId: 456, wildCardPlacement: 654}});
-                expect(siteCache.getPromise).toHaveBeenCalledWith({host: {$in: ['games.wired.com', 'wired.com']}});
-                expect(expModule.buildHostQuery).toHaveBeenCalledWith('games.wired.com', undefined);
-                expect(expModule.chooseSite).toHaveBeenCalledWith(['fake1', 'fake2']);
-                expect(expModule.chooseBranding).toHaveBeenCalledWith('siteBrand', 's-1', 'e-1');
+                expect(siteCache.getPromise).toHaveBeenCalledWith({ host: 'cinema6.com' });
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
             }).done(done);
-        });
-        
-        it('should pass the container param to buildHostQuery if defined', function(done) {
-            queryParams = { container: 'largeBox' };
-            expModule.getSiteConfig(exp, 'o-1', queryParams, host, siteCache, orgCache, defaultSiteCfg)
-            .then(function(exp) {
-                expect(exp).toEqual({id: 'e-1', data: {foo: 'bar', branding: 'siteBrand',
-                                                       placementId: 456, wildCardPlacement: 654}});
-                expect(expModule.buildHostQuery).toHaveBeenCalledWith('games.wired.com', 'largeBox');
-            }).catch(function(error) {
-                expect(error.toString()).not.toBeDefined();
-            }).done(done);
-        });
-
-        it('should pass the host of a specified pageUrl if specified', function(done) {
-            queryParams = { pageUrl: 'http://portal.cinema6.com/solo?id=e-f8493yrhf783ry4#foo' };
-            expModule.getSiteConfig(exp, 'o-1', queryParams, host, siteCache, orgCache, defaultSiteCfg)
-            .then(function() {
-                expect(expModule.buildHostQuery).toHaveBeenCalledWith('portal.cinema6.com', undefined);
-            })
-            .done(done);
-        });
-
-        it('should pass the host via queryParams if the pageUrl is partial', function(done) {
-            queryParams = { pageUrl: 'cinema6.com' };
-            expModule.getSiteConfig(exp, 'o-1', queryParams, host, siteCache, orgCache, defaultSiteCfg)
-            .then(function() {
-                expect(expModule.buildHostQuery).toHaveBeenCalledWith('cinema6.com', undefined);
-            })
-            .done(done);
         });
         
         describe('fetching container', function(done) {
             beforeEach(function() {
-                expModule.chooseSite.and.returnValue({id: 's-2', host: 'foo.com', branding: 'siteBrand', containers: [
-                    { id: 'embed', contentPlacementId: 12, displayPlacementId: 13 },
-                    { id: 'mr2', contentPlacementId: 14, displayPlacementId: 15 }
-                ], placementId: 11, wildCardPlacement: 22 });
+                siteCache.getPromise.and.returnValue(q([{
+                    id: 's-2',
+                    host: 'foo.com',
+                    branding: 'siteBrand',
+                    containers: [
+                        { id: 'embed', contentPlacementId: 12, displayPlacementId: 13 },
+                        { id: 'mr2', contentPlacementId: 14, displayPlacementId: 15 }
+                    ],
+                    placementId: 11,
+                    wildCardPlacement: 22
+                }]));
                 queryParams = { container: 'embed' };
             });
             
             it('should take placement ids from the matching container', function(done) {
-                expModule.getSiteConfig(exp, 'o-1', queryParams, host, siteCache, orgCache, defaultSiteCfg)
+                expModule.getSiteConfig(exp, 'o-1', queryParams, siteCache, orgCache, defaultSiteCfg)
                 .then(function(exp) {
                     expect(exp.data).toEqual({foo:'bar',branding:'siteBrand',placementId:13,wildCardPlacement:12});
                     expect(orgCache.getPromise).not.toHaveBeenCalled();
                     expect(mockLog.warn).not.toHaveBeenCalled();
-                    expect(expModule.chooseBranding).toHaveBeenCalledWith('siteBrand', 's-2', 'e-1');
                 }).catch(function(error) {
                     expect(error.toString()).not.toBeDefined();
                 }).done(done);
@@ -790,7 +684,7 @@ describe('content (UT)', function() {
             
             it('should fall back to the site params if there are no matching containers', function(done) {
                 queryParams.container = 'taboola';
-                expModule.getSiteConfig(exp, 'o-1', queryParams, host, siteCache, orgCache, defaultSiteCfg)
+                expModule.getSiteConfig(exp, 'o-1', queryParams, siteCache, orgCache, defaultSiteCfg)
                 .then(function(exp) {
                     expect(exp.data).toEqual({foo:'bar',branding:'siteBrand',placementId:11,wildCardPlacement:22});
                     expect(orgCache.getPromise).not.toHaveBeenCalled();
@@ -801,32 +695,16 @@ describe('content (UT)', function() {
             });
         });
         
-        it('should not try to get the site if the host is not defined', function(done) {
-            queryParams = {};
-            expModule.chooseSite.and.returnValue(null);
-            expModule.getSiteConfig(exp, 'o-1', queryParams, '', siteCache, orgCache, defaultSiteCfg)
-            .then(function(exp) {
-                expect(exp).toEqual({id: 'e-1', data: {foo: 'bar',
-                                     branding: 'orgBrand', placementId: 789, wildCardPlacement: 987}});
-                expect(siteCache.getPromise).not.toHaveBeenCalled();
-                expect(orgCache.getPromise).toHaveBeenCalled();
-                expect(expModule.chooseBranding).toHaveBeenCalledWith('orgBrand', 'o-1', 'e-1');
-                expect(mockLog.warn).not.toHaveBeenCalled();
-            }).catch(function(error) {
-                expect(error.toString()).not.toBeDefined();
-            }).done(done);
-        });
-        
         it('should next fall back to the org\'s config', function(done) {
             queryParams = {};
-            expModule.chooseSite.and.returnValue(null);
-            expModule.getSiteConfig(exp, 'o-1', queryParams, host, siteCache, orgCache, defaultSiteCfg)
+            siteCache.getPromise.and.returnValue(q([]));
+            expModule.getSiteConfig(exp, 'o-1', queryParams, siteCache, orgCache, defaultSiteCfg)
             .then(function(exp) {
                 expect(exp).toEqual({id: 'e-1', data: {foo: 'bar',
                                      branding: 'orgBrand', placementId: 789, wildCardPlacement: 987}});
                 expect(siteCache.getPromise).toHaveBeenCalled();
                 expect(orgCache.getPromise).toHaveBeenCalled();
-                expect(mockLog.info).toHaveBeenCalled();
+                expect(mockLog.warn).toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
             }).done(done);
@@ -834,8 +712,8 @@ describe('content (UT)', function() {
         
         it('should handle the site object not having necessary props', function(done) {
             queryParams = {};
-            expModule.chooseSite.and.returnValue([{id: 's-1'}]);
-            expModule.getSiteConfig(exp, 'o-1', queryParams, host, siteCache, orgCache, defaultSiteCfg)
+            siteCache.getPromise.and.returnValue(q([{id: 's-1'}]));
+            expModule.getSiteConfig(exp, 'o-1', queryParams, siteCache, orgCache, defaultSiteCfg)
             .then(function(exp) {
                 expect(exp).toEqual({id: 'e-1', data: {foo: 'bar',
                                      branding: 'orgBrand', placementId: 789, wildCardPlacement: 987}});
@@ -847,13 +725,12 @@ describe('content (UT)', function() {
 
         it('should use the default config as a last resort', function(done) {
             queryParams = {};
-            expModule.chooseSite.and.returnValue(null);
+            siteCache.getPromise.and.returnValue(q([]));
             orgCache.getPromise.and.returnValue(q([]));
-            expModule.getSiteConfig(exp, 'o-1', queryParams, host, siteCache, orgCache, defaultSiteCfg)
+            expModule.getSiteConfig(exp, 'o-1', queryParams, siteCache, orgCache, defaultSiteCfg)
             .then(function(exp) {
                 expect(exp).toEqual({id: 'e-1', data: {foo: 'bar',
                                      branding: 'c6', placementId: 789, wildCardPlacement: 987}});
-                expect(expModule.chooseBranding).toHaveBeenCalledWith('c6', 'default', 'e-1');
                 expect(siteCache.getPromise).toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
@@ -862,9 +739,9 @@ describe('content (UT)', function() {
         
         it('should handle the org object not having a branding', function(done) {
             queryParams = {};
-            expModule.chooseSite.and.returnValue(null);
+            siteCache.getPromise.and.returnValue(q([]));
             orgCache.getPromise.and.returnValue(q([{id: 'o-1'}]));
-            expModule.getSiteConfig(exp, 'o-1', queryParams, host, siteCache, orgCache, defaultSiteCfg)
+            expModule.getSiteConfig(exp, 'o-1', queryParams, siteCache, orgCache, defaultSiteCfg)
             .then(function(exp) {
                 expect(exp).toEqual({id: 'e-1', data: {foo: 'bar',
                                      branding: 'c6', placementId: 789, wildCardPlacement: 987}});
@@ -876,9 +753,9 @@ describe('content (UT)', function() {
         
         it('should not use the org if it is not active', function(done) {
             queryParams = {};
-            expModule.chooseSite.and.returnValue(null);
+            siteCache.getPromise.and.returnValue(q([]));
             mockOrg.status = Status.Deleted;
-            expModule.getSiteConfig(exp, 'o-1', queryParams, host, siteCache, orgCache, defaultSiteCfg)
+            expModule.getSiteConfig(exp, 'o-1', queryParams, siteCache, orgCache, defaultSiteCfg)
             .then(function(exp) {
                 expect(exp).toEqual({id: 'e-1', data: {foo: 'bar',
                                      branding: 'c6', placementId: 789, wildCardPlacement: 987}});
@@ -891,8 +768,8 @@ describe('content (UT)', function() {
         it('should be able to get props from different sources', function(done) {
             exp.data.branding = 'expBranding';
             queryParams = {};
-            expModule.chooseSite.and.returnValue({id :'w-1', wildCardPlacement: 876});
-            expModule.getSiteConfig(exp, 'o-1', queryParams, host, siteCache, orgCache, defaultSiteCfg)
+            siteCache.getPromise.and.returnValue(q([{id :'w-1', wildCardPlacement: 876}]));
+            expModule.getSiteConfig(exp, 'o-1', queryParams, siteCache, orgCache, defaultSiteCfg)
             .then(function(exp) {
                 expect(exp).toEqual({id: 'e-1', data: {foo: 'bar',
                                      branding: 'expBranding', placementId: 789, wildCardPlacement: 876}});
@@ -905,7 +782,7 @@ describe('content (UT)', function() {
         it('should reject if siteCache.getPromise returns a rejected promise', function(done) {
             queryParams = {};
             siteCache.getPromise.and.returnValue(q.reject('I GOT A PROBLEM'));
-            expModule.getSiteConfig(exp, 'o-1', queryParams, host, siteCache, orgCache, defaultSiteCfg)
+            expModule.getSiteConfig(exp, 'o-1', queryParams, siteCache, orgCache, defaultSiteCfg)
             .then(function(exp) {
                 expect(exp).not.toBeDefined();
             }).catch(function(error) {
@@ -916,9 +793,9 @@ describe('content (UT)', function() {
 
         it('should reject if orgCache.getPromise returns a rejected promise', function(done) {
             queryParams = {};
-            expModule.chooseSite.and.returnValue(null);
+            siteCache.getPromise.and.returnValue(q([]));
             orgCache.getPromise.and.returnValue(q.reject('I GOT A PROBLEM'));
-            expModule.getSiteConfig(exp, 'o-1', queryParams, host, siteCache, orgCache, defaultSiteCfg)
+            expModule.getSiteConfig(exp, 'o-1', queryParams, siteCache, orgCache, defaultSiteCfg)
             .then(function(exp) {
                 expect(exp).not.toBeDefined();
             }).catch(function(error) {

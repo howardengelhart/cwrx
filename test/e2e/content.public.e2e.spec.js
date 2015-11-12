@@ -39,10 +39,20 @@ describe('content public experience endpoints (E2E):', function() {
                     status: [{ status: 'active', date: start }]
                 }];
                 mockSites = [{
-                    id: 'e2e-brands', status: 'active', host: dateStr + '.brands.com', branding: 'foo,bar,' + dateStr
+                    id: 'e2e-cinema6',
+                    status: 'active',
+                    host: 'cinema6.com',
+                    branding: 'siteBrand',
+                    placementId: 456,
+                    wildCardPlacement: 654,
+                    containers: [
+                        { id: 'veeseo', contentPlacementId: 1337, displayPlacementId: 7331 },
+                        { id: 'connatix', contentPlacementId: 246, displayPlacementId: 864 }
+                    ]
                 }];
-                q.all([testUtils.resetCollection('experiences', mockExps),
-                       testUtils.resetCollection('sites', mockSites)
+                q.all([
+                    testUtils.resetCollection('experiences', mockExps),
+                    testUtils.resetCollection('sites', mockSites)
                 ]).done(function() { done(); });
             });
 
@@ -104,26 +114,6 @@ describe('content public experience endpoints (E2E):', function() {
                 }).done(done);
             });
 
-            it('should be able to rotate through a csv branding list', function(done) {
-                options.headers = { origin: 'http://' + dateStr + '.brands.com' };
-                
-                // send requests sequentially so we can guarantee we examine results in right order
-                requestUtils.qRequest('get', options).then(function(resp) {
-                    expect(resp.body.data.branding).toBe('foo');
-                    return requestUtils.qRequest('get', options);
-                }).then(function(resp) {
-                    expect(resp.body.data.branding).toBe('bar');
-                    return requestUtils.qRequest('get', options);
-                }).then(function(resp) {
-                    expect(resp.body.data.branding).toBe(dateStr);
-                    return requestUtils.qRequest('get', options);
-                }).then(function(resp) {
-                    expect(resp.body.data.branding).toBe('foo');
-                }).catch(function(error) {
-                    expect(util.inspect(error)).not.toBeDefined();
-                }).done(done);
-            });
-
             it('should return a 404 if nothing is found', function(done) {
                 options.url = config.contentUrl + '/public/content/experiences/e2e-getid5678';
                 requestUtils.qRequest('get', options).then(function(resp) {
@@ -159,9 +149,9 @@ describe('content public experience endpoints (E2E):', function() {
                     }
                 ];
                 mockOrgs = [{ id: 'e2e-adCfg-org', status: 'active', adConfig: { foo: 'bar' } }];
-                q.all([testUtils.resetCollection('experiences', mockExps),
-                       testUtils.resetCollection('orgs', mockOrgs),
-                       testUtils.resetCollection('sites', mockSites)
+                q.all([
+                    testUtils.resetCollection('experiences', mockExps),
+                    testUtils.resetCollection('orgs', mockOrgs)
                 ]).done(function() { done(); });
             });
 
@@ -222,20 +212,10 @@ describe('content public experience endpoints (E2E):', function() {
                         org: 'e2e-fake-org'
                     }
                 ];
-                mockSites = [
-                    {id: 's1', status: 'active', host: 'baz.com', branding: 'brand1'},
-                    {id: 's2', status: 'active', host: 'bar.baz.com', branding: 'brand2'},
-                    {id: 's3', status: 'inactive', host: 'foo.bar.baz.com', branding: 'brand3'},
-                    {id: 's4', status: 'active', host: 'foobarbaz.com', branding: 'brand4'},
-                    {
-                        id: 'e2e-site', status: 'active', host: 'c6.com', branding: 'siteBrand',
-                        placementId: 456, wildCardPlacement: 654
-                    }
-                ];
                 mockOrgs = [{ id: 'e2e-active-org', status: 'active', adConfig: { foo: 'bar' }, branding: 'orgBrand' }];
-                q.all([testUtils.resetCollection('experiences', mockExps),
-                       testUtils.resetCollection('orgs', mockOrgs),
-                       testUtils.resetCollection('sites', mockSites)
+                q.all([
+                    testUtils.resetCollection('experiences', mockExps),
+                    testUtils.resetCollection('orgs', mockOrgs)
                 ]).done(function() { done(); });
             });
             
@@ -277,64 +257,6 @@ describe('content public experience endpoints (E2E):', function() {
                     expect(util.inspect(error)).not.toBeDefined();
                 }).done(done);
             });
-
-            it('should get the active site that most closely matches the origin', function(done) {
-                options.headers.origin = 'http://foo.bar.baz.com/';
-                requestUtils.qRequest('get', options).then(function(resp) {
-                    expect(resp.response.statusCode).toBe(200);
-                    expect(resp.body.id).toBe('e2e-noProps');
-                    expect(resp.body.data.branding).toBe('brand2');
-                    expect(resp.body.data.placementId).toBeDefined();
-                    expect(resp.body.data.wildCardPlacement).toBeDefined();
-                }).catch(function(error) {
-                    expect(util.inspect(error)).not.toBeDefined();
-                }).done(done);
-            });
-
-            it('should use the pageUrl query param over the request\'s origin', function(done) {
-                options.qs = { pageUrl: 'http://foo.bar.baz.com/hello/world?name=foo&age=24#neato' };
-                requestUtils.qRequest('get', options).then(function(resp) {
-                    expect(resp.response.statusCode).toBe(200);
-                    expect(resp.body.id).toBe('e2e-noProps');
-                    expect(resp.body.data.branding).toBe('brand2');
-                    expect(resp.body.data.placementId).toBeDefined();
-                    expect(resp.body.data.wildCardPlacement).toBeDefined();
-                }).catch(function(error) {
-                    expect(util.inspect(error)).not.toBeDefined();
-                }).done(done);
-            });
-            
-            it('should then fall back to the org\'s branding', function(done) {
-                options.headers.origin = 'http://fake.com';
-                requestUtils.qRequest('get', options).then(function(resp) {
-                    expect(resp.response.statusCode).toBe(200);
-                    expect(resp.body.id).toBe('e2e-noProps');
-                    expect(resp.body.data.branding).toBe('orgBrand');
-                    expect(resp.body.data.placementId).toBeDefined();
-                    expect(resp.body.data.placementId).not.toBe(456);
-                    expect(resp.body.data.wildCardPlacement).toBeDefined();
-                    expect(resp.body.data.wildCardPlacement).not.toBe(654);
-                }).catch(function(error) {
-                    expect(util.inspect(error)).not.toBeDefined();
-                }).done(done);
-            });
-
-            it('should have some system level defaults for the site config props', function(done) {
-                options.url = options.url.replace('e2e-noProps', 'e2e-noOrg');
-                options.headers.origin = 'http://fake.com';
-                requestUtils.qRequest('get', options).then(function(resp) {
-                    expect(resp.response.statusCode).toBe(200);
-                    expect(resp.body.id).toBe('e2e-noOrg');
-                    expect(resp.body.data.branding).toBeDefined();
-                    expect(resp.body.data.branding).not.toBe('siteBrand');
-                    expect(resp.body.data.placementId).toBeDefined();
-                    expect(resp.body.data.placementId).not.toBe(456);
-                    expect(resp.body.data.wildCardPlacement).toBeDefined();
-                    expect(resp.body.data.wildCardPlacement).not.toBe(654);
-                }).catch(function(error) {
-                    expect(util.inspect(error)).not.toBeDefined();
-                }).done(done);
-            });
         });
         
         describe('handling containers', function() {
@@ -351,17 +273,9 @@ describe('content public experience endpoints (E2E):', function() {
                     org: 'e2e-org',
                     status: [{ status: 'active' }]
                 }];
-                mockSites = [{
-                    id: 'e2e-cinema6', status: 'active', host: 'cinema6.com', branding: 'c6',
-                    containers: [
-                        {id: 'veeseo', contentPlacementId: 1337, displayPlacementId: 7331},
-                        {id: 'connatix', contentPlacementId: 246, displayPlacementId: 864}
-                    ]
-                }];
                 mockOrgs = [{ id: 'e2e-active-org', status: 'active', adConfig: { foo: 'bar' }, branding: 'orgBrand' }];
                 q.all([testUtils.resetCollection('experiences', mockExps),
                        testUtils.resetCollection('orgs', mockOrgs),
-                       testUtils.resetCollection('sites', mockSites)
                 ]).done(function() { done(); });
             });
 
@@ -370,7 +284,7 @@ describe('content public experience endpoints (E2E):', function() {
                 requestUtils.qRequest('get', options).then(function(resp) {
                     expect(resp.response.statusCode).toBe(200);
                     expect(resp.body.id).toBe('e2e-pubget1');
-                    expect(resp.body.data.branding).toBe('c6');
+                    expect(resp.body.data.branding).toBe('siteBrand');
                     expect(resp.body.data.placementId).toBe(7331);
                     expect(resp.body.data.wildCardPlacement).toBe(1337);
                 }).catch(function(error) {
@@ -378,12 +292,12 @@ describe('content public experience endpoints (E2E):', function() {
                 }).done(done);
             });
 
-            it('should use the connatix site if the container is connatix', function(done) {
+            it('should use the cinema6 site if the container is connatix', function(done) {
                 options.qs = { container: 'connatix' };
                 requestUtils.qRequest('get', options).then(function(resp) {
                     expect(resp.response.statusCode).toBe(200);
                     expect(resp.body.id).toBe('e2e-pubget1');
-                    expect(resp.body.data.branding).toBe('c6');
+                    expect(resp.body.data.branding).toBe('siteBrand');
                     expect(resp.body.data.placementId).toBe(864);
                     expect(resp.body.data.wildCardPlacement).toBe(246);
                 }).catch(function(error) {
@@ -392,14 +306,13 @@ describe('content public experience endpoints (E2E):', function() {
             });
 
             it('should use defaults if the request\'s container is not in the site', function(done) {
-                options.headers.origin = 'http://cinema6.com';
                 options.qs = { container: 'taboola' };
                 requestUtils.qRequest('get', options).then(function(resp) {
                     expect(resp.response.statusCode).toBe(200);
                     expect(resp.body.id).toBe('e2e-pubget1');
-                    expect(resp.body.data.branding).toBe('c6');
-                    expect(resp.body.data.placementId).toBeDefined();
-                    expect(resp.body.data.wildCardPlacement).toBeDefined();
+                    expect(resp.body.data.branding).toBe('siteBrand');
+                    expect(resp.body.data.placementId).toBe(456);
+                    expect(resp.body.data.wildCardPlacement).toBe(654);
                 }).catch(function(error) {
                     expect(util.inspect(error)).not.toBeDefined();
                 }).done(done);
