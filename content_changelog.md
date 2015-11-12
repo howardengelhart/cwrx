@@ -1,5 +1,10 @@
 # Content Service Changelog
 
+### 3.0.0: Thu Nov 12 16:17:30 EST 2015
+* [BREAKING CHANGE]: Always lookup 'cinema6.com' site for public experience endpoint: [#634](https://github.com/cinema6/cwrx/pull/634)
+* [REMOVAL]: Remove rotating branding functionality: [#634](https://github.com/cinema6/cwrx/pull/634)
+* Extra deployment steps:
+    * Ensure no important campaigns are still running on Adtech sites besides Cinema6
 
 ### 2.3.2: Wed Nov 11 11:31:26 EST 2015
 * Handle protocol relative urls when accessing metaGetta: [#626](https://github.com/cinema6/cwrx/issues/626)

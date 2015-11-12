@@ -77,7 +77,7 @@ describe('content (UT)', function() {
                     id: 'e-1', org: 'o-1', formatted: true, withPixels: true
                 }, 'o-1', 'fakeOrgCache');
                 expect(expModule.getSiteConfig).toHaveBeenCalledWith('withAdConfig', 'o-1', {foo: 'bar'},
-                    'c6.com', 'fakeSiteCache', 'fakeOrgCache', {sites: 'good'});
+                    'fakeSiteCache', 'fakeOrgCache', {sites: 'good'});
                 expect(expModule.handleCampaign).toHaveBeenCalledWith(req, 'withSiteConfig', undefined,
                     'fakeCampCache', 'fakeCardSvc');
             }).catch(function(error) {
