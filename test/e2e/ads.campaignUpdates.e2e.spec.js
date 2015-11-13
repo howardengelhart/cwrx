@@ -1,6 +1,6 @@
 var q               = require('q'),
     adtech          = require('adtech'),
-    kCamp           = adtech.constants.ICampaign,
+    braintree       = require('braintree'),
     request         = require('request'),
     util            = require('util'),
     testUtils       = require('./testUtils'),
@@ -12,36 +12,42 @@ var q               = require('q'),
         adsUrl      : 'http://' + (host === 'localhost' ? host + ':3900' : host) + '/api',
         contentUrl  : 'http://' + (host === 'localhost' ? host + ':3300' : host) + '/api/content',
         authUrl     : 'http://' + (host === 'localhost' ? host + ':3200' : host) + '/api/auth'
-    };
+    },
+    gateway = braintree.connect({
+        environment : braintree.Environment.Sandbox,
+        merchantId  : 'ztrphcf283bxgn2f',
+        publicKey   : 'rz2pht7gyn6d266b',
+        privateKey  : '0a150dac004756370706a195e2bde296'
+    });
 
 describe('ads campaignUpdates endpoints (E2E):', function() {
-    var selfieJar, selfieUser, adminJar, adminUser, testPolicies, adminCreatedCamp, selfieCreatedCamp,
-        keptAdvert, keptCust, mailman;
+    var selfieJar, adminJar, testPolicies, adminCreatedCamp, selfieCreatedCamp,
+        keptAdvert, keptCust, mailman, selfieCredit, selfiePaypal, adminCredit, mockOrgs;
 
     beforeEach(function(done) {
-        jasmine.DEFAULT_TIMEOUT_INTERVAL = 30000;
+        jasmine.DEFAULT_TIMEOUT_INTERVAL = 90000;
 
         if (selfieJar && selfieJar.cookies && adminJar && adminJar.cookies) {
             return done();
         }
         selfieJar = request.jar();
-        selfieUser = {
+        var selfieUser = {
             id: 'e2e-user',
             status: 'active',
             email : 'c6e2etester@gmail.com',
             password : '$2a$10$XomlyDak6mGSgrC/g1L7FO.4kMRkj4UturtKSzy6mFeL8QWOBmIWq', // hash of 'password'
-            org: 'e2e-org',
+            org: 'o-selfie',
             advertiser: 'e2e-a-keepme',
             customer: 'e2e-cu-keepme',
             policies: ['selfieCampPolicy']
         };
         adminJar = request.jar();
-        adminUser = {
+        var adminUser = {
             id: 'admin-e2e-user',
             status: 'active',
             email : 'adminuser',
             password : '$2a$10$XomlyDak6mGSgrC/g1L7FO.4kMRkj4UturtKSzy6mFeL8QWOBmIWq', // hash of 'password'
-            org: 'e2e-org',
+            org: 'o-selfie',
             policies: ['adminCampPolicy']
         };
 
@@ -52,6 +58,7 @@ describe('ads campaignUpdates endpoints (E2E):', function() {
                 status: 'active',
                 priority: 1,
                 permissions: {
+                    orgs: { read: 'own', edit: 'own' },
                     cards: { read: 'org', create: 'org', edit: 'org', delete: 'org' },
                     campaigns: { read: 'org', create: 'org', edit: 'org', delete: 'own' },
                     campaignUpdates: { read: 'org', create: 'org', edit: 'org' }
@@ -71,6 +78,7 @@ describe('ads campaignUpdates endpoints (E2E):', function() {
                 status: 'active',
                 priority: 1,
                 permissions: {
+                    orgs: { read: 'all', edit: 'all', delete: 'all' },
                     cards: { read: 'all', create: 'all', edit: 'all', delete: 'all' },
                     experiences: { read: 'all', delete: 'all' },
                     campaigns: { read: 'all', create: 'all', edit: 'all', delete: 'all' },
@@ -132,34 +140,62 @@ describe('ads campaignUpdates endpoints (E2E):', function() {
         });
     });
     
-    beforeEach(function(done) {
-        if (adtech.campaignAdmin && adtech.bannerAdmin) {
-            return done();
-        }
+    // Initialize adtech client
+    beforeAll(function(done) {
         adtech.createClient().catch(adtechErr).done(function(resp) { done(); });
     });
 
     // Setup an advertiser + customer in mongo so we can use them to create campaigns.
-    beforeEach(function(done) {
-        if (keptCust && keptAdvert) {
-            return done();
-        } else {
-            q.all([
-                adtech.customerAdmin.getCustomerByExtId('e2e-cu-keepme').catch(adtechErr),
-                adtech.customerAdmin.getAdvertiserByExtId('e2e-a-keepme').catch(adtechErr)
-            ]).spread(function(customer, advertiser) {
-                keptCust = { id: 'e2e-cu-keepme', status: 'active', name: customer.name, adtechId: customer.id };
-                keptAdvert = { id: 'e2e-a-keepme', status: 'active', name: advertiser.name, adtechId: advertiser.id };
-                return q.all([
-                    testUtils.resetCollection('advertisers', keptAdvert),
-                    testUtils.resetCollection('customers', keptCust)
-                ]);
-            }).done(function(results) { done(); });
-        }
+    beforeAll(function(done) {
+        q.all([
+            adtech.customerAdmin.getCustomerByExtId('e2e-cu-keepme').catch(adtechErr),
+            adtech.customerAdmin.getAdvertiserByExtId('e2e-a-keepme').catch(adtechErr)
+        ]).spread(function(customer, advertiser) {
+            keptCust = { id: 'e2e-cu-keepme', status: 'active', name: customer.name, adtechId: customer.id };
+            keptAdvert = { id: 'e2e-a-keepme', status: 'active', name: advertiser.name, adtechId: advertiser.id };
+            return q.all([
+                testUtils.resetCollection('advertisers', keptAdvert),
+                testUtils.resetCollection('customers', keptCust)
+            ]);
+        }).done(function(results) { done(); });
+    });
+    
+    // Initialize orgs with Braintree customers + payment methods
+    beforeAll(function(done) {
+        mockOrgs = [
+            { id: 'o-selfie', name: 'test selfie org', status: 'active' },
+            { id: 'o-admin', name: 'test admin org', status: 'active' }
+        ];
+        
+        q.all([
+            q.npost(gateway.customer, 'create', [{ company: mockOrgs[0].name, paymentMethodNonce: 'fake-valid-visa-nonce' }]),
+            q.npost(gateway.customer, 'create', [{ company: mockOrgs[1].name, paymentMethodNonce: 'fake-valid-amex-nonce' }])
+        ]).spread(function(selfieResp, adminResp) {
+            if (!selfieResp.success) return q.reject(selfieResp);
+            if (!adminResp.success) return q.reject(adminResp);
+
+            mockOrgs[0].braintreeCustomer = selfieResp.customer.id;
+            mockOrgs[1].braintreeCustomer = adminResp.customer.id;
+            selfieCredit = selfieResp.customer.paymentMethods[0];
+            adminCredit = adminResp.customer.paymentMethods[0];
+            
+            return testUtils.resetCollection('orgs', mockOrgs);
+        }).then(function() {
+            return q.npost(gateway.paymentMethod, 'create', [{
+                customerId: mockOrgs[0].braintreeCustomer,
+                paymentMethodNonce: 'fake-paypal-future-nonce'
+            }]);
+        }).then(function(resp) {
+            if (!resp.success) return q.reject(resp);
+            selfiePaypal = resp.paymentMethod;
+        
+        }).done(done, done.fail);
     });
 
+    // Setup mailman for receiving email messages
     beforeEach(function(done) {
         if (mailman && mailman.state === 'authenticated') {
+            mailman.on('error', function(error) { throw new Error(error); });
             return done();
         }
         
@@ -171,7 +207,6 @@ describe('ads campaignUpdates endpoints (E2E):', function() {
 
     afterEach(function() {
         mailman.removeAllListeners();
-        mailman.on('error', function(error) { throw new Error(error); });
     });
     
     
@@ -214,6 +249,7 @@ describe('ads campaignUpdates endpoints (E2E):', function() {
         expect((new Date() - msg.date)).toBeLessThan(30000); // message should be recent
     }
 
+
     describe('GET /api/campaigns/:campId/updates/:id', function() {
         var options;
         beforeEach(function(done) {
@@ -223,8 +259,8 @@ describe('ads campaignUpdates endpoints (E2E):', function() {
                 jar: selfieJar
             };
             var mockUpdates = [
-                { id: 'ur-getId1', campaign: 'cam-getId1', status: 'pending', user: 'e2e-user', org: 'e2e-org', data: {} },
-                { id: 'ur-getId2', campaign: 'cam-getId1', status: 'pending', user: 'not-e2e-user', org: 'not-e2e-org', data: {} }
+                { id: 'ur-getId1', campaign: 'cam-getId1', status: 'pending', user: 'e2e-user', org: 'o-selfie', data: {} },
+                { id: 'ur-getId2', campaign: 'cam-getId1', status: 'pending', user: 'not-e2e-user', org: 'o-admin', data: {} }
             ];
             testUtils.resetCollection('campaignUpdates', mockUpdates).done(done, done.fail);
         });
@@ -233,7 +269,7 @@ describe('ads campaignUpdates endpoints (E2E):', function() {
             requestUtils.qRequest('get', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
                 expect(resp.body).toEqual({ id: 'ur-getId1', campaign: 'cam-getId1', status: 'pending',
-                    user: 'e2e-user', org: 'e2e-org', data: {} });
+                    user: 'e2e-user', org: 'o-selfie', data: {} });
                 expect(resp.response.headers['content-range']).not.toBeDefined();
             }).catch(function(error) {
                 expect(util.inspect(error)).not.toBeDefined();
@@ -280,7 +316,7 @@ describe('ads campaignUpdates endpoints (E2E):', function() {
             }).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
                 expect(resp.body).toEqual({ id: 'ur-getId2', campaign: 'cam-getId1', status: 'pending',
-                    user: 'not-e2e-user', org: 'not-e2e-org', data: {} });
+                    user: 'not-e2e-user', org: 'o-admin', data: {} });
             }).catch(function(error) {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
@@ -317,11 +353,11 @@ describe('ads campaignUpdates endpoints (E2E):', function() {
                 jar: selfieJar
             };
             var mockUpdates = [
-                { id: 'ur-getQry1', campaign: 'cam-getQry1', status: 'pending', user: 'e2e-user', org: 'e2e-org', data: {} },
-                { id: 'ur-getQry2', campaign: 'cam-getQry1', status: 'pending', user: 'not-e2e-user', org: 'not-e2e-org', data: {} },
-                { id: 'ur-getQry3', campaign: 'cam-getQry1', status: 'approved', user: 'e2e-user', org: 'e2e-org', data: {} },
-                { id: 'ur-getQry4', campaign: 'cam-getQry1', status: 'approved', user: 'e2e-user', org: 'e2e-org', data: {} },
-                { id: 'ur-getQry5', campaign: 'cam-getQry1', status: 'rejected', user: 'e2e-user', org: 'e2e-org', data: {} }
+                { id: 'ur-getQry1', campaign: 'cam-getQry1', status: 'pending', user: 'e2e-user', org: 'o-selfie', data: {} },
+                { id: 'ur-getQry2', campaign: 'cam-getQry1', status: 'pending', user: 'not-e2e-user', org: 'o-admin', data: {} },
+                { id: 'ur-getQry3', campaign: 'cam-getQry1', status: 'approved', user: 'e2e-user', org: 'o-selfie', data: {} },
+                { id: 'ur-getQry4', campaign: 'cam-getQry1', status: 'approved', user: 'e2e-user', org: 'o-selfie', data: {} },
+                { id: 'ur-getQry5', campaign: 'cam-getQry1', status: 'rejected', user: 'e2e-user', org: 'o-selfie', data: {} }
             ];
             testUtils.resetCollection('campaignUpdates', mockUpdates).done(done, done.fail);
         });
@@ -477,7 +513,6 @@ describe('ads campaignUpdates endpoints (E2E):', function() {
                 url: config.adsUrl + '/campaigns/cam-1/updates/',
                 json: { data: {
                     name: 'updated name',
-                    paymentMethod: 'infinite money',
                     pricing: { budget: 500 },
                     targeting: {
                         geo: { dmas: ['princeton'] },
@@ -492,6 +527,7 @@ describe('ads campaignUpdates endpoints (E2E):', function() {
                     name: 'e2e test 1',
                     status: 'draft',
                     application: 'selfie',
+                    paymentMethod: selfieCredit.token,
                     pricing: { budget: 1000, dailyLimit: 200, cost: 0.07, model: 'cpv' },
                     targeting: {
                         geo: { states: ['new jersey' ] },
@@ -501,10 +537,10 @@ describe('ads campaignUpdates endpoints (E2E):', function() {
                     advertiserId: 'e2e-a-keepme',
                     customerId: 'e2e-cu-keepme',
                     user: 'e2e-user',
-                    org: 'e2e-org'
+                    org: 'o-selfie'
                 },
-                { id: 'cam-other', status: 'draft', user: 'not-e2e-user', org: 'not-e2e-org' },
-                { id: 'cam-deleted', status: 'deleted', user: 'e2e-user', org: 'e2e-org' }
+                { id: 'cam-other', status: 'draft', user: 'not-e2e-user', org: 'o-admin' },
+                { id: 'cam-deleted', status: 'deleted', user: 'e2e-user', org: 'o-selfie' }
             ];
             q.all([
                 testUtils.resetCollection('campaigns', mockCamps),
@@ -525,13 +561,13 @@ describe('ads campaignUpdates endpoints (E2E):', function() {
                 expect(resp.body.campaign).toBe('cam-1');
                 expect(resp.body.autoApproved).toBe(false);
                 expect(resp.body.user).toBe('e2e-user');
-                expect(resp.body.org).toBe('e2e-org');
+                expect(resp.body.org).toBe('o-selfie');
                 expect(resp.body.data).toEqual({
                     id: 'cam-1',
                     name: 'updated name',
                     application: 'selfie',
-                    paymentMethod: 'infinite money',
                     status: 'draft',
+                    paymentMethod: selfieCredit.token,
                     pricing: { budget: 500, dailyLimit: 200, cost: 0.08, model: 'cpv' },
                     targeting: {
                         geo: {
@@ -543,7 +579,7 @@ describe('ads campaignUpdates endpoints (E2E):', function() {
                     advertiserId: 'e2e-a-keepme',
                     customerId: 'e2e-cu-keepme',
                     user: 'e2e-user',
-                    org: 'e2e-org'
+                    org: 'o-selfie'
                 });
                 createdUpdate = resp.body;
             }).catch(function(error) {
@@ -567,102 +603,143 @@ describe('ads campaignUpdates endpoints (E2E):', function() {
                 }).done(done);
             });
         });
-        
-        it('should immediately apply if just changing the payment method', function(done) {
-            options.json.data = { paymentMethod: 'infinite money' };
-            mailman.once(msgSubject, function(msg) {
-                expect(msg).not.toBeDefined();
-            });
-            requestUtils.qRequest('post', options).then(function(resp) {
-                expect(resp.response.statusCode).toBe(201);
-                if (resp.response.statusCode !== 201) {
-                    return q.reject({ code: resp.response.statusCode, body: resp.body });
-                }
-                
-                expect(resp.body.id).toEqual(jasmine.any(String));
-                expect(resp.body.status).toBe('approved');
-                expect(resp.body.campaign).toBe('cam-1');
-                expect(resp.body.autoApproved).toBe(true);
-                expect(resp.body.user).toBe('e2e-user');
-                expect(resp.body.org).toBe('e2e-org');
-                expect(resp.body.data).toEqual({
-                    paymentMethod: 'infinite money',
-                });
-            
-                // test campaign updated successfully
-                return requestUtils.qRequest('get', {
-                    url: config.adsUrl + '/campaigns/cam-1',
-                    jar: selfieJar
-                });
-            }).then(function(resp) {
-                expect(resp.response.statusCode).toBe(200);
-                expect(resp.body.status).toBe('draft');
-                expect(resp.body.updateRequest).not.toBeDefined();
-                expect(resp.body.paymentMethod).toBe('infinite money');
-                expect(resp.body.targeting).toEqual(mockCamps[0].targeting);
+
+        it('should fail if changing the paymentMethod and it is invalid or owned by another org', function(done) {
+            q.all(['someFakeToken', adminCredit.token].map(function(token) {
+                options.json.data.paymentMethod = token;
+                return requestUtils.qRequest('post', options, null, { maxAttempts: 30 });
+            })).then(function(results) {
+                expect(results[0].response.statusCode).toBe(400);
+                expect(results[0].body).toBe('paymentMethod someFakeToken does not exist for o-selfie');
+                expect(results[1].response.statusCode).toBe(400);
+                expect(results[1].body).toBe('paymentMethod ' + adminCredit.token + ' does not exist for o-selfie');
             }).catch(function(error) {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
-
-        it('should set the status of a campaign to pending if POSTing an initial submit request', function(done) {
-            var createdUpdate;
-            options.json.data = { status: 'active', paymentMethod: 'infinite money' };
-            requestUtils.qRequest('post', options).then(function(resp) {
-                expect(resp.response.statusCode).toBe(201);
-                if (resp.response.statusCode !== 201) {
-                    return q.reject({ code: resp.response.statusCode, body: resp.body });
-                }
-                
-                expect(resp.body.id).toEqual(jasmine.any(String));
-                expect(resp.body.status).toBe('pending');
-                expect(resp.body.campaign).toBe('cam-1');
-                expect(resp.body.autoApproved).toBe(false);
-                expect(resp.body.data.status).toBe('active');
-                createdUpdate = resp.body;
-            }).catch(function(error) {
-                expect(util.inspect(error)).not.toBeDefined();
-                done();
+        
+        describe('if only changing the paymentMethod', function(done) {
+            beforeEach(function() {
+                options.json.data = { paymentMethod: selfiePaypal.token };
             });
-            
-            mailman.once(msgSubject, function(msg) {
-                testNewUpdateMsg(msg, mockCamps[0]);
+
+            it('should immediately apply', function(done) {
+                mailman.once(msgSubject, function(msg) {
+                    expect(msg).not.toBeDefined();
+                });
+                requestUtils.qRequest('post', options).then(function(resp) {
+                    expect(resp.response.statusCode).toBe(201);
+                    if (resp.response.statusCode !== 201) {
+                        return q.reject({ code: resp.response.statusCode, body: resp.body });
+                    }
+                    
+                    expect(resp.body.id).toEqual(jasmine.any(String));
+                    expect(resp.body.status).toBe('approved');
+                    expect(resp.body.campaign).toBe('cam-1');
+                    expect(resp.body.autoApproved).toBe(true);
+                    expect(resp.body.user).toBe('e2e-user');
+                    expect(resp.body.org).toBe('o-selfie');
+                    expect(resp.body.data).toEqual({
+                        paymentMethod: selfiePaypal.token,
+                    });
                 
-                // test campaign updated successfully
-                requestUtils.qRequest('get', {
-                    url: config.adsUrl + '/campaigns/cam-1',
-                    jar: selfieJar
+                    // test campaign updated successfully
+                    return requestUtils.qRequest('get', {
+                        url: config.adsUrl + '/campaigns/cam-1',
+                        jar: selfieJar
+                    });
                 }).then(function(resp) {
                     expect(resp.response.statusCode).toBe(200);
-                    expect(resp.body.status).toBe('pending');
-                    expect(resp.body.updateRequest).toBe(createdUpdate.id);
+                    expect(resp.body.status).toBe('draft');
+                    expect(resp.body.updateRequest).not.toBeDefined();
+                    expect(resp.body.paymentMethod).toBe(selfiePaypal.token);
+                    expect(resp.body.targeting).toEqual(mockCamps[0].targeting);
+                }).catch(function(error) {
+                    expect(util.inspect(error)).not.toBeDefined();
+                }).done(done);
+            });
+            
+            it('should fail if the paymentMethod is invalid or owned by another org', function(done) {
+                q.all(['someFakeToken', adminCredit.token].map(function(token) {
+                    options.json.data.paymentMethod = token;
+                    return requestUtils.qRequest('post', options, null, { maxAttempts: 30 });
+                })).then(function(results) {
+                    expect(results[0].response.statusCode).toBe(400);
+                    expect(results[0].body).toBe('paymentMethod someFakeToken does not exist for o-selfie');
+                    expect(results[1].response.statusCode).toBe(400);
+                    expect(results[1].body).toBe('paymentMethod ' + adminCredit.token + ' does not exist for o-selfie');
                 }).catch(function(error) {
                     expect(util.inspect(error)).not.toBeDefined();
                 }).done(done);
             });
         });
-        
-        it('should return a 400 if POSTing an initial submit request but no paymentMethod is set yet', function(done) {
-            options.json.data = { status: 'active' };
-            mailman.once(msgSubject, function(msg) {
-                expect(msg).not.toBeDefined();
+
+        describe('if sending an initial submit request', function(done) {
+            beforeEach(function() {
+                options.json.data = { status: 'active' };
             });
-            requestUtils.qRequest('post', options).then(function(resp) {
-                expect(resp.response.statusCode).toBe(400);
-                expect(resp.body).toBe('Missing required field: paymentMethod');
-                
-                // test campaign not locked
-                return requestUtils.qRequest('get', {
-                    url: config.adsUrl + '/campaigns/cam-1',
-                    jar: selfieJar
+
+            it('should set the status of the campaign to pending', function(done) {
+                var createdUpdate;
+                requestUtils.qRequest('post', options).then(function(resp) {
+                    expect(resp.response.statusCode).toBe(201);
+                    if (resp.response.statusCode !== 201) {
+                        return q.reject({ code: resp.response.statusCode, body: resp.body });
+                    }
+                    
+                    expect(resp.body.id).toEqual(jasmine.any(String));
+                    expect(resp.body.status).toBe('pending');
+                    expect(resp.body.campaign).toBe('cam-1');
+                    expect(resp.body.autoApproved).toBe(false);
+                    expect(resp.body.data.status).toBe('active');
+                    createdUpdate = resp.body;
+                }).catch(function(error) {
+                    expect(util.inspect(error)).not.toBeDefined();
+                    done();
                 });
-            }).then(function(resp) {
-                expect(resp.response.statusCode).toBe(200);
-                expect(resp.body.status).toBe('draft');
-                expect(resp.body.updateRequest).not.toBeDefined();
-            }).catch(function(error) {
-                expect(util.inspect(error)).not.toBeDefined();
-            }).done(done);
+                
+                mailman.once(msgSubject, function(msg) {
+                    testNewUpdateMsg(msg, mockCamps[0]);
+                    
+                    // test campaign updated successfully
+                    requestUtils.qRequest('get', {
+                        url: config.adsUrl + '/campaigns/cam-1',
+                        jar: selfieJar
+                    }).then(function(resp) {
+                        expect(resp.response.statusCode).toBe(200);
+                        expect(resp.body.status).toBe('pending');
+                        expect(resp.body.updateRequest).toBe(createdUpdate.id);
+                    }).catch(function(error) {
+                        expect(util.inspect(error)).not.toBeDefined();
+                    }).done(done);
+                });
+            });
+            
+            it('should return a 400 if POSTing an initial submit request but no paymentMethod is set yet', function(done) {
+                mailman.once(msgSubject, function(msg) {
+                    expect(msg).not.toBeDefined();
+                });
+                
+                delete mockCamps[0].paymentMethod;
+                testUtils.resetCollection('campaigns', mockCamps).then(function() {
+                    return requestUtils.qRequest('post', options);
+                }).then(function(resp) {
+                    expect(resp.response.statusCode).toBe(400);
+                    expect(resp.body).toBe('Missing required field: paymentMethod');
+                    
+                    // test campaign not locked
+                    return requestUtils.qRequest('get', {
+                        url: config.adsUrl + '/campaigns/cam-1',
+                        jar: selfieJar
+                    });
+                }).then(function(resp) {
+                    expect(resp.response.statusCode).toBe(200);
+                    expect(resp.body.status).toBe('draft');
+                    expect(resp.body.updateRequest).not.toBeDefined();
+                }).catch(function(error) {
+                    expect(util.inspect(error)).not.toBeDefined();
+                }).done(done);
+            });
         });
         
         it('should prevent selfie users from adding a second card', function(done) {
@@ -823,10 +900,10 @@ describe('ads campaignUpdates endpoints (E2E):', function() {
                     campaign: 'cam-1',
                     status: 'pending',
                     user: 'e2e-user',
-                    org: 'e2e-org',
+                    org: 'o-selfie',
                     data: {
                         name: 'updated name',
-                        paymentMethod: 'infinite money',
+                        paymentMethod: selfiePaypal.token,
                         pricing: { budget: 500 },
                         targeting: {
                             geo: { dmas: ['princeton'] },
@@ -842,6 +919,7 @@ describe('ads campaignUpdates endpoints (E2E):', function() {
                     name: 'e2e test 1',
                     status: 'draft',
                     application: 'selfie',
+                    paymentMethod: selfieCredit.token,
                     pricing: { budget: 1000, dailyLimit: 200, cost: 0.07, model: 'cpv' },
                     targeting: {
                         geo: { states: ['new jersey' ] },
@@ -851,10 +929,10 @@ describe('ads campaignUpdates endpoints (E2E):', function() {
                     advertiserId: 'e2e-a-keepme',
                     customerId: 'e2e-cu-keepme',
                     user: 'e2e-user',
-                    org: 'e2e-org'
+                    org: 'o-selfie'
                 },
-                { id: 'cam-2', name: 'camp 2', status: 'draft', user: 'e2e-user', org: 'e2e-org' },
-                { id: 'cam-deleted', status: 'deleted', user: 'e2e-user', org: 'e2e-org' }
+                { id: 'cam-2', name: 'camp 2', status: 'draft', user: 'e2e-user', org: 'o-selfie' },
+                { id: 'cam-deleted', status: 'deleted', user: 'e2e-user', org: 'o-selfie' }
             ];
             if (createdCamp) {
                 mockCamps.push(createdCamp);
@@ -891,7 +969,7 @@ describe('ads campaignUpdates endpoints (E2E):', function() {
                     status: 'draft',
                     application: 'selfie',
                     name: 'fernando',
-                    paymentMethod: 'infinite money',
+                    paymentMethod: selfiePaypal.token,
                     pricing: { budget: 500, dailyLimit: 100, cost: 0.08, model: 'cpv' },
                     targeting: {
                         geo: {
@@ -904,7 +982,7 @@ describe('ads campaignUpdates endpoints (E2E):', function() {
                     advertiserId: 'e2e-a-keepme',
                     customerId: 'e2e-cu-keepme',
                     user: 'e2e-user',
-                    org: 'e2e-org'
+                    org: 'o-selfie'
                 });
             }).catch(function(error) {
                 expect(util.inspect(error)).not.toBeDefined();
@@ -925,7 +1003,7 @@ describe('ads campaignUpdates endpoints (E2E):', function() {
                     status: 'draft',
                     application: 'selfie',
                     name: 'fernando',
-                    paymentMethod: 'infinite money',
+                    paymentMethod: selfiePaypal.token,
                     pricing: { budget: 500, dailyLimit: 100, cost: 0.08, model: 'cpv' },
                     targeting: {
                         geo: {
@@ -937,7 +1015,7 @@ describe('ads campaignUpdates endpoints (E2E):', function() {
                     advertiserId: 'e2e-a-keepme',
                     customerId: 'e2e-cu-keepme',
                     user: 'e2e-user',
-                    org: 'e2e-org'
+                    org: 'o-selfie'
                 });
             }).catch(function(error) {
                 expect(util.inspect(error)).not.toBeDefined();
@@ -955,7 +1033,7 @@ describe('ads campaignUpdates endpoints (E2E):', function() {
                     expect(resp.response.statusCode).toBe(200);
                     expect(resp.body.updateRequest).not.toBeDefined();
                     expect(resp.body.name).toBe('fernando');
-                    expect(resp.body.paymentMethod).toBe('infinite money');
+                    expect(resp.body.paymentMethod).toBe(selfiePaypal.token);
                     expect(resp.body.pricing).toEqual({ budget: 500, dailyLimit: 100, cost: 0.08, model: 'cpv' });
                     expect(resp.body.targeting).toEqual({
                         geo: {
@@ -998,6 +1076,7 @@ describe('ads campaignUpdates endpoints (E2E):', function() {
                     expect(resp.body.rejectionReason).toBe('yo campaign stinks');
                     expect(resp.body.status).toBe('draft');
                     expect(resp.body.name).toBe(mockCamps[0].name);
+                    expect(resp.body.paymentMethod).toBe(mockCamps[0].paymentMethod);
                     expect(resp.body.pricing).toEqual(mockCamps[0].pricing);
                     expect(resp.body.targeting).toEqual(mockCamps[0].targeting);
                 }).catch(function(error) {
@@ -1026,7 +1105,7 @@ describe('ads campaignUpdates endpoints (E2E):', function() {
                     id: 'ur-1',
                     status: 'pending',
                     user: 'e2e-user',
-                    org: 'e2e-org',
+                    org: 'o-selfie',
                     campaign: 'cam-1',
                     initialSubmit: true,
                     data: { status: 'active' }
@@ -1134,7 +1213,7 @@ describe('ads campaignUpdates endpoints (E2E):', function() {
                         id: 'ur-cards',
                         status: 'pending',
                         user: 'e2e-user',
-                        org: 'e2e-org',
+                        org: 'o-selfie',
                         campaign: createdCamp.id,
                         data: {
                             cards: [{
@@ -1239,7 +1318,7 @@ describe('ads campaignUpdates endpoints (E2E):', function() {
                     status: 'draft',
                     application: 'selfie',
                     name: 'fernando',
-                    paymentMethod: 'infinite money',
+                    paymentMethod: selfiePaypal.token,
                     pricing: { budget: 500, dailyLimit: 100, cost: 0.08, model: 'cpv' },
                     targeting: {
                         geo: {
@@ -1252,7 +1331,7 @@ describe('ads campaignUpdates endpoints (E2E):', function() {
                     advertiserId: 'e2e-a-keepme',
                     customerId: 'e2e-cu-keepme',
                     user: 'e2e-user',
-                    org: 'e2e-org'
+                    org: 'o-selfie'
                 });
                 
                 // test that campaign not edited yet
@@ -1264,7 +1343,7 @@ describe('ads campaignUpdates endpoints (E2E):', function() {
                 expect(resp.response.statusCode).toBe(200);
                 expect(resp.body.updateRequest).toBe('ur-1');
                 expect(resp.body.name).toBe(mockCamps[0].name);
-                expect(resp.body.paymentMethod).not.toBeDefined();
+                expect(resp.body.paymentMethod).toBe(mockCamps[0].paymentMethod);
                 expect(resp.body.pricing).toEqual(mockCamps[0].pricing);
             }).catch(function(error) {
                 expect(util.inspect(error)).not.toBeDefined();
@@ -1321,6 +1400,11 @@ describe('ads campaignUpdates endpoints (E2E):', function() {
                 }).then(function(resp) {
                     expect(resp.response.statusCode).toBe(204);
                 });
+            }));
+        }).then(function() {
+            // cleanup created braintree customers
+            return q.all(mockOrgs.map(function(org) {
+                return q.npost(gateway.customer, 'delete', [org.braintreeCustomer]);
             }));
         }).then(function() {
             return testUtils.closeDbs();

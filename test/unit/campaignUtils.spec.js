@@ -1,6 +1,6 @@
 var flush = true;
 describe('campaignUtils', function() {
-    var q, mockLog, logger, promise, Model, adtech, campaignUtils, mockClient, kCamp, campModule,
+    var q, mockLog, logger, promise, Model, adtech, requestUtils, campaignUtils, mockClient, kCamp, campModule,
         nextSpy, doneSpy, errorSpy, req;
     
     beforeEach(function() {
@@ -11,6 +11,7 @@ describe('campaignUtils', function() {
         logger          = require('../../lib/logger');
         Model           = require('../../lib/model');
         promise         = require('../../lib/promise');
+        requestUtils    = require('../../lib/requestUtils');
         campaignUtils   = require('../../lib/campaignUtils');
         campModule      = require('../../bin/ads-campaigns');
         
@@ -478,6 +479,124 @@ describe('campaignUtils', function() {
                 expect(body.pricing.cost).toBe(0.05);
                 expect(campaignUtils.computeCost).toHaveBeenCalledWith(body, origObj, actingSchema);
             });
+        });
+    });
+    
+    describe('validatePaymentMethod', function() {
+        var body, origObj, requester, payMethodUrl, mockResp;
+        beforeEach(function() {
+            body = { name: 'camp 1', paymentMethod: 'abc', org: 'o-1' };
+            origObj = { name: 'camp 1', paymentMethod: 'def' };
+            requester = { id: 'u-1' };
+            payMethodUrl = 'https://test.com/api/payments/methods/';
+            mockResp = { response: { statusCode: 200 }, body: [{ token: 'abc' }, { token: 'def' }] };
+            spyOn(requestUtils, 'qRequest').and.callFake(function() { return q(mockResp); });
+            req.headers = { cookie: 'asdf1234' };
+        });
+        
+        describe('if no paymentMethod is defined on the body or origObj', function() {
+            beforeEach(function() {
+                delete body.paymentMethod;
+                delete origObj.paymentMethod;
+            });
+            
+            it('should pass without making any request', function(done) {
+                campaignUtils.validatePaymentMethod(body, undefined, requester, payMethodUrl, req).then(function(resp) {
+                    expect(resp).toEqual({ isValid: true, reason: undefined });
+                    expect(requestUtils.qRequest).not.toHaveBeenCalled();
+                    expect(mockLog.warn).not.toHaveBeenCalled();
+                    expect(mockLog.error).not.toHaveBeenCalled();
+                }).catch(function(error) {
+                    expect(error.toString()).not.toBeDefined();
+                }).done(done);
+            });
+        });
+        
+        describe('if no paymentMethod is defined on the body', function() {
+            beforeEach(function() {
+                delete body.paymentMethod;
+            });
+
+            it('should copy the original payment method and pass without making any request', function(done) {
+                campaignUtils.validatePaymentMethod(body, origObj, requester, payMethodUrl, req).then(function(resp) {
+                    expect(resp).toEqual({ isValid: true, reason: undefined });
+                    expect(requestUtils.qRequest).not.toHaveBeenCalled();
+                    expect(body.paymentMethod).toBe('def');
+                    expect(mockLog.warn).not.toHaveBeenCalled();
+                    expect(mockLog.error).not.toHaveBeenCalled();
+                }).catch(function(error) {
+                    expect(error.toString()).not.toBeDefined();
+                }).done(done);
+            });
+        });
+        
+        describe('if the paymentMethod is defined and identical on the body and origObj', function() {
+            beforeEach(function() {
+                body.paymentMethod = origObj.paymentMethod;
+            });
+
+            it('should pass without making any request', function(done) {
+                campaignUtils.validatePaymentMethod(body, origObj, requester, payMethodUrl, req).then(function(resp) {
+                    expect(resp).toEqual({ isValid: true, reason: undefined });
+                    expect(requestUtils.qRequest).not.toHaveBeenCalled();
+                    expect(mockLog.warn).not.toHaveBeenCalled();
+                    expect(mockLog.error).not.toHaveBeenCalled();
+                }).catch(function(error) {
+                    expect(error.toString()).not.toBeDefined();
+                }).done(done);
+            });
+        });
+        
+        it('should lookup the org\'s paymentMethods and return valid if the chosen method exists', function(done) {
+            campaignUtils.validatePaymentMethod(body, origObj, requester, payMethodUrl, req).then(function(resp) {
+                expect(resp).toEqual({ isValid: true, reason: undefined });
+                expect(requestUtils.qRequest).toHaveBeenCalledWith('get', {
+                    url: 'https://test.com/api/payments/methods/',
+                    qs: { org: 'o-1' },
+                    headers: { cookie: 'asdf1234' }
+                });
+                expect(body.paymentMethod).toBe('abc');
+                expect(mockLog.warn).not.toHaveBeenCalled();
+                expect(mockLog.error).not.toHaveBeenCalled();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should call done if the chosen paymentMethod is not found', function(done) {
+            body.paymentMethod = 'ghi';
+            campaignUtils.validatePaymentMethod(body, origObj, requester, payMethodUrl, req).then(function(resp) {
+                expect(resp).toEqual({ isValid: false, reason: 'paymentMethod ghi does not exist for o-1' });
+                expect(requestUtils.qRequest).toHaveBeenCalled();
+                expect(mockLog.warn).not.toHaveBeenCalled();
+                expect(mockLog.error).not.toHaveBeenCalled();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should call done and warn if the request returns a non-200 response', function(done) {
+            mockResp.response.statusCode = 403;
+            mockResp.body = 'Forbidden';
+            campaignUtils.validatePaymentMethod(body, origObj, requester, payMethodUrl, req).then(function(resp) {
+                expect(resp).toEqual({ isValid: false, reason: 'cannot fetch payment methods for this org' });
+                expect(requestUtils.qRequest).toHaveBeenCalled();
+                expect(mockLog.warn).toHaveBeenCalled();
+                expect(mockLog.error).not.toHaveBeenCalled();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should reject if the request fails', function(done) {
+            requestUtils.qRequest.and.returnValue(q.reject('I GOT A PROBLEM'));
+            campaignUtils.validatePaymentMethod(body, origObj, requester, payMethodUrl, req).then(function(resp) {
+                expect(resp).not.toBeDefined();
+            }).catch(function(error) {
+                expect(error).toBe('Error fetching payment methods');
+                expect(requestUtils.qRequest).toHaveBeenCalled();
+                expect(mockLog.error).toHaveBeenCalled();
+            }).done(done);
         });
     });
     

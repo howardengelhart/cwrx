@@ -49,6 +49,10 @@ describe('ads-campaignUpdates (UT)', function() {
                 baseUrl: 'https://test.com/api/content/experiences/',
                 endpoint: '/api/content/experiences/'
             },
+            paymentMethods: {
+                baseUrl: 'https://test.com/api/payments/methods/',
+                endpoint: '/api/payments/methods/'
+            },
             campaigns: {
                 baseUrl: 'https://test.com/api/campaigns/',
                 endpoint: '/api/campaigns/'
@@ -127,6 +131,7 @@ describe('ads-campaignUpdates (UT)', function() {
             expect(svc._middleware.create).toContain(updateModule.enforceLock);
             expect(svc._middleware.create).toContain(updateModule.validateData);
             expect(svc._middleware.create).toContain(updateModule.extraValidation);
+            expect(svc._middleware.create).toContain(updateModule.validatePaymentMethod);
             expect(svc._middleware.create).toContain(updateModule.handleInitialSubmit);
             expect(svc._middleware.create).toContain(updateModule.notifySupport);
             expect(svc._middleware.create).toContain(updateModule.lockCampaign);
@@ -138,6 +143,7 @@ describe('ads-campaignUpdates (UT)', function() {
             expect(svc._middleware.edit).toContain(updateModule.requireReason);
             expect(svc._middleware.edit).toContain(updateModule.validateData);
             expect(svc._middleware.edit).toContain(updateModule.extraValidation);
+            expect(svc._middleware.edit).toContain(updateModule.validatePaymentMethod);
             expect(svc._middleware.edit).toContain(updateModule.unlockCampaign);
             expect(svc._middleware.edit).toContain(updateModule.applyUpdate);
             expect(svc._middleware.edit).toContain(updateModule.notifyOwner);
@@ -148,6 +154,7 @@ describe('ads-campaignUpdates (UT)', function() {
             expect(svc._middleware.autoApprove).toContain(svc.setupObj);
             expect(svc._middleware.autoApprove).toContain(updateModule.fetchCamp);
             expect(svc._middleware.autoApprove).toContain(updateModule.enforceLock);
+            expect(svc._middleware.autoApprove).toContain(updateModule.validatePaymentMethod);
             expect(svc._middleware.autoApprove).toContain(updateModule.applyUpdate);
         });
         
@@ -589,6 +596,46 @@ describe('ads-campaignUpdates (UT)', function() {
                 expect(nextSpy).not.toHaveBeenCalled();
                 expect(doneSpy).toHaveBeenCalledWith({ code: 400, body: method + ' has failed' });
             });
+        });
+    });
+    
+    describe('validatePaymentMethod', function() {
+        beforeEach(function() {
+            req.body = { data: { newCampaign: 'yes' } };
+            req.campaign = { oldCampaign: 'yes' };
+            spyOn(campaignUtils, 'validatePaymentMethod').and.returnValue(q({ isValid: true }));
+        });
+        
+        it('should call next if the paymentMethod is valid', function(done) {
+            updateModule.validatePaymentMethod(req, nextSpy, doneSpy).catch(errorSpy).finally(function() {
+                expect(nextSpy).toHaveBeenCalled();
+                expect(doneSpy).not.toHaveBeenCalled();
+                expect(errorSpy).not.toHaveBeenCalled();
+                expect(campaignUtils.validatePaymentMethod).toHaveBeenCalledWith({ newCampaign: 'yes' }, { oldCampaign: 'yes' },
+                    req.user, 'https://test.com/api/payments/methods/', req);
+            }).done(done, done.fail);
+        });
+        
+        it('should call done if the paymentMethod is not valid', function(done) {
+            campaignUtils.validatePaymentMethod.and.returnValue(q({ isValid: false, reason: 'you better pay up buddy' }));
+            updateModule.validatePaymentMethod(req, nextSpy, doneSpy).catch(errorSpy).finally(function() {
+                expect(nextSpy).not.toHaveBeenCalled();
+                expect(doneSpy).toHaveBeenCalledWith({ code: 400, body: 'you better pay up buddy' });
+                expect(errorSpy).not.toHaveBeenCalled();
+                expect(campaignUtils.validatePaymentMethod).toHaveBeenCalledWith({ newCampaign: 'yes' }, { oldCampaign: 'yes' },
+                    req.user, 'https://test.com/api/payments/methods/', req);
+            }).done(done, done.fail);
+        });
+        
+        it('should reject if campaignUtils.validatePaymentMethod fails', function(done) {
+            campaignUtils.validatePaymentMethod.and.returnValue(q.reject('I GOT A PROBLEM'));
+            updateModule.validatePaymentMethod(req, nextSpy, doneSpy).catch(errorSpy).finally(function() {
+                expect(nextSpy).not.toHaveBeenCalled();
+                expect(doneSpy).not.toHaveBeenCalled();
+                expect(errorSpy).toHaveBeenCalledWith('I GOT A PROBLEM');
+                expect(campaignUtils.validatePaymentMethod).toHaveBeenCalledWith({ newCampaign: 'yes' }, { oldCampaign: 'yes' },
+                    req.user, 'https://test.com/api/payments/methods/', req);
+            }).done(done, done.fail);
         });
     });
     

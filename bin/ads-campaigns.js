@@ -142,14 +142,14 @@
     campModule.setupSvc = function(db, config) {
         campModule.config.campaigns = config.campaigns;
         campModule.config.api = config.api;
-        campModule.config.api.cards.baseUrl = urlUtils.resolve(
-            campModule.config.api.root,
-            campModule.config.api.cards.endpoint
-        );
-        campModule.config.api.experiences.baseUrl = urlUtils.resolve(
-            campModule.config.api.root,
-            campModule.config.api.experiences.endpoint
-        );
+        Object.keys(campModule.config.api)
+        .filter(function(key) { return key !== 'root'; })
+        .forEach(function(key) {
+            campModule.config.api[key].baseUrl = urlUtils.resolve(
+                campModule.config.api.root,
+                campModule.config.api[key].endpoint
+            );
+        });
     
         var campColl = db.collection('campaigns'),
             svc = new CrudSvc(campColl, 'cam', { statusHistory: true }, campModule.campSchema);
@@ -450,11 +450,25 @@
         for (var i = 0; i < validResps.length; i++) {
             if (!validResps[i].isValid) {
                 log.info('[%1] %2', req.uuid, validResps[i].reason);
-                return done({ code: 400, body: validResps[i].reason });
+                return q(done({ code: 400, body: validResps[i].reason }));
             }
         }
         
-        return next();
+        return campaignUtils.validatePaymentMethod(
+            req.body,
+            req.origObj,
+            req.user,
+            campModule.config.api.paymentMethods.baseUrl,
+            req
+        )
+        .then(function(validResp) {
+            if (!validResp.isValid) {
+                log.info('[%1] %2', req.uuid, validResp.reason);
+                return done({ code: 400, body: validResp.reason });
+            } else {
+                return next();
+            }
+        });
     };
     
     // Set the reportingId for each card without one to the campaign's name
