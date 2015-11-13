@@ -1,5 +1,6 @@
 # Ads Service Changelog
 
+### 3.0.2: Fri Nov 13 11:03:21 EST 2015
 * Validate `paymentMethod` when set on campaigns or campaignUpdates: [#593](https://github.com/cinema6/cwrx/issues/593)
 * Prevent selfie users from editing non-draft campaigns: [#597](https://github.com/cinema6/cwrx/issues/597)
 * Prevent selfie users from deleting campaigns that aren't `'draft'`, `'pending'`, `'canceled'`, or `'expired'`: [#432](https://github.com/cinema6/cwrx/issues/432)
