@@ -1,7 +1,9 @@
 # Org Service Changelog
 
+### 1.4.2: Fri Nov 13 11:03:21 EST 2015
 * Set extra identifying info on braintree customers: [#627](https://github.com/cinema6/cwrx/pull/627)
 * Allow `null` to be set for validated fields: [#573](https://github.com/cinema6/cwrx/pull/573)
+* Extra deployment steps: None
 
 ### 1.4.1: Thu Oct 15 13:24:56 EDT 2015
 * [FIX]: Stop logging cookie header: [#539](https://github.com/cinema6/cwrx/issues/539)
