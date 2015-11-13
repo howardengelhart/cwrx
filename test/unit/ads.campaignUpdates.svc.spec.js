@@ -131,6 +131,7 @@ describe('ads-campaignUpdates (UT)', function() {
             expect(svc._middleware.create).toContain(updateModule.enforceLock);
             expect(svc._middleware.create).toContain(updateModule.validateData);
             expect(svc._middleware.create).toContain(updateModule.extraValidation);
+            expect(svc._middleware.create).toContain(updateModule.validatePaymentMethod);
             expect(svc._middleware.create).toContain(updateModule.handleInitialSubmit);
             expect(svc._middleware.create).toContain(updateModule.notifySupport);
             expect(svc._middleware.create).toContain(updateModule.lockCampaign);
@@ -142,6 +143,7 @@ describe('ads-campaignUpdates (UT)', function() {
             expect(svc._middleware.edit).toContain(updateModule.requireReason);
             expect(svc._middleware.edit).toContain(updateModule.validateData);
             expect(svc._middleware.edit).toContain(updateModule.extraValidation);
+            expect(svc._middleware.edit).toContain(updateModule.validatePaymentMethod);
             expect(svc._middleware.edit).toContain(updateModule.unlockCampaign);
             expect(svc._middleware.edit).toContain(updateModule.applyUpdate);
             expect(svc._middleware.edit).toContain(updateModule.notifyOwner);
@@ -152,6 +154,7 @@ describe('ads-campaignUpdates (UT)', function() {
             expect(svc._middleware.autoApprove).toContain(svc.setupObj);
             expect(svc._middleware.autoApprove).toContain(updateModule.fetchCamp);
             expect(svc._middleware.autoApprove).toContain(updateModule.enforceLock);
+            expect(svc._middleware.autoApprove).toContain(updateModule.validatePaymentMethod);
             expect(svc._middleware.autoApprove).toContain(updateModule.applyUpdate);
         });
         
@@ -565,62 +568,73 @@ describe('ads-campaignUpdates (UT)', function() {
             spyOn(campaignUtils, 'ensureUniqueNames').and.returnValue({ isValid: true });
             spyOn(campaignUtils, 'validateAllDates').and.returnValue({ isValid: true });
             spyOn(campaignUtils, 'validatePricing').and.returnValue({ isValid: true });
-            spyOn(campaignUtils, 'validatePaymentMethod').and.returnValue(q({ isValid: true }));
             model = new Model('campaigns', {});
         });
         
-        it('should call next if all validation passes', function(done) {
-            updateModule.extraValidation(model, req, nextSpy, doneSpy).catch(errorSpy).finally(function() {
+        it('should call next if all validation passes', function() {
+            updateModule.extraValidation(model, req, nextSpy, doneSpy);
+            expect(nextSpy).toHaveBeenCalled();
+            expect(doneSpy).not.toHaveBeenCalled();
+            expect(campaignUtils.ensureUniqueIds).toHaveBeenCalledWith({ newCampaign: 'yes' });
+            expect(campaignUtils.ensureUniqueNames).toHaveBeenCalledWith({ newCampaign: 'yes' });
+            expect(campaignUtils.validateAllDates).toHaveBeenCalledWith({ newCampaign: 'yes' }, { oldCampaign: 'yes' }, req.user, { start: 100, end: 200 }, '1234');
+            expect(campaignUtils.validatePricing).toHaveBeenCalledWith({ newCampaign: 'yes' }, { oldCampaign: 'yes' }, req.user, model, true);
+        });
+        
+        it('should call done if any of the methods fail', function() {
+            var methods = ['ensureUniqueIds', 'ensureUniqueNames', 'validateAllDates', 'validatePricing'];
+            methods.forEach(function(method) {
+                // reset all methods
+                methods.forEach(function(meth) { campaignUtils[meth].and.returnValue({ isValid: true }); });
+                nextSpy.calls.reset();
+                doneSpy.calls.reset();
+                
+                // change behavior of currently evaluated method
+                campaignUtils[method].and.returnValue({ isValid: false, reason: method + ' has failed' });
+                
+                updateModule.extraValidation(model, req, nextSpy, doneSpy);
+                expect(nextSpy).not.toHaveBeenCalled();
+                expect(doneSpy).toHaveBeenCalledWith({ code: 400, body: method + ' has failed' });
+            });
+        });
+    });
+    
+    describe('validatePaymentMethod', function() {
+        beforeEach(function() {
+            req.body = { data: { newCampaign: 'yes' } };
+            req.campaign = { oldCampaign: 'yes' };
+            spyOn(campaignUtils, 'validatePaymentMethod').and.returnValue(q({ isValid: true }));
+        });
+        
+        it('should call next if the paymentMethod is valid', function(done) {
+            updateModule.validatePaymentMethod(req, nextSpy, doneSpy).catch(errorSpy).finally(function() {
                 expect(nextSpy).toHaveBeenCalled();
                 expect(doneSpy).not.toHaveBeenCalled();
                 expect(errorSpy).not.toHaveBeenCalled();
-                expect(campaignUtils.ensureUniqueIds).toHaveBeenCalledWith({ newCampaign: 'yes' });
-                expect(campaignUtils.ensureUniqueNames).toHaveBeenCalledWith({ newCampaign: 'yes' });
-                expect(campaignUtils.validateAllDates).toHaveBeenCalledWith({ newCampaign: 'yes' }, { oldCampaign: 'yes' }, req.user, { start: 100, end: 200 }, '1234');
-                expect(campaignUtils.validatePricing).toHaveBeenCalledWith({ newCampaign: 'yes' }, { oldCampaign: 'yes' }, req.user, model, true);
                 expect(campaignUtils.validatePaymentMethod).toHaveBeenCalledWith({ newCampaign: 'yes' }, { oldCampaign: 'yes' },
                     req.user, 'https://test.com/api/payments/methods/', req);
             }).done(done, done.fail);
         });
         
-        it('should call done if any of the synchronous methods return an invalid response', function(done) {
-            var methods = ['ensureUniqueIds', 'ensureUniqueNames', 'validateAllDates', 'validatePricing'];
-            methods.reduce(function(promise, method) {
-                return promise.then(function() {
-                    // reset all methods
-                    methods.forEach(function(meth) { campaignUtils[meth].and.returnValue({ isValid: true }); });
-                    nextSpy.calls.reset();
-                    doneSpy.calls.reset();
-                    errorSpy.calls.reset();
-                    
-                    // change behavior of currently evaluated method
-                    campaignUtils[method].and.returnValue({ isValid: false, reason: method + ' has failed' });
-                    
-                    return updateModule.extraValidation(model, req, nextSpy, doneSpy).catch(errorSpy).finally(function() {
-                        expect(nextSpy).not.toHaveBeenCalled();
-                        expect(doneSpy).toHaveBeenCalledWith({ code: 400, body: method + ' has failed' });
-                        expect(errorSpy).not.toHaveBeenCalled();
-                    });
-                });
-            }, q()).done(done, done.fail);
-        });
-
-        
-        it('should call done if validatePaymentMethods returns an invalid response', function(done) {
-            campaignUtils.validatePaymentMethod.and.returnValue(q({ isValid: false, reason: 'you need to pay up buddy' }));
-            updateModule.extraValidation(model, req, nextSpy, doneSpy).catch(errorSpy).finally(function() {
+        it('should call done if the paymentMethod is not valid', function(done) {
+            campaignUtils.validatePaymentMethod.and.returnValue(q({ isValid: false, reason: 'you better pay up buddy' }));
+            updateModule.validatePaymentMethod(req, nextSpy, doneSpy).catch(errorSpy).finally(function() {
                 expect(nextSpy).not.toHaveBeenCalled();
-                expect(doneSpy).toHaveBeenCalledWith({ code: 400, body: 'you need to pay up buddy' });
+                expect(doneSpy).toHaveBeenCalledWith({ code: 400, body: 'you better pay up buddy' });
                 expect(errorSpy).not.toHaveBeenCalled();
+                expect(campaignUtils.validatePaymentMethod).toHaveBeenCalledWith({ newCampaign: 'yes' }, { oldCampaign: 'yes' },
+                    req.user, 'https://test.com/api/payments/methods/', req);
             }).done(done, done.fail);
         });
         
-        it('should reject if validatePaymentMethods reject', function(done) {
+        it('should reject if campaignUtils.validatePaymentMethod fails', function(done) {
             campaignUtils.validatePaymentMethod.and.returnValue(q.reject('I GOT A PROBLEM'));
-            updateModule.extraValidation(model, req, nextSpy, doneSpy).catch(errorSpy).finally(function() {
+            updateModule.validatePaymentMethod(req, nextSpy, doneSpy).catch(errorSpy).finally(function() {
                 expect(nextSpy).not.toHaveBeenCalled();
                 expect(doneSpy).not.toHaveBeenCalled();
                 expect(errorSpy).toHaveBeenCalledWith('I GOT A PROBLEM');
+                expect(campaignUtils.validatePaymentMethod).toHaveBeenCalledWith({ newCampaign: 'yes' }, { oldCampaign: 'yes' },
+                    req.user, 'https://test.com/api/payments/methods/', req);
             }).done(done, done.fail);
         });
     });
