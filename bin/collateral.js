@@ -49,6 +49,10 @@
             clearInterval: 60*1000, // how often to check for old cached md5s; units = ms
             timeout: 10*1000        // timeout for entire splash generation process; units = ms
         },
+        scraper: {
+            timeout: 5*1000,        // 5 seconds.
+            agent: 'Reelcontent Web Scraper'
+        },
         maxFileSize: 25*1000*1000,  // 25MB
         maxFiles: 10,               // max number of files svc will handle in a request
         maxDownloadTime: 15*1000,   // timeout for downloading image uris from 3rd-party server
