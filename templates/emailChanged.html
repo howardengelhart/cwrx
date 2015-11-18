@@ -62,8 +62,14 @@
                                 <tr>
                                     <td align='center' style='border-top: 1px solid #dce1e5;' valign='top'>
                                         <p style='margin: 16px 0 0; text-align:left;'>
-                                            The email accociated with your Reelcontent account has been changed.
+                                            The email associated with your Reelcontent account has been changed.
                                         </p>
+                                        {{#if oldEmail}}
+                                            <p style='margin: 16px 0 0;'>
+                                                <strong>Previous Email/Username:</strong>
+                                                <a href="mailto:{{oldEmail}}" style="color: #139da3 !important;">{{oldEmail}}</a>
+                                            </p>
+                                        {{/if}}
                                         <p style='margin: 16px 0 0;'>
                                             <strong>New Email/Username:</strong>
                                             <a href="mailto:{{newEmail}}" style="color: #139da3 !important;">{{newEmail}}</a>

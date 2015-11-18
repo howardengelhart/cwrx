@@ -1,7 +1,7 @@
 var flush = true;
 describe('userSvc (UT)', function() {
-    var userModule, q, bcrypt, mockLog, uuid, logger, CrudSvc, Model, mongoUtils, email,
-        objUtils, req, userSvc, mockDb, nextSpy, doneSpy, errorSpy, mockCache;
+    var userModule, q, bcrypt, mockLog, uuid, logger, CrudSvc, Model, mongoUtils, email, crypto, authUtils,
+        CacheMutex, requestUtils, objUtils, req, userSvc, mockDb, mockConfig, nextSpy, doneSpy, errorSpy, mockCache;
 
     var enums = require('../../lib/enums'),
         Status = enums.Status,
@@ -715,7 +715,7 @@ describe('userSvc (UT)', function() {
                 ['orgs', 'customers', 'advertisers'].forEach(function(entity) {
                     describe(entity, function() {
                         beforeEach(function(done) {
-                            failRequestsFor(entity, true)
+                            failRequestsFor(entity, true);
                             userModule.createLinkedEntities(api, 3500, mockCache, req, nextSpy).done(done);
                         });
                         
@@ -1945,9 +1945,18 @@ describe('userSvc (UT)', function() {
                     editObjectDeferred.promise.finally(done);
                 });
 
-                it('should send the user an email', function() {
+                it('should send the user an email at both addresses', function() {
+                    expect(email.emailChanged.calls.count()).toBe(2);
                     expect(email.emailChanged).toHaveBeenCalledWith(
                         emailSender,
+                        req.body.email,
+                        req.body.email,
+                        req.body.newEmail,
+                        'support@c6.com'
+                    );
+                    expect(email.emailChanged).toHaveBeenCalledWith(
+                        emailSender,
+                        req.body.newEmail,
                         req.body.email,
                         req.body.newEmail,
                         'support@c6.com'
@@ -1987,7 +1996,7 @@ describe('userSvc (UT)', function() {
                     });
 
                     it('should log an error', function() {
-                        expect(mockLog.error).toHaveBeenCalled();
+                        expect(mockLog.error.calls.count()).toBe(2);
                     });
                 });
             });
@@ -2207,7 +2216,7 @@ describe('userSvc (UT)', function() {
         it('should reject if the statusCode of the response is not a 204', function(done) {
             mockResponse.response.statusCode = 400;
             userModule.getSixxySession(req, port).then(function(result) {
-                expect(resp).not.toBeDefined();
+                expect(result).not.toBeDefined();
             }).catch(function(error) {
                 expect(error).toBe('Failed to request sixxy session: code = 400, body = undefined');
             }).done(done);
@@ -2216,7 +2225,7 @@ describe('userSvc (UT)', function() {
         it('should reject if there is no c6Auth cookie', function(done) {
             mockResponse.response.headers['set-cookie'] = [];
             userModule.getSixxySession(req, port).then(function(result) {
-                expect(resp).not.toBeDefined();
+                expect(result).not.toBeDefined();
             }).catch(function(error) {
                 expect(error).toBe('No c6Auth cookie in response');
             }).done(done);
@@ -2304,7 +2313,7 @@ describe('userSvc (UT)', function() {
                 customMethod: jasmine.createSpy('svc.customMethod()').and.returnValue(customMethodDeferred.promise),
                 _coll: {
                     findAndModify: jasmine.createSpy('findAndModify()').and.callFake(function(query1, query2, updates, opts, cb) {
-                        cb(null, [{id: 'u-12345'}])
+                        cb(null, [{id: 'u-12345'}]);
                     })
                 },
                 transformMongoDoc: jasmine.createSpy('transformMongoDoc(doc)').and.returnValue('transformed user')
@@ -2318,7 +2327,7 @@ describe('userSvc (UT)', function() {
                 },
                 session: {
                     regenerate: jasmine.createSpy('regenerate()').and.callFake(function(cb) {
-                        cb(null, q())
+                        cb(null, q());
                     }),
                     cookie: { }
                 },

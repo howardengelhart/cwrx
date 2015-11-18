@@ -624,8 +624,14 @@
     userModule.changeEmail = function changeEmail(svc, req, emailSender, supportContact) {
         var log = logger.getLog();
 
-        function notifyEmailChange(oldEmail, newEmail) {
-            return email.emailChanged(emailSender, oldEmail, newEmail, supportContact);
+        function notifyEmailChange(recipient, oldEmail, newEmail) {
+            return email.emailChanged(emailSender, recipient, oldEmail, newEmail, supportContact)
+            .then(function logSuccess() {
+                log.info('[%1] Notified user of change at %2', req.uuid, recipient);
+            })
+            .catch(function logError(error) {
+                log.error('[%1] Error sending email to %2: %3',req.uuid, recipient, inspect(error));
+            });
         }
 
         return svc.customMethod(req, 'changeEmail', function doChange() {
@@ -637,17 +643,9 @@
                 .then(function succeed() {
                     log.info('[%1] User %2 successfully changed their email', req.uuid, user.id);
 
-                    notifyEmailChange(oldEmail, newEmail)
-                        .then(function logSuccess() {
-                            log.info('[%1] Notified user of change at %2', req.uuid, oldEmail);
-                        })
-                        .catch(function logError(error) {
-                            log.error(
-                                '[%1] Error sending email to %2: %3',
-                                req.uuid, oldEmail, inspect(error)
-                            );
-                        });
-
+                    notifyEmailChange(oldEmail, oldEmail, newEmail);
+                    notifyEmailChange(newEmail, oldEmail, newEmail);
+                    
                     return { code: 200, body: 'Successfully changed email' };
                 })
                 .catch(function logError(reason) {
@@ -713,18 +711,22 @@
     };
 
     userModule.signupUser = function signupUser(svc, req) {
+        var log = logger.getLog();
+
         var validity = svc.model.validate('create', req.body, {}, {});
-        if(validity.isValid) {
-            return svc.customMethod(req, 'signupUser', function signup() {
-                return mongoUtils.createObject(svc._coll, req.body)
-                .then(svc.transformMongoDoc)
-                .then(function(obj) {
-                    return { code: 201, body: svc.formatOutput(obj) };
-                });
-            });
-        } else {
+        if(!validity.isValid) {
             return q({ code: 400, body: validity.reason});
         }
+        
+        return svc.customMethod(req, 'signupUser', function signup() {
+            log.info('[%1] Creating new user with email %2', req.uuid, req.body.email);
+        
+            return mongoUtils.createObject(svc._coll, req.body)
+            .then(svc.transformMongoDoc)
+            .then(function(obj) {
+                return { code: 201, body: svc.formatOutput(obj) };
+            });
+        });
     };
     
     userModule.getSixxySession = function(req, port) {

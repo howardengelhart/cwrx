@@ -11,6 +11,7 @@ var request         = require('request'),
     kCamp           = adtech.constants.ICampaign,
     requestUtils    = require('../../lib/requestUtils'),
     mongoUtils      = require('../../lib/mongoUtils'),
+    objUtils        = require('../../lib/objUtils'),
     s3util          = require('../../lib/s3util'),
     awsAuth         = process.env.awsAuth || path.join(process.env.HOME,'.aws.json'),
     
@@ -211,11 +212,12 @@ testUtils.checkCardEntities = function(camp, jar, contentUrl) {
 
 testUtils.checkStatus = function(jobId, host, statusUrl, statusTimeout, pollInterval) {
     var interval, timeout,
-        pollInterval = pollInterval || 5000,
         deferred = q.defer(),
         options = {
             url: statusUrl + jobId + '?host=' + host 
         };
+    
+    pollInterval = pollInterval || 5000;
     
     interval = setInterval(function() {
         requestUtils.qRequest('get', [options])
@@ -275,8 +277,14 @@ testUtils.removeS3File = function(bucket, key) {
  * until the listener receives the event. */
 testUtils.Mailman = function(imapOpts) {
     var self = this;
-    self._imapOpts = imapOpts || { user: 'c6e2eTester@gmail.com', password: 'bananas4bananas',
-                                   host: 'imap.gmail.com', port: 993, tls: true };
+    self._imapOpts = imapOpts || {};
+    objUtils.extend(self._imapOpts, {
+        user: 'c6e2eTester@gmail.com',
+        password: 'bananas4bananas',
+        host: 'imap.gmail.com',
+        port: 993,
+        tls: true
+    });
     self._lastSeqId = -1; // sequence id of the latest message retrieved
     
     self._fetchJob = null; // queue fetch jobs to handle possible concurrency issues

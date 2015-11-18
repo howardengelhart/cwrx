@@ -1,6 +1,6 @@
 var flush = true;
 describe('email', function() {
-    var path, email, q, handlebars, nodemailer, sesTransport, htmlToText;
+    var path, email, q, fs, handlebars, nodemailer, sesTransport, htmlToText, logger, mockLog;
 
     beforeEach(function() {
         if (flush){ for (var m in require.cache){ delete require.cache[m]; } flush = false; }
@@ -184,7 +184,7 @@ describe('email', function() {
                     [{ filename: 'logo.png', cid: 'reelContentLogo' }]
                 );
             }).catch(function(error) {
-                expect(error,toString()).not.toBeDefined();
+                expect(error.toString()).not.toBeDefined();
             }).done(done);
         });
 
@@ -239,18 +239,34 @@ describe('email', function() {
 
     describe('emailChanged', function() {
         it('should correctly call compileAndSend', function(done) {
-            email.emailChanged('send', 'recip', 'newEmail', 'support').then(function(resp) {
+            email.emailChanged('send', 'oldEmail', 'oldEmail', 'newEmail', 'support').then(function(resp) {
                 expect(resp).toBe('success');
                 expect(email.compileAndSend).toHaveBeenCalledWith(
                     'send',
-                    'recip',
+                    'oldEmail',
                     'Your Email Has Been Changed',
                     'emailChanged.html',
                     { newEmail: 'newEmail', contact: 'support' },
                     [{ filename: 'logo.png', cid: 'reelContentLogo' }]
                 );
             }).catch(function(error) {
-                expect(error,toString()).not.toBeDefined();
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should include the oldEmail in the data if sending to the newEmail', function(done) {
+            email.emailChanged('send', 'newEmail', 'oldEmail', 'newEmail', 'support').then(function(resp) {
+                expect(resp).toBe('success');
+                expect(email.compileAndSend).toHaveBeenCalledWith(
+                    'send',
+                    'newEmail',
+                    'Your Email Has Been Changed',
+                    'emailChanged.html',
+                    { newEmail: 'newEmail', oldEmail: 'oldEmail', contact: 'support' },
+                    [{ filename: 'logo.png', cid: 'reelContentLogo' }]
+                );
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
             }).done(done);
         });
 
@@ -278,7 +294,7 @@ describe('email', function() {
                     [{ filename: 'logo.png', cid: 'reelContentLogo' }]
                 );
             }).catch(function(error) {
-                expect(error,toString()).not.toBeDefined();
+                expect(error.toString()).not.toBeDefined();
             }).done(done);
         });
 
@@ -306,7 +322,7 @@ describe('email', function() {
                     [{ filename: 'logo.png', cid: 'reelContentLogo' }]
                 );
             }).catch(function(error) {
-                expect(error,toString()).not.toBeDefined();
+                expect(error.toString()).not.toBeDefined();
             }).done(done);
         });
 
