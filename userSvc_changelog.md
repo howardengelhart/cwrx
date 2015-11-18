@@ -1,5 +1,8 @@
 # User Service Changelog
 
+* [FIX]: Fix spacing on logo in email templates [#645](https://github.com/cinema6/cwrx/issues/645)
+* Changing user's email sends messages to new + old address: [#642](https://github.com/cinema6/cwrx/issues/642)
+
 ### 2.1.3: Tue Nov 10 11:25:27 EST 2015
 * Integrate designed email templates: [#553](https://github.com/cinema6/cwrx/issues/553)
 * Extra deployment steps:

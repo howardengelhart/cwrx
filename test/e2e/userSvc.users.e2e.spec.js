@@ -13,7 +13,7 @@ var q               = require('q'),
     };
 
 describe('userSvc users (E2E):', function() {
-    var cookieJar, adminJar, mockRequester, mockAdmin, mockServiceUser, testPolicies, mailman, urlRegex;
+    var cookieJar, adminJar, mockRequester, mockAdmin, mockServiceUser, testPolicies, mailman, mailman2, urlRegex;
 
     beforeEach(function(done) {
         jasmine.DEFAULT_TIMEOUT_INTERVAL = 30000;
@@ -124,19 +124,24 @@ describe('userSvc users (E2E):', function() {
     });
     
     beforeEach(function(done) {
-        if (mailman && mailman.state === 'authenticated') {
+        if (mailman && mailman.state === 'authenticated' && mailman2 && mailman2.state === 'authenticated') {
+            mailman.on('error', function(error) { throw new Error(error); });
+            mailman2.on('error', function(error) { throw new Error(error); });
             return done();
         }
         
         mailman = new testUtils.Mailman();
-        return mailman.start().then(function() {
-            mailman.on('error', function(error) { throw new Error(error); });
-        }).done(done);
+        mailman2 = new testUtils.Mailman({ user: 'c6e2eTester2@gmail.com' });
+        return q.all([mailman, mailman2].map(function(client) {
+            return client.start().then(function() {
+                client.on('error', function(error) { throw new Error(error); });
+            });
+        })).done(function() { done(); });
     });
 
     afterEach(function() {
         mailman.removeAllListeners();
-        mailman.on('error', function(error) { throw new Error(error); });
+        mailman2.removeAllListeners();
     });
 
     describe('GET /api/account/users/:id', function() {
@@ -1025,43 +1030,45 @@ describe('userSvc users (E2E):', function() {
                 status: 'active',
                 password: '$2a$10$XomlyDak6mGSgrC/g1L7FO.4kMRkj4UturtKSzy6mFeL8QWOBmIWq'
             };
-            reqBody = { email: 'c6e2etester@gmail.com', password: 'password', newEmail: 'mynewemail' };
-            options = { url: config.usersUrl + '/email', json: reqBody };
+            options = {
+                url: config.usersUrl + '/email',
+                json: {
+                    email: 'c6e2etester@gmail.com',
+                    newEmail: 'c6e2etester2@gmail.com',
+                    password: 'password'
+                }
+            };
             testUtils.resetCollection('users', [mockRequester, mockAdmin, mockUser]).done(done);
         });
 
         it('should fail if email, password, or newEmail are not provided', function(done) {
-            mailman.once(msgSubject, function(msg) {
-                expect(msg).not.toBeDefined();
-            });
-            reqBody = { password: 'password', newEmail: 'mynewemail' };
-            options.json = reqBody;
-            requestUtils.qRequest('post', options).then(function(resp) {
-                expect(resp.response.statusCode).toBe(400);
-                expect(resp.body).toBe('Must provide email and password');
-                reqBody = { email: 'c6e2etester@gmail.com', newEmail: 'mynewemail' };
-                options.json = reqBody;
+            mailman.once(msgSubject, function(msg) { expect(msg).not.toBeDefined(); });
+            mailman2.once(msgSubject, function(msg) { expect(msg).not.toBeDefined(); });
+
+            q.all([
+                { password: 'password', newEmail: 'mynewemail' },
+                { email: 'c6e2etester@gmail.com', newEmail: 'mynewemail' },
+                { email: 'c6e2etester@gmail.com', password: 'password' }
+            ].map(function(body) {
+                options.json = body;
                 return requestUtils.qRequest('post', options);
-            }).then(function(resp) {
-                expect(resp.response.statusCode).toBe(400);
-                expect(resp.body).toBe('Must provide email and password');
-                reqBody = { email: 'c6e2etester@gmail.com', password: 'password' };
-                options.json = reqBody;
-                return requestUtils.qRequest('post', options);
-            }).then(function(resp) {
-                expect(resp.response.statusCode).toBe(400);
-                expect(resp.body).toBe('Must provide a new email');
+            })).then(function(results) {
+                expect(results[0].response.statusCode).toBe(400);
+                expect(results[0].body).toBe('Must provide email and password');
+                expect(results[1].response.statusCode).toBe(400);
+                expect(results[1].body).toBe('Must provide email and password');
+                expect(results[2].response.statusCode).toBe(400);
+                expect(results[2].body).toBe('Must provide a new email');
             }).catch(function(error) {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
 
         it('should fail if the user\'s email is invalid', function(done) {
-            mailman.once(msgSubject, function(msg) {
-                expect(msg).not.toBeDefined();
-            });
-            reqBody.email = 'mynewemail';
-            options.json = reqBody;
+            mailman.once(msgSubject, function(msg) { expect(msg).not.toBeDefined(); });
+            mailman2.once(msgSubject, function(msg) { expect(msg).not.toBeDefined(); });
+
+            options.json.email = 'mynewemail';
             requestUtils.qRequest('post', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(401);
                 expect(resp.body).toBe('Invalid email or password');
@@ -1071,11 +1078,10 @@ describe('userSvc users (E2E):', function() {
         });
 
         it('should fail if the user\'s password is invalid', function(done) {
-            mailman.once(msgSubject, function(msg) {
-                expect(msg).not.toBeDefined();
-            });
-            reqBody.password = 'thisisnotapassword';
-            options.json = reqBody;
+            mailman.once(msgSubject, function(msg) { expect(msg).not.toBeDefined(); });
+            mailman2.once(msgSubject, function(msg) { expect(msg).not.toBeDefined(); });
+
+            options.json.password = 'thisisnotapassword';
             requestUtils.qRequest('post', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(401);
                 expect(resp.body).toBe('Invalid email or password');
@@ -1085,11 +1091,10 @@ describe('userSvc users (E2E):', function() {
         });
 
         it('should prevent mongo query selector injection attacks', function(done) {
-            mailman.once(msgSubject, function(msg) {
-                expect(msg).not.toBeDefined();
-            });
-            reqBody.email = { $gt: '' };
-            options.json = reqBody;
+            mailman.once(msgSubject, function(msg) { expect(msg).not.toBeDefined(); });
+            mailman2.once(msgSubject, function(msg) { expect(msg).not.toBeDefined(); });
+
+            options.json = { $gt: '' };
             requestUtils.qRequest('post', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(400);
                 expect(resp.body).toBe('Must provide email and password');
@@ -1099,9 +1104,9 @@ describe('userSvc users (E2E):', function() {
         });
 
         it('should fail if a user with that email already exists', function(done) {
-            mailman.once(msgSubject, function(msg) {
-                expect(msg).not.toBeDefined();
-            });
+            mailman.once(msgSubject, function(msg) { expect(msg).not.toBeDefined(); });
+            mailman2.once(msgSubject, function(msg) { expect(msg).not.toBeDefined(); });
+
             options.json.newEmail = 'usersvce2euser';
             requestUtils.qRequest('post', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(409);
@@ -1112,25 +1117,59 @@ describe('userSvc users (E2E):', function() {
         });
 
         it('should change the user\'s email successfully', function(done) {
-            mailman.once(msgSubject, function(msg) {
-                expect(msg.from[0].address).toBe('no-reply@cinema6.com');
-                expect(msg.to[0].address).toBe('c6e2etester@gmail.com');
-                expect(msg.text).toMatch(/mynewemail/);
-                expect(msg.html).toMatch(/mynewemail/);
-                expect((new Date() - msg.date)).toBeLessThan(30000); // message should be recent
+            var newEmailDeferred = q.defer(), oldEmailDeferred = q.defer();
+            
+            mailman.once(msgSubject, oldEmailDeferred.resolve);
+            mailman2.once(msgSubject, newEmailDeferred.resolve);
+            
+            q.all([oldEmailDeferred.promise, newEmailDeferred.promise]).spread(function(oldMsg, newMsg) {
+                expect(oldMsg.from[0].address).toBe('no-reply@cinema6.com');
+                expect(oldMsg.to[0].address).toBe('c6e2etester@gmail.com');
+                expect(oldMsg.text).toMatch(/c6e2etester2@gmail.com/);
+                expect(oldMsg.html).toMatch(/c6e2etester2@gmail.com/);
+                expect((new Date() - oldMsg.date)).toBeLessThan(30000); // message should be recent
+
+                expect(newMsg.from[0].address).toBe('no-reply@cinema6.com');
+                expect(newMsg.to[0].address).toBe('c6e2etester2@gmail.com');
+                [newMsg.text, newMsg.html].forEach(function(str) {
+                    expect(str).toMatch(/c6e2etester@gmail.com/);
+                    expect(str).toMatch(/c6e2etester2@gmail.com/);
+                });
+                expect((new Date() - newMsg.date)).toBeLessThan(30000); // message should be recent
+
+                // test that it wrote an entry to the audit collection
+                return testUtils.mongoFind('audit', {}, {$natural: -1}, 1, 0, {db: 'c6Journal'})
+                .then(function(results) {
+                        expect(results[0].user).toBe('u-1');
+                        expect(results[0].created).toEqual(jasmine.any(Date));
+                        expect(results[0].host).toEqual(jasmine.any(String));
+                        expect(results[0].pid).toEqual(jasmine.any(Number));
+                        expect(results[0].uuid).toEqual(jasmine.any(String));
+                        expect(results[0].sessionID).toBe(null);
+                        expect(results[0].service).toBe('userSvc');
+                        expect(results[0].version).toEqual(jasmine.any(String));
+                        expect(results[0].data).toEqual({route: 'POST /api/account/users/email',
+                                                         params: {}, query: {} });
+                });
+            }).then(function() {
+                // test that logging in with new email works
                 
-                var optionsA = {url:config.authUrl + '/login', json:{email:'c6e2etester@gmail.com',password:'password'}};
-                var optionsB = {url:config.authUrl + '/login', json:{email:'mynewemail',password:'password'}};
-                return q.all([requestUtils.qRequest('post', optionsA), requestUtils.qRequest('post', optionsB)])
-                .then(function(resps) {
-                    expect(resps[0].response.statusCode).toBe(401);
-                    expect(resps[0].body).toBe('Invalid email or password');
-                    expect(resps[1].response.statusCode).toBe(200);
-                    expect(resps[1].body).toBeDefined();
-                }).catch(function(error) {
-                    expect(util.inspect(error)).not.toBeDefined();
-                }).done(done);
-            });
+                return q.all(['c6e2etester@gmail.com', 'c6e2etester2@gmail.com'].map(function(email) {
+                    return requestUtils.qRequest('post', {
+                        url: config.authUrl + '/login',
+                        json: { email: email, password: 'password' }
+                    });
+                }))
+                .then(function(results) {
+                    expect(results[0].response.statusCode).toBe(401);
+                    expect(results[0].body).toBe('Invalid email or password');
+                    expect(results[1].response.statusCode).toBe(200);
+                    expect(results[1].body).toBeDefined();
+                });
+            })
+            .catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
 
             requestUtils.qRequest('post', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
@@ -1141,49 +1180,32 @@ describe('userSvc users (E2E):', function() {
             });
         });
 
-        it('should write an entry to the audit collection', function(done) {
-            mailman.once(msgSubject, function(msg) {
-                return testUtils.mongoFind('audit', {}, {$natural: -1}, 1, 0, {db: 'c6Journal'})
-                .then(function(results) {
-                    expect(results[0].user).toBe('u-1');
-                    expect(results[0].created).toEqual(jasmine.any(Date));
-                    expect(results[0].host).toEqual(jasmine.any(String));
-                    expect(results[0].pid).toEqual(jasmine.any(Number));
-                    expect(results[0].uuid).toEqual(jasmine.any(String));
-                    expect(results[0].sessionID).toBe(null);
-                    expect(results[0].service).toBe('userSvc');
-                    expect(results[0].version).toEqual(jasmine.any(String));
-                    expect(results[0].data).toEqual({route: 'POST /api/account/users/email',
-                                                     params: {}, query: {} });
-                }).catch(function(error) {
-                    expect(util.inspect(error)).not.toBeDefined();
-                }).done(done);
-            });
-            requestUtils.qRequest('post', options).then(function(resp) {
-                expect(resp.response.statusCode).toBe(200);
-            }).catch(function(error) {
-                expect(util.inspect(error)).not.toBeDefined();
-                done();
-            });
-        });
-
         it('should lowercase the new and old emails in the request', function(done) {
-            mailman.once(msgSubject, function(msg) {
-                var optionsA = {url:config.authUrl + '/login', json:{email:'c6e2etester@gmail.com',password:'password'}};
-                var optionsB = {url:config.authUrl + '/login', json:{email:'mynewemail',password:'password'}};
-                return q.all([requestUtils.qRequest('post', optionsA), requestUtils.qRequest('post', optionsB)])
-                .then(function(resps) {
-                    expect(resps[0].response.statusCode).toBe(401);
-                    expect(resps[0].body).toBe('Invalid email or password');
-                    expect(resps[1].response.statusCode).toBe(200);
-                    expect(resps[1].body).toBeDefined();
-                }).catch(function(error) {
-                    expect(util.inspect(error)).not.toBeDefined();
-                }).done(done);
-            });
+            var newEmailDeferred = q.defer(), oldEmailDeferred = q.defer();
+            
+            mailman.once(msgSubject, oldEmailDeferred.resolve);
+            mailman2.once(msgSubject, newEmailDeferred.resolve);
+            
+            q.all([oldEmailDeferred.promise, newEmailDeferred.promise]).spread(function(oldMsg, newMsg) {
+                return q.all(['c6e2etester@gmail.com', 'c6e2etester2@gmail.com'].map(function(email) {
+                    return requestUtils.qRequest('post', {
+                        url: config.authUrl + '/login',
+                        json: { email: email, password: 'password' }
+                    });
+                }))
+                .then(function(results) {
+                    expect(results[0].response.statusCode).toBe(401);
+                    expect(results[0].body).toBe('Invalid email or password');
+                    expect(results[1].response.statusCode).toBe(200);
+                    expect(results[1].body).toBeDefined();
+                });
+            })
+            .catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
 
             options.json.email = 'c6E2ETester@gmail.com';
-            options.json.newEmail = 'MyNewEmail';
+            options.json.newEmail = 'C6e2eTester2@gmail.com';
             requestUtils.qRequest('post', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
                 expect(resp.body).toBe('Successfully changed email');
@@ -2097,6 +2119,7 @@ describe('userSvc users (E2E):', function() {
 
     afterAll(function(done) {
         mailman.stop();
+        mailman2.stop();
         testUtils.closeDbs().done(done);
     });
 });
