@@ -300,6 +300,61 @@ describe('collateral (UT):', function() {
             });
         });
 
+        describe('if a URL with a query param is provided', function() {
+            var jobId;
+
+            beforeEach(function(done) {
+                var getDeferred = responseDefer();
+                var response = getDeferred.promise;
+
+                request.head.calls.reset();
+                success.calls.reset();
+                failure.calls.reset();
+                spyOn(request, 'get').and.returnValue(getDeferred.promise);
+                request.head.and.returnValue(q({
+                    headers: {
+                        'content-length': (config.maxFileSize - 1).toString()
+                    }
+                }));
+                spyOn(collateral, 'checkImageType').and.returnValue(q('image/png'));
+                spyOn(collateral, 'upload').and.returnValue(q({
+                    key: path.join(config.s3.path, 'userFiles/' + req.user.id),
+                    md5: 'fu934yrhf7438rr'
+                }));
+
+                req.body.uri += '?94385843';
+                collateral.importFile(req, s3, config).then(success, failure).finally(done);
+
+                process.nextTick(function() {
+                    response.emit('data', new Buffer(250));
+                    response.emit('data', new Buffer(250));
+
+                    getDeferred.promise.response = {
+                        statusCode: 201
+                    };
+                    getDeferred.resolve(new Buffer(500));
+                    response.emit('end', new Buffer(500));
+                });
+                jobId = uuid.createUuid.calls.mostRecent().returnValue;
+            });
+
+            it('should GET the uri with the query param', function() {
+                expect(request.get).toHaveBeenCalledWith(req.body.uri);
+            });
+
+            it('should create the tmp file without the query param', function() {
+                expect(fs.createWriteStream).toHaveBeenCalledWith('/tmp/' + jobId + '.png');
+            });
+
+            it('should upload the file without the query param', function() {
+                expect(collateral.upload).toHaveBeenCalledWith(jasmine.anything(), jasmine.anything(), jasmine.objectContaining({ path: '/tmp/' + jobId + '.png' }), jasmine.anything(), jasmine.anything());
+            });
+
+            it('should fulfill the promise', function() {
+                expect(success).toHaveBeenCalled();
+            });
+        });
+
         describe('if no uri is specified', function() {
             beforeEach(function(done) {
                 done = noArgs(done);

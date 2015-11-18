@@ -321,7 +321,8 @@
             });
 
             var fetchImage = timer.wrap(function fetchImage(uri) {
-                var tmpPath = path.join(require('os').tmpdir(), jobId + path.extname(uri));
+                var extension = path.extname(parseURL(uri).pathname);
+                var tmpPath = path.join(require('os').tmpdir(), jobId + extension);
                 var deferred = q.defer();
 
                 var totalSize = 0;
