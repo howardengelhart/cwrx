@@ -133,6 +133,36 @@ function setupCampaignSvcFieldVal(policy) {
     policy.entitlements.adminCampaigns = true;
     policy.entitlements.directEditCampaigns = true;
 }
+
+// setup permissive fieldValidation rules for cards, etc.
+function setupContentSvcFieldVal(policy) {
+    policy.fieldValidation.cards = {
+        campaign: {
+            minViewTime: {
+                __allowed: true
+            }
+        },
+        data: {
+            skip: {
+                __allowed: true
+            },
+            controls: {
+                __allowed: true
+            },
+            autoplay: {
+                __allowed: true
+            },
+            autoadvance: {
+                __allowed: true
+            },
+            moat: {
+                __required: false,
+                __default: null
+            }
+        }
+    };
+    policy.entitlements.directEditCampaigns = true;
+}
     
 program
     .version('0.0.1')

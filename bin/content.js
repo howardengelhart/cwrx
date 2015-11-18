@@ -51,6 +51,12 @@
             },
             cloudFront: 5
         },
+        api: {
+            root: 'http://localhost',   // for proxying requests
+            campaigns: {
+                endpoint: '/api/campaigns/'
+            }
+        },
         sessions: {
             key: 'c6Auth',
             maxAge: 30*60*1000,         // 30 minutes; unit here is milliseconds
@@ -148,7 +154,7 @@
             metagetta.hasGoogleKey = true;
         }
 
-        cardSvc = cardModule.setupCardSvc(collections.cards, caches, state.config, metagetta);
+        cardSvc = cardModule.setupSvc(state.dbs.c6Db, state.config, caches, metagetta);
         catSvc = catModule.setupSvc(collections.categories);
 
         var sessionOpts = {

@@ -2,20 +2,113 @@
     'use strict';
 
     var q               = require('q'),
+        urlUtils        = require('url'),
+        util            = require('util'),
+        path            = require('path'),
         express         = require('express'),
         querystring     = require('querystring'),
-        path            = require('path'),
         logger          = require('../lib/logger'),
-        authUtils       = require('../lib/authUtils'),
         CrudSvc         = require('../lib/crudSvc'),
+        authUtils       = require('../lib/authUtils'),
         Status          = require('../lib/enums').Status,
 
         cardModule = { config: {} };
+    
+    cardModule.cardSchema = {
+        campaignId: {
+            __allowed: true,
+            __type: 'string',
+            __unchangeable: true,
+            __required: true
+        },
+        campaign: { //TODO: prevent setting any adtech-related campaign props?
+            __default: {},
+            reportingId: {
+                __allowed: true,
+                __type: 'string'
+            },
+            minViewTime: {
+                __allowed: false,
+                __type: 'number',
+                __default: 3
+            },
+            adtechName: {
+                __allowed: true,
+                __type: 'string'
+            },
+            startDate: {
+                __allowed: true,
+                __type: 'string'
+            },
+            endDate: {
+                __allowed: true,
+                __type: 'string'
+            },
+            adtechId: {
+                __allowed: false,
+                __type: 'number',
+                __locked: true
+            },
+            bannerId: {
+                __allowed: false,
+                __type: 'number',
+                __locked: true
+            },
+            bannerNumber: {
+                __allowed: false,
+                __type: 'number',
+                __locked: true
+            }
+        },
+        data: {
+            skip: {
+                __allowed: false,
+                __default: 30
+            },
+            controls: {
+                __allowed: false,
+                __type: 'boolean',
+                __default: true
+            },
+            autoplay: {
+                __allowed: false,
+                __type: 'boolean',
+                __default: true
+            },
+            autoadvance: {
+                __allowed: false,
+                __type: 'boolean',
+                __default: false
+            },
+            moat: {
+                __allowed: true,
+                __type: 'object',
+                // __required: true, //TODO: reconsider this config
+                // __default: {}
+            }
+        }
+    };
 
+
+/*TODO
+    data.moat should be defaulted in, but some users would be allowed to not set it? i guess?
+    anyway format is:
+    data.moat = {
+        campaign: 'cam-...',
+        advertiser: 'a-...',
+        creative: 'rc-...'
+    }
+*/
         
-    cardModule.setupCardSvc = function(cardColl, caches, config, metagetta) {
+    cardModule.setupSvc = function(db, config, caches, metagetta) {
         var log = logger.getLog();
+
         cardModule.config.trackingPixel = config.trackingPixel;
+        cardModule.config.api = config.api;
+        cardModule.config.api.campaigns.baseUrl = urlUtils.resolve(
+            cardModule.config.api.root,
+            cardModule.config.api.campaigns.endpoint
+        );
 
         if (!metagetta.hasGoogleKey) {
             log.warn('Missing googleKey from secrets, will not be able to lookup ' +
@@ -24,18 +117,93 @@
         cardModule.metagetta = metagetta;
     
         var opts = { allowPublic: true },
-            cardSvc = new CrudSvc(cardColl, 'rc', opts);
+            svc = new CrudSvc(db.collection('cards'), 'rc', opts, cardModule.cardSchema);
+            
+        svc._db = db;
         
-        cardSvc.createValidator._required.push('campaignId');
-        cardSvc.use('read', cardSvc.preventGetAll.bind(cardSvc));
-        cardSvc.use('create', cardModule.getMetaData);
-        cardSvc.use('edit', cardModule.getMetaData);
+        var fetchCamp = cardModule.fetchCamp.bind(cardModule, svc);
         
-        cardSvc.getPublicCard = cardModule.getPublicCard.bind(cardModule, cardSvc, caches);
+        svc.use('create', fetchCamp);
+        svc.use('create', cardModule.getMetaData);
+
+        svc.use('edit', fetchCamp);
+        svc.use('edit', cardModule.campStatusCheck.bind(cardModule, [Status.Draft]));
+        svc.use('edit', cardModule.enforceUpdateLock);
+        svc.use('edit', cardModule.getMetaData);
         
-        return cardSvc;
+        svc.use('delete', fetchCamp);
+        svc.use('delete', cardModule.campStatusCheck.bind(cardModule, [
+            Status.Draft,
+            Status.Pending,
+            Status.Canceled,
+            Status.Expired
+        ]));
+        svc.use('delete', cardModule.enforceUpdateLock);
+        
+        svc.getPublicCard = cardModule.getPublicCard.bind(cardModule, svc, caches);
+        
+        return svc;
     };
-   
+
+    /* Middleware to fetch the (undecorated) campaign and attach it as req.campaign.
+     * If campaign does not exist, log a message but proceed without req.campaign. */
+    cardModule.fetchCamp = function(svc, req, next/*, done*/) {
+        var log = logger.getLog(),
+            campId = req.body.campaignId || (req.origObj && req.origObj.campaignId);
+            
+        log.trace('[%1] Fetching campaign %2', req.uuid, String(campId));
+        
+        return q.npost(svc._db.collection('campaigns'), 'findOne', [
+            { id: String(campId), status: { $ne: Status.Deleted } }
+        ])
+        .then(function(camp) {
+            if (camp) {
+                req.campaign = camp;
+            } else if (req.method.toLowerCase() !== 'post') {
+                log.warn('[%1] Campaign %2 not found or deleted', req.uuid, campId);
+            }
+            
+            return next();
+        })
+        .catch(function(error) {
+            log.error('[%1] Failed to fetch campaign %2 from mongo: %3',
+                      req.uuid, campId, util.inspect(error));
+            return q.reject('Error fetching campaign');
+        });
+    };
+
+    // Check and 400 if req.campaign.status is not one of the statuses in permitted
+    cardModule.campStatusCheck = function(permitted, req, next, done) {
+        var log = logger.getLog();
+
+        if (!req.campaign || permitted.indexOf(req.campaign.status) !== -1 ||
+                             !!req.user.entitlements.directEditCampaigns) {
+            return next();
+        } else {
+            log.info('[%1] Action not permitted on %2 campaign', req.uuid, req.campaign.status);
+            return done({
+                code: 400,
+                body: 'Action not permitted on ' + req.campaign.status + ' campaign'
+            });
+        }
+    };
+
+    // Prevent editing a card if its campaign has an updateRequest property
+    cardModule.enforceUpdateLock = function(req, next, done) {
+        var log = logger.getLog();
+        
+        if (req.campaign && !!req.campaign.updateRequest) {
+            log.info('[%1] Campaign %2 has pending update request %3, cannot edit %4',
+                     req.uuid, req.campaign.id, req.campaign.updateRequest, req.origObj.id);
+            return done({
+                code: 400,
+                body: 'Campaign + cards locked until existing update request resolved'
+            });
+        }
+        
+        return next();
+    };
+    
     cardModule.isVideoCard = function(card) {
         return  (card.type === 'youtube') ||
                 (card.type === 'adUnit')  ||

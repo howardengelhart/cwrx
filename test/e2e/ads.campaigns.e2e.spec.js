@@ -72,7 +72,7 @@ describe('ads campaigns endpoints (E2E):', function() {
                 }
             },
             {
-                id: 'p-e2e-selfie',
+                id: 'p-e2e-admin',
                 name: 'adminCampPolicy',
                 status: 'active',
                 priority: 1,

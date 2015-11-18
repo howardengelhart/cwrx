@@ -7,59 +7,98 @@ var q               = require('q'),
     host            = process.env.host || 'localhost',
     config = {
         contentUrl  : 'http://' + (host === 'localhost' ? host + ':3300' : host) + '/api',
-        authUrl     : 'http://' + (host === 'localhost' ? host + ':3200' : host) + '/api'
+        authUrl     : 'http://' + (host === 'localhost' ? host + ':3200' : host) + '/api/auth'
     };
 
 describe('content card endpoints (E2E):', function() {
-    var cookieJar, mockUsers;
+    var selfieJar, adminJar;
 
     beforeEach(function(done) {
         jasmine.DEFAULT_TIMEOUT_INTERVAL = 15000;
 
-        if (cookieJar && cookieJar.cookies) {
+        if (selfieJar && selfieJar.cookies && adminJar && adminJar.cookies) {
             return done();
         }
-        cookieJar = request.jar();
-        mockUsers = [
+        selfieJar = request.jar();
+        adminJar = request.jar();
+        var selfieUser = {
+            id: 'e2e-user',
+            status: 'active',
+            email : 'selfieuser',
+            password : '$2a$10$XomlyDak6mGSgrC/g1L7FO.4kMRkj4UturtKSzy6mFeL8QWOBmIWq', // hash of 'password'
+            org: 'e2e-org',
+            policies: ['selfieCardPolicy']
+        };
+        var adminUser = {
+            id: 'admin-e2e-user',
+            status: 'active',
+            email : 'adminuser',
+            password : '$2a$10$XomlyDak6mGSgrC/g1L7FO.4kMRkj4UturtKSzy6mFeL8QWOBmIWq', // hash of 'password'
+            org: 'admin-e2e-org',
+            policies: ['adminCardPolicy']
+        };
+        var testPolicies = [
             {
-                id: 'e2e-user',
+                id: 'p-e2e-selfie',
+                name: 'selfieCardPolicy',
                 status: 'active',
-                email : 'contente2euser',
-                password : '$2a$10$XomlyDak6mGSgrC/g1L7FO.4kMRkj4UturtKSzy6mFeL8QWOBmIWq', // hash of 'password'
-                org: 'e2e-org',
+                priority: 1,
                 permissions: {
-                    cards: {
-                        read: 'org',
-                        create: 'own',
-                        edit: 'own',
-                        delete: 'own'
-                    }
+                    cards: { read: 'org', create: 'org', edit: 'org', delete: 'org' },
                 }
             },
             {
-                id: 'admin-e2e-user',
+                id: 'p-e2e-admin',
+                name: 'adminCardPolicy',
                 status: 'active',
-                email : 'admine2euser',
-                password : '$2a$10$XomlyDak6mGSgrC/g1L7FO.4kMRkj4UturtKSzy6mFeL8QWOBmIWq', // hash of 'password'
-                org: 'admin-e2e-org',
+                priority: 1,
                 permissions: {
+                    cards: { read: 'all', create: 'all', edit: 'all', delete: 'all' },
+                },
+                fieldValidation: {
                     cards: {
-                        read: 'all',
-                        create: 'all'
+                        campaign: {
+                            minViewTime: { __allowed: true }
+                        },
+                        data: {
+                            skip: { __allowed: true },
+                            controls: { __allowed: true },
+                            autoplay: { __allowed: true },
+                            autoadvance: { __allowed: true },
+                            moat: { __required: false, __default: null }
+                        }
                     }
+                },
+                entitlements: {
+                    directEditCampaigns: true
                 }
             },
         ];
+        
         var loginOpts = {
-            url: config.authUrl + '/auth/login',
-            jar: cookieJar,
+            url: config.authUrl + '/login',
+            jar: selfieJar,
             json: {
-                email: 'contente2euser',
+                email: selfieUser.email,
                 password: 'password'
             }
         };
-        testUtils.resetCollection('users', mockUsers).then(function(resp) {
-            return requestUtils.qRequest('post', loginOpts);
+        var adminLoginOpts = {
+            url: config.authUrl + '/login',
+            jar: adminJar,
+            json: {
+                email: adminUser.email,
+                password: 'password'
+            }
+        };
+        q.all([
+            testUtils.resetCollection('users', [selfieUser, adminUser]),
+            testUtils.resetCollection('policies', testPolicies)
+        ]).then(function(resp) {
+            return q.all([
+                requestUtils.qRequest('post', loginOpts),
+                requestUtils.qRequest('post', adminLoginOpts)
+            ]);
         }).done(function(resp) {
             done();
         });
@@ -483,7 +522,7 @@ describe('content card endpoints (E2E):', function() {
         });
 
         it('should get a card by id', function(done) {
-            var options = {url: config.contentUrl + '/content/cards/e2e-getid1', jar: cookieJar};
+            var options = {url: config.contentUrl + '/content/cards/e2e-getid1', jar: selfieJar};
             requestUtils.qRequest('get', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
                 expect(resp.body._id).not.toBeDefined();
@@ -498,7 +537,7 @@ describe('content card endpoints (E2E):', function() {
         });
         
         it('should write an entry to the audit collection', function(done) {
-            var options = {url: config.contentUrl + '/content/cards/e2e-getid1', jar: cookieJar};
+            var options = {url: config.contentUrl + '/content/cards/e2e-getid1', jar: selfieJar};
             requestUtils.qRequest('get', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
                 return testUtils.mongoFind('audit', {}, {$natural: -1}, 1, 0, {db: 'c6Journal'});
@@ -522,7 +561,7 @@ describe('content card endpoints (E2E):', function() {
             var options = {
                 url: config.contentUrl + '/content/cards/e2e-getid1',
                 qs: { fields: 'campaignId,status' },
-                jar: cookieJar
+                jar: selfieJar
             };
             requestUtils.qRequest('get', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
@@ -538,7 +577,7 @@ describe('content card endpoints (E2E):', function() {
         });
 
         it('should let the user see active cards they do not own', function(done) {
-            var options = {url: config.contentUrl + '/content/cards/e2e-getid2', jar: cookieJar};
+            var options = {url: config.contentUrl + '/content/cards/e2e-getid2', jar: selfieJar};
             requestUtils.qRequest('get', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
                 expect(resp.body).toBeDefined();
@@ -563,7 +602,7 @@ describe('content card endpoints (E2E):', function() {
         });
 
         it('should return a 404 if nothing is found', function(done) {
-            var options = {url: config.contentUrl + '/content/cards/e2e-getid5678', jar: cookieJar};
+            var options = {url: config.contentUrl + '/content/cards/e2e-getid5678', jar: selfieJar};
             requestUtils.qRequest('get', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(404);
                 expect(resp.body).toEqual('Object not found');
@@ -576,7 +615,7 @@ describe('content card endpoints (E2E):', function() {
     describe('GET /api/content/cards', function() {
         var options;
         beforeEach(function(done) {
-            options = { url: config.contentUrl + '/content/cards', qs: {sort: 'id,1'}, jar: cookieJar };
+            options = { url: config.contentUrl + '/content/cards', qs: {sort: 'id,1'}, jar: selfieJar };
             var mockCards = [
                 {
                     id: 'e2e-getquery1',
@@ -617,14 +656,15 @@ describe('content card endpoints (E2E):', function() {
             testUtils.resetCollection('cards', mockCards).done(done);
         });
 
-        it('should get cards by user', function(done) {
-            options.qs.user = 'e2e-user';
+        it('should get all cards a user can see', function(done) {
             requestUtils.qRequest('get', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
                 expect(resp.body instanceof Array).toBeTruthy('body is array');
-                expect(resp.body.length).toBe(1);
+                expect(resp.body.length).toBe(3);
                 expect(resp.body[0].id).toBe('e2e-getquery1');
-                expect(resp.response.headers['content-range']).toBe('items 1-1/1');
+                expect(resp.body[1].id).toBe('e2e-getquery2');
+                expect(resp.body[2].id).toBe('e2e-getquery3');
+                expect(resp.response.headers['content-range']).toBe('items 1-3/3');
             }).catch(function(error) {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
@@ -646,6 +686,19 @@ describe('content card endpoints (E2E):', function() {
                 expect(results[0].version).toEqual(jasmine.any(String));
                 expect(results[0].data).toEqual({route: 'GET /api/content/cards/',
                                                  params: {}, query: { user: 'e2e-user', sort: 'id,1' } });
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
+
+        it('should get cards by user', function(done) {
+            options.qs.user = 'e2e-user';
+            requestUtils.qRequest('get', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.body instanceof Array).toBeTruthy('body is array');
+                expect(resp.body.length).toBe(1);
+                expect(resp.body[0].id).toBe('e2e-getquery1');
+                expect(resp.response.headers['content-range']).toBe('items 1-1/1');
             }).catch(function(error) {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
@@ -717,17 +770,6 @@ describe('content card endpoints (E2E):', function() {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
-
-        it('should not get cards by any other query param', function(done) {
-            options.qs.tag = 'foo';
-            requestUtils.qRequest('get', options).then(function(resp) {
-                expect(resp.response.statusCode).toBe(403);
-                expect(resp.body).toBe('Not authorized to read all cards');
-                expect(resp.response.headers['content-range']).not.toBeDefined();
-            }).catch(function(error) {
-                expect(util.inspect(error)).not.toBeDefined();
-            }).done(done);
-        });
         
         it('should let a user get active cards they do not own', function(done) {
             options.qs.campaignId = 'cam-cards-e2e345';
@@ -742,28 +784,9 @@ describe('content card endpoints (E2E):', function() {
             }).done(done);
         });
 
-        it('should not allow non-admins to retrieve all cards', function(done) {
-            requestUtils.qRequest('get', options).then(function(resp) {
-                expect(resp.response.statusCode).toBe(403);
-                expect(resp.body).toBe('Not authorized to read all cards');
-                expect(resp.response.headers['content-range']).not.toBeDefined();
-            }).catch(function(error) {
-                expect(util.inspect(error)).not.toBeDefined();
-            }).done(done);
-        });
-
         it('should allow an admin to see any non-deleted cards', function(done) {
-            var altJar = request.jar();
-            var loginOpts = {
-                url: config.authUrl + '/auth/login',
-                json: {email: 'admine2euser', password: 'password'},
-                jar: altJar
-            };
-            requestUtils.qRequest('post', loginOpts).then(function(resp) {
-                expect(resp.response.statusCode).toBe(200);
-                options.jar = altJar;
-                return requestUtils.qRequest('get', options);
-            }).then(function(resp) {
+            options.jar = adminJar;
+            requestUtils.qRequest('get', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
                 expect(resp.body instanceof Array).toBeTruthy('body is array');
                 expect(resp.body.length).toBe(4);
@@ -842,7 +865,7 @@ describe('content card endpoints (E2E):', function() {
             mockCard = { data: { foo: 'bar' }, campaignId: 'cam-cards-e2e1', org: 'e2e-org' };
             options = {
                 url: config.contentUrl + '/content/cards',
-                jar: cookieJar,
+                jar: selfieJar,
                 json: mockCard
             };
             testUtils.resetCollection('cards').done(done);
@@ -946,19 +969,10 @@ describe('content card endpoints (E2E):', function() {
         });
 
         it('should allow an admin to set a different user and org for the card', function(done) {
-            var altJar = request.jar();
-            var loginOpts = {
-                url: config.authUrl + '/auth/login',
-                json: {email: 'admine2euser', password: 'password'},
-                jar: altJar
-            };
-            requestUtils.qRequest('post', loginOpts).then(function(resp) {
-                expect(resp.response.statusCode).toBe(200);
-                mockCard.user = 'another-user';
-                mockCard.org = 'another-org';
-                options.jar = altJar;
-                return requestUtils.qRequest('post', options);
-            }).then(function(resp) {
+            options.jar = adminJar;
+            mockCard.user = 'another-user';
+            mockCard.org = 'another-org';
+            return requestUtils.qRequest('post', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(201);
                 expect(resp.body.id).toBeDefined();
                 expect(resp.body.user).toBe('another-user');
@@ -1000,7 +1014,7 @@ describe('content card endpoints (E2E):', function() {
             options = {
                 url: config.contentUrl + '/content/cards/e2e-put1',
                 json: { data: { foo: 'baz' } },
-                jar: cookieJar
+                jar: selfieJar
             };
             mockCards = [
                 {
@@ -1075,7 +1089,7 @@ describe('content card endpoints (E2E):', function() {
                     },
                     type : 'adUnit'
                 },
-                jar: cookieJar
+                jar: selfieJar
             };
             requestUtils.qRequest('put', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
@@ -1097,7 +1111,7 @@ describe('content card endpoints (E2E):', function() {
                     },
                     type : 'adUnit'
                 },
-                jar: cookieJar
+                jar: selfieJar
             };
             requestUtils.qRequest('put', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
@@ -1140,7 +1154,7 @@ describe('content card endpoints (E2E):', function() {
         });
 
         it('should not edit a card that has been deleted', function(done) {
-            var deleteOpts = { url: options.url, jar: cookieJar };
+            var deleteOpts = { url: options.url, jar: selfieJar };
             requestUtils.qRequest('delete', deleteOpts).then(function(resp) {
                 expect(resp.response.statusCode).toBe(204);
                 expect(resp.body).toBe('');
@@ -1184,11 +1198,11 @@ describe('content card endpoints (E2E):', function() {
         });
 
         it('should set the status of a card to deleted', function(done) {
-            var options = {jar: cookieJar, url: config.contentUrl + '/content/cards/e2e-del1'};
+            var options = {jar: selfieJar, url: config.contentUrl + '/content/cards/e2e-del1'};
             requestUtils.qRequest('delete', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(204);
                 expect(resp.body).toBe('');
-                options = {url: config.contentUrl + '/content/cards/e2e-del1', jar: cookieJar};
+                options = {url: config.contentUrl + '/content/cards/e2e-del1', jar: selfieJar};
                 return requestUtils.qRequest('get', options);
             }).then(function(resp) {
                 expect(resp.response.statusCode).toBe(404);
@@ -1199,7 +1213,7 @@ describe('content card endpoints (E2E):', function() {
         });
 
         it('should write an entry to the audit collection', function(done) {
-            var options = {jar: cookieJar, url: config.contentUrl + '/content/cards/e2e-del1'};
+            var options = {jar: selfieJar, url: config.contentUrl + '/content/cards/e2e-del1'};
             requestUtils.qRequest('delete', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(204);
                 return testUtils.mongoFind('audit', {}, {$natural: -1}, 1, 0, {db: 'c6Journal'});
@@ -1220,7 +1234,7 @@ describe('content card endpoints (E2E):', function() {
         });
 
         it('should not delete a card the user does not own', function(done) {
-            var options = {jar: cookieJar, url: config.contentUrl + '/content/cards/e2e-del2'};
+            var options = {jar: selfieJar, url: config.contentUrl + '/content/cards/e2e-del2'};
             requestUtils.qRequest('delete', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(403);
                 expect(resp.body).toBe('Not authorized to delete this');
@@ -1230,7 +1244,7 @@ describe('content card endpoints (E2E):', function() {
         });
 
         it('should still return a 204 if the card was already deleted', function(done) {
-            var options = {jar: cookieJar, url: config.contentUrl + '/content/cards/e2e-del1'};
+            var options = {jar: selfieJar, url: config.contentUrl + '/content/cards/e2e-del1'};
             requestUtils.qRequest('delete', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(204);
                 expect(resp.body).toBe('');
@@ -1244,7 +1258,7 @@ describe('content card endpoints (E2E):', function() {
         });
 
         it('should still return a 204 if the card does not exist', function(done) {
-            var options = {jar: cookieJar, url: config.contentUrl + '/content/cards/fake'};
+            var options = {jar: selfieJar, url: config.contentUrl + '/content/cards/fake'};
             requestUtils.qRequest('delete', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(204);
                 expect(resp.body).toBe('');
@@ -1263,10 +1277,8 @@ describe('content card endpoints (E2E):', function() {
             }).done(done);
         });
     });
-});
-
-describe('test cleanup', function() {
-    it('should close db connections', function(done) {
-        testUtils.closeDbs().done(done);
+    
+    afterAll(function(done) {
+        testUtils.closeDbs().done(done, done.fail);
     });
 });

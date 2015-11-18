@@ -618,6 +618,8 @@
             return q(next());
         }
         
+        //TODO: will need to append advertiserId to card's body, then use + trim it in cardSvc
+        
         return q.all(req.body.cards.map(function(cardEntry, idx) {
             var opts = {
                 json: cardEntry,
