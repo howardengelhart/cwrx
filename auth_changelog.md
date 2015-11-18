@@ -1,5 +1,7 @@
 # Auth Service Changelog
 
+* [FIX]: Fix spacing on logo in email templates [#645](https://github.com/cinema6/cwrx/issues/645)
+
 ### 1.5.1: Tue Nov 10 11:25:27 EST 2015
 * [FIX]: Fix for an issue where failed login attempts were kept track of for longer than they should have been: [#624](https://github.com/cinema6/cwrx/issues/624)
 * Integrate designed email templates: [#553](https://github.com/cinema6/cwrx/issues/553)
