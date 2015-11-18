@@ -1,5 +1,7 @@
 # Collateral Service Changelog
 
+* [FIX]: Suppoprt re-uploading URIs with query parameters: [#640](https://github.com/cinema6/cwrx/issues/640)
+
 ### 2.0.4: Thu Oct 15 13:24:56 EDT 2015
 * [FIX]: Stop logging cookie header: [#539](https://github.com/cinema6/cwrx/issues/539)
 * Extra deployment steps: None
