@@ -337,6 +337,29 @@ describe('collateral (E2E):', function() {
             });
         });
 
+        describe('if called with a URI with a query param', function() {
+            beforeEach(function(done) {
+                options.json.uri = samples[0].url + '?foo=bar';
+
+                requestUtils.qRequest('post', options).then(success, failure).finally(done);
+            });
+
+            it('should not upload the image with the query param', function(done) {
+                var response = success.calls.mostRecent().args[0];
+
+                expect(response.response.statusCode).toBe(201);
+                expect(response.body).toEqual({
+                    path: 'collateral/userFiles/e2e-user/' + samples[0].etag + '.jpg'
+                });
+
+                requestUtils.qRequest('head', {
+                    url: 'https://s3.amazonaws.com/' + path.join(bucket, response.body.path)
+                }).then(function(resp) {
+                    expect(resp.response.statusCode).toBe(200);
+                }).then(done, done.fail);
+            });
+        });
+
         describe('if called with no uri', function() {
             beforeEach(function(done) {
                 done = noArgs(done);
