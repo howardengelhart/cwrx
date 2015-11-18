@@ -37,7 +37,8 @@
     "request-promise": "~0.4.2",
     "clone": "~1.0.2",
     "pg.js": "^4.1.1",
-    "metagetta": "^0.1.0"
+    "metagetta": "^0.1.0",
+    "spidey.js": "git+ssh://git@github.com:cinema6/spidey.js#v0.1.0"
   },
   "devDependencies": {
     "bluebird": "^2.10.0",
