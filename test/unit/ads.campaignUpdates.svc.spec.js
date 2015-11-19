@@ -727,6 +727,7 @@ describe('ads-campaignUpdates (UT)', function() {
     describe('notifySupport', function() {
         beforeEach(function() {
             req.campaign = { id: 'cam-1', name: 'my first campaign' };
+            req.user.company = 'EA Sportz';
             spyOn(email, 'newUpdateRequest').and.returnValue(q());
         });
         
@@ -739,6 +740,7 @@ describe('ads-campaignUpdates (UT)', function() {
                     'no-reply@c6.com',
                     'support@c6.com',
                     'selfie@c6.com',
+                    'EA Sportz',
                     'my first campaign',
                     'http://selfie.com/campaigns/cam-1/admin'
                 );

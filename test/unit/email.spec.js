@@ -117,12 +117,12 @@ describe('email', function() {
     
     describe('newUpdateRequest', function() {
         it('should correctly call compileAndSend', function(done) {
-            email.newUpdateRequest('send', 'recip', 'user@c6.com', 'ketchupbot', 'review.me').then(function(resp) {
+            email.newUpdateRequest('send', 'recip', 'user@c6.com', 'Heinz', 'ketchupbot', 'review.me').then(function(resp) {
                 expect(resp).toBe('success');
                 expect(email.compileAndSend).toHaveBeenCalledWith(
                     'send',
                     'recip',
-                    'New campaign update request',
+                    'New update request from Heinz for campaign "ketchupbot"',
                     'newUpdateRequest.html',
                     { userEmail: 'user@c6.com', campName: 'ketchupbot', reviewLink: 'review.me' },
                     [{ filename: 'logo.png', cid: 'reelContentLogo' }]
@@ -134,7 +134,7 @@ describe('email', function() {
 
         it('should pass along errors from compileAndSend', function(done) {
             email.compileAndSend.and.returnValue(q.reject('I GOT 99 PROBLEMS AND THIS IS ONE'));
-            email.newUpdateRequest('send', 'recip', 'user@c6.com', 'ketchupbot', 'review.me').then(function(resp) {
+            email.newUpdateRequest('send', 'recip', 'user@c6.com', 'Heinz', 'ketchupbot', 'review.me').then(function(resp) {
                 expect(resp).not.toBeDefined();
             }).catch(function(error) {
                 expect(error).toBe('I GOT 99 PROBLEMS AND THIS IS ONE');

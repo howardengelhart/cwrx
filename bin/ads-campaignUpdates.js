@@ -325,6 +325,7 @@
             updateModule.config.emails.sender,
             updateModule.config.emails.supportAddress,
             req.user.email,
+            req.user.company,
             req.campaign.name,
             updateModule.config.emails.reviewLink.replace(':campId', req.campaign.id)
         ).then(function() {
