@@ -1099,8 +1099,8 @@ describe('ads campaignUpdates endpoints (E2E):', function() {
         
         describe('if an update is an inital request for approval', function() {
             beforeEach(function(done) {
-                approveSubject = 'ReelContent Campaign Approved';
-                rejectSubject = 'ReelContent Campaign Rejected';
+                approveSubject = 'Reelcontent Campaign Approved';
+                rejectSubject = 'Reelcontent Campaign Rejected';
                 var mockUpdate = {
                     id: 'ur-1',
                     status: 'pending',

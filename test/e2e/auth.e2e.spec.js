@@ -276,7 +276,7 @@ describe('auth (E2E):', function() {
                     done();
                 });
 
-                var msgSubject = 'ReelContent: Multiple-Failed Logins',
+                var msgSubject = 'Reelcontent: Multiple-Failed Logins',
                     regex = /consecutive\s*failed\s*login\s*attempts/;
                 mailman.once(msgSubject, function(msg) {
                     expect(msg.from[0].address).toBe('no-reply@cinema6.com');
@@ -673,7 +673,7 @@ describe('auth (E2E):', function() {
                 json: { id: 'u-1', token: 'fakeToken', newPassword: 'newPass', },
                 jar: true
             };
-            msgSubject = 'ReelContent Password Change Notice';
+            msgSubject = 'Reelcontent Password Change Notice';
             mockUser.resetToken = {
                 expires: new Date(new Date().valueOf() + 40000),
                 token: '$2a$10$wP7fqLDue/lWc4eNQS9qCe0JNQGNzUTVQsUUEUi2SWHof3Xtf/PP2' // hash of fakeToken
@@ -744,7 +744,7 @@ describe('auth (E2E):', function() {
             mailman.once(msgSubject, function(msg) {
                 expect(msg.from[0].address).toBe('no-reply@cinema6.com');
                 expect(msg.to[0].address).toBe('c6e2etester@gmail.com');
-                var regex = /Your\s*ReelContent\s*password\s*was\s*changed\s*on.*at/;
+                var regex = /Your\s*Reelcontent\s*password\s*was\s*changed\s*on.*at/;
                 expect(msg.text).toMatch(regex);
                 expect(msg.html).toMatch(regex);
                 expect((new Date() - msg.date)).toBeLessThan(30000); // message should be recent

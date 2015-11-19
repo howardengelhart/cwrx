@@ -1225,7 +1225,7 @@ describe('userSvc users (E2E):', function() {
                 status: 'active',
                 password: '$2a$10$XomlyDak6mGSgrC/g1L7FO.4kMRkj4UturtKSzy6mFeL8QWOBmIWq'
             };
-            msgSubject = 'ReelContent Password Change Notice';
+            msgSubject = 'Reelcontent Password Change Notice';
             reqBody = { email: 'c6e2etester@gmail.com', password: 'password', newPassword: 'foobar' };
             options = { url: config.usersUrl + '/password', json: reqBody };
             testUtils.resetCollection('users', [mockRequester, mockAdmin, user]).done(done);
@@ -1468,7 +1468,7 @@ describe('userSvc users (E2E):', function() {
     describe('POST /api/account/users/signup', function() {
         var mockUser, mockRoles, mockPols, options, msgSubject;
         beforeEach(function(done) {
-            msgSubject = 'Welcome to ReelContent Video Ads!';
+            msgSubject = 'Welcome to Reelcontent Video Ads!';
             mockUser = {
                 email: 'c6e2etester@gmail.com',
                 password: 'password',
@@ -1945,7 +1945,7 @@ describe('userSvc users (E2E):', function() {
             it('should work properly with /api/account/users/signup', function(done) {
                 var userId;
 
-                mailman.once('Welcome to ReelContent Video Ads!', function(msg) {
+                mailman.once('Welcome to Reelcontent Video Ads!', function(msg) {
                     var match = msg.html.match(/href="https?:\/\/.*id=(u-[0-9a-z]+).*token=([0-9a-f]{48})(?=")/);
                     if (!match || match.length === 0) {
                         return done.fail('No url with token + user id found in message');
@@ -1997,7 +1997,7 @@ describe('userSvc users (E2E):', function() {
         var loginOpts, resendOpts, newUserCookieJar, newUser, msgSubject;
         
         beforeEach(function(done) {
-            msgSubject = 'Welcome to ReelContent Video Ads!';
+            msgSubject = 'Welcome to Reelcontent Video Ads!';
             newUserCookieJar = request.jar();
             loginOpts = { url: config.authUrl + '/login', json: { email: 'c6e2etester@gmail.com', password: 'password' }, jar: newUserCookieJar };
             resendOpts = { url: config.usersUrl + '/resendActivation', jar: newUserCookieJar };
