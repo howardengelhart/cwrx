@@ -274,7 +274,7 @@
             var timer = new PromiseTimer(maxTime);
 
             if (!(/https?:/).test(url.protocol)) {
-                log.warn('[%1] "%2" is not a valid URI. Aborting.', req.uuid, uri);
+                log.warn('[%1] URI is not valid: %2. Aborting.', req.uuid, uri);
 
                 return q.reject(new ServiceResponse(
                     400,
