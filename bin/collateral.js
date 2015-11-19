@@ -12,6 +12,7 @@
         glob            = require('glob'),
         handlebars      = require('handlebars'),
         request         = require('request-promise'),
+        spidey          = require('spidey.js'),
         express         = require('express'),
         bodyParser      = require('body-parser'),
         multer          = require('multer'),
@@ -47,6 +48,10 @@
             maxCacheKeys: 30000,    // max number of cached md5s in the in-memory cache
             clearInterval: 60*1000, // how often to check for old cached md5s; units = ms
             timeout: 10*1000        // timeout for entire splash generation process; units = ms
+        },
+        scraper: {
+            timeout: 5*1000,        // 5 seconds.
+            agent: 'Reelcontent Web Scraper'
         },
         maxFileSize: 25*1000*1000,  // 25MB
         maxFiles: 10,               // max number of files svc will handle in a request
@@ -269,7 +274,7 @@
             var timer = new PromiseTimer(maxTime);
 
             if (!(/https?:/).test(url.protocol)) {
-                log.warn('[%1] "%2" is not a valid URI. Aborting.', req.uuid, uri);
+                log.warn('[%1] URI is not valid: %2. Aborting.', req.uuid, uri);
 
                 return q.reject(new ServiceResponse(
                     400,
@@ -517,7 +522,78 @@
             .finally(cleanup)
             .catch(handleError);
     };
-    
+
+    collateral.getWebsiteData = function getWebsiteData(req, config) {
+        return q().then(function callSpidey() {
+            var log = logger.getLog();
+            var uuid = req.uuid;
+            var uri = req.query.uri;
+
+            if (!uri) {
+                log.info('[%1] Client did not specify a URI.', uuid);
+                return new ServiceResponse(
+                    400,
+                    'Must specify a URI.'
+                );
+            }
+
+            log.info('[%1] Attempting to scrape "%2."', uuid, uri);
+
+            return spidey(uri, {
+                timeout: config.scraper.timeout,
+                gzip: true,
+                headers: { 'User-Agent': config.scraper.agent }
+            }).then(function createResponse(data) {
+                log.info('[%1] Successfully scraped data for "%2."', uuid, uri);
+                return new ServiceResponse(200, data);
+            }).catch(function handleRejection(reason) {
+                var name = reason.name;
+                var cause = reason.cause;
+
+                if (name === 'StatusCodeError') {
+                    log.info('[%1] Upstream server responded with [%2].', uuid, reason.statusCode);
+                    return new ServiceResponse(
+                        400,
+                        'Upstream server responded with status code [' + reason.statusCode + '].'
+                    );
+                }
+
+                if (name === 'RequestError') {
+                    if (cause.code === 'ETIMEDOUT') {
+                        log.warn('[%1] Timed out GETting "%2."', uuid, uri);
+                        return new ServiceResponse(
+                            408,
+                            'Timed out scraping website [' + uri + '].'
+                        );
+                    }
+
+                    if (/Invalid URI/.test(cause.message)) {
+                        log.info('[%1] URI is not valid: %2.', uuid, uri);
+                        return new ServiceResponse(
+                            400,
+                            'URI [' + uri + '] is not valid.'
+                        );
+                    }
+
+                    log.warn('[%1] Unexpected Error from request: %2.', uuid, util.inspect(cause));
+                    return new ServiceResponse(
+                        500,
+                        'Unexpected error fetching website: ' + util.inspect(reason)
+                    );
+                }
+
+                log.error(
+                    '[%1] Unexpected Error scraping URI [%2]: %3.',
+                    uuid, uri, util.inspect(reason)
+                );
+                return new ServiceResponse(
+                    500,
+                    'Internal error: ' + util.inspect(reason)
+                );
+            });
+        });
+    };
+
     // If num > 6 return 6, else return num
     collateral.chooseTemplateNum = function(num) {
         return Math.min(num, 6);
@@ -961,6 +1037,22 @@
         app.post('/api/collateral/uri', setJobTimeout, sessWrap, authUpload, audit,
             function(req, res) {
                 var promise = q.when(collateral.importFile(req, s3, state.config));
+
+                promise.finally(function() {
+                    return jobManager.endJob(req, res, promise.inspect())
+                        .catch(function(error) {
+                            res.send(500, {
+                                error: 'Error uploading files',
+                                detail: error
+                            });
+                        });
+                });
+            }
+        );
+
+        app.get('/api/collateral/website-data', setJobTimeout, sessWrap, authUpload, audit,
+            function(req, res) {
+                var promise = q.when(collateral.getWebsiteData(req, state.config));
 
                 promise.finally(function() {
                     return jobManager.endJob(req, res, promise.inspect())
