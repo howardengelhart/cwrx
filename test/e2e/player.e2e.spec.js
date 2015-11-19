@@ -131,6 +131,46 @@ describe('player service', function() {
                 expect($brandingHover.text().length).toBeGreaterThan(500);
             });
 
+            ['mraid'].forEach(function(context) {
+                describe('if the context is "' + context + '"', function() {
+                    beforeEach(function(done) {
+                        config.playerUrl.query.context = context;
+
+                        return request.get(getURL()).then(getResponse).then(done, done.fail);
+                    });
+
+                    it('should make the first card not preload', function() {
+                        var experience = parseResponse('full').experience;
+
+                        expect(experience.data.deck[0].data.preload).toBe(false);
+                    });
+
+                    it('should provide the player', function() {
+                        expect(parseResponse('full').seemsValid()).toBe(true);
+                    });
+                });
+            });
+
+            ['vpaid', 'embed', 'standalone'].forEach(function(context) {
+                describe('if the context is "' + context + '"', function() {
+                    beforeEach(function(done) {
+                        config.playerUrl.query.context = context;
+
+                        return request.get(getURL()).then(getResponse).then(done, done.fail);
+                    });
+
+                    it('should not make the first card not preload', function() {
+                        var experience = parseResponse('full').experience;
+
+                        expect(experience.data.deck[0].data.preload).toBeUndefined();
+                    });
+
+                    it('should provide the player', function() {
+                        expect(parseResponse('full').seemsValid()).toBe(true);
+                    });
+                });
+            });
+
             describe('and categories', function() {
                 var CARD_ID = 'rc-c89f1a8f5d5af4'; // Card with comedy keyword in ADTECH
                 var experience, cards, campaign;

@@ -215,6 +215,7 @@ describe('player service', function() {
 
                                 (expressRoutes.get[route] || (expressRoutes.get[route] = [])).push(middleware);
                             });
+                            spyOn(expressApp, 'set');
 
                             return expressApp;
                         });
@@ -347,6 +348,10 @@ describe('player service', function() {
                         expect(MockPlayer).toHaveBeenCalledWith(service.daemonize.calls.mostRecent().args[0].config);
                     });
 
+                    it('should make express trust the 1st proxy', function() {
+                        expect(expressApp.set).toHaveBeenCalledWith('trust proxy', 1);
+                    });
+
                     it('should make the server listen on the port', function() {
                         expect(expressApp.listen).toHaveBeenCalledWith(service.daemonize.calls.mostRecent().args[0].cmdl.port);
                     });
@@ -454,7 +459,8 @@ describe('player service', function() {
                                     uuid: '8w94yr4389',
                                     get: function(header) {
                                         return headers[header.toLowerCase()];
-                                    }
+                                    },
+                                    secure: true
                                 };
                                 response = {
                                     send: jasmine.createSpy('response.send()'),
@@ -477,7 +483,8 @@ describe('player service', function() {
                                     type: request.params.type,
                                     uuid: request.uuid,
                                     origin: request.get('origin'),
-                                    desktop: browser.isDesktop
+                                    desktop: browser.isDesktop,
+                                    secure: request.secure
                                 }, request.query));
                             });
 
@@ -876,7 +883,8 @@ describe('player service', function() {
                             playUrls: ['play1.gif', 'play2.gif'],
                             countUrls: ['count1.gif', 'count2.gif'],
                             launchUrls: ['launch1.gif', 'launch2.gif'],
-                            desktop: true
+                            desktop: true,
+                            secure: true
                         };
 
                         document = new HTMLDocument(playerHTML);
@@ -907,7 +915,7 @@ describe('player service', function() {
                     });
 
                     it('should get the player', function() {
-                        expect(player.__getPlayer__).toHaveBeenCalledWith(options.type, options.uuid);
+                        expect(player.__getPlayer__).toHaveBeenCalledWith(options.type, options.secure, options.uuid);
                     });
 
                     it('should load the experience', function() {
@@ -1035,12 +1043,13 @@ describe('player service', function() {
                                 options.card = 'rc-815770d013a72c';
                                 options.campaign = 'cam-d702b101d0a046';
                                 options.categories = ['food', 'tech'];
+                                options.secure = false;
 
                                 player.get(options).then(success, failure);
                             });
 
                             it('should get the player', function() {
-                                expect(player.__getPlayer__).toHaveBeenCalledWith(options.type, options.uuid);
+                                expect(player.__getPlayer__).toHaveBeenCalledWith(options.type, options.secure, options.uuid);
                             });
 
                             it('should not load the experience', function() {
@@ -1217,6 +1226,50 @@ describe('player service', function() {
                                 expect(error.constructor.name).toBe('ServiceError');
                                 expect(error.message).toBe('VPAID does not support MiniReels.');
                                 expect(error.status).toBe(400);
+                            });
+                        });
+                    });
+
+                    describe('if the context is "mraid"', function() {
+                        beforeEach(function(done) {
+                            success.calls.reset();
+                            failure.calls.reset();
+                            spyOn(player, '__getBranding__').and.returnValue(q([]));
+                            player.__loadExperience__.and.returnValue(q(experience));
+
+                            options.context = 'mraid';
+
+                            player.get(options).then(success, failure).finally(done);
+                        });
+
+                        it('should not preload the first card', function() {
+                            expect(experience.data.deck[0].data.preload).toBe(false);
+                        });
+
+                        it('should succeed', function() {
+                            expect(success).toHaveBeenCalledWith(document.toString());
+                        });
+                    });
+
+                    ['standalone', 'vpaid', 'embed'].forEach(function(context) {
+                        describe('if the context is "' + context + '"', function() {
+                            beforeEach(function(done) {
+                                success.calls.reset();
+                                failure.calls.reset();
+                                spyOn(player, '__getBranding__').and.returnValue(q([]));
+                                player.__loadExperience__.and.returnValue(q(experience));
+
+                                options.context = context;
+
+                                player.get(options).then(success, failure).finally(done);
+                            });
+
+                            it('should not preload the first card', function() {
+                                expect(experience.data.deck[0].data.preload).not.toBe(false);
+                            });
+
+                            it('should succeed', function() {
+                                expect(success).toHaveBeenCalledWith(document.toString());
                             });
                         });
                     });
@@ -2165,17 +2218,19 @@ describe('player service', function() {
                     });
                 });
 
-                describe('__getPlayer__(mode)', function() {
+                describe('__getPlayer__(mode, secure, uuid)', function() {
                     var success, failure;
-                    var mode;
+                    var mode, secure, uuid;
                     var result;
 
                     beforeEach(function() {
                         success = jasmine.createSpy('success()');
                         failure = jasmine.createSpy('failure()');
                         mode = 'lightbox';
+                        secure = false;
+                        uuid = 'ehfurihf43iu';
 
-                        result = player.__getPlayer__(mode);
+                        result = player.__getPlayer__(mode, secure, uuid);
                         result.then(success, failure);
                     });
 
@@ -2278,6 +2333,36 @@ describe('player service', function() {
                                 expect($result('style[data-href="http://localhost/apps/mini-reel-player/v0.25.0-0-g8b946d4/css/lightbox.css"]').text()).toBe(HTMLDocument.rebaseCSS(playerCSS, 'http://localhost/apps/mini-reel-player/v0.25.0-0-g8b946d4/css/lightbox.css'));
                                 expect($result('base').attr('href')).toBe('http://localhost/apps/mini-reel-player/v0.25.0-0-g8b946d4/');
                             });
+                        });
+                    });
+
+                    describe('if secure is true', function() {
+                        beforeEach(function(done) {
+                            request.get.calls.reset();
+                            player.__getPlayer__.clear();
+                            success.calls.reset();
+                            failure.calls.reset();
+                            secure = true;
+
+                            jasmine.clock().uninstall();
+
+                            player.__getPlayer__(mode, secure, uuid).then(success, failure).finally(done);
+                            q.delay(1).then(function() {
+                                requestDeferreds[resolveURL(config.api.root, config.api.player.endpoint)].resolve(playerHTML);
+                            }).delay(1).then(function() {
+                                requestDeferreds['https://localhost/apps/mini-reel-player/v0.25.0-0-g8b946d4/css/lightbox.css'].resolve(playerCSS);
+                                requestDeferreds['https://localhost/apps/mini-reel-player/v0.25.0-0-g8b946d4/lightbox.js'].resolve(playerJS);
+                            }).delay(1).catch(function(error) { console.error(error); });
+                        });
+
+                        afterEach(function() {
+                            jasmine.clock().install();
+                        });
+
+                        it('should make the base tag secure', function() {
+                            var $result = cheerio.load(success.calls.mostRecent().args[0].toString());
+
+                            expect($result('base').attr('href')).toBe('https://localhost/apps/mini-reel-player/v0.25.0-0-g8b946d4/');
                         });
                     });
 

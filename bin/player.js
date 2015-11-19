@@ -43,6 +43,13 @@ var staticCache = new FunctionCache({
     }
 });
 
+var CONTEXTS = {
+    STANDALONE: 'standalone',
+    MRAID: 'mraid',
+    VPAID: 'vpaid',
+    EMBED: 'embed'
+};
+
 function stripURL(url) {
     var parsed = parseURL(url);
 
@@ -316,10 +323,20 @@ Player.prototype.__getBranding__ = function __getBranding__(branding, type, hove
  * with the give mode and fetch an inline any HTML or CSS resources referenced in the file, and
  * return a cheerio document.
  */
-Player.prototype.__getPlayer__ = function __getPlayer__(mode, uuid) {
+Player.prototype.__getPlayer__ = function __getPlayer__(mode, secure, uuid) {
     var log = logger.getLog();
     var config = this.config;
     var playerLocation = resolveURL(config.api.root, config.api.player.endpoint);
+
+    function getBaseValue(original) {
+        var location = parseURL(playerLocation);
+
+        return resolveURL(formatURL({
+            protocol: secure ? 'https:' : 'http:',
+            host: location.host,
+            pathname: location.pathname
+        }), original);
+    }
 
     var sameHostAsPlayer = (function() {
         var playerHost = parseURL(playerLocation).host;
@@ -350,7 +367,7 @@ Player.prototype.__getPlayer__ = function __getPlayer__(mode, uuid) {
         return cheerio.load(response.replace(/\${mode}/g, mode));
     }).then(function fetchSubResources($) {
         var $base = $('base');
-        var baseURL = resolveURL(playerLocation, $base.attr('href'));
+        var baseURL = getBaseValue($base.attr('href'));
         var jsResources = $('script[src]').get().map(function(script) {
             var $script = $(script);
 
@@ -476,7 +493,7 @@ Player.startService = function startService() {
             },
             defaults: {
                 origin: 'http://www.cinema6.com/',
-                context: 'standalone',
+                context: CONTEXTS.STANDALONE,
                 container: 'standalone',
                 mobileType: 'mobile'
             },
@@ -509,6 +526,8 @@ Player.startService = function startService() {
             return player.resetCodeCache();
         }
 
+        app.set('trust proxy', 1);
+
         app.use(setUuid());
         app.use(setBasicHeaders());
         app.use(handleOptions());
@@ -531,6 +550,7 @@ Player.startService = function startService() {
             var type = req.params.type;
             var uuid = req.uuid;
             var query = req.query;
+            var secure = req.secure;
             var mobileType = query.mobileType || config.defaults.mobileType;
             var origin = req.get('origin') || req.get('referer');
             var agent = req.get('user-agent');
@@ -545,7 +565,8 @@ Player.startService = function startService() {
                 type: type,
                 uuid: uuid,
                 origin: origin,
-                desktop: browser.isDesktop
+                desktop: browser.isDesktop,
+                secure: secure
             }, query)).then(function sendResponse(html) {
                 log.info('[%1] {GET %2} Response Length: %3.', uuid, req.url, html.length);
                 return res.send(200, html);
@@ -625,6 +646,7 @@ Player.prototype.get = function get(/*options*/) {
     var type = options.type;
     var desktop = options.desktop;
     var origin = stripURL(options.origin);
+    var secure = options.secure;
     var uuid = options.uuid;
     var playUrls = options.playUrls;
     var countUrls = options.countUrls;
@@ -633,6 +655,7 @@ Player.prototype.get = function get(/*options*/) {
     var card = options.card;
     var campaign = options.campaign;
     var categories = options.categories;
+    var context = options.context;
 
     log.trace('[%1] Getting player with options (%2.)', uuid, inspect(options));
 
@@ -679,7 +702,7 @@ Player.prototype.get = function get(/*options*/) {
     }
 
     return q.all([
-        this.__getPlayer__(type, uuid),
+        this.__getPlayer__(type, secure, uuid),
         experience ? this.__loadExperience__(experience, options, origin, uuid) :
             this.__loadCard__(options, origin, uuid)
     ]).spread(function processExperience(document, experience) {
@@ -692,6 +715,10 @@ Player.prototype.get = function get(/*options*/) {
         }
 
         addTrackingPixels(experience);
+
+        if (context === CONTEXTS.MRAID) {
+            experience.data.deck[0].data.preload = false;
+        }
 
         return loadBranding(experience).then(function inlineResources(brandings) {
             brandings.forEach(function addBrandingCSS(branding) {
