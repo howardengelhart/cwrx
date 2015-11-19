@@ -761,15 +761,29 @@ describe('content-cards (UT)', function() {
             }).done(done);
         });
 
-        it('should return nothing if the card\'s campaign is not active', function(done) {
-            mockCamp.status = Status.Pending;
-            cardModule.getPublicCard(cardSvc, caches, 'rc-1', req).then(function(resp) {
-                expect(resp).not.toBeDefined();
-                expect(caches.cards.getPromise).toHaveBeenCalledWith({id: 'rc-1'});
-                expect(caches.campaigns.getPromise).toHaveBeenCalledWith({id: 'cam-1'});
-                expect(cardSvc.formatOutput).toHaveBeenCalled();
-                expect(cardModule.setupTrackingPixels).toHaveBeenCalled();
-                expect(mockLog.warn).toHaveBeenCalled();
+        it('should return nothing if the card\'s campaign is not running', function(done) {
+            q.all([Status.Canceled, Status.Expired, Status.Deleted].map(function(status) {
+                mockCamp.status = status;
+                return cardModule.getPublicCard(cardSvc, caches, 'rc-1', req).then(function(resp) {
+                    expect(resp).not.toBeDefined();
+                });
+            })).then(function(results) {
+                expect(mockLog.warn).not.toHaveBeenCalled();
+                expect(caches.campaigns.getPromise.calls.count()).toBe(3);
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should show a card for a pending, draft, or paused campaign', function(done) {
+            q.all([Status.Pending, Status.Draft, Status.Paused].map(function(status) {
+                mockCamp.status = status;
+                return cardModule.getPublicCard(cardSvc, caches, 'rc-1', req).then(function(resp) {
+                    expect(resp).toEqual(jasmine.objectContaining({ id: 'rc-1' }));
+                });
+            })).then(function(results) {
+                expect(mockLog.warn).not.toHaveBeenCalled();
+                expect(caches.campaigns.getPromise.calls.count()).toBe(3);
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
             }).done(done);
