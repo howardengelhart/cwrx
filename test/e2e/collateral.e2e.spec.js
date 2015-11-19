@@ -459,6 +459,109 @@ describe('collateral (E2E):', function() {
         });
     });
 
+    describe('GET /api/collateral/website-data', function() {
+        var options;
+        var success, failure;
+        var apiResponse;
+
+        beforeEach(function() {
+            options = {
+                url: config.collateralUrl + '/collateral/website-data',
+                qs: {},
+                json: true,
+                jar: cookieJar
+            };
+
+            success = jasmine.createSpy('success()').and.callFake(function(response) {
+                apiResponse = response;
+            });
+            failure = jasmine.createSpy('failure()').and.callFake(function(error) {
+                console.error(error);
+            });
+
+            apiResponse = null;
+        });
+
+        describe('if called with a valid website URI', function() {
+            beforeEach(function(done) {
+                options.qs.uri = 'https://s3.amazonaws.com/c6.dev/e2e/samplePages/toyota.html';
+
+                requestUtils.qRequest('get', options).then(success, failure).finally(done);
+            });
+
+            it('should [200]', function() {
+                expect(apiResponse.response.statusCode).toBe(200);
+                expect(apiResponse.body).toEqual({
+                    links: {
+                        website: 'https://s3.amazonaws.com/c6.dev/e2e/samplePages/toyota.html',
+                        facebook: 'http://www.facebook.com/toyota',
+                        twitter: 'http://twitter.com/toyota',
+                        instagram: 'http://instagram.com/toyotausa/',
+                        youtube: 'http://www.youtube.com/user/ToyotaUSA',
+                        pinterest: null,
+                        google: 'https://plus.google.com/+toyotausa/',
+                        tumblr: null
+                    },
+                    images: {
+                        profile: 'https://fbcdn-profile-a.akamaihd.net/hprofile-ak-xaf1/v/t1.0-1/c124.57.712.712/s200x200/399266_10151276650434201_443074649_n.jpg?oh=e6b8cc83da86e05e312beab0daad0d95&oe=56EA86EA&__gda__=1458601243_4b4d11415406f734644c00dd8898c10f'
+                    }
+                });
+            });
+        });
+
+        describe('if called with no URI', function() {
+            beforeEach(function(done) {
+                delete options.qs.uri;
+
+                requestUtils.qRequest('get', options).then(success, failure).finally(done);
+            });
+
+            it('should [400]', function() {
+                expect(apiResponse.response.statusCode).toBe(400);
+                expect(apiResponse.body).toBe('Must specify a URI.');
+            });
+        });
+
+        describe('if the upstream server responds with a failing status code', function() {
+            beforeEach(function(done) {
+                options.qs.uri = 'https://s3.amazonaws.com/c6.dev/e2e/samplePages/I_DONT_EXIST_UGHHHHHH.html';
+
+                requestUtils.qRequest('get', options).then(success, failure).finally(done);
+            });
+
+            it('should [400]', function() {
+                expect(apiResponse.response.statusCode).toBe(400);
+                expect(apiResponse.body).toBe('Upstream server responded with status code [404].');
+            });
+        });
+
+        describe('if called with something that is not actually a URI', function() {
+            beforeEach(function(done) {
+                options.qs.uri = '97erfg738trh784';
+
+                requestUtils.qRequest('get', options).then(success, failure).finally(done);
+            });
+
+            it('should [400]', function() {
+                expect(apiResponse.response.statusCode).toBe(400);
+                expect(apiResponse.body).toBe('URI [' + options.qs.uri + '] is not valid.');
+            });
+        });
+
+        describe('if the user is not logged in', function() {
+            beforeEach(function(done) {
+                delete options.jar;
+
+                requestUtils.qRequest('get', options).then(success, failure).then(done, done);
+            });
+
+            it('should [401]', function() {
+                expect(apiResponse.response.statusCode).toBe(401);
+                expect(apiResponse.body).toBe('Unauthorized');
+            });
+        });
+    });
+
     [
         {
             desc: 'POST /api/collateral/splash/:expId',
