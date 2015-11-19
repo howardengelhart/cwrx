@@ -1058,6 +1058,7 @@ describe('ads-campaigns (UT)', function() {
         beforeEach(function() {
             req.body = {
                 id: 'cam-1',
+                advertiserId: 'a-1',
                 cards: [
                     { title: 'card 1', campaign: { adtechName: 'foo' } },
                     { id: 'rc-2', title: 'card 2', campaign: { adtechName: 'bar' } }
@@ -1085,18 +1086,18 @@ describe('ads-campaigns (UT)', function() {
                 expect(errorSpy).not.toHaveBeenCalled();
                 expect(req.body.cards).toEqual([{ id: 'rc-1' }, { id: 'rc-2' } ]);
                 expect(req._cards).toEqual({
-                    'rc-1': { id: 'rc-1', title: 'card 1', campaign: { adtechName: 'foo' }, updated: true, campaignId: 'cam-1' },
-                    'rc-2': { id: 'rc-2', title: 'card 2', campaign: { adtechName: 'bar' }, updated: true, campaignId: 'cam-1' },
+                    'rc-1': { id: 'rc-1', title: 'card 1', campaign: { adtechName: 'foo' }, updated: true, campaignId: 'cam-1', advertiserId: 'a-1' },
+                    'rc-2': { id: 'rc-2', title: 'card 2', campaign: { adtechName: 'bar' }, updated: true, campaignId: 'cam-1', advertiserId: 'a-1' },
                 });
                 expect(requestUtils.qRequest.calls.count()).toBe(2);
                 expect(requestUtils.qRequest).toHaveBeenCalledWith('post', {
                     url: 'https://test.com/api/content/cards/',
-                    json: { title: 'card 1', campaign: { adtechName: 'foo' }, campaignId: 'cam-1' },
+                    json: { title: 'card 1', campaign: { adtechName: 'foo' }, campaignId: 'cam-1', advertiserId: 'a-1' },
                     headers: { cookie: 'chocolate' }
                 });
                 expect(requestUtils.qRequest).toHaveBeenCalledWith('put', {
                     url: 'https://test.com/api/content/cards/rc-2',
-                    json: { id: 'rc-2', title: 'card 2', campaign: { adtechName: 'bar' }, campaignId: 'cam-1' },
+                    json: { id: 'rc-2', title: 'card 2', campaign: { adtechName: 'bar' }, campaignId: 'cam-1', advertiserId: 'a-1' },
                     headers: { cookie: 'chocolate' }
                 });
                 expect(mockLog.warn).not.toHaveBeenCalled();

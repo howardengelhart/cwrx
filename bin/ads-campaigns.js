@@ -612,13 +612,12 @@
     campModule.updateCards = function(req, next, done) {
         var log = logger.getLog(),
             id = req.body.id || (req.origObj && req.origObj.id),
+            advertiserId = req.body.advertiserId || (req.origObj && req.origObj.advertiserId),
             doneCalled = false;
         
         if (!req.body.cards) {
             return q(next());
         }
-        
-        //TODO: will need to append advertiserId to card's body, then use + trim it in cardSvc
         
         return q.all(req.body.cards.map(function(cardEntry, idx) {
             var opts = {
@@ -638,6 +637,7 @@
                 expectedResponse = 200;
             }
             cardEntry.campaignId = id;
+            cardEntry.advertiserId = advertiserId;
             
             return requestUtils.qRequest(verb, opts)
             .then(function(resp) {

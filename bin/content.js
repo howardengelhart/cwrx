@@ -51,12 +51,6 @@
             },
             cloudFront: 5
         },
-        api: {
-            root: 'http://localhost',   // for proxying requests
-            campaigns: {
-                endpoint: '/api/campaigns/'
-            }
-        },
         sessions: {
             key: 'c6Auth',
             maxAge: 30*60*1000,         // 30 minutes; unit here is milliseconds

@@ -28,13 +28,6 @@ describe('content-cards (UT)', function() {
         
         cardModule.config = {
             trackingPixel: 'track.me',
-            api: {
-                root: 'http://test.com',
-                campaigns: {
-                    baseUrl: 'https://test.com/api/campaigns/',
-                    endpoint: '/api/campaigns/'
-                }
-            }
         };
 
         mockDb = {
@@ -69,10 +62,6 @@ describe('content-cards (UT)', function() {
         beforeEach(function() {
             config = {
                 trackingPixel: 'track.me.plz',
-                api: {
-                    root: 'https://foo.com',
-                    campaigns: { endpoint: '/campaigns/' },
-                }
             };
             caches = { cash: 'money' };
             metagetta = { hasGoogleKey: true };
@@ -112,13 +101,6 @@ describe('content-cards (UT)', function() {
         });
         
         it('should save some config variables locally', function() {
-            expect(cardModule.config.api).toEqual({
-                root: 'https://foo.com',
-                campaigns: {
-                    endpoint: '/campaigns/',
-                    baseUrl: 'https://foo.com/campaigns/'
-                }
-            });
             expect(cardModule.config.trackingPixel).toBe('track.me.plz');
             expect(cardModule.metagetta).toBe(metagetta);
         });
@@ -143,6 +125,11 @@ describe('content-cards (UT)', function() {
         it('should get video metadata on create + edit', function() {
             expect(svc._middleware.create).toContain(cardModule.getMetaData);
             expect(svc._middleware.edit).toContain(cardModule.getMetaData);
+        });
+        
+        it('should setup moat data on create + edit', function() {
+            expect(svc._middleware.create).toContain(cardModule.setupMoat);
+            expect(svc._middleware.edit).toContain(cardModule.setupMoat);
         });
 
         it('should complain if there is no youtube key',function(){
@@ -205,7 +192,9 @@ describe('content-cards (UT)', function() {
                 delete newObj.campaign;
                 expect(svc.model.validate('create', newObj, origObj, requester))
                     .toEqual({ isValid: true, reason: undefined });
-                expect(newObj.campaign).toEqual({});
+                expect(newObj.campaign).toEqual({
+                    minViewTime: 3
+                });
             });
         
             ['reportingId', 'adtechName', 'startDate', 'endDate'].forEach(function(field) {
@@ -268,6 +257,19 @@ describe('content-cards (UT)', function() {
                 requester.fieldValidation.cards.data = {};
             });
 
+            it('should default to an object', function() {
+                delete newObj.data;
+                expect(svc.model.validate('create', newObj, origObj, requester))
+                    .toEqual({ isValid: true, reason: undefined });
+                expect(newObj.data).toEqual({
+                    skip: 30,
+                    controls: true,
+                    autoplay: true,
+                    autoadvance: false,
+                    moat: {}
+                });
+            });
+
             describe('subfield skip', function() {
                 it('should replace user input with a default', function() {
                     newObj.data.skip = 666;
@@ -278,15 +280,23 @@ describe('content-cards (UT)', function() {
                 
                 it('should be able to allow some requesters to set the field', function() {
                     requester.fieldValidation.cards.data.skip = { __allowed: true };
-                    newObj.data.skip = 666
+                    newObj.data.skip = 666;
                     expect(svc.model.validate('create', newObj, origObj, requester))
                         .toEqual({ isValid: true, reason: undefined });
                     expect(newObj.data.skip).toBe(666);
 
-                    newObj.data.skip = true
+                    newObj.data.skip = false;
                     expect(svc.model.validate('create', newObj, origObj, requester))
                         .toEqual({ isValid: true, reason: undefined });
-                    expect(newObj.data.skip).toBe(true);
+                    expect(newObj.data.skip).toBe(false);
+                });
+                
+                it('should not allow the field to be unset', function() {
+                    requester.fieldValidation.cards.data.skip = { __allowed: true };
+                    newObj.data.skip = null;
+                    expect(svc.model.validate('create', newObj, origObj, requester))
+                        .toEqual({ isValid: true, reason: undefined });
+                    expect(newObj.data.skip).toBe(30);
                 });
             });
             
@@ -313,11 +323,45 @@ describe('content-cards (UT)', function() {
                         expect(svc.model.validate('create', newObj, origObj, requester))
                             .toEqual({ isValid: false, reason: 'data.' + field + ' must be in format: boolean' });
                     });
+                    
+                    it('should not allow the field to be unset', function() {
+                        requester.fieldValidation.cards.data[field] = { __allowed: true };
+                        newObj.data[field] = null;
+                        expect(svc.model.validate('create', newObj, origObj, requester))
+                            .toEqual({ isValid: true, reason: undefined });
+                        expect(newObj.data[field]).toBe(field === 'autoadvance' ? false : true);
+                    });
                 });
             });
             
-            describe('subfield moat', function() { //TODO
-            
+            describe('subfield moat', function() {
+                it('should default to an empty object', function() {
+                    delete newObj.data;
+                    expect(svc.model.validate('create', newObj, origObj, requester))
+                        .toEqual({ isValid: true, reason: undefined });
+                    expect(newObj.data.moat).toEqual({});
+                });
+                
+                it('should prevent users from unsetting the field', function() {
+                    newObj.data.moat = null;
+                    expect(svc.model.validate('create', newObj, origObj, requester))
+                        .toEqual({ isValid: true, reason: undefined });
+                    expect(newObj.data.moat).toEqual({});
+                });
+                
+                it('should allow some users to set the field to null', function() {
+                    requester.fieldValidation.cards.data.moat = { __required: false };
+                    newObj.data.moat = null;
+                    expect(svc.model.validate('create', newObj, origObj, requester))
+                        .toEqual({ isValid: true, reason: undefined });
+                    expect(newObj.data.moat).toEqual(null);
+                });
+                
+                it('should fail if the field is not an object', function() {
+                    newObj.data.moat = 'foo';
+                    expect(svc.model.validate('create', newObj, origObj, requester))
+                        .toEqual({ isValid: false, reason: 'data.moat must be in format: object' });
+                });
             });
         });
     });
@@ -753,7 +797,50 @@ describe('content-cards (UT)', function() {
             })
             .then(done,done.fail);
         });
+    });
+    
+    describe('setupMoat', function() {
+        beforeEach(function() {
+            req.body = { id: 'rc-1', campaignId: 'cam-1', advertiserId: 'a-1', data: { moat: {} } };
+        });
+        
+        it('should setup the moat object on the card\'s data', function() {
+            cardModule.setupMoat(req, nextSpy, doneSpy);
+            expect(nextSpy).toHaveBeenCalled();
+            expect(doneSpy).not.toHaveBeenCalled();
+            expect(req.body.data.moat).toEqual({ campaign: 'cam-1', advertiser: 'a-1', creative: 'rc-1' });
+        });
+        
+        it('should override user-provided values', function() {
+            req.body.data.moat = { campaign: 'foo', advertiser: 'bar', creative: 'baz' };
+            cardModule.setupMoat(req, nextSpy, doneSpy);
+            expect(nextSpy).toHaveBeenCalled();
+            expect(doneSpy).not.toHaveBeenCalled();
+            expect(req.body.data.moat).toEqual({ campaign: 'cam-1', advertiser: 'a-1', creative: 'rc-1' });
+        });
+        
+        it('should be able to take necessary ids from the origObj', function() {
+            req.body = { title: 'bloop', data: { moat: {} } };
+            req.origObj = { id: 'rc-1', campaignId: 'cam-1', advertiserId: 'a-1', data: { moat: {} } };
+            
+            cardModule.setupMoat(req, nextSpy, doneSpy);
+            expect(nextSpy).toHaveBeenCalled();
+            expect(doneSpy).not.toHaveBeenCalled();
+            expect(req.body.data.moat).toEqual({ campaign: 'cam-1', advertiser: 'a-1', creative: 'rc-1' });
+        });
+        
+        it('should skip if the data or data.moat props are not defined', function() {
+            var req1 = JSON.parse(JSON.stringify(req)), req2 = JSON.parse(JSON.stringify(req));
+            req1.body = { id: 'rc-1', campaignId: 'cam-1', advertiserId: 'a-1' };
+            req2.body = { id: 'rc-1', campaignId: 'cam-1', advertiserId: 'a-1', data: { moat: null } };
 
+            cardModule.setupMoat(req1, nextSpy, doneSpy);
+            cardModule.setupMoat(req2, nextSpy, doneSpy);
+            expect(nextSpy.calls.count()).toBe(2);
+            expect(doneSpy).not.toHaveBeenCalled();
+            expect(req1.body.data).not.toBeDefined();
+            expect(req2.body.data).toEqual({ moat: null });
+        });
     });
 
     describe('formatUrl', function() {

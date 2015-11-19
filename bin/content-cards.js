@@ -2,7 +2,6 @@
     'use strict';
 
     var q               = require('q'),
-        urlUtils        = require('url'),
         util            = require('util'),
         path            = require('path'),
         express         = require('express'),
@@ -21,7 +20,7 @@
             __unchangeable: true,
             __required: true
         },
-        campaign: { //TODO: prevent setting any adtech-related campaign props?
+        campaign: {
             __default: {},
             reportingId: {
                 __allowed: true,
@@ -61,54 +60,44 @@
             }
         },
         data: {
+            __default: {},
             skip: {
                 __allowed: false,
+                __required: true,
                 __default: 30
             },
             controls: {
                 __allowed: false,
                 __type: 'boolean',
+                __required: true,
                 __default: true
             },
             autoplay: {
                 __allowed: false,
                 __type: 'boolean',
+                __required: true,
                 __default: true
             },
             autoadvance: {
                 __allowed: false,
                 __type: 'boolean',
+                __required: true,
                 __default: false
             },
-            moat: {
+            moat: { // Ensures moat is set to {} for default user, subfields get set in setupMoat()
                 __allowed: true,
                 __type: 'object',
-                // __required: true, //TODO: reconsider this config
-                // __default: {}
+                __required: true,
+                __default: {}
             }
         }
     };
 
 
-/*TODO
-    data.moat should be defaulted in, but some users would be allowed to not set it? i guess?
-    anyway format is:
-    data.moat = {
-        campaign: 'cam-...',
-        advertiser: 'a-...',
-        creative: 'rc-...'
-    }
-*/
-        
     cardModule.setupSvc = function(db, config, caches, metagetta) {
         var log = logger.getLog();
 
         cardModule.config.trackingPixel = config.trackingPixel;
-        cardModule.config.api = config.api;
-        cardModule.config.api.campaigns.baseUrl = urlUtils.resolve(
-            cardModule.config.api.root,
-            cardModule.config.api.campaigns.endpoint
-        );
 
         if (!metagetta.hasGoogleKey) {
             log.warn('Missing googleKey from secrets, will not be able to lookup ' +
@@ -125,11 +114,13 @@
         
         svc.use('create', fetchCamp);
         svc.use('create', cardModule.getMetaData);
+        svc.use('create', cardModule.setupMoat);
 
         svc.use('edit', fetchCamp);
         svc.use('edit', cardModule.campStatusCheck.bind(cardModule, [Status.Draft]));
         svc.use('edit', cardModule.enforceUpdateLock);
         svc.use('edit', cardModule.getMetaData);
+        svc.use('edit', cardModule.setupMoat);
         
         svc.use('delete', fetchCamp);
         svc.use('delete', cardModule.campStatusCheck.bind(cardModule, [
@@ -293,6 +284,26 @@
             return next();
         });
     };
+
+    // Setup the data.moat object on the card, if data and data.moat are defined.
+    cardModule.setupMoat = function(req, next/*, done*/) {
+        var id = req.body.id || (req.origObj && req.origObj.id),
+            campaignId = req.body.campaignId || (req.origObj && req.origObj.campaignId),
+            advertiserId = req.body.advertiserId || (req.origObj && req.origObj.advertiserId);
+        
+        if (!req.body.data || !req.body.data.moat) {
+            return next();
+        }
+        
+        req.body.data.moat = {
+            campaign: campaignId,
+            advertiser: advertiserId,
+            creative: id
+        };
+        
+        return next();
+    };
+
 
     // Format a tracking pixel link, pulling data from query params.
     cardModule.formatUrl = function(card, req, event) {

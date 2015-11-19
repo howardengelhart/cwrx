@@ -154,10 +154,6 @@ function setupContentSvcFieldVal(policy) {
             },
             autoadvance: {
                 __allowed: true
-            },
-            moat: {
-                __required: false,
-                __default: null
             }
         }
     };
