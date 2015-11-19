@@ -43,6 +43,13 @@ var staticCache = new FunctionCache({
     }
 });
 
+var CONTEXTS = {
+    STANDALONE: 'standalone',
+    MRAID: 'mraid',
+    VPAID: 'vpaid',
+    EMBED: 'embed'
+};
+
 function stripURL(url) {
     var parsed = parseURL(url);
 
@@ -476,7 +483,7 @@ Player.startService = function startService() {
             },
             defaults: {
                 origin: 'http://www.cinema6.com/',
-                context: 'standalone',
+                context: CONTEXTS.STANDALONE,
                 container: 'standalone',
                 mobileType: 'mobile'
             },
@@ -633,6 +640,7 @@ Player.prototype.get = function get(/*options*/) {
     var card = options.card;
     var campaign = options.campaign;
     var categories = options.categories;
+    var context = options.context;
 
     log.trace('[%1] Getting player with options (%2.)', uuid, inspect(options));
 
@@ -692,6 +700,10 @@ Player.prototype.get = function get(/*options*/) {
         }
 
         addTrackingPixels(experience);
+
+        if (context === CONTEXTS.MRAID) {
+            experience.data.deck[0].data.preload = false;
+        }
 
         return loadBranding(experience).then(function inlineResources(brandings) {
             brandings.forEach(function addBrandingCSS(branding) {
