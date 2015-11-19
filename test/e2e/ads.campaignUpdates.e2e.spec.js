@@ -37,6 +37,7 @@ describe('ads campaignUpdates endpoints (E2E):', function() {
             email : 'c6e2etester@gmail.com',
             password : '$2a$10$XomlyDak6mGSgrC/g1L7FO.4kMRkj4UturtKSzy6mFeL8QWOBmIWq', // hash of 'password'
             org: 'o-selfie',
+            company: 'Heinz',
             advertiser: 'e2e-a-keepme',
             customer: 'e2e-cu-keepme',
             policies: ['selfieCampPolicy']
@@ -508,7 +509,7 @@ describe('ads campaignUpdates endpoints (E2E):', function() {
     describe('POST /api/campaigns/:campId/updates', function() {
         var options, mockCamps, msgSubject;
         beforeEach(function(done) {
-            msgSubject = 'New campaign update request';
+            msgSubject = 'New update request from Heinz for campaign "e2e test 1"';
             options = {
                 url: config.adsUrl + '/campaigns/cam-1/updates/',
                 json: { data: {
@@ -1099,8 +1100,8 @@ describe('ads campaignUpdates endpoints (E2E):', function() {
         
         describe('if an update is an inital request for approval', function() {
             beforeEach(function(done) {
-                approveSubject = 'ReelContent Campaign Approved';
-                rejectSubject = 'ReelContent Campaign Rejected';
+                approveSubject = 'Reelcontent Campaign Approved';
+                rejectSubject = 'Reelcontent Campaign Rejected';
                 var mockUpdate = {
                     id: 'ur-1',
                     status: 'pending',

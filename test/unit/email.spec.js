@@ -50,7 +50,7 @@ describe('email', function() {
                 expect(email.compileAndSend).toHaveBeenCalledWith(
                     'send',
                     'recip',
-                    'ReelContent Campaign Approved',
+                    'Reelcontent Campaign Approved',
                     'campaignApproved.html',
                     { campName: 'ketchupbot', dashboardLink: 'link' },
                     [{ filename: 'logo.png', cid: 'reelContentLogo' }]
@@ -94,7 +94,7 @@ describe('email', function() {
                 expect(email.compileAndSend).toHaveBeenCalledWith(
                     'send',
                     'recip',
-                    'ReelContent Campaign Rejected',
+                    'Reelcontent Campaign Rejected',
                     'campaignRejected.html',
                     { campName: 'ketchupbot', dashboardLink: 'link', rejectionReason: 'you stink' },
                     [{ filename: 'logo.png', cid: 'reelContentLogo' }]
@@ -117,12 +117,12 @@ describe('email', function() {
     
     describe('newUpdateRequest', function() {
         it('should correctly call compileAndSend', function(done) {
-            email.newUpdateRequest('send', 'recip', 'user@c6.com', 'ketchupbot', 'review.me').then(function(resp) {
+            email.newUpdateRequest('send', 'recip', 'user@c6.com', 'Heinz', 'ketchupbot', 'review.me').then(function(resp) {
                 expect(resp).toBe('success');
                 expect(email.compileAndSend).toHaveBeenCalledWith(
                     'send',
                     'recip',
-                    'New campaign update request',
+                    'New update request from Heinz for campaign "ketchupbot"',
                     'newUpdateRequest.html',
                     { userEmail: 'user@c6.com', campName: 'ketchupbot', reviewLink: 'review.me' },
                     [{ filename: 'logo.png', cid: 'reelContentLogo' }]
@@ -134,7 +134,7 @@ describe('email', function() {
 
         it('should pass along errors from compileAndSend', function(done) {
             email.compileAndSend.and.returnValue(q.reject('I GOT 99 PROBLEMS AND THIS IS ONE'));
-            email.newUpdateRequest('send', 'recip', 'user@c6.com', 'ketchupbot', 'review.me').then(function(resp) {
+            email.newUpdateRequest('send', 'recip', 'user@c6.com', 'Heinz', 'ketchupbot', 'review.me').then(function(resp) {
                 expect(resp).not.toBeDefined();
             }).catch(function(error) {
                 expect(error).toBe('I GOT 99 PROBLEMS AND THIS IS ONE');
@@ -150,7 +150,7 @@ describe('email', function() {
                 expect(email.compileAndSend).toHaveBeenCalledWith(
                     'send',
                     'recip',
-                    'Welcome to ReelContent Video Ads!',
+                    'Welcome to Reelcontent Video Ads!',
                     'activateAccount.html',
                     { activationLink: 'link' },
                     [{ filename: 'logo.png', cid: 'reelContentLogo' }]
@@ -216,7 +216,7 @@ describe('email', function() {
                 expect(email.compileAndSend).toHaveBeenCalledWith(
                     'send',
                     'recip',
-                    'ReelContent Password Change Notice',
+                    'Reelcontent Password Change Notice',
                     'passwordChanged.html',
                     { contact: 'support', date: now.toLocaleDateString(), time: now.toTimeString() },
                     [{ filename: 'logo.png', cid: 'reelContentLogo' }]
@@ -288,7 +288,7 @@ describe('email', function() {
                 expect(email.compileAndSend).toHaveBeenCalledWith(
                     'send',
                     'recip',
-                    'ReelContent: Multiple-Failed Logins',
+                    'Reelcontent: Multiple-Failed Logins',
                     'failedLogins.html',
                     { link: 'link' },
                     [{ filename: 'logo.png', cid: 'reelContentLogo' }]
@@ -375,7 +375,7 @@ describe('email', function() {
         
         describe('if there are all-caps links in the text', function() {
             it('should convert the links to lowercase', function(done) {
-                htmlToText.fromString.and.returnValue('Yo go here: [HTTP://CINEMA6.COM]\n\nWait no go here: [HTTPS://REELCONTENT.COM/FOO?TOKEN=ASDF1234]');
+                htmlToText.fromString.and.returnValue('Yo go here: [HTTP://CINEMA6.COM]\n\nWait no go here: [HTTPS://reelcontent.COM/FOO?TOKEN=ASDF1234]');
                 
                 email.compileAndSend('sender','recip','subj','templ',{foo:'bar'}).then(function(resp) {
                     expect(resp).toBe('success');
