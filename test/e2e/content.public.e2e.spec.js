@@ -24,7 +24,7 @@ describe('content public experience endpoints (E2E):', function() {
                 options = {
                     url: config.contentUrl + '/public/content/experiences/e2e-pubget1',
                     qs: {
-                        campaign: 'e2e-cam1',
+                        campaign: 'cam-1',
                         container: 'embed',
                         hostApp: 'Mapsaurus',
                         network: 'pocketmath'
@@ -73,7 +73,7 @@ describe('content public experience endpoints (E2E):', function() {
                     expect(parsed.host).toBeDefined();
                     expect(parsed.pathname).toBeDefined();
                     expect(parsed.query).toEqual({
-                        campaign    : 'e2e-cam1',
+                        campaign    : 'cam-1',
                         experience  : 'e2e-pubget1',
                         container   : 'embed',
                         host        : 'clickhole.com',
@@ -324,7 +324,7 @@ describe('content public experience endpoints (E2E):', function() {
                 options = {
                     url: config.contentUrl + '/public/content/experiences/e2e-getcamps1',
                     qs: {
-                        campaign: 'e2e-cam1',
+                        campaign: 'cam-1',
                         container: 'embed',
                         pageUrl: 'clickhole.com',
                         hostApp: 'Mapsaurus',
@@ -345,15 +345,17 @@ describe('content public experience endpoints (E2E):', function() {
                     status: [{ status: 'active' }]
                 }];
                 mockCards = [
-                    { id: 'rc-sp1', campaign: { adtechId: 101, bannerNumber: 11 }, campaignId: 'e2e-cam1', status: 'active', foo: 'baz' },
-                    { id: 'rc-sp2', campaign: { adtechId: 202, bannerNumber: 22 }, campaignId: 'e2e-cam1', status: 'active', foo: 'buz' },
-                    { id: 'rc-sp3', campaign: { adtechId: 303, bannerNumber: 33 }, campaignId: 'e2e-cam1', status: 'inactive', foo: 'boz' },
-                    { id: 'rc-sp4', campaignId: 'e2e-cam2', status: 'active', foo: 'buz' },
-                    { id: 'rc-sp5', campaignId: 'e2e-oldCamp', status: 'active', foo: 'buz' },
+                    { id: 'rc-sp1', campaign: { adtechId: 101, bannerNumber: 11 }, campaignId: 'cam-1', status: 'active', foo: 'baz' },
+                    { id: 'rc-sp2', campaign: { adtechId: 202, bannerNumber: 22 }, campaignId: 'cam-1', status: 'active', foo: 'buz' },
+                    { id: 'rc-sp3', campaign: { adtechId: 303, bannerNumber: 33 }, campaignId: 'cam-1', status: 'inactive', foo: 'boz' },
+                    { id: 'rc-sp4', campaign: { adtechId: 404, bannerNumber: 44 }, campaignId: 'cam-2', status: 'active', foo: 'buz' },
+                    { id: 'rc-sp5', campaign: { adtechId: 505, bannerNumber: 55 }, campaignId: 'cam-canceled', status: 'active', foo: 'buz' },
+                    { id: 'rc-sp6', campaign: { adtechId: 606, bannerNumber: 66 }, campaignId: 'cam-expired', status: 'active', foo: 'buz' },
+                    { id: 'rc-sp7', campaign: { adtechId: 707, bannerNumber: 77 }, campaignId: 'cam-deleted', status: 'active', foo: 'buz' },
                 ];
                 mockCampaigns = [
                     {
-                        id: 'e2e-cam1',
+                        id: 'cam-1',
                         status: 'active',
                         advertiserId: 'a-1',
                         advertiserDisplayName: 'Heinz',
@@ -367,17 +369,14 @@ describe('content public experience endpoints (E2E):', function() {
                         }
                     },
                     {
-                        id: 'e2e-cam2',
+                        id: 'cam-2',
                         status: 'active',
                         cards: [{ id: 'rc-sp4', status: 'active', adtechId: 14, bannerId: 4321, bannerNumber: 1 }],
                         staticCardMap: { 'e2e-getcamps2': { 'rc-p1': 'rc-sp1' } }
                     },
-                    {
-                        id: 'e2e-oldCamp',
-                        status: 'expired',
-                        cards: [{ id: 'rc-sp5', status: 'active', adtechId: 15, bannerId: 8765, bannerNumber: 2 }],
-                        staticCardMap: { 'e2e-getcamps1': { 'rc-p1': 'rc-sp5' } }
-                    }
+                    { id: 'cam-canceled', status: 'canceled', cards: [{ id: 'rc-sp5' }], staticCardMap: { 'e2e-getcamps1': { 'rc-p1': 'rc-sp5' } } },
+                    { id: 'cam-expired', status: 'expired', cards: [{ id: 'rc-sp6' }], staticCardMap: { 'e2e-getcamps1': { 'rc-p1': 'rc-sp6' } } },
+                    { id: 'cam-deleted', status: 'deleted', cards: [{ id: 'rc-sp7' }], staticCardMap: { 'e2e-getcamps1': { 'rc-p1': 'rc-sp7' } } },
                 ];
                 q.all([testUtils.resetCollection('experiences', mockExps),
                        testUtils.resetCollection('cards', mockCards),
@@ -393,7 +392,7 @@ describe('content public experience endpoints (E2E):', function() {
                         { id: 'rc-1', foo: 'bar' },
                         {
                             id: 'rc-sp1',
-                            campaignId: 'e2e-cam1',
+                            campaignId: 'cam-1',
                             advertiserId: 'a-1',
                             params: { sponsor: 'Heinz' },
                             status: 'active',
@@ -404,7 +403,7 @@ describe('content public experience endpoints (E2E):', function() {
                         },
                         {
                             id: 'rc-sp2',
-                            campaignId: 'e2e-cam1',
+                            campaignId: 'cam-1',
                             advertiserId: 'a-1',
                             params: { sponsor: 'Heinz' },
                             status: 'active',
@@ -438,7 +437,7 @@ describe('content public experience endpoints (E2E):', function() {
                             expect(parsed.pathname).toBeDefined();
 
                             var expectedQuery = {
-                                campaign    : 'e2e-cam1',
+                                campaign    : 'cam-1',
                                 card        : cardId,
                                 experience  : 'e2e-getcamps1',
                                 container   : 'embed',
@@ -462,7 +461,7 @@ describe('content public experience endpoints (E2E):', function() {
             });
             
             it('should not alter the deck if the campaign has no staticCardMap for this experience', function(done) {
-                options.qs.campaign = 'e2e-cam2';
+                options.qs.campaign = 'cam-2';
                 requestUtils.qRequest('get', options).then(function(resp) {
                     expect(resp.response.statusCode).toBe(200);
                     expect(resp.body.id).toBe('e2e-getcamps1');
@@ -478,7 +477,7 @@ describe('content public experience endpoints (E2E):', function() {
             });
 
             it('should not alter the deck if the campaign is not found', function(done) {
-                options.qs.campaign = 'e2e-camFake';
+                options.qs.campaign = 'cam-fake';
                 requestUtils.qRequest('get', options).then(function(resp) {
                     expect(resp.response.statusCode).toBe(200);
                     expect(resp.body.id).toBe('e2e-getcamps1');
@@ -493,17 +492,21 @@ describe('content public experience endpoints (E2E):', function() {
                 }).done(done);
             });
             
-            it('should not alter the deck if the campaign is not active', function(done) {
-                options.qs.campaign = 'e2e-oldCamp';
-                requestUtils.qRequest('get', options).then(function(resp) {
-                    expect(resp.response.statusCode).toBe(200);
-                    expect(resp.body.id).toBe('e2e-getcamps1');
-                    expect(resp.body.data.deck).toEqual([
-                        { id: 'rc-1', foo: 'bar' },
-                        { id: 'rc-p1' },
-                        { id: 'rc-p2' },
-                        { id: 'rc-p3' }
-                    ]);
+            it('should not alter the deck if the campaign is not running', function(done) {
+                q.all(['cam-canceled', 'cam-expired', 'cam-deleted'].map(function(campId) {
+                    options.qs.campaign = campId;
+                    return requestUtils.qRequest('get', options);
+                })).then(function(results) {
+                    results.forEach(function(resp) {
+                        expect(resp.response.statusCode).toBe(200);
+                        expect(resp.body.id).toBe('e2e-getcamps1');
+                        expect(resp.body.data.deck).toEqual([
+                            { id: 'rc-1', foo: 'bar' },
+                            { id: 'rc-p1' },
+                            { id: 'rc-p2' },
+                            { id: 'rc-p3' }
+                        ]);
+                    });
                 }).catch(function(error) {
                     expect(util.inspect(error)).not.toBeDefined();
                 }).done(done);

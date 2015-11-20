@@ -948,17 +948,43 @@ describe('content (UT)', function() {
             }).done(done);
         });
         
-        it('should log a warning if the campaign is not found or not active', function(done) {
-            mockCamp.status = Status.Inactive;
+        it('should log a warning if the campaign is not found', function(done) {
+            campCache.getPromise.and.returnValue(q([]));
             expModule.handleCampaign(req, exp, 'cam-1', campCache, cardSvc).then(function(resp) {
-                expect(resp).toBe(exp);
-                campCache.getPromise.and.returnValue(q([]));
-                return expModule.handleCampaign(req, exp, 'cam-1', campCache, cardSvc);
-            }).then(function(resp) {
                 expect(resp).toBe(exp);
                 expect(campCache.getPromise).toHaveBeenCalled();
                 expect(expModule.swapCard).not.toHaveBeenCalled();
                 expect(mockLog.warn).toHaveBeenCalled();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should return nothing if the campaign is not running', function(done) {
+            q.all([Status.Canceled, Status.Expired, Status.Deleted].map(function(status) {
+                mockCamp.status = status;
+                return expModule.handleCampaign(req, exp, 'cam-1', campCache, cardSvc).then(function(resp) {
+                    expect(resp).toBe(exp);
+                });
+            })).then(function(results) {
+                expect(mockLog.warn).not.toHaveBeenCalled();
+                expect(expModule.swapCard).not.toHaveBeenCalled();
+                expect(campCache.getPromise.calls.count()).toBe(3);
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should handle pending, draft, and paused campaigns', function(done) {
+            q.all([Status.Pending, Status.Draft, Status.Paused].map(function(status) {
+                mockCamp.status = status;
+                return expModule.handleCampaign(req, exp, 'cam-1', campCache, cardSvc).then(function(resp) {
+                    expect(resp).toBe(exp);
+                });
+            })).then(function(results) {
+                expect(mockLog.warn).not.toHaveBeenCalled();
+                expect(expModule.swapCard.calls.count()).toBe(6);
+                expect(campCache.getPromise.calls.count()).toBe(3);
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
             }).done(done);

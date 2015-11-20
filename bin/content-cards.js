@@ -219,10 +219,16 @@
             // fetch card's campaign so important props can be copied over
             return caches.campaigns.getPromise({ id: card.campaignId })
             .spread(function(camp) {
-                // only show cards with active campaigns
-                if (!camp || camp.status !== Status.Active) {
+                if (!camp) {
                     log.warn('[%1] Campaign %2 not found for card %3',
                              req.uuid, card.campaignId, card.id);
+                    return q();
+                }
+
+                // don't show card if campaign is canceled, expired, or deleted
+                if ([Status.Canceled, Status.Expired, Status.Deleted].indexOf(camp.status) !== -1) {
+                    log.info('[%1] Campaign %2 is %3, not showing card',
+                             req.uuid, camp.id, camp.status);
                     return q();
                 }
                 

@@ -66,7 +66,7 @@ describe('content card endpoints (E2E):', function() {
     });
     
     describe('public endpoints', function() {
-        var mockCards, mockCamp, options;
+        var mockCards, mockCamps, options;
         beforeEach(function(done) {
             mockCards = [
                 {
@@ -77,16 +77,27 @@ describe('content card endpoints (E2E):', function() {
                     user: 'e2e-user',
                     org: 'e2e-org'
                 },
-                { id: 'e2e-pubget2', campaignId: 'cam-2', status: 'inactive', user: 'e2e-user', org: 'e2e-org' },
-                { id: 'e2e-pubget3', campaignId: 'cam-3', status: 'deleted', user: 'e2e-user', org: 'e2e-org' }
+                { id: 'e2e-pubget2', campaignId: 'cam-1', status: 'inactive', user: 'e2e-user', org: 'e2e-org' },
+                { id: 'e2e-pubget3', campaignId: 'cam-1', status: 'deleted', user: 'e2e-user', org: 'e2e-org' },
+                { id: 'e2e-draftCamp', campaign: { adtechId: 123 }, campaignId: 'cam-2', status: 'active', user: 'e2e-user', org: 'e2e-org' },
+                { id: 'e2e-canceledCamp', campaign: { adtechId: 123 }, campaignId: 'cam-3', status: 'active', user: 'e2e-user', org: 'e2e-org' },
+                { id: 'e2e-expiredCamp', campaign: { adtechId: 123 }, campaignId: 'cam-4', status: 'active', user: 'e2e-user', org: 'e2e-org' },
+                { id: 'e2e-deletedCamp', campaign: { adtechId: 123 }, campaignId: 'cam-5', status: 'active', user: 'e2e-user', org: 'e2e-org' },
             ];
-            mockCamp = {
-                id: 'cam-1',
-                status: 'active',
-                advertiserId: 'a-1',
-                advertiserDisplayName: 'Heinz',
-                cards: [{ id: 'e2e-pubget1' }]
-            };
+            mockCamps = [
+                {
+                    id: 'cam-1',
+                    status: 'active',
+                    advertiserId: 'a-1',
+                    advertiserDisplayName: 'Heinz',
+                    cards: [{ id: 'e2e-pubget1' }]
+                },
+                { id: 'cam-2', status: 'draft', user: 'e2e-user', org: 'e2e-org' },
+                { id: 'cam-3', status: 'canceled', user: 'e2e-user', org: 'e2e-org' },
+                { id: 'cam-4', status: 'expired', user: 'e2e-user', org: 'e2e-org' },
+                { id: 'cam-5', status: 'deleted', user: 'e2e-user', org: 'e2e-org' }
+            ];
+            
             options = {
                 url: config.contentUrl + '/public/content/cards/e2e-pubget1',
                 headers: { origin: 'http://test.com' },
@@ -98,7 +109,7 @@ describe('content card endpoints (E2E):', function() {
             };
             q.all([
                 testUtils.resetCollection('cards', mockCards),
-                testUtils.resetCollection('campaigns', mockCamp),
+                testUtils.resetCollection('campaigns', mockCamps),
             ]).done(function() { done(); });
         });
     
@@ -215,12 +226,12 @@ describe('content card endpoints (E2E):', function() {
                             Twitter: 'http://twitter.com/bar'
                         }
                     });
-                    mockCamp.cards.push({ id: 'e2e-pubgetlinks', adtechId: 14, bannerNumber: 2 });
-                    mockCamp.id = 'cam-links';
+                    mockCamps[0].cards.push({ id: 'e2e-pubgetlinks', adtechId: 14, bannerNumber: 2 });
+                    mockCamps[0].id = 'cam-links';
                     options.url = config.contentUrl + '/public/content/cards/e2e-pubgetlinks';
                     q.all([
                         testUtils.resetCollection('cards', mockCards),
-                        testUtils.resetCollection('campaigns', mockCamp)
+                        testUtils.resetCollection('campaigns', mockCamps)
                     ]).done(function() { done(); });
                 });
                 
@@ -282,6 +293,41 @@ describe('content card endpoints (E2E):', function() {
                         expect(resp.response.headers['cache-control']).toEqual(jasmine.any(String));
                         expect(resp.response.headers['cache-control']).not.toBe('max-age=0');
                     });
+                }).catch(function(error) {
+                    expect(util.inspect(error)).not.toBeDefined();
+                }).done(done);
+            });
+            
+            it('should not show cards with campaigns that are not running', function(done) {
+                q.all(['e2e-canceledCamp', 'e2e-canceledCamp', 'e2e-canceledCamp'].map(function(id) {
+                    options.url = options.url.replace('e2e-pubget1', id);
+                    return requestUtils.qRequest('get', options);
+                })).then(function(results) {
+                    results.forEach(function(resp) {
+                        expect(resp.response.statusCode).toBe(404);
+                        expect(resp.body).toBe('Card not found');
+                        expect(resp.response.headers['cache-control']).toEqual(jasmine.any(String));
+                        expect(resp.response.headers['cache-control']).not.toBe('max-age=0');
+                    });
+                }).catch(function(error) {
+                    expect(util.inspect(error)).not.toBeDefined();
+                }).done(done);
+            });
+            
+            it('should show cards with draft campaigns', function(done) {
+                options.url = options.url.replace('e2e-pubget1', 'e2e-draftCamp');
+                requestUtils.qRequest('get', options).then(function(resp) {
+                    expect(resp.response.statusCode).toBe(200);
+                    expect(resp.body).toEqual(jasmine.objectContaining({
+                        id: 'e2e-draftCamp',
+                        status: 'active',
+                        campaignId: 'cam-2',
+                        campaign: jasmine.objectContaining({
+                            adtechId: 123,
+                        })
+                    }));
+                    expect(resp.response.headers['cache-control']).toEqual(jasmine.any(String));
+                    expect(resp.response.headers['cache-control']).not.toBe('max-age=0');
                 }).catch(function(error) {
                     expect(util.inspect(error)).not.toBeDefined();
                 }).done(done);

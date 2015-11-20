@@ -1,5 +1,7 @@
 # Content Service Changelog
 
+* Allow campaigns to be fetched from public endpoints unless status is draft, expired, or canceled: [#651](https://github.com/cinema6/cwrx/pull/651)
+
 ### 3.0.0: Thu Nov 12 16:17:30 EST 2015
 * [BREAKING CHANGE]: Always lookup 'cinema6.com' site for public experience endpoint: [#634](https://github.com/cinema6/cwrx/pull/634)
 * [REMOVAL]: Remove rotating branding functionality: [#634](https://github.com/cinema6/cwrx/pull/634)

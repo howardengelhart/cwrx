@@ -285,8 +285,15 @@
         
         return campCache.getPromise({id: String(campId)}).then(function(results) {
             var camp = results[0];
-            if (!camp || camp.status !== Status.Active) {
+
+            if (!camp) {
                 log.warn('[%1] Campaign %2 not found', req.uuid, campId);
+                return q();
+            }
+
+            // don't show exp if campaign is canceled, expired, or deleted
+            if ([Status.Canceled, Status.Expired, Status.Deleted].indexOf(camp.status) !== -1) {
+                log.info('[%1] Campaign %2 is %3', req.uuid, camp.id, camp.status);
                 return q();
             }
             
