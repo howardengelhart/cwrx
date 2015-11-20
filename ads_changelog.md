@@ -1,7 +1,9 @@
 # Ads Service Changelog
 
+### 3.0.3: Fri Nov 20 15:48:37 EST 2015
 * [FIX]: Fix spacing on logo in email templates [#645](https://github.com/cinema6/cwrx/issues/645)
 * [FIX]: Review link in new update request emails will open in a new tab: [#641](https://github.com/cinema6/cwrx/issues/641)
+* Extra deployment steps: None
 
 ### 3.0.2: Fri Nov 13 11:03:21 EST 2015
 * Validate `paymentMethod` when set on campaigns or campaignUpdates: [#593](https://github.com/cinema6/cwrx/issues/593)
