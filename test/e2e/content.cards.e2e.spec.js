@@ -72,30 +72,30 @@ describe('content card endpoints (E2E):', function() {
                 {
                     id: 'e2e-pubget1',
                     campaign: { adtechId: 100, bannerNumber: 10, adtechName: 'adtech sux' },
-                    campaignId: 'cam-1',
+                    campaignId: 'cam-cards-e2e1',
                     status: 'active',
                     user: 'e2e-user',
                     org: 'e2e-org'
                 },
-                { id: 'e2e-pubget2', campaignId: 'cam-1', status: 'inactive', user: 'e2e-user', org: 'e2e-org' },
-                { id: 'e2e-pubget3', campaignId: 'cam-1', status: 'deleted', user: 'e2e-user', org: 'e2e-org' },
-                { id: 'e2e-draftCamp', campaign: { adtechId: 123 }, campaignId: 'cam-2', status: 'active', user: 'e2e-user', org: 'e2e-org' },
-                { id: 'e2e-canceledCamp', campaign: { adtechId: 123 }, campaignId: 'cam-3', status: 'active', user: 'e2e-user', org: 'e2e-org' },
-                { id: 'e2e-expiredCamp', campaign: { adtechId: 123 }, campaignId: 'cam-4', status: 'active', user: 'e2e-user', org: 'e2e-org' },
-                { id: 'e2e-deletedCamp', campaign: { adtechId: 123 }, campaignId: 'cam-5', status: 'active', user: 'e2e-user', org: 'e2e-org' },
+                { id: 'e2e-pubget2', campaignId: 'cam-cards-e2e1', status: 'inactive', user: 'e2e-user', org: 'e2e-org' },
+                { id: 'e2e-pubget3', campaignId: 'cam-cards-e2e1', status: 'deleted', user: 'e2e-user', org: 'e2e-org' },
+                { id: 'e2e-draftCamp', campaign: { adtechId: 123 }, campaignId: 'cam-cards-e2e2', status: 'active', user: 'e2e-user', org: 'e2e-org' },
+                { id: 'e2e-canceledCamp', campaign: { adtechId: 123 }, campaignId: 'cam-cards-e2e3', status: 'active', user: 'e2e-user', org: 'e2e-org' },
+                { id: 'e2e-expiredCamp', campaign: { adtechId: 123 }, campaignId: 'cam-cards-e2e4', status: 'active', user: 'e2e-user', org: 'e2e-org' },
+                { id: 'e2e-deletedCamp', campaign: { adtechId: 123 }, campaignId: 'cam-cards-e2e5', status: 'active', user: 'e2e-user', org: 'e2e-org' },
             ];
             mockCamps = [
                 {
-                    id: 'cam-1',
+                    id: 'cam-cards-e2e1',
                     status: 'active',
                     advertiserId: 'a-1',
                     advertiserDisplayName: 'Heinz',
                     cards: [{ id: 'e2e-pubget1' }]
                 },
-                { id: 'cam-2', status: 'draft', user: 'e2e-user', org: 'e2e-org' },
-                { id: 'cam-3', status: 'canceled', user: 'e2e-user', org: 'e2e-org' },
-                { id: 'cam-4', status: 'expired', user: 'e2e-user', org: 'e2e-org' },
-                { id: 'cam-5', status: 'deleted', user: 'e2e-user', org: 'e2e-org' }
+                { id: 'cam-cards-e2e2', status: 'draft', user: 'e2e-user', org: 'e2e-org' },
+                { id: 'cam-cards-e2e3', status: 'canceled', user: 'e2e-user', org: 'e2e-org' },
+                { id: 'cam-cards-e2e4', status: 'expired', user: 'e2e-user', org: 'e2e-org' },
+                { id: 'cam-cards-e2e5', status: 'deleted', user: 'e2e-user', org: 'e2e-org' }
             ];
             
             options = {
@@ -120,7 +120,7 @@ describe('content card endpoints (E2E):', function() {
                     expect(resp.body).toEqual({
                         id: 'e2e-pubget1',
                         status: 'active',
-                        campaignId: 'cam-1',
+                        campaignId: 'cam-cards-e2e1',
                         advertiserId: 'a-1',
                         params: { sponsor: 'Heinz' },
                         adtechId: 100,
@@ -155,7 +155,7 @@ describe('content card endpoints (E2E):', function() {
                         expect(parsed.pathname).toBeDefined();
 
                         var expectedQuery = {
-                            campaign    : 'cam-1',
+                            campaign    : 'cam-cards-e2e1',
                             card        : 'e2e-pubget1',
                             experience  : '',
                             container   : 'embed',
@@ -196,7 +196,7 @@ describe('content card endpoints (E2E):', function() {
                     expect(resp.body).toEqual({
                         id: 'e2e-pubget1',
                         status: 'active',
-                        campaignId: 'cam-1',
+                        campaignId: 'cam-cards-e2e1',
                         advertiserId: 'a-1',
                         params: { sponsor: 'Heinz' },
                         adtechId: 100,
@@ -321,7 +321,7 @@ describe('content card endpoints (E2E):', function() {
                     expect(resp.body).toEqual(jasmine.objectContaining({
                         id: 'e2e-draftCamp',
                         status: 'active',
-                        campaignId: 'cam-2',
+                        campaignId: 'cam-cards-e2e2',
                         campaign: jasmine.objectContaining({
                             adtechId: 123,
                         })
@@ -366,7 +366,7 @@ describe('content card endpoints (E2E):', function() {
                     expect(resp.body).toEqual({
                         id: 'e2e-pubget1',
                         status: 'active',
-                        campaignId: 'cam-1',
+                        campaignId: 'cam-cards-e2e1',
                         advertiserId: 'a-1',
                         params: { sponsor: 'Heinz' },
                         adtechId: 100,
@@ -389,7 +389,7 @@ describe('content card endpoints (E2E):', function() {
             var mockCard, mockOrg, options;
             beforeEach(function(done) {
                 options = { url: config.contentUrl + '/public/content/cards/e2e-pubgetjs1.js' };
-                mockCard = { id: 'e2e-pubgetjs1', status: 'active', campaignId: 'cam-1' };
+                mockCard = { id: 'e2e-pubgetjs1', status: 'active', campaignId: 'cam-cards-e2e1' };
                 testUtils.resetCollection('cards', mockCard).done(done);
             });
 
@@ -439,21 +439,21 @@ describe('content card endpoints (E2E):', function() {
             var mockCards = [
                 {
                     id: 'e2e-getid1',
-                    campaignId: 'cam-1',
+                    campaignId: 'cam-cards-e2e1',
                     status: 'inactive',
                     user: 'e2e-user',
                     org: 'e2e-org'
                 },
                 {
                     id: 'e2e-getid2',
-                    campaignId: 'cam-2',
+                    campaignId: 'cam-cards-e2e2',
                     status: 'active',
                     user: 'not-e2e-user',
                     org: 'not-e2e-org'
                 },
                 {
                     id: 'e2e-getid3',
-                    campaignId: 'cam-3',
+                    campaignId: 'cam-cards-e2e3',
                     status: 'inactive',
                     user: 'not-e2e-user',
                     org: 'not-e2e-org'
@@ -468,7 +468,7 @@ describe('content card endpoints (E2E):', function() {
                 expect(resp.response.statusCode).toBe(200);
                 expect(resp.body._id).not.toBeDefined();
                 expect(resp.body.id).toBe('e2e-getid1');
-                expect(resp.body.campaignId).toBe('cam-1');
+                expect(resp.body.campaignId).toBe('cam-cards-e2e1');
                 expect(resp.body.user).toBe('e2e-user');
                 expect(resp.body.org).toBe('e2e-org');
                 expect(resp.response.headers['content-range']).not.toBeDefined();
@@ -508,7 +508,7 @@ describe('content card endpoints (E2E):', function() {
                 expect(resp.response.statusCode).toBe(200);
                 expect(resp.body).toEqual({
                     id: 'e2e-getid1',
-                    campaignId: 'cam-1',
+                    campaignId: 'cam-cards-e2e1',
                     status: 'inactive'
                 });
                 expect(resp.response.headers['content-range']).not.toBeDefined();
@@ -561,35 +561,35 @@ describe('content card endpoints (E2E):', function() {
                 {
                     id: 'e2e-getquery1',
                     status: 'inactive',
-                    campaignId: 'cam-123',
+                    campaignId: 'cam-cards-e2e123',
                     user: 'e2e-user',
                     org: 'e2e-org',
                 },
                 {
                     id: 'e2e-getquery2',
                     status: 'inactive',
-                    campaignId: 'cam-234',
+                    campaignId: 'cam-cards-e2e234',
                     user: 'not-e2e-user',
                     org: 'e2e-org',
                 },
                 {
                     id: 'e2e-getquery3',
                     status: 'active',
-                    campaignId: 'cam-345',
+                    campaignId: 'cam-cards-e2e345',
                     user: 'not-e2e-user',
                     org: 'not-e2e-org',
                 },
                 {
                     id: 'e2e-getquery4',
                     status: 'inactive',
-                    campaignId: 'cam-456',
+                    campaignId: 'cam-cards-e2e456',
                     user: 'not-e2e-user',
                     org: 'not-e2e-org',
                 },
                 {
                     id: 'e2e-getquery5',
                     status: 'deleted',
-                    campaignId: 'cam-567',
+                    campaignId: 'cam-cards-e2e567',
                     user: 'e2e-user',
                     org: 'e2e-org',
                 }
@@ -637,7 +637,7 @@ describe('content card endpoints (E2E):', function() {
             requestUtils.qRequest('get', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
                 expect(resp.body).toEqual([
-                    { id: 'e2e-getquery1', campaignId: 'cam-123', status: 'inactive' }
+                    { id: 'e2e-getquery1', campaignId: 'cam-cards-e2e123', status: 'inactive' }
                 ]);
             }).catch(function(error) {
                 expect(util.inspect(error)).not.toBeDefined();
@@ -672,7 +672,7 @@ describe('content card endpoints (E2E):', function() {
         });
 
         it('should get cards by campaignId', function(done) {
-            options.qs.campaignId = 'cam-123';
+            options.qs.campaignId = 'cam-cards-e2e123';
             requestUtils.qRequest('get', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
                 expect(resp.body instanceof Array).toBeTruthy('body is array');
@@ -686,7 +686,7 @@ describe('content card endpoints (E2E):', function() {
         
         it('should be able to combine query params', function(done) {
             options.qs.org = 'e2e-org';
-            options.qs.campaignId = 'cam-234';
+            options.qs.campaignId = 'cam-cards-e2e234';
             requestUtils.qRequest('get', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
                 expect(resp.body instanceof Array).toBeTruthy('body is array');
@@ -710,7 +710,7 @@ describe('content card endpoints (E2E):', function() {
         });
         
         it('should let a user get active cards they do not own', function(done) {
-            options.qs.campaignId = 'cam-345';
+            options.qs.campaignId = 'cam-cards-e2e345';
             requestUtils.qRequest('get', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
                 expect(resp.body instanceof Array).toBeTruthy('body is array');
@@ -819,7 +819,7 @@ describe('content card endpoints (E2E):', function() {
     describe('POST /api/content/cards', function() {
         var mockCard, options;
         beforeEach(function(done) {
-            mockCard = { data: { foo: 'bar' }, campaignId: 'cam-1', org: 'e2e-org' };
+            mockCard = { data: { foo: 'bar' }, campaignId: 'cam-cards-e2e1', org: 'e2e-org' };
             options = {
                 url: config.contentUrl + '/content/cards',
                 jar: cookieJar,
@@ -833,7 +833,7 @@ describe('content card endpoints (E2E):', function() {
                 expect(resp.response.statusCode).toBe(201);
                 expect(resp.body._id).not.toBeDefined();
                 expect(resp.body.id).toBeDefined();
-                expect(resp.body.campaignId).toBe('cam-1');
+                expect(resp.body.campaignId).toBe('cam-cards-e2e1');
                 expect(resp.body.data).toEqual({foo: 'bar'});
                 expect(resp.body.user).toBe('e2e-user');
                 expect(resp.body.org).toBe('e2e-org');
