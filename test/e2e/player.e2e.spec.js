@@ -69,7 +69,7 @@ describe('player service', function() {
         }
 
         beforeEach(function() {
-            config.playerUrl.pathname = '/api/public/players/full';
+            config.playerUrl.pathname = '/api/public/players/lightbox';
         });
 
         describe('with an experience', function(done) {
@@ -97,7 +97,7 @@ describe('player service', function() {
             });
 
             it('should inline the css', function() {
-                var $css = $('style[data-href="http://localhost/apps/mini-reel-player/v1.0.0-rc2-0-ga4912c3/css/full.css"]');
+                var $css = $('style[data-href="http://localhost/apps/mini-reel-player/v1.0.0-rc2-0-ga4912c3/css/lightbox.css"]');
 
                 expect($css.length).toBe(1);
                 expect($css.text().length).toBeGreaterThan(1000);
@@ -105,11 +105,11 @@ describe('player service', function() {
             });
 
             it('should inline the JS', function() {
-                var $js = $('script[data-src="http://localhost/apps/mini-reel-player/v1.0.0-rc2-0-ga4912c3/full.js"]');
+                var $js = $('script[data-src="http://localhost/apps/mini-reel-player/v1.0.0-rc2-0-ga4912c3/lightbox.js"]');
 
                 expect($js.length).toBe(1);
                 expect($js.text().length).toBeGreaterThan(5000);
-                expect($js.text()).toContain('//# sourceMappingURL=http://localhost/apps/mini-reel-player/v1.0.0-rc2-0-ga4912c3/full.js.map'); // Test JS source map rebasing
+                expect($js.text()).toContain('//# sourceMappingURL=http://localhost/apps/mini-reel-player/v1.0.0-rc2-0-ga4912c3/lightbox.js.map'); // Test JS source map rebasing
             });
 
             it('should inline the experience', function() {
@@ -122,8 +122,8 @@ describe('player service', function() {
             });
 
             it('should inline the branding', function() {
-                var $branding = $('head style[data-href="http://localhost/collateral/branding/digitaljournal/styles/full/theme.css"]');
-                var $brandingHover = $('head style[data-href="http://localhost/collateral/branding/digitaljournal/styles/full/theme--hover.css"]');
+                var $branding = $('head style[data-href="http://localhost/collateral/branding/digitaljournal/styles/lightbox/theme.css"]');
+                var $brandingHover = $('head style[data-href="http://localhost/collateral/branding/digitaljournal/styles/lightbox/theme--hover.css"]');
 
                 expect($branding.length).toBe(1);
                 expect($branding.text().length).toBeGreaterThan(500);
@@ -140,13 +140,13 @@ describe('player service', function() {
                     });
 
                     it('should make the first card not preload', function() {
-                        var experience = parseResponse('full').experience;
+                        var experience = parseResponse('lightbox').experience;
 
                         expect(experience.data.deck[0].data.preload).toBe(false);
                     });
 
                     it('should provide the player', function() {
-                        expect(parseResponse('full').seemsValid()).toBe(true);
+                        expect(parseResponse('lightbox').seemsValid()).toBe(true);
                     });
                 });
             });
@@ -160,13 +160,13 @@ describe('player service', function() {
                     });
 
                     it('should not make the first card not preload', function() {
-                        var experience = parseResponse('full').experience;
+                        var experience = parseResponse('lightbox').experience;
 
                         expect(experience.data.deck[0].data.preload).toBeUndefined();
                     });
 
                     it('should provide the player', function() {
-                        expect(parseResponse('full').seemsValid()).toBe(true);
+                        expect(parseResponse('lightbox').seemsValid()).toBe(true);
                     });
                 });
             });
@@ -537,8 +537,8 @@ describe('player service', function() {
 
                     it('should [200]', function() {
                         expect(response.statusCode).toBe(200);
-                        expect(parseResponse('full').seemsValid()).toBe(true);
-                        expect(parseResponse('full').experience.data.deck[0]).toEqual(experience.data[0].data.deck[0]);
+                        expect(parseResponse('lightbox').seemsValid()).toBe(true);
+                        expect(parseResponse('lightbox').experience.data.deck[0]).toEqual(experience.data[0].data.deck[0]);
                     });
                 });
 
@@ -606,7 +606,9 @@ describe('player service', function() {
                     expect(response.headers.location).toBe('mobile?experience=e-6f9a14a4b10263');
                 });
 
-                describe('with a mobileType param', function() {
+                // We only support one mobile player now, so this is kind of impossible to E2E
+                // test at the moment...
+                /*describe('with a mobileType param', function() {
                     beforeEach(function(done) {
                         config.playerUrl.query.mobileType = 'swipe';
 
@@ -630,7 +632,7 @@ describe('player service', function() {
                             expect(parseResponse('swipe').seemsValid()).toBe(true);
                         });
                     });
-                });
+                });*/
 
                 describe('for the mobile player', function() {
                     beforeEach(function(done) {
@@ -878,6 +880,31 @@ describe('player service', function() {
             it('should [400]', function() {
                 expect(response.statusCode).toBe(400);
                 expect(response.body.toString()).toBe('You must specify either an experience, card, campaign or categories.');
+            });
+        });
+
+        [
+            { old: 'lightbox-playlist', new: 'lightbox' },
+            { old: 'full', new: 'full-np' },
+            { old: 'solo-ads', new: 'solo' },
+            { old: 'swipe', new: 'mobile' }
+        ].forEach(function(types) {
+            describe('with the ' + types.old + ' player', function() {
+                beforeEach(function(done) {
+                    config.playerUrl.pathname = '/api/public/players/' + types.old;
+                    config.playerUrl.query = {
+                        card: 'rc-77d7314f0cfa59',
+                        preview: true,
+                        container: 'jun'
+                    };
+
+                    request.get(getURL()).then(getResponse).then(done, done.fail);
+                });
+
+                it('should redirect to the ' + types.new + ' player', function() {
+                    expect(response.statusCode).toBe(301);
+                    expect(response.headers.location).toBe(types.new + formatURL({ query: config.playerUrl.query }));
+                });
             });
         });
     });
