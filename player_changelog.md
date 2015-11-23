@@ -1,5 +1,7 @@
 # Player Service Changelog
 
+* Redirect deprecated player requests to their maintained peers.
+
 ### 1.1.1: Thu Nov 19 17:12:16 EST 2015
 * Disabled preloading of the first card when the context is mraid
 * Ensure player base tag protocol matches the protocol of the page
