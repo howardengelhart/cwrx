@@ -57,6 +57,8 @@ describe('content card endpoints (E2E):', function() {
                 },
                 fieldValidation: {
                     cards: {
+                        user: { __allowed: true },
+                        org: { __allowed: true },
                         campaign: {
                             minViewTime: { __allowed: true }
                         },
@@ -64,8 +66,7 @@ describe('content card endpoints (E2E):', function() {
                             skip: { __allowed: true },
                             controls: { __allowed: true },
                             autoplay: { __allowed: true },
-                            autoadvance: { __allowed: true },
-                            moat: { __required: false, __default: null }
+                            autoadvance: { __allowed: true }
                         }
                     }
                 },
@@ -121,7 +122,7 @@ describe('content card endpoints (E2E):', function() {
                 { id: 'e2e-draftCamp', campaign: { adtechId: 123 }, campaignId: 'cam-cards-e2e2', status: 'active', user: 'e2e-user', org: 'e2e-org' },
                 { id: 'e2e-canceledCamp', campaign: { adtechId: 123 }, campaignId: 'cam-cards-e2e3', status: 'active', user: 'e2e-user', org: 'e2e-org' },
                 { id: 'e2e-expiredCamp', campaign: { adtechId: 123 }, campaignId: 'cam-cards-e2e4', status: 'active', user: 'e2e-user', org: 'e2e-org' },
-                { id: 'e2e-deletedCamp', campaign: { adtechId: 123 }, campaignId: 'cam-cards-e2e5', status: 'active', user: 'e2e-user', org: 'e2e-org' },
+                { id: 'rc-deletedCamp', campaign: { adtechId: 123 }, campaignId: 'cam-cards-e2e5', status: 'active', user: 'e2e-user', org: 'e2e-org' },
             ];
             mockCamps = [
                 {
@@ -860,13 +861,16 @@ describe('content card endpoints (E2E):', function() {
     });
 
     describe('POST /api/content/cards', function() {
-        var mockCard, options;
+        var options;
         beforeEach(function(done) {
-            mockCard = { data: { foo: 'bar' }, campaignId: 'cam-cards-e2e1', org: 'e2e-org' };
             options = {
                 url: config.contentUrl + '/content/cards',
                 jar: selfieJar,
-                json: mockCard
+                json: {
+                    data: { foo: 'bar' },
+                    campaignId: 'cam-cards-e2e1',
+                    advertiserId: 'a-1'
+                }
             };
             testUtils.resetCollection('cards').done(done);
         });
@@ -877,7 +881,15 @@ describe('content card endpoints (E2E):', function() {
                 expect(resp.body._id).not.toBeDefined();
                 expect(resp.body.id).toBeDefined();
                 expect(resp.body.campaignId).toBe('cam-cards-e2e1');
-                expect(resp.body.data).toEqual({foo: 'bar'});
+                expect(resp.body.campaign).toEqual({ minViewTime: 3 });
+                expect(resp.body.data).toEqual({
+                    foo: 'bar',
+                    skip: 30,
+                    controls: true,
+                    autoplay: true,
+                    autoadvance: false,
+                    moat: { campaign: 'cam-cards-e2e1', advertiser: 'a-1', creative: resp.body.id }
+                });
                 expect(resp.body.user).toBe('e2e-user');
                 expect(resp.body.org).toBe('e2e-org');
                 expect(resp.body.created).toBeDefined();
@@ -890,10 +902,10 @@ describe('content card endpoints (E2E):', function() {
         });
         
         it('should be able to create a VAST card with meta data', function(done) {
-            mockCard.data = { 
+            options.json.data = { 
                 vast: 'https://s3.amazonaws.com/c6.dev/e2e/vast_test.xml'
             };
-            mockCard.type = 'adUnit';
+            options.json.type = 'adUnit';
             requestUtils.qRequest('post', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(201);
                 expect(resp.body.data.duration).toEqual(32);
@@ -903,10 +915,10 @@ describe('content card endpoints (E2E):', function() {
         });
 
         it('should be able to create a VAST card with protocol relative url', function(done) {
-            mockCard.data = { 
+            options.json.data = { 
                 vast: '//s3.amazonaws.com/c6.dev/e2e/vast_test.xml'
             };
-            mockCard.type = 'adUnit';
+            options.json.type = 'adUnit';
             requestUtils.qRequest('post', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(201);
                 expect(resp.body.data.duration).toEqual(32);
@@ -916,10 +928,10 @@ describe('content card endpoints (E2E):', function() {
         });
 
         it('should be able to create a youtube card with meta data', function(done) {
-            mockCard.data = { 
+            options.json.data = { 
                 videoid: 'OQ83Wz_mrD0'
             };
-            mockCard.type = 'youtube';
+            options.json.type = 'youtube';
             requestUtils.qRequest('post', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(201);
                 expect(resp.body.data.duration).toEqual(12);
@@ -927,7 +939,6 @@ describe('content card endpoints (E2E):', function() {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
-
 
         it('should write an entry to the audit collection', function(done) {
             requestUtils.qRequest('post', options).then(function(resp) {
@@ -949,7 +960,7 @@ describe('content card endpoints (E2E):', function() {
         });
 
         it('should be able to create an inactive card', function(done) {
-            mockCard.status = 'inactive';
+            options.json.status = 'inactive';
             requestUtils.qRequest('post', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(201);
                 expect(resp.body.status).toBe('inactive');
@@ -959,35 +970,58 @@ describe('content card endpoints (E2E):', function() {
         });
         
         it('should fail if the requester provides no campaignid', function(done) {
-            delete mockCard.campaignId;
+            delete options.json.campaignId;
             requestUtils.qRequest('post', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(400);
-                expect(resp.body).toBe('Invalid request body');
+                expect(resp.body).toBe('Missing required field: campaignId');
             }).catch(function(error) {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
 
-        it('should allow an admin to set a different user and org for the card', function(done) {
-            options.jar = adminJar;
-            mockCard.user = 'another-user';
-            mockCard.org = 'another-org';
-            return requestUtils.qRequest('post', options).then(function(resp) {
-                expect(resp.response.statusCode).toBe(201);
-                expect(resp.body.id).toBeDefined();
-                expect(resp.body.user).toBe('another-user');
-                expect(resp.body.org).toBe('another-org');
-            }).catch(function(error) {
-                expect(util.inspect(error)).not.toBeDefined();
-            }).done(done);
-        });
-
-        it('should not allow a regular user to set a different user and org for the card', function(done) {
-            mockCard.user = 'another-user';
-            mockCard.org = 'another-org';
-            requestUtils.qRequest('post', options).then(function(resp) {
-                expect(resp.response.statusCode).toBe(400);
-                expect(resp.body).toBe('Invalid request body');
+        it('should only allow admins to set certain fields', function(done) {
+            options.json = {
+                campaignId: 'cam-cards-e2e1',
+                advertiserId: 'a-1',
+                user: 'another-user',
+                org: 'another-org',
+                campaign: { minViewTime: 55 },
+                data: {
+                    skip: true,
+                    controls: false,
+                    autoplay: false,
+                    autoadvance: true
+                }
+            };
+            q.all([selfieJar, adminJar].map(function(jar) {
+                options.jar = jar;
+                return requestUtils.qRequest('post', options);
+            })).spread(function(selfieResp, adminResp) {
+                expect(selfieResp.response.statusCode).toBe(201);
+                expect(selfieResp.body.id).toBeDefined();
+                expect(selfieResp.body.user).toBe('e2e-user');
+                expect(selfieResp.body.org).toBe('e2e-org');
+                expect(selfieResp.body.campaign).toEqual({ minViewTime: 3 });
+                expect(selfieResp.body.data).toEqual({
+                    skip: 30,
+                    controls: true,
+                    autoplay: true,
+                    autoadvance: false,
+                    moat: { campaign: 'cam-cards-e2e1', advertiser: 'a-1', creative: selfieResp.body.id }
+                });
+                
+                expect(adminResp.response.statusCode).toBe(201);
+                expect(adminResp.body.id).toBeDefined();
+                expect(adminResp.body.user).toBe('another-user');
+                expect(adminResp.body.org).toBe('another-org');
+                expect(adminResp.body.campaign).toEqual({ minViewTime: 55 });
+                expect(adminResp.body.data).toEqual({
+                    skip: true,
+                    controls: false,
+                    autoplay: false,
+                    autoadvance: true,
+                    moat: { campaign: 'cam-cards-e2e1', advertiser: 'a-1', creative: adminResp.body.id }
+                });
             }).catch(function(error) {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
@@ -1003,43 +1037,56 @@ describe('content card endpoints (E2E):', function() {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
-
     });
 
     describe('PUT /api/content/cards/:id', function() {
-        var mockCards, now, options;
+        var mockCards, mockCamps, now, options;
         beforeEach(function(done) {
             // created = yesterday to allow for clock differences b/t server and test runner
             now = new Date(new Date() - 24*60*60*1000);
             options = {
-                url: config.contentUrl + '/content/cards/e2e-put1',
-                json: { data: { foo: 'baz' } },
+                url: config.contentUrl + '/content/cards/rc-put1',
+                json: { title: 'best card' },
                 jar: selfieJar
             };
             mockCards = [
                 {
-                    id: 'e2e-put1',
-                    data: { foo: 'bar' },
+                    id: 'rc-put1',
+                    title: 'okay card',
+                    campaignId: 'cam-draft',
+                    advertiserId: 'a-1',
                     status: 'active',
                     created: now,
                     lastUpdated: now,
                     user: 'e2e-user',
-                    org: 'e2e-org'
+                    org: 'e2e-org',
+                    campaign: {
+                        minViewTime: 3,
+                        adtechId: 111,
+                        bannerId: 1234,
+                        bannerNumber: 1
+                    },
+                    data: {
+                        skip: 30,
+                        controls: true,
+                        autoplay: true,
+                        autoadvance: false,
+                        moat: { campaign: 'cam-draft', advertiser: 'a-1', creative: 'rc-put1' }
+                    }
                 },
                 {
-                    id: 'e2e-put2',
-                    data: { foo: 'buz' },
-                    status: 'active',
-                    created: now,
-                    lastUpdated: now,
-                    user: 'not-e2e-user',
-                    org: 'not-e2e-org'
-                },
-                {
-                    id: 'e2e-put3',
+                    id: 'rc-putDur1',
+                    campaignId: 'cam-draft',
+                    advertiserId: 'a-1',
+                    campaign: { minViewTime: 3 },
                     data : { 
                         vast: 'https://s3.amazonaws.com/c6.dev/e2e/vast_test.xml' ,
-                        duration : 1
+                        duration : 1,
+                        skip: 30,
+                        controls: true,
+                        autoplay: true,
+                        autoadvance: false,
+                        moat: { campaign: 'cam-draft', advertiser: 'a-1', creative: 'rc-putDur1' }
                     },
                     type : 'adUnit',
                     status: 'active',
@@ -1049,10 +1096,18 @@ describe('content card endpoints (E2E):', function() {
                     org: 'e2e-org'
                 },
                 {
-                    id: 'e2e-put4',
+                    id: 'rc-putDur2',
+                    campaignId: 'cam-draft',
+                    advertiserId: 'a-1',
+                    campaign: { minViewTime: 3 },
                     data : { 
                         vast: 'https://s3.amazonaws.com/c6.dev/e2e/vast_test.xml' ,
-                        duration : 1
+                        duration : 1,
+                        skip: 30,
+                        controls: true,
+                        autoplay: true,
+                        autoadvance: false,
+                        moat: { campaign: 'cam-draft', advertiser: 'a-1', creative: 'rc-putDur2' }
                     },
                     type : 'adUnit',
                     status: 'active',
@@ -1062,62 +1117,48 @@ describe('content card endpoints (E2E):', function() {
                     org: 'e2e-org'
                 }
             ];
-            testUtils.resetCollection('cards', mockCards).done(done);
+            mockCamps = [
+                { id: 'cam-draft', status: 'draft', user: 'e2e-user', org: 'e2e-org' },
+                { id: 'cam-active', status: 'active', user: 'e2e-user', org: 'e2e-org' },
+                { id: 'cam-pending', status: 'pending', user: 'e2e-user', org: 'e2e-org' },
+                { id: 'cam-canceled', status: 'canceled', user: 'e2e-user', org: 'e2e-org' },
+                { id: 'cam-update', status: 'active', updateRequest: 'ur-1', user: 'e2e-user', org: 'e2e-org' }
+            ];
+            
+            // add cards linked to active, pending, canceled, and pending-update campaigns
+            mockCards = mockCards.concat(['cam-active', 'cam-pending', 'cam-canceled', 'cam-update'].map(function(campId) {
+                var card = JSON.parse(JSON.stringify(mockCards[0]));
+                card.campaignId = campId;
+                card.data.moat.campaign = campId;
+                card.id = 'rc-' + campId;
+                card.data.moat.creative = card.id;
+                return card;
+            }));
+            
+            // add card linked to other user/org
+            var otherCard = JSON.parse(JSON.stringify(mockCards[0]));
+            otherCard.user = 'not-e2e-user';
+            otherCard.org = 'not-e2e-org';
+            otherCard.id = 'rc-put2';
+            otherCard.data.moat.creative = 'rc-put2';
+            mockCards.push(otherCard);
+            
+            q.all([
+                testUtils.resetCollection('cards', mockCards),
+                testUtils.resetCollection('campaigns', mockCamps)
+            ]).done(function(resp) { done(); });
         });
 
         it('should successfully update a card', function(done) {
             requestUtils.qRequest('put', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
-                expect(resp.body).not.toEqual(mockCards[0]);
                 expect(resp.body._id).not.toBeDefined();
-                expect(resp.body.id).toBe('e2e-put1');
-                expect(resp.body.data).toEqual({foo: 'baz'});
+                expect(resp.body.id).toBe('rc-put1');
+                expect(resp.body.title).toBe('best card');
+                expect(resp.body.data).toEqual(mockCards[0].data);
+                expect(resp.body.campaign).toEqual(mockCards[0].campaign);
                 expect(new Date(resp.body.created)).toEqual(now);
                 expect(new Date(resp.body.lastUpdated)).toBeGreaterThan(now);
-            }).catch(function(error) {
-                expect(util.inspect(error)).not.toBeDefined();
-            }).done(done);
-        });
-
-        it('should successfully update video duration if age > 1 min', function(done) {
-            options = {
-                url: config.contentUrl + '/content/cards/e2e-put3',
-                json: { 
-                    data: { 
-                        vast: 'https://s3.amazonaws.com/c6.dev/e2e/vast_test.xml' ,
-                        duration : 1
-                    },
-                    type : 'adUnit'
-                },
-                jar: selfieJar
-            };
-            requestUtils.qRequest('put', options).then(function(resp) {
-                expect(resp.response.statusCode).toBe(200);
-                expect(resp.body).not.toEqual(mockCards[2]);
-                expect(resp.body.id).toBe('e2e-put3');
-                expect(resp.body.data.duration).toEqual(32);
-            }).catch(function(error) {
-                expect(util.inspect(error)).not.toBeDefined();
-            }).done(done);
-        });
-
-        it('should skip update video duration if age < 1 min', function(done) {
-            options = {
-                url: config.contentUrl + '/content/cards/e2e-put4',
-                json: { 
-                    data: { 
-                        vast: 'https://s3.amazonaws.com/c6.dev/e2e/vast_test.xml' ,
-                        duration : 1
-                    },
-                    type : 'adUnit'
-                },
-                jar: selfieJar
-            };
-            requestUtils.qRequest('put', options).then(function(resp) {
-                expect(resp.response.statusCode).toBe(200);
-                expect(resp.body).not.toEqual(mockCards[3]);
-                expect(resp.body.id).toBe('e2e-put4');
-                expect(resp.body.data.duration).toEqual(1);
             }).catch(function(error) {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
@@ -1137,14 +1178,188 @@ describe('content card endpoints (E2E):', function() {
                 expect(results[0].service).toBe('content');
                 expect(results[0].version).toEqual(jasmine.any(String));
                 expect(results[0].data).toEqual({route: 'PUT /api/content/cards/:id',
-                                                 params: { id: 'e2e-put1' }, query: {} });
+                                                 params: { id: 'rc-put1' }, query: {} });
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should not lose important data properties', function(done) {
+            options.json = { data: { foo: 'bar' } };
+            requestUtils.qRequest('put', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.body._id).not.toBeDefined();
+                expect(resp.body.id).toBe('rc-put1');
+                expect(resp.body.data).toEqual({
+                    foo: 'bar',
+                    skip: 30,
+                    controls: true,
+                    autoplay: true,
+                    autoadvance: false,
+                    moat: { campaign: 'cam-draft', advertiser: 'a-1', creative: 'rc-put1' }
+                });
             }).catch(function(error) {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
 
+        it('should successfully update video duration if age > 1 min', function(done) {
+            options = {
+                url: config.contentUrl + '/content/cards/rc-putDur1',
+                json: { 
+                    data: { 
+                        vast: 'https://s3.amazonaws.com/c6.dev/e2e/vast_test.xml' ,
+                        duration : 1
+                    },
+                    type : 'adUnit'
+                },
+                jar: selfieJar
+            };
+            requestUtils.qRequest('put', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.body).not.toEqual(mockCards[2]);
+                expect(resp.body.id).toBe('rc-putDur1');
+                expect(resp.body.data.duration).toEqual(32);
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
+
+        it('should skip update video duration if age < 1 min', function(done) {
+            options = {
+                url: config.contentUrl + '/content/cards/rc-putDur2',
+                json: { 
+                    data: { 
+                        vast: 'https://s3.amazonaws.com/c6.dev/e2e/vast_test.xml' ,
+                        duration : 1
+                    },
+                    type : 'adUnit'
+                },
+                jar: selfieJar
+            };
+            requestUtils.qRequest('put', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.body).not.toEqual(mockCards[3]);
+                expect(resp.body.id).toBe('rc-putDur2');
+                expect(resp.body.data.duration).toEqual(1);
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
+
+        it('should not allow editing cards with non-draft campaigns', function(done) {
+            q.all(['rc-cam-active', 'rc-cam-pending', 'rc-cam-canceled'].map(function(id) {
+                options.url = config.contentUrl + '/content/cards/' + id;
+                return requestUtils.qRequest('put', options).then(function(resp) {
+                    expect(resp.response.statusCode).toBe(400);
+                    expect(resp.body).toBe('Action not permitted on ' + id.replace('rc-cam-', '') + ' campaign');
+                });
+            })).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should allow admins to edit non-draft campaigns', function(done) {
+            options.jar = adminJar;
+            q.all(['rc-cam-active', 'rc-cam-pending', 'rc-cam-canceled'].map(function(id) {
+                options.url = config.contentUrl + '/content/cards/' + id;
+                return requestUtils.qRequest('put', options).then(function(resp) {
+                    expect(resp.response.statusCode).toBe(200);
+                    expect(resp.body.id).toBe(id);
+                    expect(resp.body.title).toBe('best card');
+                });
+            })).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should not allow anyone to edit cards with campaigns that have a pending update request', function(done) {
+            options.url = config.contentUrl + '/content/cards/rc-cam-update';
+            options.jar = adminJar;
+            requestUtils.qRequest('put', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(400);
+                expect(resp.body).toBe('Campaign + cards locked until existing update request resolved');
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should trim off forbidden fields', function(done) {
+            options.json = {
+                title: 'best card',
+                user: 'another-user',
+                org: 'another-org',
+                campaign: {
+                    minViewTime: 55,
+                    adtechId: 666,
+                    bannerId: 9876,
+                    bannerNumber: 55
+                },
+                data: {
+                    skip: true,
+                    controls: false,
+                    autoplay: false,
+                    autoadvance: true
+                }
+            };
+            requestUtils.qRequest('put', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.body.id).toBe('rc-put1');
+                expect(resp.body.title).toBe('best card');
+                expect(resp.body.user).toBe('e2e-user');
+                expect(resp.body.org).toBe('e2e-org');
+                expect(resp.body.campaign).toEqual(mockCards[0].campaign);
+                expect(resp.body.data).toEqual(mockCards[0].data);
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should allow admins to set some forbidden fields', function(done) {
+            options.jar = adminJar;
+            options.json = {
+                title: 'best card',
+                user: 'another-user',
+                org: 'another-org',
+                campaign: { // minViewTime should change but not adtech-related props
+                    minViewTime: 55,
+                    adtechId: 666,
+                    bannerId: 9876,
+                    bannerNumber: 55
+                },
+                data: {
+                    skip: true,
+                    controls: false,
+                    autoplay: false,
+                    autoadvance: true
+                }
+            };
+            requestUtils.qRequest('put', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.body.id).toBe('rc-put1');
+                expect(resp.body.title).toBe('best card');
+                expect(resp.body.user).toBe('another-user');
+                expect(resp.body.org).toBe('another-org');
+                expect(resp.body.campaign).toEqual({
+                    minViewTime: 55,
+                    adtechId: 111,
+                    bannerId: 1234,
+                    bannerNumber: 1
+                });
+                expect(resp.body.data).toEqual({
+                    skip: true,
+                    controls: false,
+                    autoplay: false,
+                    autoadvance: true,
+                    moat: { campaign: 'cam-draft', advertiser: 'a-1', creative: resp.body.id }
+                });
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
+        
         it('should not create a card if it does not exist', function(done) {
-            options.url = options.url.replace('e2e-put1', 'e2e-putfake');
+            options.url = options.url.replace('rc-put1', 'rc-putfake');
             requestUtils.qRequest('put', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(404);
                 expect(resp.body).toBe('That does not exist');
@@ -1168,7 +1383,7 @@ describe('content card endpoints (E2E):', function() {
         });
 
         it('should not update a card the user does not own', function(done) {
-            options.url = options.url.replace('e2e-put1', 'e2e-put2');
+            options.url = options.url.replace('rc-put1', 'rc-put2');
             requestUtils.qRequest('put', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(403);
                 expect(resp.body).toBe('Not authorized to edit this');
@@ -1189,20 +1404,42 @@ describe('content card endpoints (E2E):', function() {
     });
 
     describe('DELETE /api/content/cards/:id', function() {
+        var options;
         beforeEach(function(done) {
             var mockCards = [
-                { id: 'e2e-del1', status: 'active', user: 'e2e-user', org: 'e2e-org' },
-                { id: 'e2e-del2', status: 'active', user: 'not-e2e-user', org: 'e2e-org' }
+                { id: 'rc-del1', status: 'active', campaignId: 'cam-draft', user: 'e2e-user', org: 'e2e-org' },
+                { id: 'rc-del2', status: 'active', campaignId: 'cam-draft', user: 'not-e2e-user', org: 'not-e2e-org' },
+                { id: 'rc-cam-update', status: 'active', campaignId: 'cam-update', user: 'e2e-user', org: 'e2e-org' }
             ];
-            testUtils.resetCollection('cards', mockCards).done(done);
+            var mockCamps = [
+                { id: 'cam-draft', status: 'draft', user: 'e2e-user', org: 'e2e-org' },
+                { id: 'cam-update', status: 'active', updateRequest: 'ur-1', user: 'e2e-user', org: 'e2e-org' }
+            ];
+            
+            // add cards + campaigns for other statuses
+            ['pending', 'canceled', 'expired', 'active', 'paused'].forEach(function(status) {
+                var camp = { id: 'cam-' + status, status: status, user: 'e2e-user', org: 'e2e-org' };
+                var card = { id: 'rc-' + camp.id, status: 'active', campaignId: camp.id, user: 'e2e-user', org: 'e2e-org' };
+                mockCamps.push(camp);
+                mockCards.push(card);
+            });
+            
+            options = {
+                url: config.contentUrl + '/content/cards/rc-del1',
+                jar: selfieJar
+            };
+            
+            q.all([
+                testUtils.resetCollection('cards', mockCards),
+                testUtils.resetCollection('campaigns', mockCamps)
+            ]).done(function(resp) { done(); });
         });
 
         it('should set the status of a card to deleted', function(done) {
-            var options = {jar: selfieJar, url: config.contentUrl + '/content/cards/e2e-del1'};
             requestUtils.qRequest('delete', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(204);
                 expect(resp.body).toBe('');
-                options = {url: config.contentUrl + '/content/cards/e2e-del1', jar: selfieJar};
+                options = {url: config.contentUrl + '/content/cards/rc-del1', jar: selfieJar};
                 return requestUtils.qRequest('get', options);
             }).then(function(resp) {
                 expect(resp.response.statusCode).toBe(404);
@@ -1213,7 +1450,6 @@ describe('content card endpoints (E2E):', function() {
         });
 
         it('should write an entry to the audit collection', function(done) {
-            var options = {jar: selfieJar, url: config.contentUrl + '/content/cards/e2e-del1'};
             requestUtils.qRequest('delete', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(204);
                 return testUtils.mongoFind('audit', {}, {$natural: -1}, 1, 0, {db: 'c6Journal'});
@@ -1227,14 +1463,91 @@ describe('content card endpoints (E2E):', function() {
                 expect(results[0].service).toBe('content');
                 expect(results[0].version).toEqual(jasmine.any(String));
                 expect(results[0].data).toEqual({route: 'DELETE /api/content/cards/:id',
-                                                 params: { id: 'e2e-del1' }, query: {} });
+                                                 params: { id: 'rc-del1' }, query: {} });
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should allow deleting cards whose campaign is canceled, expired, or pending', function(done) {
+            q.all(['canceled', 'expired', 'pending'].map(function(status) {
+                options.url = config.contentUrl + '/content/cards/rc-cam-' + status;
+                return requestUtils.qRequest('delete', options).then(function(resp) {
+                    expect(resp.response.statusCode).toBe(204);
+                    expect(resp.body).toBe('');
+                    options = {
+                        url: config.contentUrl + '/content/cards/rc-cam-' + status,
+                        jar: selfieJar
+                    };
+                    return requestUtils.qRequest('get', options);
+                }).then(function(resp) {
+                    expect(resp.response.statusCode).toBe(404);
+                    expect(resp.body).toBe('Object not found');
+                });
+            })).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should not allow deleting cards with running campaigns', function(done) {
+            q.all(['active', 'paused'].map(function(status) {
+                options.url = config.contentUrl + '/content/cards/rc-cam-' + status;
+                return requestUtils.qRequest('delete', options).then(function(resp) {
+                    expect(resp.response.statusCode).toBe(400);
+                    expect(resp.body).toBe('Action not permitted on ' + status + ' campaign');
+                    options = {
+                        url: config.contentUrl + '/content/cards/rc-cam-' + status,
+                        jar: selfieJar
+                    };
+                    return requestUtils.qRequest('get', options);
+                }).then(function(resp) {
+                    expect(resp.response.statusCode).toBe(200);
+                    expect(resp.body).toEqual(jasmine.objectContaining({ id: 'rc-cam-' + status }));
+                });
+            })).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should allow admins to delete cards with running campaigns', function(done) {
+            options.jar = adminJar;
+            q.all(['active', 'paused'].map(function(status) {
+                options.url = config.contentUrl + '/content/cards/rc-cam-' + status;
+                return requestUtils.qRequest('delete', options).then(function(resp) {
+                    expect(resp.response.statusCode).toBe(204);
+                    expect(resp.body).toBe('');
+                    options = {
+                        url: config.contentUrl + '/content/cards/rc-cam-' + status,
+                        jar: selfieJar
+                    };
+                    return requestUtils.qRequest('get', options);
+                }).then(function(resp) {
+                    expect(resp.response.statusCode).toBe(404);
+                    expect(resp.body).toBe('Object not found');
+                });
+            })).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should not allow anyone to delete a card from a campaign with a pending update request', function(done) {
+            options.jar = adminJar;
+            options.url = config.contentUrl + '/content/cards/rc-cam-update';
+            requestUtils.qRequest('delete', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(400);
+                expect(resp.body).toBe('Campaign + cards locked until existing update request resolved');
+                options = {url: config.contentUrl + '/content/cards/rc-cam-update', jar: selfieJar};
+                return requestUtils.qRequest('get', options);
+            }).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.body).toEqual(jasmine.objectContaining({ id: 'rc-cam-update' }));
             }).catch(function(error) {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
 
         it('should not delete a card the user does not own', function(done) {
-            var options = {jar: selfieJar, url: config.contentUrl + '/content/cards/e2e-del2'};
+            options.url = config.contentUrl + '/content/cards/rc-del2';
             requestUtils.qRequest('delete', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(403);
                 expect(resp.body).toBe('Not authorized to delete this');
@@ -1244,7 +1557,6 @@ describe('content card endpoints (E2E):', function() {
         });
 
         it('should still return a 204 if the card was already deleted', function(done) {
-            var options = {jar: selfieJar, url: config.contentUrl + '/content/cards/e2e-del1'};
             requestUtils.qRequest('delete', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(204);
                 expect(resp.body).toBe('');
@@ -1258,7 +1570,7 @@ describe('content card endpoints (E2E):', function() {
         });
 
         it('should still return a 204 if the card does not exist', function(done) {
-            var options = {jar: selfieJar, url: config.contentUrl + '/content/cards/fake'};
+            options.url = config.contentUrl + '/content/cards/fake';
             requestUtils.qRequest('delete', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(204);
                 expect(resp.body).toBe('');
@@ -1268,7 +1580,7 @@ describe('content card endpoints (E2E):', function() {
         });
 
         it('should throw a 401 error if the user is not authenticated', function(done) {
-            requestUtils.qRequest('delete', {url: config.contentUrl + '/content/cards/e2e-del1'})
+            requestUtils.qRequest('delete', {url: config.contentUrl + '/content/cards/rc-del1'})
             .then(function(resp) {
                 expect(resp.response.statusCode).toBe(401);
                 expect(resp.body).toBe('Unauthorized');

@@ -137,6 +137,12 @@ function setupCampaignSvcFieldVal(policy) {
 // setup permissive fieldValidation rules for cards, etc.
 function setupContentSvcFieldVal(policy) {
     policy.fieldValidation.cards = {
+        user: {
+            __allowed: true
+        },
+        org: {
+            __allowed: true
+        },
         campaign: {
             minViewTime: {
                 __allowed: true

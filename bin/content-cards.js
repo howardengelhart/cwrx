@@ -59,7 +59,7 @@
                 __locked: true
             }
         },
-        data: {
+        data: { //TODO: add duration?
             __default: {},
             skip: {
                 __allowed: false,
