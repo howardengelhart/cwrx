@@ -1847,55 +1847,5 @@ describe('ads-campaigns (UT)', function() {
             });
         });
     });
-    
-    describe('getSchema', function() {
-        var svc;
-        beforeEach(function() {
-            svc = campModule.setupSvc(mockDb, campModule.config);
-            req.user.permissions = { campaigns: { create: 'own' } };
-            req.user.fieldValidation = { campaigns: {
-                minViewTime: { __allowed: true },
-                pricing: {
-                    budget: { __min: 0, __max: 99999999 }
-                }
-            } };
-        });
-        
-        it('should return a 403 if the user cannot create or edit campaigns', function(done) {
-            delete req.user.permissions.campaigns.create;
-            campModule.getSchema(svc, req).then(function(resp) {
-                expect(resp).toEqual({ code: 403, body: 'Cannot create or edit campaigns' });
-                delete req.user.permissions.campaigns;
-                return campModule.getSchema(svc, req);
-            }).then(function(resp) {
-                expect(resp).toEqual({ code: 403, body: 'Cannot create or edit campaigns' });
-            }).catch(function(error) {
-                expect(error.toString()).not.toBeDefined();
-            }).done(done);
-        });
-        
-        it('should return the campaigns schema', function(done) {
-            campModule.getSchema(svc, req).then(function(resp) {
-                expect(resp.code).toEqual(200);
-                expect(resp.body).toEqual(svc.model.schema);
-            }).catch(function(error) {
-                expect(error.toString()).not.toBeDefined();
-            }).done(done);
-        });
-        
-        it('should return a personalized schema if the personalized query param is set', function(done) {
-            req.query.personalized = 'true';
-            campModule.getSchema(svc, req).then(function(resp) {
-                expect(resp.code).toEqual(200);
-                expect(resp.body).not.toEqual(campModule.campSchema);
-                expect(resp.body.minViewTime).toEqual({ __allowed: true, __type: 'number' });
-                expect(resp.body.pricing.budget).toEqual({ __allowed: true, __type: 'number', __min: 0, __max: 99999999 });
-                expect(resp.body.cards).toEqual(campModule.campSchema.cards);
-                expect(resp.body.pricing.dailyLimit).toEqual(campModule.campSchema.pricing.dailyLimit);
-            }).catch(function(error) {
-                expect(error.toString()).not.toBeDefined();
-            }).done(done);
-        });
-    });
 });
 

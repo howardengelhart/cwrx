@@ -1230,6 +1230,118 @@ describe('CrudSvc', function() {
             }).done(done);
         });
     });
+    
+    describe('getSchema', function() {
+        beforeEach(function() {
+            svc = new CrudSvc(mockColl, 't', {}, {
+                name: {
+                    __type: 'string',
+                    __allowed: false
+                },
+                isDog: {
+                    __type: 'boolean',
+                    __allowed: false,
+                    __default: true,
+                    __locked: true
+                },
+                paws: {
+                    __type: 'number',
+                    __allowed: true,
+                    __min: 2,
+                    __max: 4
+                }
+            });
+            req.user.permissions = { thangs: { create: 'own' } };
+            req.user.fieldValidation = { thangs: {
+                name: {
+                    __allowed: true
+                },
+                isDog: {
+                    __allowed: true,
+                    __default: false
+                },
+                paws: {
+                    __min: 0,
+                    __max: 5
+                }
+            } };
+            req.query = { personalized: 'false' };
+        });
+        
+        it('should return a 403 if the user does not have create or edit permissions', function(done) {
+            delete req.user.permissions.thangs.create;
+            svc.getSchema(req).then(function(resp) {
+                expect(resp).toEqual({ code: 403, body: 'Cannot create or edit thangs' });
+                delete req.user.permissions.thangs;
+                return svc.getSchema(req);
+            }).then(function(resp) {
+                expect(resp).toEqual({ code: 403, body: 'Cannot create or edit thangs' });
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should return a 501 if no model is defined', function(done) {
+            svc = new CrudSvc(mockColl, 't', {});
+            svc.getSchema(req).then(function(resp) {
+                expect(resp.code).toEqual(501);
+                expect(resp.body).toEqual('No schema for thangs');
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should return the internal schema', function(done) {
+            svc.getSchema(req).then(function(resp) {
+                expect(resp.code).toEqual(200);
+                expect(resp.body).toBe(svc.model.schema);
+                expect(resp.body).toEqual(jasmine.objectContaining({
+                    name: {
+                        __type: 'string',
+                        __allowed: false
+                    },
+                    isDog: {
+                        __type: 'boolean',
+                        __allowed: false,
+                        __default: true,
+                        __locked: true
+                    },
+                    paws: {
+                        __type: 'number',
+                        __allowed: true,
+                        __min: 2,
+                        __max: 4
+                    }
+                }));
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should return a personalized schema if the personalized query param is set', function(done) {
+            req.query.personalized = 'true';
+            svc.getSchema(req).then(function(resp) {
+                expect(resp.code).toEqual(200);
+                expect(resp.body).not.toEqual(svc.model.schema);
+                expect(resp.body.name).toEqual({ __allowed: true, __type: 'string' });
+                expect(resp.body.paws).toEqual({
+                    __type: 'number',
+                    __allowed: true,
+                    __min: 0,
+                    __max: 5
+                });
+                expect(resp.body.isDog).toEqual({
+                    __type: 'boolean',
+                    __allowed: false,
+                    __default: true,
+                    __locked: true
+                });
+                expect(resp.body.id).toEqual(svc.model.schema.id);
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
+        });
+    });
 
     describe('customMethod', function() {
         var cb;

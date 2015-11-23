@@ -1589,6 +1589,93 @@ describe('content card endpoints (E2E):', function() {
             }).done(done);
         });
     });
+
+    describe('GET /api/campaigns/schema', function() {
+        var selfieOpts, adminOpts, cardModule;
+        beforeEach(function() {
+            selfieOpts = { url: config.contentUrl + '/content/cards/schema', qs: {}, jar: selfieJar };
+            adminOpts = { url: config.contentUrl + '/content/cards/schema', qs: {}, jar: adminJar };
+            cardModule = require('../../bin/content-cards');
+        });
+
+        it('should get the base card schema', function(done) {
+            q.all([
+                requestUtils.qRequest('get', selfieOpts),
+                requestUtils.qRequest('get', adminOpts),
+            ]).then(function(results) {
+                results.forEach(function(resp) {
+                    expect(resp.response.statusCode).toBe(200);
+                    expect(resp.body).toEqual(jasmine.any(Object));
+                    expect(resp.body.user).toEqual({ __allowed: false, __type: 'string' });
+                    expect(resp.body.org).toEqual({ __allowed: false, __type: 'string' });
+                    expect(resp.body.campaignId).toEqual({
+                        __allowed: true,
+                        __type: 'string',
+                        __unchangeable: true,
+                        __required: true
+                    });
+                    expect(resp.body.data).toEqual(JSON.parse(JSON.stringify(cardModule.cardSchema.data)));
+                    expect(resp.body.campaign).toEqual(JSON.parse(JSON.stringify(cardModule.cardSchema.campaign)));
+                });
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should be able to get a card schema customized to each user', function(done) {
+            selfieOpts.qs.personalized = 'true';
+            adminOpts.qs.personalized = 'true';
+            q.all([
+                requestUtils.qRequest('get', selfieOpts),
+                requestUtils.qRequest('get', adminOpts),
+            ]).spread(function(selfieResult, adminResult) {
+                expect(selfieResult.response.statusCode).toBe(200);
+                expect(adminResult.response.statusCode).toBe(200);
+    
+                expect(selfieResult.body.data).toEqual(JSON.parse(JSON.stringify(cardModule.cardSchema.data)));
+                expect(selfieResult.body.campaign).toEqual(JSON.parse(JSON.stringify(cardModule.cardSchema.campaign)));
+                
+                expect(adminResult.body.user).toEqual({ __allowed: true, __type: 'string' });
+                expect(adminResult.body.org).toEqual({ __allowed: true, __type: 'string' });
+                expect(adminResult.body.campaign).toEqual(jasmine.objectContaining({
+                    minViewTime: {
+                        __type: 'number',
+                        __allowed: true,
+                        __default: 3
+                    },
+                    adtechId: JSON.parse(JSON.stringify(cardModule.cardSchema.campaign.adtechId))
+                }));
+                expect(adminResult.body.data).toEqual(jasmine.objectContaining({
+                    skip: {
+                        __allowed: true,
+                        __required: true,
+                        __default: 30
+                    },
+                    controls: {
+                        __allowed: true,
+                        __type: 'boolean',
+                        __required: true,
+                        __default: true
+                    },
+                    autoplay: {
+                        __allowed: true,
+                        __type: 'boolean',
+                        __required: true,
+                        __default: true
+                    },
+                    autoadvance: {
+                        __allowed: true,
+                        __type: 'boolean',
+                        __required: true,
+                        __default: false
+                    },
+                    moat: JSON.parse(JSON.stringify(cardModule.cardSchema.data.moat))
+                }));
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
+    });
     
     afterAll(function(done) {
         testUtils.closeDbs().done(done, done.fail);

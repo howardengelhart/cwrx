@@ -59,7 +59,7 @@
                 __locked: true
             }
         },
-        data: { //TODO: add duration?
+        data: {
             __default: {},
             skip: {
                 __allowed: false,
@@ -480,6 +480,17 @@
             mountPath   = '/api/content/cards?'; // prefix to all endpoints declared here
         
         router.use(jobManager.setJobTimeout.bind(jobManager));
+
+        var authGetSchema = authUtils.middlewarify({});
+        router.get('/schema', sessions, authGetSchema, function(req, res) {
+            var promise = cardSvc.getSchema(req);
+            promise.finally(function() {
+                jobManager.endJob(req, res, promise.inspect())
+                .catch(function(error) {
+                    res.send(500, { error: 'Error retrieving schema', detail: error });
+                });
+            });
+        });
 
         var authGetCard = authUtils.middlewarify({cards: 'read'});
         router.get('/:id', sessions, authGetCard, audit, function(req, res) {
