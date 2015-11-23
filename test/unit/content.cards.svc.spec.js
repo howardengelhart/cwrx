@@ -712,10 +712,17 @@ describe('content-cards (UT)', function() {
         });
         
         it('should not setup tracking pixels if request is a preview', function(done) {
-            req.query.preview = true;
+            req.query.preview = 'true';
             cardModule.getPublicCard(cardSvc, caches, 'rc-1', req).then(function(resp) {
                 expect(resp).toEqual(jasmine.objectContaining({ campaign: { } }));
                 expect(cardModule.setupTrackingPixels).not.toHaveBeenCalled();
+            }).then(done,done.fail);
+        });
+
+        it('should setup tracking pixels if request is not a preview', function(done) {
+            req.query.preview = 'false';
+            cardModule.getPublicCard(cardSvc, caches, 'rc-1', req).then(function(resp) {
+                expect(cardModule.setupTrackingPixels).toHaveBeenCalledWith(jasmine.any(Object), req);
             }).then(done,done.fail);
         });
         

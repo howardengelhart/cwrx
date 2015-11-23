@@ -1,5 +1,9 @@
 # Content Service Changelog
 
+### 3.0.2: Mon Nov 23 12:08:39 EST 2015
+* [FIX]: Fix for an issue that caused the content service to interpret
+  preview=false as being preview mode.
+
 ### 3.0.1: Fri Nov 20 15:48:37 EST 2015
 * Allow campaigns to be fetched from public endpoints unless status is draft, expired, or canceled: [#651](https://github.com/cinema6/cwrx/pull/651)
 * Extra deployment steps: None

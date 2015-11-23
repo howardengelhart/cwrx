@@ -212,7 +212,7 @@
             card = cardSvc.formatOutput(card);
             card.campaign = card.campaign || {};
 
-            if (!req.query.preview) {
+            if (req.query.preview !== 'true') {
                 cardModule.setupTrackingPixels(card, req);
             }
 
