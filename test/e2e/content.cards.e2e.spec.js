@@ -188,6 +188,26 @@ describe('content card endpoints (E2E):', function() {
                     expect(resp.body.campaign).toEqual({ adtechId: 100, bannerNumber: 10, adtechName: 'adtech sux' });
                 }).then(done,done.fail);
             });
+
+            it('should get tracking pixels on a non-preview GET', function(done) {
+                options.qs.preview = false;
+                requestUtils.qRequest('get', options).then(function(resp) {
+                    expect(resp.response.statusCode).toBe(200);
+                    expect(resp.body.campaign).toEqual({
+                        adtechId: 100,
+                        bannerNumber: 10,
+                        adtechName: 'adtech sux',
+                        viewUrls: [jasmine.any(String)],
+                        playUrls: [jasmine.any(String)],
+                        loadUrls: [jasmine.any(String)],
+                        countUrls: [jasmine.any(String)],
+                        q1Urls: [jasmine.any(String)],
+                        q2Urls: [jasmine.any(String)],
+                        q3Urls: [jasmine.any(String)],
+                        q4Urls: [jasmine.any(String)]
+                    });
+                }).then(done,done.fail);
+            });
             
             it('should allow passing an experience id as a query param', function(done) {
                 options.qs.experience = 'e-1';
