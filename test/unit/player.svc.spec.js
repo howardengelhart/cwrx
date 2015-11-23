@@ -308,11 +308,17 @@ describe('player service', function() {
                                     mobileType: 'mobile'
                                 },
                                 validTypes: [
-                                    'full-np', 'full', 'solo-ads', 'solo',
+                                    'full-np', 'solo', 'desktop-card',
                                     'light',
-                                    'lightbox-playlist', 'lightbox',
-                                    'mobile',  'swipe'
-                                ]
+                                    'lightbox',
+                                    'mobile'
+                                ],
+                                typeRedirects: {
+                                    'lightbox-playlist': 'lightbox',
+                                    'full': 'full-np',
+                                    'solo-ads': 'solo',
+                                    'swipe': 'mobile'
+                                }
                             }
                         }));
                         expect(service.parseCmdLine).toHaveBeenCalledWith(service.start.calls.mostRecent().args[0]);
@@ -606,8 +612,45 @@ describe('player service', function() {
                                 });
                             });
 
+                            [
+                                'lightbox-playlist',
+                                'full',
+                                'solo-ads',
+                                'swipe'
+                            ].forEach(function(type) {
+                                describe('if the type is ' + type, function() {
+                                    var config;
+
+                                    beforeEach(function(done) {
+                                        response.send.calls.reset();
+                                        player.get.calls.reset();
+                                        player.get.and.returnValue(q(playerHTML));
+
+                                        config = service.daemonize.calls.mostRecent().args[0].config;
+
+                                        request.params.type = type;
+                                        middleware(request, response).finally(done);
+                                    });
+
+                                    it('should not get() the player', function() {
+                                        expect(player.get).not.toHaveBeenCalled();
+                                    });
+
+                                    it('should redirect the agent to the configured type', function() {
+                                        expect(response.redirect).toHaveBeenCalledWith(301, config.typeRedirects[type] + formatURL({
+                                            query: request.query
+                                        }));
+                                    });
+                                });
+                            });
+
                             describe('if the device is mobile', function() {
+                                var config;
+
                                 beforeEach(function() {
+                                    config = service.daemonize.calls.mostRecent().args[0].config;
+
+                                    delete config.typeRedirects.swipe;
                                     response.send.calls.reset();
                                     player.get.calls.reset();
                                     browser.isMobile = true;

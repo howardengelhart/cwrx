@@ -498,11 +498,17 @@ Player.startService = function startService() {
                 mobileType: 'mobile'
             },
             validTypes: [
-                'full-np', 'full', 'solo-ads', 'solo',
+                'full-np', 'solo', 'desktop-card',
                 'light',
-                'lightbox-playlist', 'lightbox',
-                'mobile',  'swipe'
-            ]
+                'lightbox',
+                'mobile'
+            ],
+            typeRedirects: {
+                'lightbox-playlist': 'lightbox',
+                'full': 'full-np',
+                'solo-ads': 'solo',
+                'swipe': 'mobile'
+            }
         }
     };
 
@@ -545,16 +551,25 @@ Player.startService = function startService() {
             res.send(200, state.config.appVersion);
         });
 
-        app.get('/api/public/players/:type', parsePlayerQuery, sendRequestMetrics, function route(req, res) { // jshint ignore:line
+        app.get('/api/public/players/:type', parsePlayerQuery, sendRequestMetrics, function route(
+            req,
+            res
+        ) {
             var config = state.config;
             var type = req.params.type;
             var uuid = req.uuid;
             var query = req.query;
             var secure = req.secure;
             var mobileType = query.mobileType || config.defaults.mobileType;
+            var typeRedirect = config.typeRedirects[type];
             var origin = req.get('origin') || req.get('referer');
             var agent = req.get('user-agent');
             var browser = new BrowserInfo(agent);
+
+            if (typeRedirect) {
+                log.trace('[%1] Redirecting agent from %2 to %3 player.', uuid, type, typeRedirect);
+                return q(res.redirect(301, typeRedirect + formatURL({ query: req.query })));
+            }
 
             if (browser.isMobile && type !== mobileType) {
                 log.trace('[%1] Redirecting agent to mobile player: %2.', uuid, mobileType);
