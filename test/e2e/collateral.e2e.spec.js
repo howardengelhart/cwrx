@@ -4,6 +4,7 @@ var q               = require('q'),
     testUtils       = require('./testUtils'),
     requestUtils    = require('../../lib/requestUtils'),
     request         = require('request'),
+    parseURL        = require('url').parse,
     host            = process.env['host'] || 'localhost',
     bucket          = process.env.bucket || 'c6.dev',
     config = {
@@ -503,9 +504,16 @@ describe('collateral (E2E):', function() {
                         tumblr: null
                     },
                     images: {
-                        profile: 'https://fbcdn-profile-a.akamaihd.net/hprofile-ak-xaf1/v/t1.0-1/c124.57.712.712/s200x200/399266_10151276650434201_443074649_n.jpg?oh=e6b8cc83da86e05e312beab0daad0d95&oe=56EA86EA&__gda__=1458601243_4b4d11415406f734644c00dd8898c10f'
+                        profile: jasmine.any(String)
                     }
                 });
+                // Asserting that the profile image is a valid URL without making any assumptions
+                // about what it is.
+                expect(parseURL(apiResponse.body.images.profile)).toEqual(jasmine.objectContaining({
+                    protocol: jasmine.any(String),
+                    host: jasmine.any(String),
+                    pathname: jasmine.any(String)
+                }));
             });
         });
 
