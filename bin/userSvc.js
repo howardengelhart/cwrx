@@ -13,6 +13,7 @@
         journal         = require('../lib/journal'),
         authUtils       = require('../lib/authUtils'),
         service         = require('../lib/service'),
+        JobManager      = require('../lib/jobManager'),
         userModule      = require('./userSvc-users'),
         roleModule      = require('./userSvc-roles'),
         polModule       = require('./userSvc-policies'),
@@ -66,6 +67,12 @@
             timeouts: {},
             servers: null
         },
+        jobTimeouts: {
+            enabled: true,
+            urlPrefix: '/api/account/users/jobs',
+            timeout: 5*1000,
+            cacheTTL: 60*60*1000,
+        },
         policies: {
             allEntities: [ // all entity names, used for permissions and fieldValidations props
                 'advertisers',
@@ -114,6 +121,7 @@
         log.info('Running as cluster worker, proceed with setting up web server.');
 
         var app          = express(),
+            jobManager   = new JobManager(state.cache, state.config.jobTimeouts),
             userSvc      = userModule.setupSvc(state.dbs.c6Db, state.config, state.cache),
             roleSvc      = roleModule.setupSvc(state.dbs.c6Db),
             polSvc       = polModule.setupSvc(state.dbs.c6Db, state.config),
@@ -174,7 +182,13 @@
 
         app.use(bodyParser.json());
 
-        app.get('/api/account/user/meta', function(req, res){
+        app.get('/api/account/users?/jobs?/:id', function(req, res) {
+            jobManager.getJobResult(req, res, req.params.id).catch(function(error) {
+                res.send(500, { error: 'Internal error', detail: error });
+            });
+        });
+
+        app.get('/api/account/users?/meta', function(req, res){
             var data = {
                 version: state.config.appVersion,
                 started : started.toISOString(),
@@ -183,14 +197,14 @@
             res.send(200, data);
         });
 
-        app.get('/api/account/user/version',function(req, res) {
+        app.get('/api/account/users?/version',function(req, res) {
             res.send(200, state.config.appVersion);
         });
 
         userModule.setupEndpoints(app, userSvc, sessWrap, audit, state.sessionStore, state.config,
-                                  auditJournal);
-        roleModule.setupEndpoints(app, roleSvc, sessWrap, audit);
-        polModule.setupEndpoints(app, polSvc, sessWrap, audit);
+                                  auditJournal, jobManager);
+        roleModule.setupEndpoints(app, roleSvc, sessWrap, audit, jobManager);
+        polModule.setupEndpoints(app, polSvc, sessWrap, audit, jobManager);
 
 
         app.use(function(err, req, res, next) {

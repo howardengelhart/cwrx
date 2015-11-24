@@ -860,89 +860,89 @@
             });
     };
 
-    userModule.setupEndpoints = function(app, svc, sessions, audit, sessionStore, config, journal) {
+    userModule.setupEndpoints = function(app, svc, sessions, audit, sessionStore, config,
+                                                                    journal, jobManager) {
         var router      = express.Router(),
             mountPath   = '/api/account/users?'; // prefix to all endpoints declared here
 
         app.post('/__internal/sixxyUserSession', sessions, function(req, res) {
             userModule.insertSixxySession(req, res, config);
         });
+
+        router.use(jobManager.setJobTimeout.bind(jobManager));
         
         var credsChecker = authUtils.userPassChecker();
         router.post('/email', credsChecker, audit, function(req, res) {
-            userModule.changeEmail(svc, req, config.emails.sender, config.emails.supportAddress)
-            .then(function(resp) {
-                res.send(resp.code, resp.body);
-            }).catch(function(error) {
-                res.send(500, {
-                    error: 'Error changing email',
-                    detail: error
+            var promise = userModule.changeEmail(svc, req, config.emails.sender,
+                                                           config.emails.supportAddress);
+            promise.finally(function() {
+                jobManager.endJob(req, res, promise.inspect())
+                .catch(function(error) {
+                    res.send(500, { error: 'Error changing email', detail: error });
                 });
             });
         });
 
         router.post('/password', credsChecker, audit, function(req, res) {
-            userModule.changePassword(svc, req, config.emails.sender, config.emails.supportAddress)
-            .then(function(resp) {
-                res.send(resp.code, resp.body);
-            }).catch(function(error) {
-                res.send(500, {
-                    error: 'Error changing password',
-                    detail: error
+            var promise = userModule.changePassword(svc, req, config.emails.sender,
+                                                              config.emails.supportAddress);
+            promise.finally(function() {
+                jobManager.endJob(req, res, promise.inspect())
+                .catch(function(error) {
+                    res.send(500, { error: 'Error changing password', detail: error });
                 });
             });
         });
 
         router.post('/signup', function(req, res) {
-            userModule.signupUser(svc, req).then(function(resp) {
-                res.send(resp.code, resp.body);
-            }).catch(function(error) {
-                res.send(500, {
-                    error: 'Error signing up user',
-                    detail: error
+            var promise = userModule.signupUser(svc, req);
+            promise.finally(function() {
+                jobManager.endJob(req, res, promise.inspect())
+                .catch(function(error) {
+                    res.send(500, { error: 'Error signing up user', detail: error });
                 });
             });
         });
 
         router.post('/confirm/:id', sessions, function(req, res) {
-            userModule.confirmUser(svc, req, journal, config.sessions.maxAge).then(function(resp) {
-                res.send(resp.code, resp.body);
-            }).catch(function(error) {
-                res.send(500, {
-                    error: 'Error confirming user signup',
-                    detail: error
+            var promise = userModule.confirmUser(svc, req, journal, config.sessions.maxAge);
+            promise.finally(function() {
+                jobManager.endJob(req, res, promise.inspect())
+                .catch(function(error) {
+                    res.send(500, { error: 'Error confirming user signup', detail: error });
                 });
             });
         });
 
         var authNewUser = authUtils.middlewarify({}, null, [Status.New]);
         router.post('/resendActivation', sessions, authNewUser, function(req, res) {
-            userModule.resendActivation(svc, req).then(function(resp) {
-                res.send(resp.code, resp.body);
-            }).catch(function(error) {
-                res.send(500, {
-                    error: 'Error resending activation link',
-                    detail: error
+            var promise = userModule.resendActivation(svc, req);
+            promise.finally(function() {
+                jobManager.endJob(req, res, promise.inspect())
+                .catch(function(error) {
+                    res.send(500, { error: 'Error resending activation link', detail: error });
                 });
             });
         });
 
         var authGetUser = authUtils.middlewarify({users: 'read'});
-        router.get('/:id', sessions, authGetUser, audit, function(req,res) {
-            svc.getObjs({ id: req.params.id }, req, false)
+        router.get('/:id', sessions, authGetUser, audit, function(req, res) {
+            var promise = svc.getObjs({ id: req.params.id }, req, false)
             .then(function(resp) {
                 if ((req.query.decorated !== 'true' && req.query.decorated !== true) ||
                     resp.body.id === undefined) {
-                    return res.send(resp.code, resp.body);
+                    return resp;
                 }
 
                 return authUtils.decorateUser(resp.body).then(function(user) {
-                    res.send(resp.code, user);
+                    resp.body = user;
+                    return resp;
                 });
-            }).catch(function(error) {
-                res.send(500, {
-                    error: 'Error retrieving user',
-                    detail: error
+            });
+            promise.finally(function() {
+                jobManager.endJob(req, res, promise.inspect())
+                .catch(function(error) {
+                    res.send(500, { error: 'Error retrieving user', detail: error });
                 });
             });
         });
@@ -962,68 +962,58 @@
                 query.id = String(req.query.ids).split(',');
             }
 
-            svc.getObjs(query, req, true)
-            .then(function(resp) {
-                if (resp.headers && resp.headers['content-range']) {
-                    res.header('content-range', resp.headers['content-range']);
-                }
-
-                res.send(resp.code, resp.body);
-            }).catch(function(error) {
-                res.send(500, {
-                    error: 'Error retrieving users',
-                    detail: error
+            var promise = svc.getObjs(query, req, true);
+            promise.finally(function() {
+                jobManager.endJob(req, res, promise.inspect())
+                .catch(function(error) {
+                    res.send(500, { error: 'Error retrieving users', detail: error });
                 });
             });
         });
 
         var authPostUser = authUtils.middlewarify({users: 'create'});
         router.post('/', sessions, authPostUser, audit, function(req, res) {
-            svc.createObj(req)
-            .then(function(resp) {
-                res.send(resp.code, resp.body);
-            }).catch(function(error) {
-                res.send(500, {
-                    error: 'Error creating user',
-                    detail: error
+            var promise = svc.createObj(req);
+            promise.finally(function() {
+                jobManager.endJob(req, res, promise.inspect())
+                .catch(function(error) {
+                    res.send(500, { error: 'Error creating user', detail: error });
                 });
             });
         });
 
         var authPutUser = authUtils.middlewarify({users: 'edit'});
         router.put('/:id', sessions, authPutUser, audit, function(req, res) {
-            svc.editObj(req)
-            .then(function(resp) {
-                res.send(resp.code, resp.body);
-            }).catch(function(error) {
-                res.send(500, {
-                    error: 'Error updating user',
-                    detail: error
+            var promise = svc.editObj(req);
+            promise.finally(function() {
+                jobManager.endJob(req, res, promise.inspect())
+                .catch(function(error) {
+                    res.send(500, { error: 'Error updating user', detail: error });
                 });
             });
         });
 
         var authDelUser = authUtils.middlewarify({users: 'delete'});
         router.delete('/:id', sessions, authDelUser, audit, function(req, res) {
-            svc.deleteObj(req)
-            .then(function(resp) {
-                res.send(resp.code, resp.body);
-            }).catch(function(error) {
-                res.send(500, {
-                    error: 'Error deleting user',
-                    detail: error
+            var promise = svc.deleteObj(req);
+            promise.finally(function() {
+                jobManager.endJob(req, res, promise.inspect())
+                .catch(function(error) {
+                    res.send(500, { error: 'Error deleting user', detail: error });
                 });
             });
         });
 
         router.post('/logout/:id', sessions, authPutUser, audit, function(req, res) {
-            userModule.forceLogoutUser(svc, req, sessionStore.db.collection('sessions'))
-            .then(function(resp) {
-                res.send(resp.code, resp.body);
-            }).catch(function(error) {
-                res.send(500, {
-                    error: 'Error logging out user\'s sessions',
-                    detail: error
+            var promise = userModule.forceLogoutUser(
+                svc,
+                req,
+                sessionStore.db.collection('sessions')
+            );
+            promise.finally(function() {
+                jobManager.endJob(req, res, promise.inspect())
+                .catch(function(error) {
+                    res.send(500, { error: 'Error logging out user\'s sessions', detail: error });
                 });
             });
         });
