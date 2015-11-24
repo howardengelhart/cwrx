@@ -1,5 +1,9 @@
 # User Service Changelog
 
+### 2.2.0: Tue Nov 24 11:52:12 EST 2015
+* [FEATURE]: Add job manager to userSvc to send 202s for long requests: [#638](https://github.com/cinema6/cwrx/issues/638)
+* Extra deployment steps: None
+
 ### 2.1.4: Fri Nov 20 15:48:37 EST 2015
 * [FIX]: Fix spacing on logo in email templates [#645](https://github.com/cinema6/cwrx/issues/645)
 * Changing user's email sends messages to new + old address: [#642](https://github.com/cinema6/cwrx/issues/642)

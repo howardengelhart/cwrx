@@ -188,20 +188,19 @@
     };
 
     
-    polModule.setupEndpoints = function(app, svc, sessions, audit) {
+    polModule.setupEndpoints = function(app, svc, sessions, audit, jobManager) {
         var router      = express.Router(),
             mountPath   = '/api/account/polic(y|ies)'; // prefix to all endpoints declared here
-        
+
+        router.use(jobManager.setJobTimeout.bind(jobManager));
         
         var authGetPol = authUtils.middlewarify({policies: 'read'});
-        router.get('/:id', sessions, authGetPol, audit, function(req,res){
-            svc.getObjs({ id: req.params.id }, req, false)
-            .then(function(resp) {
-                res.send(resp.code, resp.body);
-            }).catch(function(error) {
-                res.send(500, {
-                    error: 'Error retrieving policy',
-                    detail: error
+        router.get('/:id', sessions, authGetPol, audit, function(req, res) {
+            var promise = svc.getObjs({ id: req.params.id }, req, false);
+            promise.finally(function() {
+                jobManager.endJob(req, res, promise.inspect())
+                .catch(function(error) {
+                    res.send(500, { error: 'Error retrieving policy', detail: error });
                 });
             });
         });
@@ -212,56 +211,44 @@
                 query.name = String(req.query.name);
             }
 
-            svc.getObjs(query, req, true)
-            .then(function(resp) {
-                if (resp.headers && resp.headers['content-range']) {
-                    res.header('content-range', resp.headers['content-range']);
-                }
-
-                res.send(resp.code, resp.body);
-            }).catch(function(error) {
-                res.send(500, {
-                    error: 'Error retrieving policies',
-                    detail: error
+            var promise = svc.getObjs(query, req, true);
+            promise.finally(function() {
+                jobManager.endJob(req, res, promise.inspect())
+                .catch(function(error) {
+                    res.send(500, { error: 'Error retrieving policies', detail: error });
                 });
             });
         });
 
         var authPostPol = authUtils.middlewarify({policies: 'create'});
         router.post('/', sessions, authPostPol, audit, function(req, res) {
-            svc.createObj(req)
-            .then(function(resp) {
-                res.send(resp.code, resp.body);
-            }).catch(function(error) {
-                res.send(500, {
-                    error: 'Error creating policy',
-                    detail: error
+            var promise = svc.createObj(req);
+            promise.finally(function() {
+                jobManager.endJob(req, res, promise.inspect())
+                .catch(function(error) {
+                    res.send(500, { error: 'Error creating policy', detail: error });
                 });
             });
         });
 
         var authPutPol = authUtils.middlewarify({policies: 'edit'});
         router.put('/:id', sessions, authPutPol, audit, function(req, res) {
-            svc.editObj(req)
-            .then(function(resp) {
-                res.send(resp.code, resp.body);
-            }).catch(function(error) {
-                res.send(500, {
-                    error: 'Error updating policy',
-                    detail: error
+            var promise = svc.editObj(req);
+            promise.finally(function() {
+                jobManager.endJob(req, res, promise.inspect())
+                .catch(function(error) {
+                    res.send(500, { error: 'Error updating policy', detail: error });
                 });
             });
         });
 
         var authDelPol = authUtils.middlewarify({policies: 'delete'});
         router.delete('/:id', sessions, authDelPol, audit, function(req, res) {
-            svc.deleteObj(req)
-            .then(function(resp) {
-                res.send(resp.code, resp.body);
-            }).catch(function(error) {
-                res.send(500, {
-                    error: 'Error deleting policy',
-                    detail: error
+            var promise = svc.deleteObj(req);
+            promise.finally(function() {
+                jobManager.endJob(req, res, promise.inspect())
+                .catch(function(error) {
+                    res.send(500, { error: 'Error deleting policy', detail: error });
                 });
             });
         });
