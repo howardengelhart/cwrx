@@ -126,6 +126,7 @@ describe('ads-campaignUpdates (UT)', function() {
             expect(svc._middleware.create).toContain(updateModule.enforceLock);
             expect(svc._middleware.create).toContain(updateModule.validateData);
             expect(svc._middleware.create).toContain(updateModule.extraValidation);
+            expect(svc._middleware.create).toContain(updateModule.validateCards);
             expect(svc._middleware.create).toContain(updateModule.validatePaymentMethod);
             expect(svc._middleware.create).toContain(updateModule.handleInitialSubmit);
             expect(svc._middleware.create).toContain(updateModule.notifySupport);
@@ -138,6 +139,7 @@ describe('ads-campaignUpdates (UT)', function() {
             expect(svc._middleware.edit).toContain(updateModule.requireReason);
             expect(svc._middleware.edit).toContain(updateModule.validateData);
             expect(svc._middleware.edit).toContain(updateModule.extraValidation);
+            expect(svc._middleware.edit).toContain(updateModule.validateCards);
             expect(svc._middleware.edit).toContain(updateModule.validatePaymentMethod);
             expect(svc._middleware.edit).toContain(updateModule.unlockCampaign);
             expect(svc._middleware.edit).toContain(updateModule.applyUpdate);
@@ -322,13 +324,22 @@ describe('ads-campaignUpdates (UT)', function() {
     describe('fetchCamp', function() {
         var campSvc, mockCamp;
         beforeEach(function() {
-            mockCamp = { id: 'cam-1', name: 'camp 1', updateRequest: 'ur-1', user: 'u-1', org: 'o-1' };
-            campSvc = campModule.setupSvc(mockDb, updateModule.config);
-            spyOn(campSvc, 'getObjs').and.callFake(function() { return q({ code: 200, body: mockCamp }); });
+            mockCamp = {
+                id: 'cam-1',
+                name: 'camp 1',
+                updateRequest: 'ur-1',
+                user: 'u-1',
+                org: 'o-1',
+                cards: [{ id: 'rc-1', decorated: 'yes' }]
+            };
             req.params.campId = 'cam-1';
             req.body = { data: { foo: 'bar' } };
             req.origObj = { id: 'ur-1' };
             req.user.permissions = { campaigns: { read: 'own', edit: 'own' } };
+            campSvc = campModule.setupSvc(mockDb, updateModule.config);
+            spyOn(requestUtils, 'qRequest').and.callFake(function() {
+                return q({ response: { statusCode: 200 }, body: mockCamp });
+            });
         });
         
         it('should attach the campaign as req.campaign and call next if it is found', function(done) {
@@ -338,12 +349,16 @@ describe('ads-campaignUpdates (UT)', function() {
                 expect(errorSpy).not.toHaveBeenCalled();
                 expect(req.campaign).toEqual(mockCamp);
                 expect(req.body).toEqual({ campaign: 'cam-1', data: { foo: 'bar' } });
+                expect(requestUtils.qRequest).toHaveBeenCalledWith('get', {
+                    url: 'https://test.com/api/campaigns/cam-1',
+                    headers: { cookie: 'chocolate' }
+                });
                 done();
             });
         });
         
         it('should call done if a 4xx is returned', function(done) {
-            campSvc.getObjs.and.returnValue(q({ code: 404, body: 'Campaign not found' }));
+            requestUtils.qRequest.and.returnValue(q({ response: { statusCode: 404 }, body: 'Campaign not found' }));
             updateModule.fetchCamp(campSvc, req, nextSpy, doneSpy).catch(errorSpy).finally(function() {
                 expect(nextSpy).not.toHaveBeenCalled();
                 expect(doneSpy).toHaveBeenCalledWith({ code: 404, body: 'Campaign not found' });
@@ -372,8 +387,8 @@ describe('ads-campaignUpdates (UT)', function() {
             });
         });
 
-        it('should reject if campSvc.getObjs rejects', function(done) {
-            campSvc.getObjs.and.returnValue(q.reject('I GOT A PROBLEM'));
+        it('should reject if the request fails', function(done) {
+            requestUtils.qRequest.and.returnValue(q.reject('I GOT A PROBLEM'));
             updateModule.fetchCamp(campSvc, req, nextSpy, doneSpy).catch(errorSpy).finally(function() {
                 expect(nextSpy).not.toHaveBeenCalled();
                 expect(doneSpy).not.toHaveBeenCalled();
@@ -589,6 +604,110 @@ describe('ads-campaignUpdates (UT)', function() {
                 expect(nextSpy).not.toHaveBeenCalled();
                 expect(doneSpy).toHaveBeenCalledWith({ code: 400, body: method + ' has failed' });
             });
+        });
+    });
+    
+    describe('validateCards', function() {
+        var ModelSpy;
+        beforeEach(function() {
+            req.body = { data: {
+                cards: [
+                    { id: 'rc-1', new: 'yes' },
+                    { id: 'rc-2', new: 'yes' }
+                ]
+            } };
+            req.campaign = {
+                id: 'cam-1',
+                cards: [
+                    { id: 'rc-1', old: 'yes' },
+                    { id: 'rc-2', old: 'yes' }
+                ]
+            };
+            spyOn(requestUtils, 'qRequest').and.returnValue(q({
+                response: { statusCode: 200 },
+                body: { schema: 'yes' }
+            }));
+            spyOn(Model.prototype, 'validate').and.returnValue({ isValid: true });
+            ModelSpy = jasmine.createSpy('Model()').and.callFake(function(objName, schema) {
+                return new Model(objName, schema);
+            });
+
+            var config = updateModule.config;
+            require.cache[require.resolve('../../lib/model')] = { exports: ModelSpy };
+            delete require.cache[require.resolve('../../bin/ads-campaignUpdates')];
+            updateModule = require('../../bin/ads-campaignUpdates');
+            updateModule.config = config;
+        });
+        
+        afterEach(function() {
+            delete require.cache[require.resolve('../../bin/ads-campaignUpdates')];
+            delete require.cache[require.resolve('../../lib/model')];
+        });
+        
+        it('should get the card schema and validate all cards', function(done) {
+            updateModule.validateCards(req, nextSpy, doneSpy).catch(errorSpy).finally(function() {
+                expect(nextSpy).toHaveBeenCalled();
+                expect(doneSpy).not.toHaveBeenCalled();
+                expect(errorSpy).not.toHaveBeenCalled();
+                expect(requestUtils.qRequest).toHaveBeenCalledWith('get', {
+                    url: 'https://test.com/api/content/cards/schema',
+                    headers: { cookie: 'chocolate' }
+                });
+                expect(ModelSpy).toHaveBeenCalledWith('cards', { schema: 'yes' });
+                expect(Model.prototype.validate.calls.count()).toBe(2);
+                expect(Model.prototype.validate).toHaveBeenCalledWith('edit', { id: 'rc-1', new: 'yes' }, { id: 'rc-1', old: 'yes' }, req.user);
+                expect(Model.prototype.validate).toHaveBeenCalledWith('edit', { id: 'rc-2', new: 'yes' }, { id: 'rc-2', old: 'yes' }, req.user);
+                expect(mockLog.error).not.toHaveBeenCalled();
+            }).done(done, done.fail);
+        });
+        
+        it('should be able to handle new cards', function(done) {
+            req.body.data.cards.push({ title: 'my new card' });
+            updateModule.validateCards(req, nextSpy, doneSpy).catch(errorSpy).finally(function() {
+                expect(nextSpy).toHaveBeenCalled();
+                expect(doneSpy).not.toHaveBeenCalled();
+                expect(errorSpy).not.toHaveBeenCalled();
+                expect(ModelSpy).toHaveBeenCalledWith('cards', { schema: 'yes' });
+                expect(Model.prototype.validate.calls.count()).toBe(3);
+                expect(Model.prototype.validate).toHaveBeenCalledWith('edit', { id: 'rc-1', new: 'yes' }, { id: 'rc-1', old: 'yes' }, req.user);
+                expect(Model.prototype.validate).toHaveBeenCalledWith('edit', { id: 'rc-2', new: 'yes' }, { id: 'rc-2', old: 'yes' }, req.user);
+                expect(Model.prototype.validate).toHaveBeenCalledWith('create', { title: 'my new card' }, undefined, req.user);
+                expect(mockLog.error).not.toHaveBeenCalled();
+            }).done(done, done.fail);
+        });
+        
+        it('should call done if one of the cards is invalid', function(done) {
+            Model.prototype.validate.and.returnValue({ isValid: false, reason: 'this card stinks' });
+            updateModule.validateCards(req, nextSpy, doneSpy).catch(errorSpy).finally(function() {
+                expect(nextSpy).not.toHaveBeenCalled();
+                expect(doneSpy).toHaveBeenCalledWith({ code: 400, body: 'cards[0] is invalid: this card stinks' });
+                expect(errorSpy).not.toHaveBeenCalled();
+                expect(Model.prototype.validate.calls.count()).toBe(1);
+                expect(Model.prototype.validate).toHaveBeenCalledWith('edit', { id: 'rc-1', new: 'yes' }, { id: 'rc-1', old: 'yes' }, req.user);
+                expect(mockLog.error).not.toHaveBeenCalled();
+            }).done(done, done.fail);
+        });
+        
+        it('should call done if the get schema endpoint returns a 4xx response', function(done) {
+            requestUtils.qRequest.and.returnValue(q({ response: { statusCode: 403 }, body: 'Cannot create/edit cards' }));
+            updateModule.validateCards(req, nextSpy, doneSpy).catch(errorSpy).finally(function() {
+                expect(nextSpy).not.toHaveBeenCalled();
+                expect(doneSpy).toHaveBeenCalledWith({ code: 403, body: 'Cannot create/edit cards' });
+                expect(errorSpy).not.toHaveBeenCalled();
+                expect(Model.prototype.validate).not.toHaveBeenCalled();
+                expect(mockLog.error).not.toHaveBeenCalled();
+            }).done(done, done.fail);
+        });
+        
+        it('should reject if the request for the schema fails', function(done) {
+            requestUtils.qRequest.and.returnValue(q.reject('I GOT A PROBLEM'));
+            updateModule.validateCards(req, nextSpy, doneSpy).catch(errorSpy).finally(function() {
+                expect(nextSpy).not.toHaveBeenCalled();
+                expect(doneSpy).not.toHaveBeenCalled();
+                expect(errorSpy).toHaveBeenCalledWith('Error fetching card schema');
+                expect(Model.prototype.validate).not.toHaveBeenCalled();
+                expect(mockLog.error).toHaveBeenCalled();
+            }).done(done, done.fail);
         });
     });
     

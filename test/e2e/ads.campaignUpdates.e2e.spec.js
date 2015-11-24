@@ -20,12 +20,14 @@ var q               = require('q'),
         privateKey  : '0a150dac004756370706a195e2bde296'
     });
 
+// jasmine.DEFAULT_TIMEOUT_INTERVAL = 90000; // TODO
+jasmine.DEFAULT_TIMEOUT_INTERVAL = 30000;
+
 describe('ads campaignUpdates endpoints (E2E):', function() {
-    var selfieJar, adminJar, testPolicies, adminCreatedCamp, selfieCreatedCamp,
+    var selfieJar, adminJar, testPolicies, createdCamp, createdCampDecorated,
         keptAdvert, keptCust, mailman, selfieCredit, selfiePaypal, adminCredit, mockOrgs;
 
-    beforeEach(function(done) {
-        jasmine.DEFAULT_TIMEOUT_INTERVAL = 90000;
+    beforeAll(function(done) {
 
         if (selfieJar && selfieJar.cookies && adminJar && adminJar.cookies) {
             return done();
@@ -192,6 +194,39 @@ describe('ads campaignUpdates endpoints (E2E):', function() {
         
         }).done(done, done.fail);
     });
+    
+    // Setup a card to test with
+    beforeAll(function(done) {
+        requestUtils.qRequest('post', {
+            url: config.adsUrl + '/campaigns/',
+            jar: selfieJar,
+            json: {
+                name: 'camp with card',
+                advertiserId: 'e2e-a-keepme',
+                customerId: 'e2e-cu-keepme',
+                targeting: { interests: ['cat-1'] },
+                cards: [{
+                    title: 'my test card',
+                    campaign: { adtechName: 'orig adtech name' }
+                }]
+            }
+        }).then(function(resp) {
+            if (resp.response.statusCode !== 201) {
+                done.fail(util.inspect({ code: resp.response.statusCode, body: resp.body }));
+            }
+            createdCampDecorated = resp.body;
+        }).done(done, done.fail);
+    });
+    
+    // Lookup + save created campaign before all tests; as long as this is used in resetCollection, changes to campaign will not persist
+    beforeEach(function(done) { //TODO: may have to come back to this for PUTs
+        testUtils.mongoFind('campaigns', { id: createdCampDecorated.id }).then(function(results) {
+            if (!results[0]) {
+                return q.reject('Created campaign ' + createdCampDecorated.id + ' has mysteriously disappeared');
+            }
+            createdCamp = results[0];
+        }).done(done, done.fail);
+    });
 
     // Setup mailman for receiving email messages
     beforeEach(function(done) {
@@ -251,7 +286,7 @@ describe('ads campaignUpdates endpoints (E2E):', function() {
     }
 
 
-    describe('GET /api/campaigns/:campId/updates/:id', function() {
+    fdescribe('GET /api/campaigns/:campId/updates/:id', function() {
         var options;
         beforeEach(function(done) {
             options = {
@@ -345,7 +380,7 @@ describe('ads campaignUpdates endpoints (E2E):', function() {
         });
     });
 
-    describe('GET /api/campaigns/:campId/updates/', function() {
+    fdescribe('GET /api/campaigns/:campId/updates/', function() {
         var options;
         beforeEach(function(done) {
             options = {
@@ -506,7 +541,7 @@ describe('ads campaignUpdates endpoints (E2E):', function() {
         });
     });
 
-    describe('POST /api/campaigns/:campId/updates', function() {
+    fdescribe('POST /api/campaigns/:campId/updates', function() {
         var options, mockCamps, msgSubject;
         beforeEach(function(done) {
             msgSubject = 'New update request from Heinz for campaign "e2e test 1"';
@@ -535,14 +570,14 @@ describe('ads campaignUpdates endpoints (E2E):', function() {
                         geo: { states: ['new jersey' ] },
                         interests: ['cat-1', 'cat-2']
                     },
-                    cards: [{ id: 'rc-1' }],
                     advertiserId: 'e2e-a-keepme',
                     customerId: 'e2e-cu-keepme',
                     user: 'e2e-user',
                     org: 'o-selfie'
                 },
                 { id: 'cam-other', status: 'draft', user: 'not-e2e-user', org: 'o-admin' },
-                { id: 'cam-deleted', status: 'deleted', user: 'e2e-user', org: 'o-selfie' }
+                { id: 'cam-deleted', status: 'deleted', user: 'e2e-user', org: 'o-selfie' },
+                createdCamp
             ];
             q.all([
                 testUtils.resetCollection('campaigns', mockCamps),
@@ -746,27 +781,139 @@ describe('ads campaignUpdates endpoints (E2E):', function() {
             */
         });
         
-        it('should prevent selfie users from adding a second card', function(done) {
-            options.json.data = { cards: [{ id: 'rc-1' }, { id: 'rc-2' }] };
-            mailman.once(msgSubject, function(msg) {
-                expect(msg).not.toBeDefined();
-            });
-            requestUtils.qRequest('post', options).then(function(resp) {
-                expect(resp.response.statusCode).toBe(400);
-                expect(resp.body).toBe('cards must have at most 1 entries');
-                
-                // test campaign not locked
-                return requestUtils.qRequest('get', {
-                    url: config.adsUrl + '/campaigns/cam-1',
+        describe('if creating an update for a campaign with cards', function() {
+            beforeEach(function() {
+                options = {
+                    url: config.adsUrl + '/campaigns/' + createdCampDecorated.id + '/updates/',
+                    json: { data: {
+                        name: 'updated name',
+                        cards: [{
+                            id: createdCampDecorated.cards[0].id,
+                            title: 'Brand New Title!'
+                        }]
+                    } },
                     jar: selfieJar
+                };
+                msgSubject = 'New update request from Heinz for campaign "' + createdCamp.name + '"';
+            });
+            
+            it('should allow editing card attributes', function(done) {
+                var createdUpdate;
+                requestUtils.qRequest('post', options).then(function(resp) {
+                    expect(resp.response.statusCode).toBe(201);
+                    if (resp.response.statusCode !== 201) {
+                        return q.reject({ code: resp.response.statusCode, body: resp.body });
+                    }
+                    
+                    expect(resp.body.id).toEqual(jasmine.any(String));
+                    expect(resp.body.status).toBe('pending');
+                    expect(resp.body.campaign).toBe(createdCamp.id);
+                    expect(resp.body.autoApproved).toBe(false);
+                    expect(resp.body.user).toBe('e2e-user');
+                    expect(resp.body.org).toBe('o-selfie');
+                    expect(resp.body.data).toEqual(jasmine.objectContaining({
+                        id: createdCamp.id,
+                        name: 'updated name',
+                        cards: [ jasmine.objectContaining({
+                            id: createdCampDecorated.cards[0].id,
+                            status: 'active',
+                            title: 'Brand New Title!',
+                            campaign: createdCampDecorated.cards[0].campaign,
+                            data: createdCampDecorated.cards[0].data
+                        }) ]
+                    }));
+                    createdUpdate = resp.body;
+                }).catch(function(error) {
+                    expect(util.inspect(error)).not.toBeDefined();
+                    done();
                 });
-            }).then(function(resp) {
-                expect(resp.response.statusCode).toBe(200);
-                expect(resp.body.status).toBe('draft');
-                expect(resp.body.updateRequest).not.toBeDefined();
-            }).catch(function(error) {
-                expect(util.inspect(error)).not.toBeDefined();
-            }).done(done);
+                
+                mailman.once(msgSubject, function(msg) {
+                    testNewUpdateMsg(msg, createdCampDecorated);
+                    
+                    // test that updateRequest is set successfully on campaign
+                    requestUtils.qRequest('get', {
+                        url: config.adsUrl + '/campaigns/' + createdCamp.id,
+                        jar: selfieJar
+                    }).then(function(resp) {
+                        expect(resp.response.statusCode).toBe(200);
+                        expect(resp.body.status).toBe('draft');
+                        expect(resp.body.updateRequest).toBe(createdUpdate.id);
+                    }).catch(function(error) {
+                        expect(util.inspect(error)).not.toBeDefined();
+                    }).done(done);
+                });
+            });
+            
+            it('should trim forbidden card fields', function(done) {
+                options.json.data.cards[0].data = {
+                    skip: true,
+                    controls: false,
+                    autoplay: false,
+                    autoadvance: true
+                };
+                options.json.data.cards[0].campaign = {
+                    minViewTime: 55,
+                    adtechId: 666,
+                    bannerId: 9876,
+                    bannerNumber: 55
+                };
+                requestUtils.qRequest('post', options).then(function(resp) {
+                    expect(resp.response.statusCode).toBe(201);
+                    if (resp.response.statusCode !== 201) {
+                        return q.reject({ code: resp.response.statusCode, body: resp.body });
+                    }
+                    
+                    expect(resp.body.id).toEqual(jasmine.any(String));
+                    expect(resp.body.status).toBe('pending');
+                    expect(resp.body.campaign).toBe(createdCamp.id);
+                    expect(resp.body.autoApproved).toBe(false);
+                    expect(resp.body.user).toBe('e2e-user');
+                    expect(resp.body.org).toBe('o-selfie');
+                    expect(resp.body.data).toEqual(jasmine.objectContaining({
+                        id: createdCamp.id,
+                        name: 'updated name',
+                        cards: [ jasmine.objectContaining({
+                            id: createdCampDecorated.cards[0].id,
+                            status: 'active',
+                            title: 'Brand New Title!',
+                            campaign: createdCampDecorated.cards[0].campaign,
+                            data: createdCampDecorated.cards[0].data
+                        }) ]
+                    }));
+                    createdUpdate = resp.body;
+                }).catch(function(error) {
+                    expect(util.inspect(error)).not.toBeDefined();
+                    done();
+                });
+                
+                mailman.once(msgSubject, function(msg) {
+                    done();
+                });
+            });
+
+            it('should prevent selfie users from adding a second card', function(done) {
+                options.json.data = { cards: [{ id: createdCampDecorated.cards[0].id }, { title: 'my new card' }] };
+                mailman.once(msgSubject, function(msg) {
+                    expect(msg).not.toBeDefined();
+                });
+                requestUtils.qRequest('post', options).then(function(resp) {
+                    expect(resp.response.statusCode).toBe(400);
+                    expect(resp.body).toBe('cards must have at most 1 entries');
+                    
+                    // test campaign not locked
+                    return requestUtils.qRequest('get', {
+                        url: config.adsUrl + '/campaigns/' + createdCamp.id,
+                        jar: selfieJar
+                    });
+                }).then(function(resp) {
+                    expect(resp.response.statusCode).toBe(200);
+                    expect(resp.body.status).toBe('draft');
+                    expect(resp.body.updateRequest).not.toBeDefined();
+                }).catch(function(error) {
+                    expect(util.inspect(error)).not.toBeDefined();
+                }).done(done);
+            });
         });
         
         it('should return a 400 for invalid pricing opts', function(done) {
@@ -1196,7 +1343,7 @@ describe('ads campaignUpdates endpoints (E2E):', function() {
             });
         });
         
-        describe('if the update was modifying the campaign\'s cards', function(done) {
+        describe('if the update was modifying the campaign\'s cards', function(done) { //TODO: redo
             beforeEach(function(done) {
                 requestUtils.qRequest('post', {
                     url: config.adsUrl + '/campaigns/',
