@@ -149,11 +149,18 @@
                 log.info('[%1] Successful login for user %2', req.uuid, req.body.email);
                 var user = mongoUtils.safeUser(userAccount);
 
-                return cache.delete(cacheKey).then(function() {
+                return cache.delete(cacheKey)
+                .catch(function(error) {
+                    log.warn('[%1] Failed deleting key %2 in cache: %3', req.uuid, cacheKey,
+                             error && error.stack || error);
+                })
+                .then(function() {
                     return q.npost(req.session, 'regenerate');
-                }).then(function() {
+                })
+                .then(function() {
                     return authUtils.decorateUser(user);
-                }).then(function(decorated) {
+                })
+                .then(function(decorated) {
                     auditJournal.writeAuditEntry(req, decorated.id);
 
                     req.session.user = decorated.id;

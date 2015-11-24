@@ -114,6 +114,7 @@ describe('auth (UT)', function() {
                 expect(users.findOne).not.toHaveBeenCalled();
                 expect(auditJournal.writeAuditEntry).not.toHaveBeenCalled();
                 expect(authUtils.decorateUser).not.toHaveBeenCalled();
+                expect(mockCache.delete).not.toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
             }).done(done);
@@ -131,6 +132,7 @@ describe('auth (UT)', function() {
                 expect(users.findOne).not.toHaveBeenCalled();
                 expect(req.session.regenerate).not.toHaveBeenCalled();
                 expect(authUtils.decorateUser).not.toHaveBeenCalled();
+                expect(mockCache.delete).not.toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
             }).done(done);
@@ -204,6 +206,7 @@ describe('auth (UT)', function() {
                     expect(mockCache.add).toHaveBeenCalledWith('loginAttempts:u-123', 0, 900000);
                     expect(mockCache.incrTouch).toHaveBeenCalledWith('loginAttempts:u-123', 1, 900000);
                     expect(email.failedLogins).not.toHaveBeenCalled();
+                    expect(mockCache.delete).not.toHaveBeenCalled();
                 }).catch(function(error) {
                     expect(error.toString()).not.toBeDefined();
                 }).done(done);
@@ -305,8 +308,23 @@ describe('auth (UT)', function() {
                 expect(req.session.regenerate).toHaveBeenCalled();
                 expect(mongoUtils.safeUser).toHaveBeenCalledWith(origUser);
                 expect(mongoUtils.unescapeKeys).toHaveBeenCalled();
+                expect(mockCache.delete).toHaveBeenCalled();
                 expect(auditJournal.writeAuditEntry).toHaveBeenCalledWith(req, 'u-123');
                 expect(authUtils.decorateUser).toHaveBeenCalledWith({ id: 'u-123', status: Status.New, email: 'user' });
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
+        });
+
+        it('should not reject if deleting the loginAttempts cache entry fails', function(done) {
+            mockCache.delete.and.returnValue(q.reject('cache not ready yet halp'));
+            auth.login(req, users, config, auditJournal, mockCache).then(function(resp) {
+                expect(resp.code).toBe(200);
+                expect(resp.body).toEqual({ id: 'u-123', decorated: true });
+                expect(mockCache.delete).toHaveBeenCalled();
+                expect(mockLog.error).not.toHaveBeenCalled();
+                expect(mockLog.warn).toHaveBeenCalled();
+                expect(authUtils.decorateUser).toHaveBeenCalledWith({ id: 'u-123', status: Status.Active, email: 'user' });
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
             }).done(done);
@@ -318,6 +336,7 @@ describe('auth (UT)', function() {
                 expect(resp.code).toBe(200);
                 expect(resp.body).toEqual({ id: 'u-123', decorated: true });
                 expect(auditJournal.writeAuditEntry).toHaveBeenCalled();
+                expect(mockCache.delete).toHaveBeenCalled();
                 expect(mockLog.error).not.toHaveBeenCalled();
                 expect(mockLog.warn).not.toHaveBeenCalled();
                 expect(authUtils.decorateUser).toHaveBeenCalledWith({ id: 'u-123', status: Status.Active, email: 'user' });
