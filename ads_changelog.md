@@ -1,5 +1,9 @@
 # Ads Service Changelog
 
+### 3.0.4: Tue Nov 24 10:46:29 EST 2015
+* Set `advertiserId` on proxied request to cards so moat tracking can be setup: [#433](https://github.com/cinema6/cwrx/issues/433)
+* Extra deployment steps: None
+
 ### 3.0.3: Fri Nov 20 15:48:37 EST 2015
 * [FIX]: Fix spacing on logo in email templates [#645](https://github.com/cinema6/cwrx/issues/645)
 * [FIX]: Review link in new update request emails will open in a new tab: [#641](https://github.com/cinema6/cwrx/issues/641)
