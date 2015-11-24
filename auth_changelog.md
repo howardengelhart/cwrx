@@ -1,7 +1,11 @@
 # Auth Service Changelog
 
+### 1.5.3: Tue Nov 24 17:00:03 EST 2015
+* [FIX]: Do not fail successful login if cache is down: [#661](https://github.com/cinema6/cwrx/issues/661)
+* Extra deployment steps: None
+
 ### 1.5.2: Fri Nov 20 15:48:37 EST 2015
-* [FIX]: Fix spacing on logo in email templates [#645](https://github.com/cinema6/cwrx/issues/645)
+* [FIX]: Fix spacing on logo in email templates: [#645](https://github.com/cinema6/cwrx/issues/645)
 * Extra deployment steps: None
 
 ### 1.5.1: Tue Nov 10 11:25:27 EST 2015
