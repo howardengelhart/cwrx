@@ -1,5 +1,12 @@
 # Content Service Changelog
 
+### 3.1.0: Tue Nov 24 10:42:03 EST 2015
+* Validate cards using schema: [#433](https://github.com/cinema6/cwrx/issues/433)
+* Setup moat tracking by default on cards: [#433](https://github.com/cinema6/cwrx/issues/433)
+* [FEATURE]: Add endpoint for getting card schema: [#433](https://github.com/cinema6/cwrx/issues/433)
+* Prevent edits to cards based on campaign state: [#433](https://github.com/cinema6/cwrx/issues/433)
+* Extra deployment steps: None
+
 ### 3.0.2: Mon Nov 23 12:08:39 EST 2015
 * [FIX]: Fix for an issue that caused the content service to interpret
   preview=false as being preview mode.

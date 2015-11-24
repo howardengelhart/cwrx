@@ -1201,7 +1201,7 @@ describe('ads campaignUpdates endpoints (E2E):', function() {
                         targeting: { interests: ['cat-1'] },
                         cards: [{
                             title: 'my test card',
-                            campaign: { adtechName: 'old adtech name' }
+                            campaign: { adtechName: 'old adtech name', minViewTime: 3 }
                         }]
                     }
                 }).then(function(resp) {
@@ -1222,6 +1222,7 @@ describe('ads campaignUpdates endpoints (E2E):', function() {
                                 title: 'test card 2.0',
                                 campaign: {
                                     adtechName: 'new adtech name',
+                                    minViewTime: 3,
                                     startDate: createdCamp.cards[0].campaign.startDate,
                                     endDate: createdCamp.cards[0].campaign.endDate
                                 }
@@ -1283,7 +1284,8 @@ describe('ads campaignUpdates endpoints (E2E):', function() {
                             bannerNumber: createdCamp.cards[0].campaign.bannerNumber,
                             startDate: createdCamp.cards[0].campaign.startDate,
                             endDate: createdCamp.cards[0].campaign.endDate,
-                            reportingId: jasmine.any(String)
+                            reportingId: jasmine.any(String),
+                            minViewTime: 3
                         });
                         
                         createdCamp = resp.body;

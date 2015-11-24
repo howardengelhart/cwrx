@@ -289,6 +289,12 @@ describe('Model', function() {
                 expect(model.validate('edit', newObj, origObj, requester)).toEqual({ isValid: true, reason: undefined });
                 expect(newObj).toEqual({ name: 'scruffles' });
             });
+            
+            it('should use a default value if one is configured', function() {
+                model.schema.name.__default = 'evan';
+                expect(model.validate('edit', newObj, origObj, requester)).toEqual({ isValid: true, reason: undefined });
+                expect(newObj).toEqual({ name: 'evan' });
+            });
         });
         
         describe('if a field is forbidden', function() {
@@ -496,6 +502,14 @@ describe('Model', function() {
                 
                 expect(model.validate('create', newObj, origObj, requester)).toEqual({ isValid: true, reason: undefined });
                 expect(newObj).toEqual({});
+            });
+            
+            it('should be able to validate subfields if the parent field is defaulted to an object', function() {
+                model.schema.snax.__default = {};
+                model.schema.snax.bacon.__default = 'yum yum';
+                
+                expect(model.validate('create', newObj, origObj, requester)).toEqual({ isValid: true, reason: undefined });
+                expect(newObj).toEqual({ snax: { bacon: 'yum yum' } });
             });
         });
         

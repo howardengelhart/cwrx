@@ -1058,6 +1058,7 @@ describe('ads-campaigns (UT)', function() {
         beforeEach(function() {
             req.body = {
                 id: 'cam-1',
+                advertiserId: 'a-1',
                 cards: [
                     { title: 'card 1', campaign: { adtechName: 'foo' } },
                     { id: 'rc-2', title: 'card 2', campaign: { adtechName: 'bar' } }
@@ -1085,18 +1086,18 @@ describe('ads-campaigns (UT)', function() {
                 expect(errorSpy).not.toHaveBeenCalled();
                 expect(req.body.cards).toEqual([{ id: 'rc-1' }, { id: 'rc-2' } ]);
                 expect(req._cards).toEqual({
-                    'rc-1': { id: 'rc-1', title: 'card 1', campaign: { adtechName: 'foo' }, updated: true, campaignId: 'cam-1' },
-                    'rc-2': { id: 'rc-2', title: 'card 2', campaign: { adtechName: 'bar' }, updated: true, campaignId: 'cam-1' },
+                    'rc-1': { id: 'rc-1', title: 'card 1', campaign: { adtechName: 'foo' }, updated: true, campaignId: 'cam-1', advertiserId: 'a-1' },
+                    'rc-2': { id: 'rc-2', title: 'card 2', campaign: { adtechName: 'bar' }, updated: true, campaignId: 'cam-1', advertiserId: 'a-1' },
                 });
                 expect(requestUtils.qRequest.calls.count()).toBe(2);
                 expect(requestUtils.qRequest).toHaveBeenCalledWith('post', {
                     url: 'https://test.com/api/content/cards/',
-                    json: { title: 'card 1', campaign: { adtechName: 'foo' }, campaignId: 'cam-1' },
+                    json: { title: 'card 1', campaign: { adtechName: 'foo' }, campaignId: 'cam-1', advertiserId: 'a-1' },
                     headers: { cookie: 'chocolate' }
                 });
                 expect(requestUtils.qRequest).toHaveBeenCalledWith('put', {
                     url: 'https://test.com/api/content/cards/rc-2',
-                    json: { id: 'rc-2', title: 'card 2', campaign: { adtechName: 'bar' }, campaignId: 'cam-1' },
+                    json: { id: 'rc-2', title: 'card 2', campaign: { adtechName: 'bar' }, campaignId: 'cam-1', advertiserId: 'a-1' },
                     headers: { cookie: 'chocolate' }
                 });
                 expect(mockLog.warn).not.toHaveBeenCalled();
@@ -1844,56 +1845,6 @@ describe('ads-campaigns (UT)', function() {
                 expect(errorSpy).toHaveBeenCalledWith(new Error('ADTECH IS THE WORST'));
                 done();
             });
-        });
-    });
-    
-    describe('getSchema', function() {
-        var svc;
-        beforeEach(function() {
-            svc = campModule.setupSvc(mockDb, campModule.config);
-            req.user.permissions = { campaigns: { create: 'own' } };
-            req.user.fieldValidation = { campaigns: {
-                minViewTime: { __allowed: true },
-                pricing: {
-                    budget: { __min: 0, __max: 99999999 }
-                }
-            } };
-        });
-        
-        it('should return a 403 if the user cannot create or edit campaigns', function(done) {
-            delete req.user.permissions.campaigns.create;
-            campModule.getSchema(svc, req).then(function(resp) {
-                expect(resp).toEqual({ code: 403, body: 'Cannot create or edit campaigns' });
-                delete req.user.permissions.campaigns;
-                return campModule.getSchema(svc, req);
-            }).then(function(resp) {
-                expect(resp).toEqual({ code: 403, body: 'Cannot create or edit campaigns' });
-            }).catch(function(error) {
-                expect(error.toString()).not.toBeDefined();
-            }).done(done);
-        });
-        
-        it('should return the campaigns schema', function(done) {
-            campModule.getSchema(svc, req).then(function(resp) {
-                expect(resp.code).toEqual(200);
-                expect(resp.body).toEqual(svc.model.schema);
-            }).catch(function(error) {
-                expect(error.toString()).not.toBeDefined();
-            }).done(done);
-        });
-        
-        it('should return a personalized schema if the personalized query param is set', function(done) {
-            req.query.personalized = 'true';
-            campModule.getSchema(svc, req).then(function(resp) {
-                expect(resp.code).toEqual(200);
-                expect(resp.body).not.toEqual(campModule.campSchema);
-                expect(resp.body.minViewTime).toEqual({ __allowed: true, __type: 'number' });
-                expect(resp.body.pricing.budget).toEqual({ __allowed: true, __type: 'number', __min: 0, __max: 99999999 });
-                expect(resp.body.cards).toEqual(campModule.campSchema.cards);
-                expect(resp.body.pricing.dailyLimit).toEqual(campModule.campSchema.pricing.dailyLimit);
-            }).catch(function(error) {
-                expect(error.toString()).not.toBeDefined();
-            }).done(done);
         });
     });
 });
