@@ -1,5 +1,6 @@
 # Player Service Changelog
 
+### 1.2.0: Mon Nov 30 11:02:27 EST 2015
 * Redirect deprecated player requests to their maintained peers.
 
 ### 1.1.1: Thu Nov 19 17:12:16 EST 2015
