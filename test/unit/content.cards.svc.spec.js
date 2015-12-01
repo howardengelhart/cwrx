@@ -1070,6 +1070,69 @@ describe('content-cards (UT)', function() {
                 expect(card.links).toEqual({});
             });
         });
+
+        describe('if there are shareLinks on the card', function() {
+            beforeEach(function() {
+                card.shareLinks = {
+                    Facebook: 'http://facebook.com/foo',
+                    Twitter: 'http://twitter.com/bar'
+                };
+            });
+            
+            it('should also create tracking pixels for the links', function() {
+                cardModule.setupTrackingPixels(card, req);
+                expect(card).toEqual({
+                    id          : 'rc-1',
+                    campaignId  : 'cam-1',
+                    campaign    : {
+                        viewUrls    : [ 'track.png?event=cardView' ],
+                        playUrls    : [ 'track.png?event=play' ],
+                        loadUrls    : [ 'track.png?event=load' ],
+                        countUrls   : [ 'track.png?event=completedView' ],
+                        q1Urls      : [ 'track.png?event=q1' ],
+                        q2Urls      : [ 'track.png?event=q2' ],
+                        q3Urls      : [ 'track.png?event=q3' ],
+                        q4Urls      : [ 'track.png?event=q4' ]
+                    },
+                    shareLinks: {
+                        Facebook: {
+                            uri: 'http://facebook.com/foo',
+                            tracking: [ 'track.png?event=shareLink.Facebook' ]
+                        },
+                        Twitter: {
+                            uri: 'http://twitter.com/bar',
+                            tracking: [ 'track.png?event=shareLink.Twitter' ]
+                        }
+                    }
+                });
+            });
+            
+            it('should not overwrite existing tracking pixels for the links', function() {
+                card.shareLinks.Facebook = {
+                    uri: 'http://facebook.com/foo',
+                    tracking: ['track.facebook']
+                };
+
+                cardModule.setupTrackingPixels(card, req);
+                expect(card.shareLinks).toEqual({
+                    Facebook: {
+                        uri: 'http://facebook.com/foo',
+                        tracking: [ 'track.facebook', 'track.png?event=shareLink.Facebook' ]
+                    },
+                    Twitter: {
+                        uri: 'http://twitter.com/bar',
+                        tracking: [ 'track.png?event=shareLink.Twitter' ]
+                    }
+                });
+            });
+            
+            it('should do nothing if the links prop is empty', function() {
+                card.shareLinks = {};
+
+                cardModule.setupTrackingPixels(card, req);
+                expect(card.shareLinks).toEqual({});
+            });
+        });
     });
     
     describe('getPublicCard', function() {

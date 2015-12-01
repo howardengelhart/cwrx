@@ -273,7 +273,7 @@ describe('content card endpoints (E2E):', function() {
                 }).done(done);
             });
             
-            describe('if retrieving a card with links', function() {
+            describe('if retrieving a card with links and shareLinks', function() {
                 beforeEach(function(done) {
                     mockCards.push({
                         id: 'e2e-pubgetlinks',
@@ -284,6 +284,11 @@ describe('content card endpoints (E2E):', function() {
                         links: {
                             Facebook: 'http://facebook.com/foo',
                             Twitter: 'http://twitter.com/bar'
+                        },
+                        shareLinks: {
+                            facebook: 'http://fb.com',
+                            twitter: 'http://twttr.com',
+                            pinterest: 'http://pntrst.com'
                         }
                     });
                     mockCamps[0].cards.push({ id: 'e2e-pubgetlinks', adtechId: 14, bannerNumber: 2 });
@@ -316,6 +321,20 @@ describe('content card endpoints (E2E):', function() {
                                     uri: 'http://twitter.com/bar',
                                     tracking: [jasmine.any(String)]
                                 }
+                            },
+                            shareLinks: {
+                                facebook: {
+                                    uri: 'http://fb.com',
+                                    tracking: [jasmine.any(String)]
+                                },
+                                twitter: {
+                                    uri: 'http://twttr.com',
+                                    tracking: [jasmine.any(String)]
+                                },
+                                pinterest: {
+                                    uri: 'http://pntrst.com',
+                                    tracking: [jasmine.any(String)]
+                                }
                             }
                         });
 
@@ -335,12 +354,29 @@ describe('content card endpoints (E2E):', function() {
                                 event       : 'link.' + prop
                             });
                         });
+                        
+                        ['facebook', 'twitter', 'pinterest'].forEach(function(prop) {
+                            var parsed = urlUtils.parse(resp.body.shareLinks[prop].tracking[0], true, true);
+                            expect(parsed.host).toBeDefined();
+                            expect(parsed.pathname).toBeDefined();
+                            expect(parsed.query).toEqual({
+                                campaign    : 'cam-links',
+                                card        : 'e2e-pubgetlinks',
+                                experience  : '',
+                                container   : 'embed',
+                                host        : 'test.com',
+                                hostApp     : 'Mapsaurus',
+                                network     : 'pocketmath',
+                                cb          : '{cachebreaker}',
+                                event       : 'shareLink.' + prop
+                            });
+                        });
                     }).catch(function(error) {
                         expect(util.inspect(error)).not.toBeDefined();
                     }).done(done);
                 });
             });
-            
+
             it('should not show inactive or deleted cards', function(done) {
                 q.all(['e2e-pubget2', 'e2e-pubget3'].map(function(id) {
                     options.url = options.url.replace('e2e-pubget1', id);

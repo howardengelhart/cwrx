@@ -353,21 +353,29 @@
         ensureList('q3Urls').push(cardModule.formatUrl(card, req, 'q3'));
         ensureList('q4Urls').push(cardModule.formatUrl(card, req, 'q4'));
         
-        if (typeof card.links !== 'object') {
-            return;
-        }
-        
-        Object.keys(card.links).forEach(function(linkName) {
-            var origVal = card.links[linkName];
-
-            if (typeof origVal === 'string') {
-                card.links[linkName] = {
-                    uri: origVal,
-                    tracking: []
-                };
+        ['links', 'shareLinks'].forEach(function(prop) {
+            if (typeof card[prop] !== 'object') {
+                return;
             }
             
-            card.links[linkName].tracking.push(cardModule.formatUrl(card, req, 'link.' + linkName));
+            var singular = prop.replace(/s$/, '');
+            
+            
+            Object.keys(card[prop]).forEach(function(linkName) {
+                var origVal = card[prop][linkName];
+
+                if (typeof origVal === 'string') {
+                    card[prop][linkName] = {
+                        uri: origVal,
+                        tracking: []
+                    };
+                } else {
+                    card[prop][linkName].tracking = card[prop][linkName].tracking || [];
+                }
+                
+                var pixelUrl = cardModule.formatUrl(card, req, singular + '.' + linkName);
+                card[prop][linkName].tracking.push(pixelUrl);
+            });
         });
     };
 

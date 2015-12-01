@@ -1,5 +1,9 @@
 # Content Service Changelog
 
+### 3.2.0: Mon Nov 30 18:35:56 EST 2015
+* [FEATURE]: Set tracking pixels for `shareLinks`: [#663](https://github.com/cinema6/cwrx/issues/663)
+* Extra deployment steps: None
+
 ### 3.1.0: Tue Nov 24 10:42:03 EST 2015
 * Validate cards using schema: [#433](https://github.com/cinema6/cwrx/issues/433)
 * Setup moat tracking by default on cards: [#433](https://github.com/cinema6/cwrx/issues/433)
