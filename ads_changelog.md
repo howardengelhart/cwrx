@@ -1,5 +1,9 @@
 # Ads Service Changelog
 
+### 3.0.5: Tue Dec  1 15:26:44 EST 2015
+* Temporarily make `paymentMethod` not required for campaign to be submitted for approval: [#666](https://github.com/cinema6/cwrx/issues/666)
+* Extra deployment steps: None
+
 ### 3.0.4: Tue Nov 24 10:46:29 EST 2015
 * Set `advertiserId` on proxied request to cards so moat tracking can be setup: [#433](https://github.com/cinema6/cwrx/issues/433)
 * Extra deployment steps: None
