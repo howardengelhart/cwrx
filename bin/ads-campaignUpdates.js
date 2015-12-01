@@ -282,7 +282,7 @@
 
         // check that these required fields are now set
         var checks = [
-            { parent: req.body.data, field: 'paymentMethod' },
+            // { parent: req.body.data, field: 'paymentMethod' }, // not required while in beta
             { parent: req.body.data, field: 'pricing' },
             { parent: req.body.data.pricing, field: 'budget' },
             { parent: req.body.data.pricing, field: 'dailyLimit' },

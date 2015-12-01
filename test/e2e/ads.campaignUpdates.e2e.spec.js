@@ -715,7 +715,7 @@ describe('ads campaignUpdates endpoints (E2E):', function() {
                     }).done(done);
                 });
             });
-            
+            /*
             it('should return a 400 if POSTing an initial submit request but no paymentMethod is set yet', function(done) {
                 mailman.once(msgSubject, function(msg) {
                     expect(msg).not.toBeDefined();
@@ -741,6 +741,7 @@ describe('ads campaignUpdates endpoints (E2E):', function() {
                     expect(util.inspect(error)).not.toBeDefined();
                 }).done(done);
             });
+            */
         });
         
         it('should prevent selfie users from adding a second card', function(done) {
