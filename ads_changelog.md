@@ -1,5 +1,7 @@
 # Ads Service Changelog
 
+* [REMOVAL]: Removed the minireel groups service: [#671](https://github.com/cinema6/cwrx/issues/671)
+
 ### 3.0.7: Mon Dec  7 16:20:01 EST 2015
 * Support pricing per geo/demo subcategory and pricing for any geo/demo subcategory: [#688](https://github.com/cinema6/cwrx/issues/688)
 * Extra deployment steps: None
