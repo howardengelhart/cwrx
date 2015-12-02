@@ -495,7 +495,8 @@ Player.startService = function startService() {
                 origin: 'http://www.cinema6.com/',
                 context: CONTEXTS.STANDALONE,
                 container: 'standalone',
-                mobileType: 'mobile'
+                mobileType: 'mobile',
+                standalone: true
             },
             validTypes: [
                 'full-np', 'solo', 'desktop-card',
@@ -671,6 +672,7 @@ Player.prototype.get = function get(/*options*/) {
     var campaign = options.campaign;
     var categories = options.categories;
     var context = options.context;
+    var standalone = options.standalone;
 
     log.trace('[%1] Getting player with options (%2.)', uuid, inspect(options));
 
@@ -704,7 +706,16 @@ Player.prototype.get = function get(/*options*/) {
         return self.__getBranding__(branding, type, desktop, uuid);
     }
 
+    function stringify(document) {
+        log.trace('[%1] Stringifying document.', uuid);
+        return document.toString();
+    }
+
     if (!(experience || card || campaign || categories)) {
+        if (!standalone) {
+            return this.__getPlayer__(type, secure, uuid).then(stringify);
+        }
+
         return q.reject(new ServiceError(
             'You must specify either an experience, card, campaign or categories.', 400
         ));
@@ -748,10 +759,9 @@ Player.prototype.get = function get(/*options*/) {
             log.trace('[%1] Adding experience (%2) to %3 player HTML.', uuid, experience.id, type);
             document.addResource('experience', 'application/json', experience);
 
-            log.trace('[%1] Stringifying document.', uuid);
-            return document.toString();
+            return document;
         });
-    });
+    }).then(stringify);
 };
 
 Player.prototype.resetCodeCache = function resetCodeCache() {

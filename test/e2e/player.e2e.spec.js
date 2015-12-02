@@ -57,7 +57,7 @@ describe('player service', function() {
             return {
                 css: $('style[data-href$="' + type + '.css"]').text(),
                 js: $('script[data-src$="' + type + '.js"]').text(),
-                experience: JSON.parse($('script[data-src="experience"]').text()),
+                experience: JSON.parse($('script[data-src="experience"]').text() || null),
                 seemsValid: function() {
                     return this.css.length >= 1000 && this.js.length >= 1000 && this.experience.data.deck.length > 0;
                 }
@@ -880,6 +880,27 @@ describe('player service', function() {
             it('should [400]', function() {
                 expect(response.statusCode).toBe(400);
                 expect(response.body.toString()).toBe('You must specify either an experience, card, campaign or categories.');
+            });
+
+            describe('but with standalone=false', function() {
+                beforeEach(function(done) {
+                    config.playerUrl.query.standalone = false;
+
+                    request.get(getURL()).then(getResponse).then(done, done.fail);
+                });
+
+                it('should [200]', function() {
+                    expect(response.statusCode).toBe(200);
+                });
+
+                it('should inline the assets but not include an experience', function() {
+                    var parsed = parseResponse('lightbox');
+
+                    expect(parsed.js.length).toBeGreaterThan(2000);
+                    expect(parsed.css.length).toBeGreaterThan(1000);
+                    expect(parsed.experience).toBeNull();
+                    expect($('base').attr('href')).toBe('http://localhost/apps/mini-reel-player/v1.0.0-rc2-0-ga4912c3/');
+                });
             });
         });
 
