@@ -1,5 +1,6 @@
 # Ads Service Changelog
 
+* [BREAKING CHANGE]: Do not create Adtech Websites, Pages, and Placements for sites: [#680](https://github.com/cinema6/cwrx/issues/680)
 * [REMOVAL]: Removed the minireel groups service: [#671](https://github.com/cinema6/cwrx/issues/671)
 
 ### 3.0.7: Mon Dec  7 16:20:01 EST 2015
