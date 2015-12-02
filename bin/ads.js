@@ -21,7 +21,6 @@
         updateModule    = require('./ads-campaignUpdates'),
         campModule      = require('./ads-campaigns'),
         siteModule      = require('./ads-sites'),
-        groupModule     = require('./ads-groups'),
         
         state   = {},
         ads = {}; // for exporting functions to unit tests
@@ -66,10 +65,6 @@
             paymentMethods: {
                 endpoint: '/api/payments/methods/'
             }
-        },
-        minireelGroups: {
-            advertiserId: null,     // C6 advertiser id; must be overriden in a config file
-            customerId: null        // C6 customer id; must be overriden in a config file
         },
         sessions: {
             key: 'c6Auth',
@@ -128,7 +123,6 @@
             custSvc      = custModule.setupSvc(state.dbs.c6Db),
             campSvc      = campModule.setupSvc(state.dbs.c6Db, state.config),
             updateSvc    = updateModule.setupSvc(state.dbs.c6Db, campSvc, state.config),
-            groupSvc     = groupModule.setupSvc(state.dbs.c6Db, state.config),
             siteSvc      = siteModule.setupSvc(state.dbs.c6Db.collection('sites')),
             auditJournal = new journal.AuditJournal(state.dbs.c6Journal.collection('audit'),
                                                     state.config.appVersion, state.config.appName);
@@ -208,7 +202,6 @@
 
         campModule.setupEndpoints(app, campSvc, sessWrap, audit, jobManager);
         siteModule.setupEndpoints(app, siteSvc, sessWrap, audit, jobManager);
-        groupModule.setupEndpoints(app, groupSvc, sessWrap, audit, jobManager);
         
         app.use(function(err, req, res, next) {
             if (err) {
