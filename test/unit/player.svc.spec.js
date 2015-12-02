@@ -305,7 +305,8 @@ describe('player service', function() {
                                     origin: 'http://www.cinema6.com/',
                                     context: 'standalone',
                                     container: 'standalone',
-                                    mobileType: 'mobile'
+                                    mobileType: 'mobile',
+                                    standalone: true
                                 },
                                 validTypes: [
                                     'full-np', 'solo', 'desktop-card',
@@ -814,7 +815,8 @@ describe('player service', function() {
                     origin: 'http://www.cinema6.com/',
                     context: 'standalone',
                     container: 'standalone',
-                    mobileType: 'mobile'
+                    mobileType: 'mobile',
+                    standalone: true
                 },
                 validTypes: [
                     'full-np', 'full', 'solo-ads', 'solo',

@@ -495,7 +495,8 @@ Player.startService = function startService() {
                 origin: 'http://www.cinema6.com/',
                 context: CONTEXTS.STANDALONE,
                 container: 'standalone',
-                mobileType: 'mobile'
+                mobileType: 'mobile',
+                standalone: true
             },
             validTypes: [
                 'full-np', 'solo', 'desktop-card',
