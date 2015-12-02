@@ -927,7 +927,8 @@ describe('player service', function() {
                             countUrls: ['count1.gif', 'count2.gif'],
                             launchUrls: ['launch1.gif', 'launch2.gif'],
                             desktop: true,
-                            secure: true
+                            secure: true,
+                            standalone: true
                         };
 
                         document = new HTMLDocument(playerHTML);
@@ -1077,6 +1078,35 @@ describe('player service', function() {
                             it('should not call __loadExperience__(), __loadCard__() or __getPlayer__()', function() {
                                 [player.__loadExperience__, player.__loadCard__, player.__getPlayer__].forEach(function(spy) {
                                     expect(spy).not.toHaveBeenCalled();
+                                });
+                            });
+
+                            describe('but with standalone: false', function() {
+                                beforeEach(function(done) {
+                                    success.calls.reset();
+                                    failure.calls.reset();
+                                    player.__loadExperience__.calls.reset();
+                                    player.__loadCard__.calls.reset();
+                                    player.__getPlayer__.calls.reset();
+
+                                    player.__getPlayer__.and.returnValue(q(document));
+
+                                    options.standalone = false;
+                                    player.get(options).then(success, failure).finally(done);
+                                });
+
+                                it('should not call __loadExperience__() or __loadCard__()', function() {
+                                    [player.__loadExperience__, player.__loadCard__].forEach(function(spy) {
+                                        expect(spy).not.toHaveBeenCalled();
+                                    });
+                                });
+
+                                it('should call __getPlayer__()', function() {
+                                    expect(player.__getPlayer__).toHaveBeenCalledWith(options.type, options.secure, options.uuid);
+                                });
+
+                                it('should fulfill with the document as a String', function() {
+                                    expect(success).toHaveBeenCalledWith(document.toString());
                                 });
                             });
                         });
