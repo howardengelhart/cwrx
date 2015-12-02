@@ -62,7 +62,16 @@ describe('userSvc (UT)', function() {
                 tempPolicy: 'tempPolicy'
             },
             api: {
-                root: 'http://localhost'
+                root: 'http://localhost',
+                orgs: {
+                    endpoint: '/api/account/orgs'
+                },
+                customers: {
+                    endpoint: '/api/account/customers'
+                },
+                advertisers: {
+                    endpoint: '/api/account/advertisers'
+                }
             }
         };
     });
@@ -107,9 +116,8 @@ describe('userSvc (UT)', function() {
             boundFns = [];
             [CrudSvc.prototype.preventGetAll, CrudSvc.prototype.validateUniqueProp, userModule.checkExistingWithNewEmail,
              userModule.hashProp, userModule.validateRoles, userModule.validatePolicies, userModule.setupSignupUser,
-             userModule.filterProps, userModule.giveActivationToken, userModule.sendActivationEmail,
-             userModule.checkValidToken, userModule.createLinkedEntities, userModule.sendConfirmationEmail,
-             userModule.handleBrokenUser].forEach(function(fn) {
+             userModule.giveActivationToken, userModule.sendActivationEmail, userModule.checkValidToken,
+             userModule.createLinkedEntities, userModule.sendConfirmationEmail].forEach(function(fn) {
                 spyOn(fn, 'bind').and.callFake(function() {
                     var boundFn = bind.apply(fn, arguments);
 
@@ -207,11 +215,6 @@ describe('userSvc (UT)', function() {
             expect(result._middleware.signupUser).toContain(getBoundFn(userModule.setupSignupUser, [userModule, result, ['newUserRole1'], ['newUserPol1']]));
         });
 
-        it('should filter props when signing up a user', function() {
-            expect(userModule.filterProps.bind).toHaveBeenCalledWith(userModule, ['org', 'customer', 'advertiser']);
-            expect(result._middleware.signupUser).toContain(getBoundFn(userModule.filterProps, [userModule, ['org', 'customer', 'advertiser']]));
-        });
-
         it('should validate the password when signing up a user', function() {
             expect(result._middleware.signupUser).toContain(userModule.validatePassword);
         });
@@ -246,8 +249,8 @@ describe('userSvc (UT)', function() {
         });
 
         it('should give linked entities on user confirm', function() {
-            expect(userModule.createLinkedEntities.bind).toHaveBeenCalledWith(userModule, mockConfig.api, 3500, mockCache);
-            expect(result._middleware.confirmUser).toContain(getBoundFn(userModule.createLinkedEntities, [userModule, mockConfig.api, 3500, mockCache]));
+            expect(userModule.createLinkedEntities.bind).toHaveBeenCalledWith(userModule, mockConfig, mockCache, result);
+            expect(result._middleware.confirmUser).toContain(getBoundFn(userModule.createLinkedEntities, [userModule, mockConfig, mockCache, result]));
         });
 
         it('should send confirmation email on user confirm', function() {
@@ -255,11 +258,6 @@ describe('userSvc (UT)', function() {
             expect(result._middleware.confirmUser).toContain(getBoundFn(userModule.sendConfirmationEmail, [userModule, 'support@cinema6.com', 'http://seflie.c6.com/review/campaigns']));
         });
 
-        it('should handle a broken user', function() {
-            expect(userModule.handleBrokenUser.bind).toHaveBeenCalledWith(userModule, result);
-            expect(result._middleware.confirmUser).toContain(getBoundFn(userModule.handleBrokenUser, [userModule, result]));
-        });
-        
         it('should give an activation token on resendActivation', function() {
             expect(userModule.giveActivationToken.bind).toHaveBeenCalledWith(userModule, 60000);
             expect(result._middleware.resendActivation).toContain(getBoundFn(userModule.giveActivationToken, [userModule, 60000]));
@@ -278,6 +276,47 @@ describe('userSvc (UT)', function() {
             newObj = { email: 'test@me.com', password: 'pass' };
             origObj = {};
             requester = { fieldValidation: { users: {} } };
+        });
+        
+        describe('when handling company', function() {
+            it('should fail if the field is not a string', function() {
+                newObj.company = 1234;
+                expect(svc.model.validate('create', newObj, origObj, requester))
+                    .toEqual({ isValid: false, reason: 'company must be in format: string' });
+            });
+            
+            it('should allow the field to be set', function() {
+                newObj.company = 'Heinz';
+                expect(svc.model.validate('create', newObj, origObj, requester))
+                    .toEqual({ isValid: true, reason: undefined });
+                expect(newObj.company).toEqual('Heinz');
+            });
+        });
+
+        ['advertiser', 'customer'].forEach(function(field) {
+            describe('when handling ' + field, function() {
+                it('should trim the field if set', function() {
+                    newObj[field] = 'that guy';
+                    expect(svc.model.validate('create', newObj, origObj, requester))
+                        .toEqual({ isValid: true, reason: undefined });
+                    expect(newObj[field]).not.toBeDefined();
+                });
+                
+                it('should be able to allow some requesters to set the field', function() {
+                    requester.fieldValidation.users[field] = { __allowed: true };
+                    newObj[field] = 'that guy';
+                    expect(svc.model.validate('create', newObj, origObj, requester))
+                        .toEqual({ isValid: true, reason: undefined });
+                    expect(newObj[field]).toBe('that guy');
+                });
+
+                it('should fail if the field is not a string', function() {
+                    requester.fieldValidation.users[field] = { __allowed: true };
+                    newObj[field] = 1234;
+                    expect(svc.model.validate('create', newObj, origObj, requester))
+                        .toEqual({ isValid: false, reason: field + ' must be in format: string' });
+                });
+            });
         });
 
         describe('when handling email', function() {
@@ -554,379 +593,205 @@ describe('userSvc (UT)', function() {
         });
     });
 
-    describe('createLinkedEntities()', function() {
-        var api, req, nextSpy, doneSpy;
-
+    describe('createLinkedEntities', function() {
+        var svc;
         beforeEach(function() {
-            spyOn(requestUtils, 'qRequest');
+            req.user = { id: 'u-12345', company: 'some company' };
+            svc = { _coll: 'fakeColl' };
             spyOn(userModule, 'getSixxySession').and.returnValue(q('sixxy cookie'));
-            api = {
-                root: 'http://localhost',
-                orgs: {
-                    endpoint: '/api/account/orgs'
-                },
-                customers: {
-                    endpoint: '/api/account/customers'
-                },
-                advertisers: {
-                    endpoint: '/api/account/advertisers'
-                }
-            };
+            spyOn(CacheMutex.prototype, '_init');
             spyOn(CacheMutex.prototype, 'acquire').and.returnValue(q(true));
             spyOn(CacheMutex.prototype, 'release').and.returnValue(q());
-            nextSpy = jasmine.createSpy('nextSpy()').and.returnValue(q());
-            doneSpy = jasmine.createSpy('doneSpy()').and.returnValue(q());
-            req = {
-                user: {
-                    id: 'u-12345',
-                    company: 'some company'
-                }
-            };
-        });
-
-        describe('when requests succeed', function() {
-            beforeEach(function() {
-                requestUtils.qRequest.and.callFake(function(method, opts) {
-                    var object = opts.url.match(/orgs|customers|advertisers/)[0];
-                    return q({
-                        response: {
-                            statusCode: 201
-                        },
-                        body: {
-                            id: object + '-id-123'
-                        }
-                    });
-                });
-            });
-
-            describe('the cache mutex', function() {
-                beforeEach(function(done) {
-                    spyOn(CacheMutex.prototype, '_init');
-                    userModule.createLinkedEntities(api, 3500, mockCache, req, nextSpy, doneSpy).done(done);
-                });
-                
-                it('should be created', function() {
-                    expect(CacheMutex.prototype._init).toHaveBeenCalledWith(mockCache, 'confirmUser:u-12345', 60000);
-                });
-
-                it('should attempt to aquire the mutex lock', function() {
-                    expect(CacheMutex.prototype.acquire).toHaveBeenCalled();
-                });
-            });
-
-            describe('when the mutex lock is able to be acquired', function() {
-                beforeEach(function(done) {
-                    CacheMutex.prototype.acquire.and.returnValue(q(true));
-                    userModule.createLinkedEntities(api, 3500, mockCache, req, nextSpy, doneSpy).done(done);
-                });
-                
-                it('should get the sixxy user session', function() {
-                    expect(userModule.getSixxySession).toHaveBeenCalledWith(req, 3500);
-                });
-
-                it('should send a request to create an org', function() {
-                    expect(requestUtils.qRequest).toHaveBeenCalledWith('post', {
-                        url: 'http://localhost/api/account/orgs',
-                        json: {
-                            name: 'some company (u-12345)'
-                        },
-                        headers: {
-                            cookie: 'sixxy cookie'
-                        }
-                    });
-                });
-
-                it('should send a request to create a customer', function() {
-                    expect(requestUtils.qRequest).toHaveBeenCalledWith('post', {
-                        url: 'http://localhost/api/account/customers',
-                        json: {
-                            name: 'some company (u-12345)',
-                            advertisers: ['advertisers-id-123']
-                        },
-                        headers: {
-                            cookie: 'sixxy cookie'
-                        }
-                    });
-                });
-
-                it('should send a request to create an advertiser', function() {
-                    expect(requestUtils.qRequest).toHaveBeenCalledWith('post', {
-                        url: 'http://localhost/api/account/advertisers',
-                        json: {
-                            name: 'some company (u-12345)'
-                        },
-                        headers: {
-                            cookie: 'sixxy cookie'
-                        }
-                    });
-                });
-
-                it('should set company properties on request', function() {
-                    expect(req.user.org).toBe('orgs-id-123');
-                    expect(req.user.customer).toBe('customers-id-123');
-                    expect(req.user.advertiser).toBe('advertisers-id-123');
-                });
-
-                it('should release the mutex lock', function() {
-                    expect(CacheMutex.prototype.release).toHaveBeenCalled();
-                });
-
-                it('should call next', function() {
-                    expect(nextSpy).toHaveBeenCalled();
-                });
-            });
-
-            describe('when the mutex lock is unable to be required', function() {
-                beforeEach(function(done) {
-                    CacheMutex.prototype.acquire.and.returnValue(q(false));
-                    userModule.createLinkedEntities(api, 3500, mockCache, req, nextSpy, doneSpy).done(done);
-                });
-                
-                it('should not release the mutex lock', function() {
-                    expect(CacheMutex.prototype.release).not.toHaveBeenCalled();
-                });
-
-                it('should call done', function() {
-                    expect(nextSpy).not.toHaveBeenCalled();
-                    expect(doneSpy).toHaveBeenCalledWith({ code: 400, body: 'Another operation is already in progress' });
+            spyOn(mongoUtils, 'editObject').and.returnValue(q());
+            spyOn(requestUtils, 'qRequest').and.callFake(function(method, opts) {
+                var object = opts.url.match(/orgs|customers|advertisers/)[0];
+                return q({
+                    response: { statusCode: 201 },
+                    body: { id: object + '-id-123' }
                 });
             });
         });
+        
+        it('should create a customer, advertiser, and org', function(done) {
+            userModule.createLinkedEntities(mockConfig, mockCache, svc, req, nextSpy, doneSpy).catch(errorSpy).finally(function() {
+                expect(nextSpy).toHaveBeenCalled();
+                expect(doneSpy).not.toHaveBeenCalled();
+                expect(errorSpy).not.toHaveBeenCalled();
+                expect(req.user.org).toBe('orgs-id-123');
+                expect(req.user.advertiser).toBe('advertisers-id-123');
+                expect(req.user.customer).toBe('customers-id-123');
+                
+                expect(CacheMutex.prototype._init).toHaveBeenCalledWith(mockCache, 'confirmUser:u-12345', 60000);
+                expect(CacheMutex.prototype.acquire).toHaveBeenCalled();
+                expect(userModule.getSixxySession).toHaveBeenCalledWith(req, 3500);
 
-        describe('when requests fail', function() {
-            function failRequestsFor(entityName, reject) {
-                requestUtils.qRequest.and.callFake(function(method, opts) {
-                    var object = opts.url.match(/orgs|customers|advertisers/)[0];
-                    var code = (object === entityName) ? 500 : 201;
-                    var body = (code === 201) ? { id: object + '-id-123' } : 'error body';
-                    if(reject) {
-                        return q.reject('rejected');
-                    }
-                    return q({
-                        response: {
-                            statusCode: code
-                        },
-                        body: body
-                    });
+                expect(requestUtils.qRequest.calls.count()).toBe(3);
+                expect(requestUtils.qRequest).toHaveBeenCalledWith('post', {
+                    url: 'http://localhost/api/account/orgs',
+                    json: { name: 'some company (u-12345)' },
+                    headers: { cookie: 'sixxy cookie' }
                 });
+                expect(requestUtils.qRequest).toHaveBeenCalledWith('post', {
+                    url: 'http://localhost/api/account/advertisers',
+                    json: { name: 'some company (u-12345)' },
+                    headers: { cookie: 'sixxy cookie' }
+                });
+                expect(requestUtils.qRequest).toHaveBeenCalledWith('post', {
+                    url: 'http://localhost/api/account/customers',
+                    json: { name: 'some company (u-12345)', advertisers: ['advertisers-id-123'] },
+                    headers: { cookie: 'sixxy cookie' }
+                });
+
+                expect(mongoUtils.editObject).not.toHaveBeenCalled();
+                expect(mockLog.error).not.toHaveBeenCalled();
+                expect(CacheMutex.prototype.release).toHaveBeenCalled();
+            }).done(done);
+        });
+        
+        it('should call done if it cannot acquire a mutex lock', function(done) {
+            CacheMutex.prototype.acquire.and.returnValue(q(false));
+            userModule.createLinkedEntities(mockConfig, mockCache, svc, req, nextSpy, doneSpy).catch(errorSpy).finally(function() {
+                expect(nextSpy).not.toHaveBeenCalled();
+                expect(doneSpy).toHaveBeenCalledWith({ code: 400, body: 'Another operation is already in progress' });
+                expect(errorSpy).not.toHaveBeenCalled();
+                expect(userModule.getSixxySession).not.toHaveBeenCalled();
+                expect(requestUtils.qRequest).not.toHaveBeenCalled();
+                expect(mongoUtils.editObject).not.toHaveBeenCalled();
+                expect(mockLog.error).not.toHaveBeenCalled();
+                expect(CacheMutex.prototype.release).not.toHaveBeenCalled();
+            }).done(done);
+        });
+        
+        it('should reject if it cannot get a session for the sixxy user', function(done) {
+            userModule.getSixxySession.and.returnValue(q.reject('I GOT A PROBLEM'));
+            userModule.createLinkedEntities(mockConfig, mockCache, svc, req, nextSpy, doneSpy).catch(errorSpy).finally(function() {
+                expect(nextSpy).not.toHaveBeenCalled();
+                expect(doneSpy).not.toHaveBeenCalled();
+                expect(errorSpy).toHaveBeenCalledWith('Failed creating linked entities');
+                expect(requestUtils.qRequest).not.toHaveBeenCalled();
+                expect(mongoUtils.editObject).not.toHaveBeenCalled();
+                expect(mockLog.error).toHaveBeenCalled();
+                expect(CacheMutex.prototype.release).toHaveBeenCalled();
+            }).done(done);
+        });
+        
+        ['org', 'advertiser', 'customer'].forEach(function(entity) {
+            var otherEntities = ['org', 'advertiser', 'customer'].filter(function(e) {
+                return e !== entity;
+            });
+            function pluralize(name) {
+                return name + 's';
             }
             
-            describe('when the promise to make the request gets rejected', function() {
-                ['orgs', 'customers', 'advertisers'].forEach(function(entity) {
-                    describe(entity, function() {
-                        beforeEach(function(done) {
-                            failRequestsFor(entity, true);
-                            userModule.createLinkedEntities(api, 3500, mockCache, req, nextSpy).done(done);
+            describe('if the user already has an ' + entity, function() {
+                beforeEach(function() {
+                    req.user[entity] = 'existing-id';
+                });
+
+                it('should not attempt to create another ' + entity, function(done) {
+                    userModule.createLinkedEntities(mockConfig, mockCache, svc, req, nextSpy, doneSpy).catch(errorSpy)
+                    .finally(function() {
+                        expect(nextSpy).toHaveBeenCalled();
+                        expect(doneSpy).not.toHaveBeenCalled();
+                        expect(errorSpy).not.toHaveBeenCalled();
+                        expect(req.user[entity]).toBe('existing-id');
+
+                        expect(requestUtils.qRequest.calls.count()).toBe(2);
+                        expect(requestUtils.qRequest).not.toHaveBeenCalledWith('post', jasmine.objectContaining({
+                            url: 'http://localhost/api/account/' + pluralize(entity)
+                        }));
+                        otherEntities.forEach(function(prop) {
+                            expect(req.user[prop]).toBe(pluralize(prop) + '-id-123');
+                            expect(requestUtils.qRequest).toHaveBeenCalledWith('post', jasmine.objectContaining({
+                                url: 'http://localhost/api/account/' + pluralize(prop)
+                            }));
                         });
-                        
-                        it('should log an error with the rejection reason', function() {
-                            var args = mockLog.error.calls.mostRecent().args;
-                            var errorMessage = args[args.length - 1];
-                            expect(mockLog.error).toHaveBeenCalled();
-                            expect(errorMessage).toContain('rejected');
+
+                        expect(mongoUtils.editObject).not.toHaveBeenCalled();
+                        expect(mockLog.error).not.toHaveBeenCalled();
+                        expect(CacheMutex.prototype.release).toHaveBeenCalled();
+                    }).done(done);
+                });
+            });
+            
+            ['4xx response', 'rejection'].forEach(function(failType) {
+                describe('if creating an ' + entity + ' fails with a ' + failType, function() {
+                    beforeEach(function() {
+                        requestUtils.qRequest.and.callFake(function(method, opts) {
+                            var object = opts.url.match(/orgs|customers|advertisers/)[0];
+                            if (object === pluralize(entity)) {
+                                if (/reject/.test(failType)) {
+                                    return q.reject('I GOT A PROBLEM');
+                                } else {
+                                    return q({
+                                        response: { statusCode: 400 },
+                                        body: 'I can\'t let you do that, sixxy'
+                                    });
+                                }
+                            } else {
+                                return q({
+                                    response: { statusCode: 201 },
+                                    body: { id: object + '-id-123' }
+                                });
+                            }
                         });
-                        
-                        it('should release the mutex', function() {
-                            expect(CacheMutex.prototype.release).toHaveBeenCalled();
-                        });
-                        
-                        it('should set the user to have a status of Error', function() {
-                            expect(req.user.status).toBe('error');
-                        });
-                        
-                        it('should call next', function() {
-                            expect(nextSpy).toHaveBeenCalled();
+                    });
+                    
+                    it('should still create other entities and save the user with their ids', function(done) {
+                        userModule.createLinkedEntities(mockConfig, mockCache, svc, req, nextSpy, doneSpy).catch(errorSpy)
+                        .finally(function() {
+                            expect(nextSpy).not.toHaveBeenCalled();
                             expect(doneSpy).not.toHaveBeenCalled();
-                        });
+                            expect(errorSpy).toHaveBeenCalledWith('Failed creating linked entities');
+                            expect(req.user[entity]).not.toBeDefined();
+
+                            // customer won't be created if advertiser request fails
+                            if (entity === 'advertiser') {
+                                expect(requestUtils.qRequest.calls.count()).toBe(2);
+                                expect(requestUtils.qRequest).not.toHaveBeenCalledWith('post', jasmine.objectContaining({
+                                    url: 'http://localhost/api/account/customers'
+                                }));
+                                expect(mongoUtils.editObject).toHaveBeenCalledWith('fakeColl', {
+                                    org         : 'orgs-id-123',
+                                    advertiser  : undefined,
+                                    customer    : undefined
+                                }, 'u-12345');
+                            } else {
+                                // otherwise, everything but <entity> should have been created
+                                expect(requestUtils.qRequest.calls.count()).toBe(3);
+                                expect(mongoUtils.editObject).toHaveBeenCalledWith('fakeColl', {
+                                    org         : entity === 'org' ? undefined : 'orgs-id-123',
+                                    advertiser  : entity === 'advertiser' ? undefined : 'advertisers-id-123',
+                                    customer    : entity === 'customer' ? undefined : 'customers-id-123'
+                                }, 'u-12345');
+                            }
+                            
+                            expect(mockLog.error).toHaveBeenCalled();
+                            expect(mockLog.error.calls.mostRecent().args).toContain(entity);
+                            if (/reject/.test(failType)) {
+                                expect(mockLog.error.calls.mostRecent().args).toContain(jasmine.stringMatching('I GOT A PROBLEM'));
+                            } else {
+                                expect(mockLog.error.calls.mostRecent().args).toContain(jasmine.stringMatching('400'));
+                                expect(mockLog.error.calls.mostRecent().args).toContain(jasmine.stringMatching('let you do that, sixxy'));
+                            }
+                            expect(CacheMutex.prototype.release).toHaveBeenCalled();
+                        }).done(done);
+                    });
+                    
+                    it('should reject with the same message if saving the user fails', function(done) {
+                        mongoUtils.editObject.and.returnValue(q.reject('Honey you got a big storm coming'));
+                        userModule.createLinkedEntities(mockConfig, mockCache, svc, req, nextSpy, doneSpy).catch(errorSpy)
+                        .finally(function() {
+                            expect(nextSpy).not.toHaveBeenCalled();
+                            expect(doneSpy).not.toHaveBeenCalled();
+                            expect(errorSpy).toHaveBeenCalledWith('Failed creating linked entities');
+                            expect(req.user[entity]).not.toBeDefined();
+                            expect(mongoUtils.editObject).toHaveBeenCalled();
+                            expect(mockLog.error).toHaveBeenCalled();
+                            expect(CacheMutex.prototype.release).toHaveBeenCalled();
+                        }).done(done);
                     });
                 });
-            });
-            
-            describe('when an org fails to be created', function() {
-                beforeEach(function(done) {
-                    failRequestsFor('orgs');
-                    userModule.createLinkedEntities(api, 3500, mockCache, req, nextSpy).done(done);
-                });
-
-                it('should still create other entities', function() {
-                    var args = requestUtils.qRequest.calls.allArgs();
-                    var endpoints = args.map(function(params) {
-                        return params[1].url.match(/orgs|customers|advertisers/)[0];
-                    });
-                    expect(endpoints).toContain('customers');
-                    expect(endpoints).toContain('advertisers');
-                    expect(req.user.customer).toBeDefined();
-                    expect(req.user.advertiser).toBeDefined();
-                });
-
-                it('should not set an org on the user', function() {
-                    expect(req.user.org).not.toBeDefined();
-                });
-
-                it('should log an error', function() {
-                    var args = mockLog.error.calls.mostRecent().args;
-                    var errorMessage = args[args.length - 1];
-                    expect(mockLog.error).toHaveBeenCalled();
-                    expect(errorMessage).toContain('500');
-                    expect(errorMessage).toContain('error body');
-                });
-
-                it('should set the status of the user on the request to error', function() {
-                    expect(req.user.status).toBe('error');
-                });
-
-                it('should call next', function() {
-                    expect(nextSpy).toHaveBeenCalled();
-                    expect(doneSpy).not.toHaveBeenCalled();
-                });
-                
-                it('should release the mutex', function() {
-                    expect(CacheMutex.prototype.release).toHaveBeenCalled();
-                });
-            });
-            
-            describe('when an advertiser fails to be created', function() {
-                beforeEach(function(done) {
-                    failRequestsFor('advertisers');
-                    userModule.createLinkedEntities(api, 3500, mockCache, req, nextSpy).done(done);
-                });
-
-                it('should still create an org', function() {
-                    var args = requestUtils.qRequest.calls.allArgs();
-                    var endpoints = args.map(function(params) {
-                        return params[1].url.match(/orgs|customers|advertisers/)[0];
-                    });
-                    expect(endpoints).toContain('orgs');
-                    expect(endpoints).not.toContain('customers');
-                    expect(req.user.org).toBeDefined();
-                    expect(req.user.customer).not.toBeDefined();
-                });
-
-                it('should not set an advertiser on the user', function() {
-                    expect(req.user.advertiser).not.toBeDefined();
-                });
-
-                it('should log an error', function() {
-                    var args = mockLog.error.calls.mostRecent().args;
-                    var errorMessage = args[args.length - 1];
-                    expect(mockLog.error).toHaveBeenCalled();
-                    expect(errorMessage).toContain('500');
-                    expect(errorMessage).toContain('error body');
-                });
-
-                it('should set the status of the user on the request to error', function() {
-                    expect(req.user.status).toBe('error');
-                });
-
-                it('should call next', function() {
-                    expect(nextSpy).toHaveBeenCalled();
-                    expect(doneSpy).not.toHaveBeenCalled();
-                });
-                
-                it('should release the mutex', function() {
-                    expect(CacheMutex.prototype.release).toHaveBeenCalled();
-                });
-            });
-            
-            describe('when a customer fails to be created', function() {
-                beforeEach(function(done) {
-                    failRequestsFor('customers');
-                    userModule.createLinkedEntities(api, 3500, mockCache, req, nextSpy).done(done);
-                });
-
-                it('should still create other entities', function() {
-                    var args = requestUtils.qRequest.calls.allArgs();
-                    var endpoints = args.map(function(params) {
-                        return params[1].url.match(/orgs|customers|advertisers/)[0];
-                    });
-                    expect(endpoints).toContain('orgs');
-                    expect(endpoints).toContain('advertisers');
-                    expect(req.user.org).toBeDefined();
-                    expect(req.user.advertiser).toBeDefined();
-                });
-
-                it('should not set a customer on the user', function() {
-                    expect(req.user.customer).not.toBeDefined();
-                });
-
-                it('should log an error', function() {
-                    var args = mockLog.error.calls.mostRecent().args;
-                    var errorMessage = args[args.length - 1];
-                    expect(mockLog.error).toHaveBeenCalled();
-                    expect(errorMessage).toContain('500');
-                    expect(errorMessage).toContain('error body');
-                });
-
-                it('should set the status of the user on the request to error', function() {
-                    expect(req.user.status).toBe('error');
-                });
-
-                it('should call next', function() {
-                    expect(nextSpy).toHaveBeenCalled();
-                    expect(doneSpy).not.toHaveBeenCalled();
-                });
-                
-                it('should release the mutex', function() {
-                    expect(CacheMutex.prototype.release).toHaveBeenCalled();
-                });
-            });
-        });
-    });
-
-    describe('handleBrokenUser()', function() {
-        var svc, req, nextSpy;
-
-        beforeEach(function() {
-            svc = {
-                _coll: {
-                    findAndModify: jasmine.createSpy('findAndModify').and.callFake(function(query1, query2, updates, opts, cb) {
-                        cb(null, q());
-                    })
-                }
-            };
-            req = {
-                user: {
-                    id: 'u-12345'
-                }
-            };
-            nextSpy = jasmine.createSpy('nextSpy()').and.returnValue(q());
-        });
-
-        describe('when the user is broken', function() {
-            var success, failure;
-            beforeEach(function(done) {
-                success = jasmine.createSpy('success()');
-                failure = jasmine.createSpy('failure()');
-                req.user.status = 'error';
-                userModule.handleBrokenUser(svc, req, nextSpy).then(success, failure).done(done);
-            });
-
-            it('should update the user with an error status', function() {
-                var updates = {
-                    $set: {
-                        lastUpdated: jasmine.any(Date),
-                        status: 'error'
-                    },
-                    $unset: { activationToken: 1 }
-                };
-                expect(svc._coll.findAndModify).toHaveBeenCalledWith({id: 'u-12345'}, {id: 1}, updates, {w: 1, journal: true, new:true}, jasmine.any(Function));
-            });
-
-            it('should reject the promise and log a warning', function() {
-                expect(success).not.toHaveBeenCalled();
-                expect(failure).toHaveBeenCalledWith('The user is in a broken state.');
-                expect(mockLog.warn).toHaveBeenCalled();
-            });
-        });
-
-        describe('when the user is not broken', function() {
-            beforeEach(function(done) {
-                req.user.status = 'new';
-                userModule.handleBrokenUser(svc, req, nextSpy).done(done);
-            });
-
-            it('should call next', function() {
-                expect(nextSpy).toHaveBeenCalled();
             });
         });
     });
@@ -993,39 +858,6 @@ describe('userSvc (UT)', function() {
 
         it('should set external on the new object to true', function() {
             expect(req.body.external).toBe(true);
-        });
-
-        it('should call next', function() {
-            expect(next).toHaveBeenCalled();
-        });
-
-        it('should not call done', function() {
-            expect(done).not.toHaveBeenCalled();
-        });
-    });
-
-    describe('filterProps', function() {
-        var req, next, done;
-
-        beforeEach(function() {
-            next = jasmine.createSpy('next()');
-            done = jasmine.createSpy('done()');
-            req = {
-                body: {
-                    foo: 'bar',
-                    goo: 'bla',
-                    key: 'value',
-                    hey: 'listen'
-                }
-            };
-            userModule.filterProps(['foo', 'goo'], req, next, done);
-        });
-
-        it('should filter properties off the body of an object', function() {
-            expect(req.body).toEqual({
-                key: 'value',
-                hey: 'listen'
-            });
         });
 
         it('should call next', function() {

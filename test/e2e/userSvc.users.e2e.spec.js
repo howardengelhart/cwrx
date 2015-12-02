@@ -1674,7 +1674,7 @@ describe('userSvc users (E2E):', function() {
             ];
             q.all([
                 testUtils.resetCollection('users', [mockNewUser, mockAdmin]),
-                testUtils.resetCollection('orgs', [{name:'someOrg'}]),
+                testUtils.resetCollection('orgs'),
                 testUtils.resetCollection('roles', mockRoles),
                 testUtils.resetCollection('policies', mockPols.concat(testPolicies))
             ]).then(function() {
@@ -1763,7 +1763,7 @@ describe('userSvc users (E2E):', function() {
                 expect(msg).not.toBeDefined();
             });
 
-            var options = { url: config.usersUrl + '/confirm/u-non-existant', json: { token: 'valid-token' } };
+            var options = { url: config.usersUrl + '/confirm/u-non-existent', json: { token: 'valid-token' } };
             requestUtils.qRequest('post', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(404);
                 expect(resp.body).toBe('User not found');
@@ -1804,6 +1804,10 @@ describe('userSvc users (E2E):', function() {
         });
 
         describe('when given a valid activation token', function() {
+            var options;
+            beforeEach(function() {
+                options = { url: config.usersUrl + '/confirm/u-12345', json: { token: 'valid-token' } };
+            });
 
             it('should 200 and return the saved object as the body of the response ', function(done) {
                 mailman.once(msgSubject, function(msg) {
@@ -1815,7 +1819,6 @@ describe('userSvc users (E2E):', function() {
                     done();
                 });
 
-                var options = { url: config.usersUrl + '/confirm/u-12345', json: { token: 'valid-token' } };
                 requestUtils.qRequest('post', options)
                 .then(function(resp) {
                     expect(resp.response.statusCode).toBe(200);
@@ -1842,7 +1845,6 @@ describe('userSvc users (E2E):', function() {
                     done();
                 });
 
-                var options = { url: config.usersUrl + '/confirm/u-12345', json: { token: 'valid-token' } };
                 requestUtils.qRequest('post', options)
                 .then(function(resp) {
                     var orgId = resp.body.org;
@@ -1864,7 +1866,6 @@ describe('userSvc users (E2E):', function() {
                     done();
                 });
 
-                var options = { url: config.usersUrl + '/confirm/u-12345', json: { token: 'valid-token' } };
                 var advertiserId = null;
                 requestUtils.qRequest('post', options)
                 .then(function(resp) {
@@ -1891,7 +1892,6 @@ describe('userSvc users (E2E):', function() {
                     done();
                 });
 
-                var options = { url: config.usersUrl + '/confirm/u-12345', json: { token: 'valid-token' } };
                 requestUtils.qRequest('post', options)
                 .then(function(resp) {
                     var advertiserId = resp.body.advertiser;
@@ -1913,7 +1913,6 @@ describe('userSvc users (E2E):', function() {
                     done();
                 });
 
-                var options = { url: config.usersUrl + '/confirm/u-12345', json: { token: 'valid-token' } };
                 requestUtils.qRequest('post', options)
                 .then(function(resp) {
                     expect(resp.response.headers['set-cookie'].length).toBe(1);
@@ -1922,6 +1921,43 @@ describe('userSvc users (E2E):', function() {
                 .catch(function(error) {
                     expect(util.inspect(error)).not.toBeDefined();
                     done();
+                });
+            });
+            
+            describe('if some of the user\'s linked entities have been created', function() {
+                beforeEach(function(done) {
+                    mockNewUser.org = 'o-existent';
+                    q.all([
+                        testUtils.resetCollection('users', [mockNewUser, mockAdmin]),
+                        testUtils.resetCollection('orgs')
+                    ]).done(function() { done(); });
+                });
+
+                it('should not recreate those entities', function(done) {
+                    var modifiedUser;
+                    mailman.once(msgSubject, function(msg) {
+                        return q.all([
+                            testUtils.mongoFind('orgs', { id: modifiedUser.org }),
+                            testUtils.mongoFind('advertisers', { id: modifiedUser.advertiser }),
+                            testUtils.mongoFind('customers', { id: modifiedUser.customer })
+                        ]).spread(function(orgResult, advertResult, custResult) {
+                            expect(orgResult).toEqual([]);
+                            expect(advertResult).toEqual([jasmine.objectContaining({ name: 'e2e-tests-company (u-12345)' })]);
+                            expect(custResult).toEqual([jasmine.objectContaining({ name: 'e2e-tests-company (u-12345)' })]);
+                        }).done(done);
+                    });
+                    
+                    requestUtils.qRequest('post', options)
+                    .then(function(resp) {
+                        expect(resp.response.statusCode).toBe(200);
+                        expect(resp.body.status).toBe('active');
+                        expect(resp.body.org).toBe('o-existent');
+                        modifiedUser = resp.body;
+                    })
+                    .catch(function(error) {
+                        expect(util.inspect(error)).not.toBeDefined();
+                        done();
+                    }); 
                 });
             });
         });

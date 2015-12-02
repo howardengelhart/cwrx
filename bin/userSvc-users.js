@@ -3,7 +3,6 @@
 
     var inspect         = require('util').inspect,
         q               = require('q'),
-        url             = require('url'),
         urlUtils        = require('url'),
         bcrypt          = require('bcrypt'),
         crypto          = require('crypto'),
@@ -23,6 +22,18 @@
         userModule  = { _nonces: {} };
 
     userModule.userSchema = {
+        company: {
+            __allowed: true,
+            __type: 'string'
+        },
+        advertiser: {
+            __allowed: false,
+            __type: 'string'
+        },
+        customer: {
+            __allowed: false,
+            __type: 'string'
+        },
         email: {
             __allowed: true,
             __type: 'string',
@@ -102,8 +113,6 @@
             userModule, userSvc
         );
         var authorizeForceLogout = userModule.authorizeForceLogout;
-        var filterProps = userModule.filterProps.bind(userModule,
-            ['org', 'customer', 'advertiser']);
         var giveActivationToken = userModule.giveActivationToken.bind(userModule,
             config.activationTokenTTL);
         var sendActivationEmail = userModule.sendActivationEmail.bind(userModule,
@@ -112,11 +121,10 @@
             config.newUserPermissions.roles, config.newUserPermissions.policies);
         var validatePassword = userModule.validatePassword;
         var checkValidToken = userModule.checkValidToken.bind(userModule, userSvc);
-        var createLinkedEntities = userModule.createLinkedEntities.bind(userModule, config.api,
-            config.port, cache);
+        var createLinkedEntities = userModule.createLinkedEntities.bind(userModule, config,
+            cache, userSvc);
         var sendConfirmationEmail = userModule.sendConfirmationEmail.bind(userModule,
             config.emails.sender, config.emails.dashboardLink);
-        var handleBrokenUser = userModule.handleBrokenUser.bind(userModule, userSvc);
 
         // override some default CrudSvc methods with custom versions for users
         userSvc.transformMongoDoc = mongoUtils.safeUser;
@@ -145,7 +153,6 @@
         userSvc.use('forceLogout', authorizeForceLogout);
 
         userSvc.use('signupUser', setupSignupUser);
-        userSvc.use('signupUser', filterProps);
         userSvc.use('signupUser', validatePassword);
         userSvc.use('signupUser', hashPassword);
         userSvc.use('signupUser', setupUser);
@@ -155,7 +162,6 @@
 
         userSvc.use('confirmUser', checkValidToken);
         userSvc.use('confirmUser', createLinkedEntities);
-        userSvc.use('confirmUser', handleBrokenUser);
         userSvc.use('confirmUser', sendConfirmationEmail);
 
         userSvc.use('resendActivation', giveActivationToken);
@@ -194,120 +200,109 @@
             });
     };
 
-    userModule.createLinkedEntities = function(api, port, cache, req, next, done) {
+    userModule.createLinkedEntities = function(config, cache, svc, req, next, done) {
         var log = logger.getLog(),
             company = req.user.company || null,
             id = req.user.id,
             sixxyCookie = null,
             mutex = new CacheMutex(cache, 'confirmUser:' + id, 60 * 1000);
-
-        function createCustomer(advertiserId) {
-            var name = (company ? company : 'newCustomer') + ' (' + id + ')';
-            var options = { url: url.resolve(api.root, api.customers.endpoint),
-                json: { name: name, advertisers: [advertiserId] },
-                headers: { cookie: sixxyCookie } };
-            return requestUtils.qRequest('post', options).then(function(resp) {
-                if(resp.response.statusCode === 201) {
-                    req.user.customer = resp.body.id;
-                    log.info('[%1] Created customer %2 for user %3', req.uuid, resp.body.id, id);
-                } else {
-                    return q.reject(resp.response.statusCode + ', ' + resp.body);
+            
+        // Post a new entity of the given type, unless the appropriate id already exists on the user
+        function makeReqIfNeeded(entityName, opts) {
+            if (!!req.user[entityName]) {
+                log.info('[%1] %2 %3 already exists on user %4',
+                         req.uuid, entityName, req.user[entityName], id);
+                return q();
+            }
+            
+            return requestUtils.qRequest('post', opts).then(function(resp) {
+                if (resp.response.statusCode === 201) {
+                    var createdId = resp.body.id;
+                    log.info('[%1] Created %2 %3 for user %4', req.uuid, entityName, createdId, id);
+                    req.user[entityName] = createdId;
+                    return q();
                 }
-            }).catch(function(error) {
-                req.user.status = Status.Error;
-                log.error('[%1] Error creating customer for user %2: %3', req.uuid, id, error);
+                
+                return q.reject({ code: resp.response.statusCode, body: resp.body });
+            })
+            .catch(function(error) {
+                log.error('[%1] Failed creating %2 for %3: %4',
+                          req.uuid, entityName, id, inspect(error));
+                return q.reject('Failed creating ' + entityName);
             });
         }
 
-        return mutex.acquire()
-            .then(function(acquired) {
-                if(!acquired) {
-                    log.info('[%1] Another confirm operation is already in progress for user %3',
-                        req.uuid, id);
-                    return done({ code: 400, body: 'Another operation is already in progress'});
-                }
-                return userModule.getSixxySession(req, port)
-                    .then(function(cookie) {
-                        sixxyCookie = cookie;
-                        log.info('[%1] Got cookie for sixxy user', req.uuid);
+        return mutex.acquire().then(function(acquired) {
+            if (!acquired) {
+                log.info('[%1] Another confirm operation is already in progress for user %2',
+                         req.uuid, id);
+                return done({ code: 400, body: 'Another operation is already in progress' });
+            }
 
-                        var orgName = (company ? company : 'newOrg') + ' (' + id + ')';
-                        var adName = (company ? company : 'newAdvertiser') + ' (' + id + ')';
-
-                        var orgOpts = { url: url.resolve(api.root, api.orgs.endpoint),
-                            json: { name: orgName }, headers: { cookie: sixxyCookie } };
-                        var adOpts = { url: url.resolve(api.root, api.advertisers.endpoint),
-                            json: { name: adName }, headers: { cookie: sixxyCookie } };
-
-                        var createOrg = requestUtils.qRequest('post', orgOpts);
-                        var createAdvertiser = requestUtils.qRequest('post', adOpts);
-
-                        return q.allSettled([createOrg, createAdvertiser]);
-                    })
-                    .catch(function(error) {
-                        mutex.release();
-                        return q.reject(error);
-                    })
-                    .spread(function(orgResult, adResult) {
-                        // Handle orgResult
-                        var orgState = orgResult.state;
-                        var orgResp = orgResult.value;
-                        if(orgState === 'fulfilled' && orgResp.response.statusCode === 201) {
-                            req.user.org = orgResp.body.id;
-                            log.info('[%1] Created org %2 for user %3',
-                                req.uuid, orgResp.body.id, id);
-                        } else {
-                            req.user.status = Status.Error;
-                            var orgErr = (orgState === 'rejected') ? orgResult.reason :
-                                orgResp.response.statusCode + ', ' + orgResp.body;
-                            log.error('[%1] Error creating org for user %2: %3',
-                                req.uuid, id, orgErr);
-                        }
-                        // Handle adResult
-                        var adState = adResult.state;
-                        var adResp = adResult.value;
-                        if(adState === 'fulfilled' && adResp.response.statusCode === 201) {
-                            var advertiserId = adResp.body.id;
-                            req.user.advertiser = advertiserId;
-                            log.info('[%1] Created advertiser %2 for user %3',
-                                req.uuid, adResp.body.id, id);
-                            return createCustomer(advertiserId);
-                        } else {
-                            req.user.status = Status.Error;
-                            var adErr = (adState === 'rejected') ? adResult.reason :
-                                adResp.response.statusCode + ', ' + adResp.body;
-                            log.error('[%1] Error creating advertiser for user %2: %3',
-                                req.uuid, id, adErr);
-                        }
-                    })
-                    .then(function() {
-                        return mutex.release();
-                    })
-                    .then(function() {
-                        return next();
-                    });
-            });
-    };
-
-    userModule.handleBrokenUser = function(svc, req, next) {
-        if(req.user.status === Status.Error) {
-            var log = logger.getLog(),
-                id = req.user.id,
-                opts = { w: 1, journal: true, new: true },
-                updates = {
-                    $set: {
-                        lastUpdated: new Date(),
-                        status: Status.Error
-                    },
-                    $unset: { activationToken: 1 }
-                };
-            return q.npost(svc._coll, 'findAndModify', [{id: id}, {id: 1}, updates, opts])
-                .then(function() {
-                    log.warn('[%1] User %2 is in a broken state', req.uuid, id);
-                    return q.reject('The user is in a broken state.');
+            return userModule.getSixxySession(req, config.port).then(function(cookie) {
+                sixxyCookie = cookie;
+                log.info('[%1] Got cookie for sixxy user', req.uuid);
+                
+                var orgPromise = makeReqIfNeeded('org', {
+                    url: urlUtils.resolve(config.api.root, config.api.orgs.endpoint),
+                    json: { name: (company ? company : 'newOrg') + ' (' + id + ')' },
+                    headers: { cookie: sixxyCookie }
                 });
-        }
-        return next();
+                
+                var advertPromise = makeReqIfNeeded('advertiser', {
+                    url: urlUtils.resolve(config.api.root, config.api.advertisers.endpoint),
+                    json: { name: (company ? company : 'newAdvertiser') + ' (' + id + ')' },
+                    headers: { cookie: sixxyCookie }
+                })
+                .then(function() {
+                    // can only create customer if advertiser created, because we need advert id
+                    return makeReqIfNeeded('customer', {
+                        url: urlUtils.resolve(config.api.root, config.api.customers.endpoint),
+                        json: {
+                            name: (company ? company : 'newCustomer') + ' (' + id + ')',
+                            advertisers: [req.user.advertiser]
+                        },
+                        headers: { cookie: sixxyCookie }
+                    });
+                });
+                
+                return q.allSettled([orgPromise, advertPromise])
+                .then(function(results) {
+                    // wait until all requests are finished, but reject if any fail
+                    for (var i = 0; i < results.length; i++) {
+                        if (results[i].state !== 'fulfilled') {
+                            return q.reject(results[i].reason);
+                        }
+                    }
+
+                    return mutex.release();
+                })
+                .then(function() {
+                    return next();
+                })
+                .catch(function() {
+                    // if any of these requests failed, save user with whatever ids it has so far
+                    log.info('[%1] Saving any created entity ids on user %2', req.uuid, id);
+                    return mongoUtils.editObject(svc._coll, {
+                        org: req.user.org || undefined,
+                        advertiser: req.user.advertiser || undefined,
+                        customer: req.user.customer || undefined,
+                    }, id)
+                    .finally(function() {
+                        return mutex.release().finally(function() {
+                            return q.reject('Failed creating linked entities');
+                        });
+                    });
+                });
+                
+            }, function(error) {
+                log.error('[%1] Failed getting session for sixxy user: %2',
+                          req.uuid, inspect(error));
+                return mutex.release().finally(function() {
+                    return q.reject('Failed creating linked entities');
+                });
+            });
+        });
     };
 
     userModule.setupSignupUser = function setupSignupUser(svc, roles, policies, req, next, done) {
