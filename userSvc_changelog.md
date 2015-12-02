@@ -1,5 +1,9 @@
 # User Service Changelog
 
+### 2.2.1: Wed Dec  2 14:05:09 EST 2015
+* [FIX]: Do not put the user into `'error'` state if confirmation fails: [#668](https://github.com/cinema6/cwrx/issues/668)
+* Extra deployment steps: None
+
 ### 2.2.0: Tue Nov 24 11:52:12 EST 2015
 * [FEATURE]: Add job manager to userSvc to send 202s for long requests: [#638](https://github.com/cinema6/cwrx/issues/638)
 * Extra deployment steps: None

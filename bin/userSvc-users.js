@@ -22,6 +22,18 @@
         userModule  = { _nonces: {} };
 
     userModule.userSchema = {
+        company: {
+            __allowed: true,
+            __type: 'string'
+        },
+        advertiser: {
+            __allowed: false,
+            __type: 'string'
+        },
+        customer: {
+            __allowed: false,
+            __type: 'string'
+        },
         email: {
             __allowed: true,
             __type: 'string',
@@ -101,8 +113,6 @@
             userModule, userSvc
         );
         var authorizeForceLogout = userModule.authorizeForceLogout;
-        var filterProps = userModule.filterProps.bind(userModule,
-            ['org', 'customer', 'advertiser']);
         var giveActivationToken = userModule.giveActivationToken.bind(userModule,
             config.activationTokenTTL);
         var sendActivationEmail = userModule.sendActivationEmail.bind(userModule,
@@ -143,7 +153,6 @@
         userSvc.use('forceLogout', authorizeForceLogout);
 
         userSvc.use('signupUser', setupSignupUser);
-        userSvc.use('signupUser', filterProps);
         userSvc.use('signupUser', validatePassword);
         userSvc.use('signupUser', hashPassword);
         userSvc.use('signupUser', setupUser);
@@ -234,25 +243,18 @@
                 sixxyCookie = cookie;
                 log.info('[%1] Got cookie for sixxy user', req.uuid);
                 
-                return q.allSettled([
-                    makeReqIfNeeded('org', {
-                        url: urlUtils.resolve(config.api.root, config.api.orgs.endpoint),
-                        json: { name: (company ? company : 'newOrg') + ' (' + id + ')' },
-                        headers: { cookie: sixxyCookie }
-                    }),
-                    makeReqIfNeeded('advertiser', {
-                        url: urlUtils.resolve(config.api.root, config.api.advertisers.endpoint),
-                        json: { name: (company ? company : 'newAdvertiser') + ' (' + id + ')' },
-                        headers: { cookie: sixxyCookie }
-                    })
-                ])
-                .then(function(results) {
-                    for (var i = 0; i < results.length; i++) {
-                        if (results[i].state !== 'fulfilled') {
-                            return q.reject(results[i].reason);
-                        }
-                    }
-
+                var orgPromise = makeReqIfNeeded('org', {
+                    url: urlUtils.resolve(config.api.root, config.api.orgs.endpoint),
+                    json: { name: (company ? company : 'newOrg') + ' (' + id + ')' },
+                    headers: { cookie: sixxyCookie }
+                });
+                
+                var advertPromise = makeReqIfNeeded('advertiser', {
+                    url: urlUtils.resolve(config.api.root, config.api.advertisers.endpoint),
+                    json: { name: (company ? company : 'newAdvertiser') + ' (' + id + ')' },
+                    headers: { cookie: sixxyCookie }
+                })
+                .then(function() {
                     // can only create customer if advertiser created, because we need advert id
                     return makeReqIfNeeded('customer', {
                         url: urlUtils.resolve(config.api.root, config.api.customers.endpoint),
@@ -262,8 +264,17 @@
                         },
                         headers: { cookie: sixxyCookie }
                     });
-                })
-                .then(function() {
+                });
+                
+                return q.allSettled([orgPromise, advertPromise])
+                .then(function(results) {
+                    // wait until all requests are finished, but reject if any fail
+                    for (var i = 0; i < results.length; i++) {
+                        if (results[i].state !== 'fulfilled') {
+                            return q.reject(results[i].reason);
+                        }
+                    }
+
                     return mutex.release();
                 })
                 .then(function() {
@@ -278,17 +289,18 @@
                         customer: req.user.customer || undefined,
                     }, id)
                     .finally(function() {
-                        return mutex.release();
-                    })
-                    .finally(function() {
-                        return q.reject('Failed creating linked entities');
+                        return mutex.release().finally(function() {
+                            return q.reject('Failed creating linked entities');
+                        });
                     });
                 });
                 
             }, function(error) {
                 log.error('[%1] Failed getting session for sixxy user: %2',
                           req.uuid, inspect(error));
-                return q.reject('Failed creating linked entities');
+                return mutex.release().finally(function() {
+                    return q.reject('Failed creating linked entities');
+                });
             });
         });
     };
