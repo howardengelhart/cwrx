@@ -1,5 +1,7 @@
 # Ads Service Changelog
 
+* [REMOVAL]: Removed the minireel groups service: [#671](https://github.com/cinema6/cwrx/issues/671)
+
 ### 3.0.6: Thu Dec  3 15:17:50 EST 2015
 * [FIX]: Do not set default dates in cards' `campaign` hash: [#683](https://github.com/cinema6/cwrx/issues/683)
 * Extra deployment steps: None
