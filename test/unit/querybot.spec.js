@@ -428,6 +428,117 @@ describe('querybot (UT)', function() {
         });
     });
 
+    describe('processCampaignSummaryRecord',function(){
+        var record;
+        beforeEach(function(){
+            record = {
+                campaignId : 'abc',
+                eventType  : 'cardView',
+                eventCount : '100',
+                eventCost  : '25.2500'
+            };
+        });
+
+        it('initializes a record',function(){
+            var obj = lib.processCampaignSummaryRecord(record);
+            expect(obj).toEqual({
+                campaignId : 'abc',
+                summary : {
+                    impressions : 100,
+                    views : 0,
+                    totalSpend : '0.0000',
+                    linkClicks : {},
+                    shareClicks : {}
+                }
+            });
+        });
+
+        it('adds view and cost to initialized record',function(){
+            var obj = lib.processCampaignSummaryRecord(record);
+            record.eventType = 'completedView';
+            lib.processCampaignSummaryRecord(record,obj);
+            expect(obj).toEqual({
+                campaignId : 'abc',
+                summary : {
+                    impressions : 100,
+                    views : 100,
+                    totalSpend : '25.2500',
+                    linkClicks : {},
+                    shareClicks : {}
+                }
+            });
+        });
+        
+        it('adds link click to initialized record',function(){
+            var obj = lib.processCampaignSummaryRecord(record);
+            record.eventType = 'link.Facebook';
+            lib.processCampaignSummaryRecord(record,obj);
+            expect(obj).toEqual({
+                campaignId : 'abc',
+                summary : {
+                    impressions : 100,
+                    views : 0,
+                    totalSpend : '0.0000',
+                    linkClicks : {
+                        facebook : 100
+                    },
+                    shareClicks : {}
+                }
+            });
+
+        });
+
+        it('adds share click to initialized record',function(){
+            var obj = lib.processCampaignSummaryRecord(record);
+            record.eventType = 'shareLink.Nosebook';
+            lib.processCampaignSummaryRecord(record,obj);
+            expect(obj).toEqual({
+                campaignId : 'abc',
+                summary : {
+                    impressions : 100,
+                    views : 0,
+                    totalSpend : '0.0000',
+                    linkClicks : { },
+                    shareClicks : {
+                        nosebook : 100
+                    }
+                }
+            });
+        });
+
+        it('ignores eventTypes it is not concerned with',function(){
+            var obj = lib.processCampaignSummaryRecord(record);
+            record.eventType = 'q1';
+            lib.processCampaignSummaryRecord(record,obj);
+            expect(obj).toEqual({
+                campaignId : 'abc',
+                summary : {
+                    impressions : 100,
+                    views : 0,
+                    totalSpend : '0.0000',
+                    linkClicks : { },
+                    shareClicks : { }
+                }
+            });
+        });
+        
+        it('treates a NaN eventCount as 0',function(){
+            record.eventCount = null;
+            var obj = lib.processCampaignSummaryRecord(record);
+            lib.processCampaignSummaryRecord(record,obj);
+            expect(obj).toEqual({
+                campaignId : 'abc',
+                summary : {
+                    impressions : 0,
+                    views : 0,
+                    totalSpend : '0.0000',
+                    linkClicks : { },
+                    shareClicks : { }
+                }
+            });
+        });
+    });
+
     describe('queryCampaignSummary',function(){
         var req;
         beforeEach(function(){
@@ -439,22 +550,10 @@ describe('querybot (UT)', function() {
 
         it('will pass campaignIds as parameters',function(){
             lib.queryCampaignSummary(['abc','def']);
-            expect(lib.pgQuery.calls.mostRecent().args[1]).toEqual([['abc','def']]);
-        });
-    });
-
-    describe('queryCampaignDaily',function(){
-        var req;
-        beforeEach(function(){
-            req = { 
-                campaignIds : ['id1','id2']
-            };
-            spyOn(lib,'pgQuery').and.returnValue(mockPromise);
-        });
-
-        it('will pass campaignIds as parameters',function(){
-            lib.queryCampaignDaily(['abc','def']);
-            expect(lib.pgQuery.calls.mostRecent().args[1]).toEqual([['abc','def']]);
+            expect(lib.pgQuery.calls.mostRecent().args[1]).toEqual([
+                ['abc','def'],
+                ['q1','q2','q3','q4','launch','load','play']
+            ]);
         });
     });
 
@@ -464,14 +563,14 @@ describe('querybot (UT)', function() {
             req = {},
             fakeIds = [ 'abc', 'def', 'ghi' ];
             fakeCacheData = {
-                'abc' : { campaignId : 'abc' },
-                'def' : { campaignId : 'def' },
-                'ghi' : { campaignId : 'ghi' }
+                'abc' : { campaignId : 'abc', summary : {} },
+                'def' : { campaignId : 'def', summary : {} },
+                'ghi' : { campaignId : 'ghi', summary : {} }
             };
             fakeQueryData = {
-                'abc' : { campaignId : 'abc' },
-                'def' : { campaignId : 'def' },
-                'ghi' : { campaignId : 'ghi' }
+                'abc' : { campaignId : 'abc', summary : {} },
+                'def' : { campaignId : 'def', summary : {} },
+                'ghi' : { campaignId : 'ghi', summary : {} }
             };
             spyOn(lib,'getCampaignDataFromCache').and.returnValue(q(fakeCacheData));
             spyOn(lib,'queryCampaignSummary').and.returnValue(q(fakeQueryData));

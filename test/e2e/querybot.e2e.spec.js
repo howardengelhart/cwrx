@@ -36,8 +36,8 @@ function pgQuery(conn,statement) {
 }
 
 describe('querybot (E2E)', function(){
-    var pgdata_crosstab, pgdata_crosstab_daily, mockUser, mockCamps, pgconn,
-        cookieJar, options;
+    var pgdata_campaign_summary_hourly, mockUser, mockCamps, pgconn,
+        cookieJar, options, camp1Data, camp2Data;
 
     beforeEach(function(done){
         // TODO:  Work out what connection config should be!
@@ -47,24 +47,115 @@ describe('querybot (E2E)', function(){
             database: 'campfire_cwrx',
             host    : process.env.mongo ? JSON.parse(process.env.mongo).host : '33.33.33.100'
         };
-       
-        pgdata_crosstab = [
-            'INSERT INTO rpt.campaign_crosstab_live VALUES',
-            '(\'cam-5bebbf1c34a3d7\',120000,100000,1000,11.22,670,350,130,0,0,29,11,7,0),',
-            '(\'cam-237505b42ee19f\',550000,500000,2000,12.25,500,300,100,0,110,10,10,10,10),',
-            '(\'cam-278b8150021c68\',390000,300000,1200,13.13,500,300,100,0,100,90,80,70,60),',
-            '(\'cam-bfc62ac554280e\',425000,400000,1500,10.98,500,300,100,0,100,90,80,70,60),',
-            '(\'cam-1ca2ee2c0ded77\',824000,800000,2500,11.11,500,300,100,0,100,90,80,70,60);'
+
+        camp1Data = {
+            campaignId : 'cam-1757d5cd13e383',
+            summary : {
+                impressions: 8186,
+                views      : 6263,
+                totalSpend : '1189.9700',
+                linkClicks : {
+                    action      : 223,
+                    facebook    : 18,
+                    instagram   : 2,
+                    website     : 114,
+                    youtube     : 5
+                },
+                shareClicks : {
+                    facebook  : 32,
+                    pinterest : 31,
+                    twitter   : 21
+                }
+            }
+        };
+
+        camp2Data = {
+            campaignId : 'cam-b651cde4158304',
+            summary : {
+                impressions : 612,
+                views       : 512,
+                totalSpend  : '56.3200',
+                linkClicks  : {
+                    action : 2,
+                    facebook : 9,
+                    instagram : 2,
+                    twitter : 11,
+                    website : 86,
+                    youtube : 3
+                },
+                shareClicks : {}
+            }
+        };
+      
+        pgdata_campaign_summary_hourly = [
+            'INSERT INTO rpt.campaign_summary_hourly_all VALUES',
+            '(\'2015-12-03 01:00:00+00\',\'cam-1757d5cd13e383\',\'cardView\',2032,0.0000),',
+            '(\'2015-12-03 01:00:00+00\',\'cam-1757d5cd13e383\',\'completedView\',1542,292.9800),',
+            '(\'2015-12-03 01:00:00+00\',\'cam-1757d5cd13e383\',\'launch\',2032,0.0000),',
+            '(\'2015-12-03 01:00:00+00\',\'cam-1757d5cd13e383\',\'link.Action\',69,0.0000),',
+            '(\'2015-12-03 01:00:00+00\',\'cam-1757d5cd13e383\',\'link.Facebook\',7,0.0000),',
+            '(\'2015-12-03 01:00:00+00\',\'cam-1757d5cd13e383\',\'link.Website\',28,0.0000),',
+            '(\'2015-12-03 01:00:00+00\',\'cam-1757d5cd13e383\',\'link.YouTube\',2,0.0000),',
+            '(\'2015-12-03 01:00:00+00\',\'cam-1757d5cd13e383\',\'load\',2038,0.0000),',
+            '(\'2015-12-03 01:00:00+00\',\'cam-1757d5cd13e383\',\'play\',1881,0.0000),',
+            '(\'2015-12-03 01:00:00+00\',\'cam-1757d5cd13e383\',\'q1\',1597,0.0000),',
+            '(\'2015-12-03 01:00:00+00\',\'cam-1757d5cd13e383\',\'q2\',1374,0.0000),',
+            '(\'2015-12-03 01:00:00+00\',\'cam-1757d5cd13e383\',\'q3\',473,0.0000),',
+            '(\'2015-12-03 01:00:00+00\',\'cam-1757d5cd13e383\',\'q4\',322,0.0000),',
+            '(\'2015-12-03 01:00:00+00\',\'cam-1757d5cd13e383\',\'shareLink.facebook\',11,0.0000),',
+            '(\'2015-12-03 01:00:00+00\',\'cam-1757d5cd13e383\',\'shareLink.twitter\',21,0.0000),',
+            '(\'2015-12-03 00:00:00+00\',\'cam-1757d5cd13e383\',\'cardView\',5871,0.0000),',
+            '(\'2015-12-03 00:00:00+00\',\'cam-1757d5cd13e383\',\'completedView\',4512,857.2800),',
+            '(\'2015-12-03 00:00:00+00\',\'cam-1757d5cd13e383\',\'launch\',5871,0.0000),',
+            '(\'2015-12-03 00:00:00+00\',\'cam-1757d5cd13e383\',\'link.Action\',151,0.0000),',
+            '(\'2015-12-03 00:00:00+00\',\'cam-1757d5cd13e383\',\'link.Facebook\',11,0.0000),',
+            '(\'2015-12-03 00:00:00+00\',\'cam-1757d5cd13e383\',\'link.Instagram\',2,0.0000),',
+            '(\'2015-12-03 00:00:00+00\',\'cam-1757d5cd13e383\',\'link.Website\',86,0.0000),',
+            '(\'2015-12-03 00:00:00+00\',\'cam-1757d5cd13e383\',\'link.YouTube\',3,0.0000),',
+            '(\'2015-12-03 00:00:00+00\',\'cam-1757d5cd13e383\',\'load\',5928,0.0000),',
+            '(\'2015-12-03 00:00:00+00\',\'cam-1757d5cd13e383\',\'play\',5469,0.0000),',
+            '(\'2015-12-03 00:00:00+00\',\'cam-1757d5cd13e383\',\'q1\',4765,0.0000),',
+            '(\'2015-12-03 00:00:00+00\',\'cam-1757d5cd13e383\',\'q2\',3981,0.0000),',
+            '(\'2015-12-03 00:00:00+00\',\'cam-1757d5cd13e383\',\'q3\',1333,0.0000),',
+            '(\'2015-12-03 00:00:00+00\',\'cam-1757d5cd13e383\',\'q4\',918,0.0000),',
+            '(\'2015-12-02 23:00:00+00\',\'cam-1757d5cd13e383\',\'cardView\',283,0.0000),',
+            '(\'2015-12-02 23:00:00+00\',\'cam-1757d5cd13e383\',\'completedView\',209,39.7100),',
+            '(\'2015-12-02 23:00:00+00\',\'cam-1757d5cd13e383\',\'launch\',284,0.0000),',
+            '(\'2015-12-02 23:00:00+00\',\'cam-1757d5cd13e383\',\'link.Action\',3,0.0000),',
+            '(\'2015-12-02 23:00:00+00\',\'cam-1757d5cd13e383\',\'load\',299,0.0000),',
+            '(\'2015-12-02 23:00:00+00\',\'cam-1757d5cd13e383\',\'play\',278,0.0000),',
+            '(\'2015-12-02 23:00:00+00\',\'cam-1757d5cd13e383\',\'q1\',223,0.0000),',
+            '(\'2015-12-02 23:00:00+00\',\'cam-1757d5cd13e383\',\'q2\',155,0.0000),',
+            '(\'2015-12-02 23:00:00+00\',\'cam-1757d5cd13e383\',\'q3\',52,0.0000),',
+            '(\'2015-12-02 23:00:00+00\',\'cam-1757d5cd13e383\',\'q4\',30,0.0000),',
+            '(\'2015-12-02 23:00:00+00\',\'cam-1757d5cd13e383\',\'shareLink.facebook\',21,0.0000),',
+            '(\'2015-12-02 23:00:00+00\',\'cam-1757d5cd13e383\',\'shareLink.pinterest\',31,0.0000),',
+            '(\'2015-12-03 00:00:00+00\',\'cam-b651cde4158304\',\'cardView\',385,0.0000),',
+            '(\'2015-12-03 00:00:00+00\',\'cam-b651cde4158304\',\'completedView\',318,34.9800),',
+            '(\'2015-12-03 00:00:00+00\',\'cam-b651cde4158304\',\'launch\',384,0.0000),',
+            '(\'2015-12-03 00:00:00+00\',\'cam-b651cde4158304\',\'link.Action\',2,0.0000),',
+            '(\'2015-12-03 00:00:00+00\',\'cam-b651cde4158304\',\'link.Facebook\',9,0.0000),',
+            '(\'2015-12-03 00:00:00+00\',\'cam-b651cde4158304\',\'link.Twitter\',11,0.0000),',
+            '(\'2015-12-03 00:00:00+00\',\'cam-b651cde4158304\',\'load\',384,0.0000),',
+            '(\'2015-12-03 00:00:00+00\',\'cam-b651cde4158304\',\'play\',384,0.0000),',
+            '(\'2015-12-03 00:00:00+00\',\'cam-b651cde4158304\',\'q1\',359,0.0000),',
+            '(\'2015-12-03 00:00:00+00\',\'cam-b651cde4158304\',\'q2\',349,0.0000),',
+            '(\'2015-12-03 00:00:00+00\',\'cam-b651cde4158304\',\'q3\',336,0.0000),',
+            '(\'2015-12-03 00:00:00+00\',\'cam-b651cde4158304\',\'q4\',318,0.0000),',
+            '(\'2015-12-02 23:00:00+00\',\'cam-b651cde4158304\',\'cardView\',227,0.0000),',
+            '(\'2015-12-02 23:00:00+00\',\'cam-b651cde4158304\',\'completedView\',194,21.3400),',
+            '(\'2015-12-02 23:00:00+00\',\'cam-b651cde4158304\',\'launch\',227,0.0000),',
+            '(\'2015-12-02 23:00:00+00\',\'cam-b651cde4158304\',\'load\',227,0.0000),',
+            '(\'2015-12-02 23:00:00+00\',\'cam-b651cde4158304\',\'link.Instagram\',2,0.0000),',
+            '(\'2015-12-02 23:00:00+00\',\'cam-b651cde4158304\',\'link.Website\',86,0.0000),',
+            '(\'2015-12-02 23:00:00+00\',\'cam-b651cde4158304\',\'link.YouTube\',3,0.0000),',
+            '(\'2015-12-02 23:00:00+00\',\'cam-b651cde4158304\',\'play\',225,0.0000),',
+            '(\'2015-12-02 23:00:00+00\',\'cam-b651cde4158304\',\'q1\',215,0.0000),',
+            '(\'2015-12-02 23:00:00+00\',\'cam-b651cde4158304\',\'q2\',211,0.0000),',
+            '(\'2015-12-02 23:00:00+00\',\'cam-b651cde4158304\',\'q3\',202,0.0000),',
+            '(\'2015-12-02 23:00:00+00\',\'cam-b651cde4158304\',\'q4\',193,0.0000);'
         ];
-        
-        pgdata_crosstab_daily = [
-            'INSERT INTO rpt.campaign_daily_crosstab_live VALUES',
-            '(\'2015-09-28\',\'cam-5bebbf1c34a3d7\',120000,50000,500,7.22,300,100,100,0,0,10,5,2,0),',
-            '(\'2015-09-29\',\'cam-5bebbf1c34a3d7\',120000,20000,300,2.00,200,100,0,0,0,10,2,1,0),',
-            '(\'2015-09-30\',\'cam-5bebbf1c34a3d7\',120000,20000,100,1.00,90,80,0,0,0,8,2,2,0),',
-            '(\'2015-10-01\',\'cam-5bebbf1c34a3d7\',120000,10000,100,1.00,80,70,30,0,0,1,2,2,0);'
-        ];
-        
+
         mockUser = {
             id: 'e2e-user', org: 'e2e-org', status: 'active', email : 'querybot',
             // hash of 'password'
@@ -77,9 +168,9 @@ describe('querybot (E2E)', function(){
         };
         
         mockCamps = [
-            { id: 'cam-5bebbf1c34a3d7', name: 'camp 1', status: 'active',
+            { id: 'cam-1757d5cd13e383', name: 'camp 1', status: 'active',
                 user: 'e2e-user', org: 'e2e-org' },
-            { id: 'cam-237505b42ee19f', name: 'camp 2', status: 'active',
+            { id: 'cam-b651cde4158304', name: 'camp 2', status: 'active',
                 user: 'e2e-user', org: 'e2e-org' },
             { id: 'cam-278b8150021c68', name: 'camp 3', status: 'active',
                 user: 'not-e2e-user', org: 'not-e2e-org' },
@@ -88,18 +179,11 @@ describe('querybot (E2E)', function(){
         ];
 
         function pgTruncate(){
-            return pgQuery(pgconn,'TRUNCATE TABLE rpt.campaign_crosstab_live')
-                .then(function(){
-                    return pgQuery(pgconn,
-                        'TRUNCATE TABLE rpt.campaign_daily_crosstab_live');
-                });
+            return pgQuery(pgconn,'TRUNCATE TABLE rpt.campaign_summary_hourly_all');
         }
 
         function pgInsert() {
-            return pgQuery(pgconn,pgdata_crosstab.join(' '))
-                .then(function(){
-                    return pgQuery(pgconn,pgdata_crosstab_daily.join(' '));
-                });
+            return pgQuery(pgconn,pgdata_campaign_summary_hourly.join(' '));
         }
 
         function mongoInsert() {
@@ -139,7 +223,7 @@ describe('querybot (E2E)', function(){
     describe('GET /api/analytics/campaigns/:id', function() {
         it('requires authentication',function(done){
             delete options.jar;
-            options.url += '/cam-5bebbf1c34a3d7';
+            options.url += '/cam-1757d5cd13e383';
             requestUtils.qRequest('get', options)
             .then(function(resp) {
                 expect(resp.response.statusCode).toEqual(401);
@@ -169,19 +253,11 @@ describe('querybot (E2E)', function(){
         });
 
         it('returns single document if the campaigns GET is singular form',function(done){
-            options.url += '/cam-5bebbf1c34a3d7';
+            options.url += '/cam-1757d5cd13e383';
             requestUtils.qRequest('get', options)
             .then(function(resp) {
                 expect(resp.response.statusCode).toEqual(200);
-                expect(resp.body).toEqual({
-                    campaignId : 'cam-5bebbf1c34a3d7',
-                    summary : {
-                        impressions: 100000,
-                        views: 1000,
-                        clicks: 47,
-                        totalSpend : '11.2200'
-                    }
-                });
+                expect(resp.body).toEqual(camp1Data);
             })
             .then(done,done.fail);
         });
@@ -191,7 +267,7 @@ describe('querybot (E2E)', function(){
     describe('GET /api/analytics/campaigns/?ids=:id', function() {
         it('requires authentication',function(done){
             delete options.jar;
-            options.url += '/?ids=cam-5bebbf1c34a3d7';
+            options.url += '/?ids=cam-1757d5cd13e383';
             requestUtils.qRequest('get', options)
             .then(function(resp) {
                 expect(resp.response.statusCode).toEqual(401);
@@ -211,78 +287,37 @@ describe('querybot (E2E)', function(){
         });
 
         it('returns single document array if the campaigns GET is plural form',function(done){
-            options.url += '/?ids=cam-5bebbf1c34a3d7';
+            options.url += '/?ids=cam-1757d5cd13e383';
             requestUtils.qRequest('get', options)
             .then(function(resp) {
                 expect(resp.response.statusCode).toEqual(200);
-                expect(resp.body).toEqual([{
-                    campaignId : 'cam-5bebbf1c34a3d7',
-                    summary : {
-                        impressions: 100000,
-                        views: 1000,
-                        clicks: 47,
-                        totalSpend : '11.2200'
-                    }
-                }]);
+                expect(resp.body).toEqual([ camp1Data ]);
             })
             .then(done,done.fail);
         });
         
         it('returns document array if the campaigns GET is plural form',function(done){
-            options.url += '/?ids=cam-5bebbf1c34a3d7,cam-237505b42ee19f';
+            options.url += '/?ids=cam-1757d5cd13e383,cam-b651cde4158304';
             requestUtils.qRequest('get', options)
             .then(function(resp) {
                 expect(resp.response.statusCode).toEqual(200);
                 expect(isArray(resp.body)).toEqual(true);
-                expect(resp.body).toContain(jasmine.objectContaining({
-                    campaignId : 'cam-5bebbf1c34a3d7',
-                    summary : {
-                        impressions: 100000,
-                        views: 1000,
-                        clicks: 47,
-                        totalSpend : '11.2200'
-                    }
-                }));
-                expect(resp.body).toContain(jasmine.objectContaining({
-                    campaignId : 'cam-237505b42ee19f',
-                    summary : {
-                        impressions: 500000,
-                        views: 2000,
-                        clicks: 150,
-                        totalSpend : '12.2500'
-                    }
-                }));
+                expect(resp.body).toContain(camp1Data);
+                expect(resp.body).toContain(camp2Data);
             })
             .then(done,done.fail);
         });
 
         it('returns document array with found items, omits unfound ',function(done){
-            options.url += '/?ids=cam-5bebbf1c34a3d7,cam-237505b42ee19f,cam-278b8150021c68';
+            options.url += '/?ids=cam-1757d5cd13e383,cam-b651cde4158304,cam-278b8150021c68';
             requestUtils.qRequest('get', options)
             .then(function(resp) {
                 expect(resp.response.statusCode).toEqual(200);
                 expect(resp.body.length).toEqual(2);
-                expect(resp.body).toContain(jasmine.objectContaining({
-                    campaignId : 'cam-5bebbf1c34a3d7',
-                    summary : {
-                        impressions: 100000,
-                        views: 1000,
-                        clicks: 47,
-                        totalSpend : '11.2200'
-                    }
-                }));
-                expect(resp.body).toContain(jasmine.objectContaining({
-                    campaignId : 'cam-237505b42ee19f',
-                    summary : {
-                        impressions: 500000,
-                        views: 2000,
-                        clicks: 150,
-                        totalSpend : '12.2500'
-                    }
-                }));
+                expect(resp.body).toContain(jasmine.objectContaining(camp1Data));
+                expect(resp.body).toContain(jasmine.objectContaining(camp2Data));
             })
             .then(done,done.fail);
         });
     });
 });
-
