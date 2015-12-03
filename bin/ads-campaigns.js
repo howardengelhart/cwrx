@@ -396,7 +396,17 @@
                 // merge req.body.cards entry with fetched C6 card
                 if (resp.response.statusCode === 200) {
                     req._cards[newCard.id] = resp.body;
-                    objUtils.extend(newCard.campaign, resp.body.campaign);
+
+                    // ensure existing campaign hash is not overwritten with empty object
+                    if (objUtils.compareObjects(newCard.campaign, {})) {
+                        newCard.campaign = resp.body.campaign || {};
+                    }
+                    // ensure adtech ids are preserved
+                    ['adtechId', 'bannerId', 'bannerNumber'].forEach(function(prop) {
+                        if (!newCard.campaign[prop]) {
+                            newCard.campaign[prop] = resp.body.campaign && resp.body.campaign[prop];
+                        }
+                    });
                     return;
                 }
                 

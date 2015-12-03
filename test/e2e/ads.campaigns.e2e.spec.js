@@ -1775,6 +1775,40 @@ describe('ads campaigns endpoints (E2E):', function() {
                 }).done(done);
             });
             
+            it('should be able to intialize dates on the card', function(done) {
+                var start = new Date(Date.now() + 4*60*60*1000).toISOString(),
+                    end = new Date(Date.now() + 8*60*60*1000).toISOString();
+                selfieCreatedCamp.cards[0].campaign.startDate = start;
+                selfieCreatedCamp.cards[0].campaign.endDate = end;
+                options.json = { cards: selfieCreatedCamp.cards };
+                requestUtils.qRequest('put', options, null, { maxAttempts: 30 }).then(function(resp) {
+                    expect(resp.response.statusCode).toBe(200);
+                    expect(resp.body.cards[0].campaign.startDate).toEqual(start);
+                    expect(resp.body.cards[0].campaign.endDate).toEqual(end);
+
+                    selfieCreatedCamp = resp.body;
+                    return testUtils.checkCardEntities(selfieCreatedCamp, selfieJar, config.contentUrl);
+                }).catch(function(error) {
+                    expect(util.inspect(error)).not.toBeDefined();
+                }).done(done);
+            });
+            
+            it('should be able to unset dates on the card', function(done) {
+                delete selfieCreatedCamp.cards[0].campaign.startDate;
+                delete selfieCreatedCamp.cards[0].campaign.endDate;
+                options.json = { cards: selfieCreatedCamp.cards };
+                requestUtils.qRequest('put', options, null, { maxAttempts: 30 }).then(function(resp) {
+                    expect(resp.response.statusCode).toBe(200);
+                    expect(resp.body.cards[0].startDate).not.toBeDefined();
+                    expect(resp.body.cards[0].endDate).not.toBeDefined();
+
+                    selfieCreatedCamp = resp.body;
+                    return testUtils.checkCardEntities(selfieCreatedCamp, selfieJar, config.contentUrl);
+                }).catch(function(error) {
+                    expect(util.inspect(error)).not.toBeDefined();
+                }).done(done);
+            });
+            
             it('should be able to initialize and edit pricing', function(done) {
                 options.json = { pricing: {
                     budget: 1000,
