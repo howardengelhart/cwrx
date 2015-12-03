@@ -184,8 +184,16 @@ testUtils.checkCardCampaign = function(camp, parentCamp, card, catKeys, advert, 
     expect(camp.exclusive).toBe(true);
     expect(camp.exclusiveType).toBe(kCamp.EXCLUSIVE_TYPE_END_DATE);
     expect(camp.name).toBe(card.campaign.adtechName + ' (' + parentCamp.id + ')');
-    expect(camp.dateRangeList[0].startDate.toUTCString()).toBe(new Date(card.campaign.startDate).toUTCString());
-    expect(camp.dateRangeList[0].endDate.toUTCString()).toBe(new Date(card.campaign.endDate).toUTCString());
+    if (card.campaign.startDate) {
+        expect(camp.dateRangeList[0].startDate.toUTCString()).toBe(new Date(card.campaign.startDate).toUTCString());
+    } else {
+        expect(camp.dateRangeList[0].startDate).toEqual(jasmine.any(Date));
+    }
+    if (card.campaign.endDate) {
+        expect(camp.dateRangeList[0].endDate.toUTCString()).toBe(new Date(card.campaign.endDate).toUTCString());
+    } else {
+        expect(camp.dateRangeList[0].endDate).toEqual(jasmine.any(Date));
+    }
     expect(camp.priorityLevelOneKeywordIdList).toEqual([jasmine.any(String)]);
     expect(camp.priorityLevelThreeKeywordIdList.sort()).toEqual(catKeys.sort());
     expect(camp.priority).toBe(3);

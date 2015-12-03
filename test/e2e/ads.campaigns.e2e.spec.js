@@ -708,7 +708,7 @@ describe('ads campaigns endpoints (E2E):', function() {
                 expect(resp.body.cards[0].campaign.bannerId).toEqual(jasmine.any(Number));
                 expect(resp.body.cards[0].campaign.bannerNumber).toEqual(jasmine.any(Number));
                 expect(resp.body.cards[0].campaign.startDate).toEqual(start.toISOString());
-                expect(resp.body.cards[0].campaign.endDate).toEqual(jasmine.any(String));
+                expect(resp.body.cards[0].campaign.endDate).not.toBeDefined();
                 expect(resp.body.cards[0].status).toEqual('active');
                 expect(resp.body.cards[0].user).toEqual('not-e2e-user');
                 expect(resp.body.cards[0].org).toEqual('o-selfie');
@@ -769,8 +769,8 @@ describe('ads campaigns endpoints (E2E):', function() {
                 expect(resp.body.cards[0].campaign.adtechId).toEqual(jasmine.any(Number));
                 expect(resp.body.cards[0].campaign.bannerId).toEqual(jasmine.any(Number));
                 expect(resp.body.cards[0].campaign.bannerNumber).toEqual(jasmine.any(Number));
-                expect(resp.body.cards[0].campaign.startDate).toEqual(jasmine.any(String));
-                expect(resp.body.cards[0].campaign.endDate).toEqual(jasmine.any(String));
+                expect(resp.body.cards[0].campaign.startDate).not.toBeDefined();
+                expect(resp.body.cards[0].campaign.endDate).not.toBeDefined();
                 expect(resp.body.cards[0].status).toEqual('active');
 
                 expect(resp.body.cards[1].id).toEqual(jasmine.any(String));
@@ -779,8 +779,8 @@ describe('ads campaigns endpoints (E2E):', function() {
                 expect(resp.body.cards[1].campaign.adtechId).toEqual(jasmine.any(Number));
                 expect(resp.body.cards[1].campaign.bannerId).toEqual(jasmine.any(Number));
                 expect(resp.body.cards[1].campaign.bannerNumber).toEqual(jasmine.any(Number));
-                expect(resp.body.cards[1].campaign.startDate).toEqual(jasmine.any(String));
-                expect(resp.body.cards[1].campaign.endDate).toEqual(jasmine.any(String));
+                expect(resp.body.cards[1].campaign.startDate).not.toBeDefined();
+                expect(resp.body.cards[1].campaign.endDate).not.toBeDefined();
                 expect(resp.body.cards[1].status).toEqual('active');
                 
                 newCamp = resp.body;
@@ -1049,8 +1049,8 @@ describe('ads campaigns endpoints (E2E):', function() {
                     expect(resp.body.cards[0].campaign.adtechId).toEqual(jasmine.any(Number));
                     expect(resp.body.cards[0].campaign.bannerId).toEqual(jasmine.any(Number));
                     expect(resp.body.cards[0].campaign.bannerNumber).toEqual(jasmine.any(Number));
-                    expect(resp.body.cards[0].campaign.startDate).toEqual(jasmine.any(String));
-                    expect(resp.body.cards[0].campaign.endDate).toEqual(jasmine.any(String));
+                    expect(resp.body.cards[0].campaign.startDate).not.toBeDefined();
+                    expect(resp.body.cards[0].campaign.endDate).not.toBeDefined();
                     expect(resp.body.cards[0].status).toEqual('active');
                     expect(resp.body.cards[0].user).toEqual('e2e-user');
                     expect(resp.body.cards[0].org).toEqual('o-selfie');
@@ -1450,8 +1450,8 @@ describe('ads campaigns endpoints (E2E):', function() {
                 expect(resp.body.cards[1].campaign.adtechId).toEqual(jasmine.any(Number));
                 expect(resp.body.cards[1].campaign.bannerId).toEqual(jasmine.any(Number));
                 expect(resp.body.cards[1].campaign.bannerNumber).toEqual(jasmine.any(Number));
-                expect(resp.body.cards[1].campaign.startDate).toEqual(jasmine.any(String));
-                expect(resp.body.cards[1].campaign.endDate).toEqual(jasmine.any(String));
+                expect(resp.body.cards[1].campaign.startDate).not.toBeDefined();
+                expect(resp.body.cards[1].campaign.endDate).not.toBeDefined();
                 expect(resp.body.cards[1].status).toEqual('active');
                 expect(resp.body.cards[1].user).toEqual('admin-e2e-user');
                 expect(resp.body.cards[1].org).toEqual('o-admin');

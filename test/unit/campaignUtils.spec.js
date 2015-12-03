@@ -69,11 +69,10 @@ describe('campaignUtils', function() {
             };
         });
         
-        it('should default both the startDate and endDate if undefined', function() {
+        it('should not default the startDate and endDate if undefined', function() {
             expect(campaignUtils.validateDates(obj, existing, delays)).toBe(true);
             expect(mockLog.info).not.toHaveBeenCalled();
-            expect(obj).toEqual({startDate: jasmine.any(String), endDate: jasmine.any(String)});
-            expect(new Date(obj.endDate) - new Date(obj.startDate)).toBe(60*60*1000);
+            expect(obj).toEqual({});
         });
 
         it('should return false if the startDate is not a valid date string', function() {
@@ -106,13 +105,6 @@ describe('campaignUtils', function() {
             expect(campaignUtils.validateDates(obj, existing, delays)).toBe(true);
             obj.endDate = new Date(new Date().valueOf() + 4000).toISOString();
             expect(campaignUtils.validateDates(obj, existing, delays)).toBe(true);
-        });
-
-        it('should handle an undefined delays object', function() {
-            expect(campaignUtils.validateDates(obj, existing)).toBe(true);
-            expect(mockLog.info).not.toHaveBeenCalled();
-            expect(obj).toEqual({startDate: jasmine.any(String), endDate: jasmine.any(String)});
-            expect(new Date(obj.endDate)).toBeGreaterThan(new Date(obj.startDate));
         });
     });
 
@@ -853,6 +845,21 @@ describe('campaignUtils', function() {
             var fmt = campaignUtils.formatCampaign(campaign);
             expect(fmt.id).toBe(987);
         });
+        
+        it('should default dates if undefined', function() {
+            delete campaign.startDate;
+            delete campaign.endDate;
+            var fmt = campaignUtils.formatCampaign(campaign);
+            expect(new Date(fmt.dateRangeList[0].startDate).valueOf()).toBeGreaterThan(Date.now());
+            expect(new Date(fmt.dateRangeList[0].endDate).valueOf()).toBeGreaterThan(new Date(fmt.dateRangeList[0].startDate).valueOf());
+        });
+        
+        it('should ensure the endDate is later than the start date', function() {
+            campaign.endDate = new Date(now.valueOf() - 5000);
+            var fmt = campaignUtils.formatCampaign(campaign);
+            expect(fmt.dateRangeList[0].startDate).toBe(campaign.startDate);
+            expect(new Date(fmt.dateRangeList[0].endDate).valueOf()).toBeGreaterThan(new Date(fmt.dateRangeList[0].startDate).valueOf());
+        });
     });
     
     describe('createCampaign', function() {
@@ -895,7 +902,7 @@ describe('campaignUtils', function() {
             campaign = {
                 adtechId: 123,
                 startDate: now.toISOString(),
-                endDate: new Date(now + 1000).toISOString()
+                endDate: new Date(now.valueOf() + 6000).toISOString()
             };
             origCamp = {
                 id: 123, foo: null, name: 'old', statusTypeId: kCamp.STATUS_ENTERED,
@@ -911,7 +918,7 @@ describe('campaignUtils', function() {
                 expect(adtech.campaignAdmin.getCampaignById).toHaveBeenCalledWith(123);
                 expect(adtech.campaignAdmin.updateCampaign).toHaveBeenCalledWith({
                     id: 123, name: 'new', statusTypeId: kCamp.STATUS_ENTERED,
-                    dateRangeList: [{endDate: new Date(now + 1000).toISOString(), startDate: now.toISOString()}],
+                    dateRangeList: [{endDate: new Date(now.valueOf() + 6000).toISOString(), startDate: now.toISOString()}],
                     priorityLevelOneKeywordIdList: [31, 32, 33], priorityLevelThreeKeywordIdList: [41]
                 });
             }).catch(function(error) {
@@ -938,7 +945,7 @@ describe('campaignUtils', function() {
             campaignUtils.editCampaign(name, campaign, keys, '1234').then(function() {
                 expect(adtech.campaignAdmin.updateCampaign).toHaveBeenCalledWith({
                     id: 123, name: 'new', statusTypeId: kCamp.STATUS_ENTERED,
-                    dateRangeList: [{endDate: new Date(now + 1000).toISOString(), startDate: now.toISOString()}],
+                    dateRangeList: [{endDate: new Date(now.valueOf() + 6000).toISOString(), startDate: now.toISOString()}],
                     priorityLevelOneKeywordIdList: [11, 12], priorityLevelThreeKeywordIdList: [41]
                 });
             }).catch(function(error) {
@@ -952,10 +959,25 @@ describe('campaignUtils', function() {
                 expect(adtech.campaignAdmin.getCampaignById).toHaveBeenCalledWith(123);
                 expect(adtech.campaignAdmin.updateCampaign).toHaveBeenCalledWith({
                     id: 123, name: 'new', statusTypeId: kCamp.STATUS_ACTIVE,
-                    dateRangeList: [{endDate: new Date(now + 1000).toISOString(), startDate: oldStart.toISOString()}],
+                    dateRangeList: [{endDate: new Date(now.valueOf() + 6000).toISOString(), startDate: oldStart.toISOString()}],
                     priorityLevelOneKeywordIdList: [31, 32, 33], priorityLevelThreeKeywordIdList: [41]
                 });
-                expect(campaign.startDate).toBe(oldStart.toISOString());
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should ensure the endDate is greater than the startDate', function(done) {
+            delete campaign.endDate;
+            campaignUtils.editCampaign(name, campaign, keys, '1234').then(function() {
+                expect(adtech.campaignAdmin.getCampaignById).toHaveBeenCalledWith(123);
+                expect(adtech.campaignAdmin.updateCampaign).toHaveBeenCalledWith({
+                    id: 123, name: 'new', statusTypeId: kCamp.STATUS_ENTERED,
+                    dateRangeList: [{endDate: jasmine.any(String), startDate: now.toISOString()}],
+                    priorityLevelOneKeywordIdList: [31, 32, 33], priorityLevelThreeKeywordIdList: [41]
+                });
+                var endDate = adtech.campaignAdmin.updateCampaign.calls.argsFor(0)[0].dateRangeList[0].endDate;
+                expect(new Date(endDate)).toBeGreaterThan(now);
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
             }).done(done);

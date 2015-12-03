@@ -1223,9 +1223,7 @@ describe('ads campaignUpdates endpoints (E2E):', function() {
                                 title: 'test card 2.0',
                                 campaign: {
                                     adtechName: 'new adtech name',
-                                    minViewTime: 3,
-                                    startDate: createdCamp.cards[0].campaign.startDate,
-                                    endDate: createdCamp.cards[0].campaign.endDate
+                                    minViewTime: 3
                                 }
                             }],
                             targeting: {
@@ -1283,8 +1281,6 @@ describe('ads campaignUpdates endpoints (E2E):', function() {
                             adtechId: createdCamp.cards[0].campaign.adtechId,
                             bannerId: createdCamp.cards[0].campaign.bannerId,
                             bannerNumber: createdCamp.cards[0].campaign.bannerNumber,
-                            startDate: createdCamp.cards[0].campaign.startDate,
-                            endDate: createdCamp.cards[0].campaign.endDate,
                             reportingId: jasmine.any(String),
                             minViewTime: 3
                         });
