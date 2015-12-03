@@ -708,7 +708,7 @@ describe('ads campaigns endpoints (E2E):', function() {
                 expect(resp.body.cards[0].campaign.bannerId).toEqual(jasmine.any(Number));
                 expect(resp.body.cards[0].campaign.bannerNumber).toEqual(jasmine.any(Number));
                 expect(resp.body.cards[0].campaign.startDate).toEqual(start.toISOString());
-                expect(resp.body.cards[0].campaign.endDate).toEqual(jasmine.any(String));
+                expect(resp.body.cards[0].campaign.endDate).not.toBeDefined();
                 expect(resp.body.cards[0].status).toEqual('active');
                 expect(resp.body.cards[0].user).toEqual('not-e2e-user');
                 expect(resp.body.cards[0].org).toEqual('o-selfie');
@@ -769,8 +769,8 @@ describe('ads campaigns endpoints (E2E):', function() {
                 expect(resp.body.cards[0].campaign.adtechId).toEqual(jasmine.any(Number));
                 expect(resp.body.cards[0].campaign.bannerId).toEqual(jasmine.any(Number));
                 expect(resp.body.cards[0].campaign.bannerNumber).toEqual(jasmine.any(Number));
-                expect(resp.body.cards[0].campaign.startDate).toEqual(jasmine.any(String));
-                expect(resp.body.cards[0].campaign.endDate).toEqual(jasmine.any(String));
+                expect(resp.body.cards[0].campaign.startDate).not.toBeDefined();
+                expect(resp.body.cards[0].campaign.endDate).not.toBeDefined();
                 expect(resp.body.cards[0].status).toEqual('active');
 
                 expect(resp.body.cards[1].id).toEqual(jasmine.any(String));
@@ -779,8 +779,8 @@ describe('ads campaigns endpoints (E2E):', function() {
                 expect(resp.body.cards[1].campaign.adtechId).toEqual(jasmine.any(Number));
                 expect(resp.body.cards[1].campaign.bannerId).toEqual(jasmine.any(Number));
                 expect(resp.body.cards[1].campaign.bannerNumber).toEqual(jasmine.any(Number));
-                expect(resp.body.cards[1].campaign.startDate).toEqual(jasmine.any(String));
-                expect(resp.body.cards[1].campaign.endDate).toEqual(jasmine.any(String));
+                expect(resp.body.cards[1].campaign.startDate).not.toBeDefined();
+                expect(resp.body.cards[1].campaign.endDate).not.toBeDefined();
                 expect(resp.body.cards[1].status).toEqual('active');
                 
                 newCamp = resp.body;
@@ -1049,8 +1049,8 @@ describe('ads campaigns endpoints (E2E):', function() {
                     expect(resp.body.cards[0].campaign.adtechId).toEqual(jasmine.any(Number));
                     expect(resp.body.cards[0].campaign.bannerId).toEqual(jasmine.any(Number));
                     expect(resp.body.cards[0].campaign.bannerNumber).toEqual(jasmine.any(Number));
-                    expect(resp.body.cards[0].campaign.startDate).toEqual(jasmine.any(String));
-                    expect(resp.body.cards[0].campaign.endDate).toEqual(jasmine.any(String));
+                    expect(resp.body.cards[0].campaign.startDate).not.toBeDefined();
+                    expect(resp.body.cards[0].campaign.endDate).not.toBeDefined();
                     expect(resp.body.cards[0].status).toEqual('active');
                     expect(resp.body.cards[0].user).toEqual('e2e-user');
                     expect(resp.body.cards[0].org).toEqual('o-selfie');
@@ -1450,8 +1450,8 @@ describe('ads campaigns endpoints (E2E):', function() {
                 expect(resp.body.cards[1].campaign.adtechId).toEqual(jasmine.any(Number));
                 expect(resp.body.cards[1].campaign.bannerId).toEqual(jasmine.any(Number));
                 expect(resp.body.cards[1].campaign.bannerNumber).toEqual(jasmine.any(Number));
-                expect(resp.body.cards[1].campaign.startDate).toEqual(jasmine.any(String));
-                expect(resp.body.cards[1].campaign.endDate).toEqual(jasmine.any(String));
+                expect(resp.body.cards[1].campaign.startDate).not.toBeDefined();
+                expect(resp.body.cards[1].campaign.endDate).not.toBeDefined();
                 expect(resp.body.cards[1].status).toEqual('active');
                 expect(resp.body.cards[1].user).toEqual('admin-e2e-user');
                 expect(resp.body.cards[1].org).toEqual('o-admin');
@@ -1767,6 +1767,40 @@ describe('ads campaigns endpoints (E2E):', function() {
                 requestUtils.qRequest('put', options, null, { maxAttempts: 30 }).then(function(resp) {
                     expect(resp.response.statusCode).toBe(200);
                     expect(resp.body.cards[0].title).toBe('Funkmaster General');
+
+                    selfieCreatedCamp = resp.body;
+                    return testUtils.checkCardEntities(selfieCreatedCamp, selfieJar, config.contentUrl);
+                }).catch(function(error) {
+                    expect(util.inspect(error)).not.toBeDefined();
+                }).done(done);
+            });
+            
+            it('should be able to intialize dates on the card', function(done) {
+                var start = new Date(Date.now() + 4*60*60*1000).toISOString(),
+                    end = new Date(Date.now() + 8*60*60*1000).toISOString();
+                selfieCreatedCamp.cards[0].campaign.startDate = start;
+                selfieCreatedCamp.cards[0].campaign.endDate = end;
+                options.json = { cards: selfieCreatedCamp.cards };
+                requestUtils.qRequest('put', options, null, { maxAttempts: 30 }).then(function(resp) {
+                    expect(resp.response.statusCode).toBe(200);
+                    expect(resp.body.cards[0].campaign.startDate).toEqual(start);
+                    expect(resp.body.cards[0].campaign.endDate).toEqual(end);
+
+                    selfieCreatedCamp = resp.body;
+                    return testUtils.checkCardEntities(selfieCreatedCamp, selfieJar, config.contentUrl);
+                }).catch(function(error) {
+                    expect(util.inspect(error)).not.toBeDefined();
+                }).done(done);
+            });
+            
+            it('should be able to unset dates on the card', function(done) {
+                delete selfieCreatedCamp.cards[0].campaign.startDate;
+                delete selfieCreatedCamp.cards[0].campaign.endDate;
+                options.json = { cards: selfieCreatedCamp.cards };
+                requestUtils.qRequest('put', options, null, { maxAttempts: 30 }).then(function(resp) {
+                    expect(resp.response.statusCode).toBe(200);
+                    expect(resp.body.cards[0].startDate).not.toBeDefined();
+                    expect(resp.body.cards[0].endDate).not.toBeDefined();
 
                     selfieCreatedCamp = resp.body;
                     return testUtils.checkCardEntities(selfieCreatedCamp, selfieJar, config.contentUrl);

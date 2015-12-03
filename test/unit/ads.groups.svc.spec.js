@@ -98,7 +98,6 @@ describe('ads-groups (UT)', function() {
                 expect(nextSpy).toHaveBeenCalled();
                 expect(doneSpy).not.toHaveBeenCalled();
                 expect(errorSpy).not.toHaveBeenCalled();
-                expect(req.body).toEqual({name: 'group 1', startDate: jasmine.any(String), endDate: jasmine.any(String)});
                 expect(campaignUtils.validateDates).toHaveBeenCalledWith(req.body, undefined, {start: 100, end: 200}, '1234');
                 done();
             });

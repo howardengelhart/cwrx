@@ -524,9 +524,9 @@ describe('ads-campaigns (UT)', function() {
         var c6Cards;
         beforeEach(function() {
             c6Cards = {
-                'rc-1': { id: 'rc-1', title: 'card 1', campaign: { adtechId: 11 } },
-                'rc-2': { id: 'rc-2', title: 'card 2', campaign: { adtechId: 12 } },
-                'rc-3': { id: 'rc-3', title: 'card 3', campaign: { adtechId: 13 } }
+                'rc-1': { id: 'rc-1', title: 'card 1', campaign: { adtechId: 11, bannerId: 123, bannerNumber: 1 } },
+                'rc-2': { id: 'rc-2', title: 'card 2', campaign: { adtechId: 12, bannerId: 456, bannerNumber: 2 } },
+                'rc-3': { id: 'rc-3', title: 'card 3', campaign: { adtechId: 13, bannerId: 789, bannerNumber: 3 } }
             };
             req.body = {
                 id: 'cam-1',
@@ -552,15 +552,15 @@ describe('ads-campaigns (UT)', function() {
                 expect(doneSpy).not.toHaveBeenCalled();
                 expect(errorSpy).not.toHaveBeenCalled();
                 expect(req._cards).toEqual({
-                    'rc-1': { id: 'rc-1', title: 'card 1', campaign: { adtechId: 11 } },
-                    'rc-2': { id: 'rc-2', title: 'card 2', campaign: { adtechId: 12 } },
+                    'rc-1': { id: 'rc-1', title: 'card 1', campaign: { adtechId: 11, bannerId: 123, bannerNumber: 1 } },
+                    'rc-2': { id: 'rc-2', title: 'card 2', campaign: { adtechId: 12, bannerId: 456, bannerNumber: 2 } },
                 });
                 expect(req._origCards).toEqual({
-                    'rc-3': { id: 'rc-3', title: 'card 3', campaign: { adtechId: 13 } }
+                    'rc-3': { id: 'rc-3', title: 'card 3', campaign: { adtechId: 13, bannerId: 789, bannerNumber: 3  } }
                 });
                 expect(req.body.cards).toEqual([
-                    { id: 'rc-1', campaign: { adtechId: 11 } },
-                    { id: 'rc-2', campaign: { adtechId: 12 } },
+                    { id: 'rc-1', campaign: { adtechId: 11, bannerId: 123, bannerNumber: 1 } },
+                    { id: 'rc-2', campaign: { adtechId: 12, bannerId: 456, bannerNumber: 2 } },
                 ]);
                 expect(req.origObj.cards).toEqual([c6Cards['rc-3']]);
                 expect(requestUtils.qRequest.calls.count()).toBe(3);
@@ -584,8 +584,8 @@ describe('ads-campaigns (UT)', function() {
                 expect(doneSpy).not.toHaveBeenCalled();
                 expect(errorSpy).not.toHaveBeenCalled();
                 expect(req._cards).toEqual({
-                    'rc-1': { id: 'rc-1', title: 'card 1', campaign: { adtechId: 11 } },
-                    'rc-2': { id: 'rc-2', title: 'card 2', campaign: { adtechId: 12 } },
+                    'rc-1': { id: 'rc-1', title: 'card 1', campaign: { adtechId: 11, bannerId: 123, bannerNumber: 1 } },
+                    'rc-2': { id: 'rc-2', title: 'card 2', campaign: { adtechId: 12, bannerId: 456, bannerNumber: 2 } },
                 });
                 expect(req._origCards).toEqual({});
                 expect(requestUtils.qRequest.calls.count()).toBe(2);
@@ -604,8 +604,8 @@ describe('ads-campaigns (UT)', function() {
                 expect(doneSpy).not.toHaveBeenCalled();
                 expect(errorSpy).not.toHaveBeenCalled();
                 expect(req.body.cards).toEqual([
-                    { id: 'rc-1', title: 'card 1.1', tag: 'foo', campaign: { adtechId: 11 } },
-                    { id: 'rc-2', campaign: { adtechId: 12, adtechName: 'adtechSux' } }
+                    { id: 'rc-1', title: 'card 1.1', tag: 'foo', campaign: { adtechId: 11, bannerId: 123, bannerNumber: 1 } },
+                    { id: 'rc-2', campaign: { adtechName: 'adtechSux', adtechId: 12, bannerId: 456, bannerNumber: 2 } }
                 ]);
                 expect(requestUtils.qRequest.calls.count()).toBe(3);
                 done();
@@ -620,8 +620,8 @@ describe('ads-campaigns (UT)', function() {
                 expect(doneSpy).not.toHaveBeenCalled();
                 expect(errorSpy).not.toHaveBeenCalled();
                 expect(req.body.cards).toEqual([
-                    { id: 'rc-1', campaign: { adtechId: 11 } },
-                    { id: 'rc-2', campaign: { adtechId: 12 } },
+                    { id: 'rc-1', campaign: { adtechId: 11, bannerId: 123, bannerNumber: 1 } },
+                    { id: 'rc-2', campaign: { adtechId: 12, bannerId: 456, bannerNumber: 2 } },
                     { title: 'my new card', campaign: {} }
                 ]);
                 expect(requestUtils.qRequest.calls.count()).toBe(3);
@@ -656,12 +656,12 @@ describe('ads-campaigns (UT)', function() {
                 expect(doneSpy).not.toHaveBeenCalled();
                 expect(errorSpy).not.toHaveBeenCalled();
                 expect(req._cards).toEqual({
-                    'rc-1': { id: 'rc-1', title: 'card 1', campaign: { adtechId: 11 } },
-                    'rc-2': { id: 'rc-2', title: 'card 2', campaign: { adtechId: 12 } },
+                    'rc-1': { id: 'rc-1', title: 'card 1', campaign: { adtechId: 11, bannerId: 123, bannerNumber: 1 } },
+                    'rc-2': { id: 'rc-2', title: 'card 2', campaign: { adtechId: 12, bannerId: 456, bannerNumber: 2 } },
                 });
                 expect(req._origCards).toEqual({
-                    'rc-1': { id: 'rc-1', title: 'card 1', campaign: { adtechId: 11 } },
-                    'rc-3': { id: 'rc-3', title: 'card 3', campaign: { adtechId: 13 } }
+                    'rc-1': { id: 'rc-1', title: 'card 1', campaign: { adtechId: 11, bannerId: 123, bannerNumber: 1 } },
+                    'rc-3': { id: 'rc-3', title: 'card 3', campaign: { adtechId: 13, bannerId: 789, bannerNumber: 3  } }
                 });
                 expect(requestUtils.qRequest.calls.count()).toBe(3);
                 done();
@@ -689,8 +689,8 @@ describe('ads-campaigns (UT)', function() {
                 expect(doneSpy).not.toHaveBeenCalled();
                 expect(errorSpy).not.toHaveBeenCalled();
                 expect(req.body.cards).toEqual([
-                    { id: 'rc-1', campaign: { adtechId: 11 } },
-                    { id: 'rc-2', campaign: { adtechId: 12 } }
+                    { id: 'rc-1', campaign: { adtechId: 11, bannerId: 123, bannerNumber: 1 } },
+                    { id: 'rc-2', campaign: { adtechId: 12, bannerId: 456, bannerNumber: 2 } },
                 ]);
                 expect(requestUtils.qRequest.calls.count()).toBe(4);
                 expect(mockLog.warn).toHaveBeenCalled();
