@@ -222,46 +222,63 @@ lib.setCampaignDataInCache = function(data,keySuffix){
     });
 };
 
-lib.queryCampaignDaily = function(campaignIds) {
-    var statement;
+lib.processCampaignSummaryRecord = function(record, obj) {
+    var m, eventCount = parseInt(record.eventCount,10);
+    if (isNaN(eventCount)){
+        eventCount = 0;
+    }
+    if (!obj) {
+        obj = {
+            campaignId : record.campaignId,
+            summary : {
+                impressions : 0,
+                views       : 0,
+                totalSpend  : '0.0000',
+                linkClicks  : {},
+                shareClicks : {}
+            }
+        };
+    }
     
-    statement =
-        'SELECT rec_date as "recDate", campaign_id as "campaignId", ' +
-        'impressions,views,clicks, total_spend as "totalSpend" ' +
-        'FROM rpt.campaign_crosstab_daily_live WHERE campaign_id = ANY($1::text[])';
+    if (record.eventType === 'cardView') {
+        obj.summary.impressions = eventCount;
+    } else
+    if (record.eventType === 'completedView') {
+        obj.summary.views       = eventCount;
+        obj.summary.totalSpend   = record.eventCost;
+    } else  {
+        m = record.eventType.match(/shareLink\.(.*)/);
+        if (m) {
+            obj.summary.shareClicks[m[1].toLowerCase()] = eventCount;
+        } else {
+            m = record.eventType.match(/link\.(.*)/);
+            if (m) {
+                obj.summary.linkClicks[m[1].toLowerCase()] = eventCount;
+            }
+        }
+    }
 
-    return lib.pgQuery(statement,[campaignIds])
-        .then(function(result){
-            var res;
-            result.rows.forEach(function(row){
-                if (res === undefined) {
-                    res = {};
-                }
-                if (!res[row.campaignId]){
-                    res[row.campaignId] = [];
-                }
-                res[row.campaignId].push(row);
-            });
-        });
+    return obj;
 };
 
 lib.queryCampaignSummary = function(campaignIds) {
-    var  statement;
-    
-    statement =
-        'SELECT campaign_id as "campaignId" ,plays as impressions,views, ' +
-        '(link_action + link_facebook + link_twitter + link_website + link_youtube) as clicks, ' +
-        'total_spend as "totalSpend" ' +
-        'FROM rpt.campaign_crosstab_live WHERE campaign_id = ANY($1::text[])';
+    var  statement =
+        'select campaign_id as "campaignId" ,event_type as "eventType",' +
+        'sum(events) as "eventCount", sum(event_cost) as "eventCost"' +
+        ' from rpt.campaign_summary_hourly_all' +
+        ' where campaign_id = ANY($1::text[]) ' +
+        ' and NOT event_type = ANY($2::text[]) ' +
+        ' group by campaign_id,event_type' +
+        ' order by campaign_id,event_type';
 
-    return lib.pgQuery(statement,[campaignIds])
+    return lib.pgQuery(statement,[campaignIds,['q1','q2','q3','q4','launch','load','play']])
         .then(function(result){
-            var res;
+            var res ;
             result.rows.forEach(function(row){
                 if (res === undefined) {
                     res = {};
                 }
-                res[row.campaignId] = row;
+                res[row.campaignId] = lib.processCampaignSummaryRecord(row,res[row.campaignId]);
             });
             return res;
         });
@@ -315,21 +332,13 @@ lib.getCampaignSummaryAnalytics = function(req){
             });
     }
 
-    function fmt(id,result){
-        delete result.campaignId;
-        return {
-            campaignId  : id,
-            summary     : result
-        };
-    }
-
     function compileResults(j){
         j.request.campaignSummaryAnalytics = Array.prototype.concat(
             Object.keys(j.cacheResults || {}).map(function(id){
-                return fmt(id,j.cacheResults[id]);
+                return j.cacheResults[id];
             }),
             Object.keys(j.queryResults || {}).map(function(id){
-                return fmt(id,j.queryResults[id]);
+                return j.queryResults[id];
             })
         );
         return j.request;
