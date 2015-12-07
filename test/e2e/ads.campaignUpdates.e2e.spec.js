@@ -517,6 +517,7 @@ describe('ads campaignUpdates endpoints (E2E):', function() {
                     pricing: { budget: 500 },
                     targeting: {
                         geo: { dmas: ['princeton'] },
+                        demographics: { gender: ['male'] },
                         interests: ['cat-3']
                     }
                 } },
@@ -575,6 +576,7 @@ describe('ads campaignUpdates endpoints (E2E):', function() {
                             states: ['new jersey' ],
                             dmas: ['princeton']
                         },
+                        demographics: { gender: ['male'] },
                         interests: ['cat-3']
                     },
                     advertiserId: 'e2e-a-keepme',
@@ -946,7 +948,8 @@ describe('ads campaignUpdates endpoints (E2E):', function() {
                     name: 'fernando',
                     pricing: { dailyLimit: 100 },
                     targeting: {
-                        geo: { dmas: ['new york city', 'newark'] }
+                        geo: { dmas: ['new york city', 'newark'] },
+                        demographics: { gender: ['male'] }
                     }
                 } },
                 jar: adminJar
@@ -978,6 +981,7 @@ describe('ads campaignUpdates endpoints (E2E):', function() {
                             states: ['new jersey' ],
                             dmas: ['new york city', 'newark']
                         },
+                        demographics: { gender: ['male'] },
                         interests: ['cat-3']
                     },
                     updateRequest: 'ur-1',
@@ -1012,6 +1016,7 @@ describe('ads campaignUpdates endpoints (E2E):', function() {
                             states: ['new jersey' ],
                             dmas: ['new york city', 'newark']
                         },
+                        demographics: { gender: ['male'] },
                         interests: ['cat-3']
                     },
                     advertiserId: 'e2e-a-keepme',
@@ -1042,6 +1047,7 @@ describe('ads campaignUpdates endpoints (E2E):', function() {
                             states: ['new jersey'],
                             dmas: ['new york city', 'newark']
                         },
+                        demographics: { gender: ['male'] },
                         interests: ['cat-3']
                     });
                 }).catch(function(error) {
@@ -1325,7 +1331,8 @@ describe('ads campaignUpdates endpoints (E2E):', function() {
                             states: ['new jersey' ],
                             dmas: ['new york city', 'newark']
                         },
-                        interests: ['cat-3']
+                        demographics: { gender: ['male'] },
+                        interests: ['cat-3'],
                     },
                     updateRequest: 'ur-1',
                     advertiserId: 'e2e-a-keepme',

@@ -1132,7 +1132,7 @@ describe('ads campaigns endpoints (E2E):', function() {
                         budget: 2000,
                         dailyLimit: 500,
                         model: 'cpv',
-                        cost: 0.11
+                        cost: 0.08
                     });
                     expect(resp.body.targeting).toEqual(options.json.targeting);
                     expect(resp.body.pricingHistory).toEqual([{
@@ -2254,6 +2254,8 @@ describe('ads campaigns endpoints (E2E):', function() {
                         __base: campModule.campSchema.pricing.cost.__base,
                         __pricePerGeo: campModule.campSchema.pricing.cost.__pricePerGeo,
                         __pricePerDemo: campModule.campSchema.pricing.cost.__pricePerDemo,
+                        __priceForGeoTargeting: campModule.campSchema.pricing.cost.__priceForGeoTargeting,
+                        __priceForDemoTargeting: campModule.campSchema.pricing.cost.__priceForDemoTargeting,
                         __priceForInterests: campModule.campSchema.pricing.cost.__priceForInterests
                     }
                 });

@@ -1,5 +1,9 @@
 # Ads Service Changelog
 
+### 3.0.7: Mon Dec  7 16:20:01 EST 2015
+* Support pricing per geo/demo subcategory and pricing for any geo/demo subcategory: [#688](https://github.com/cinema6/cwrx/issues/688)
+* Extra deployment steps: None
+
 ### 3.0.6: Thu Dec  3 15:17:50 EST 2015
 * [FIX]: Do not set default dates in cards' `campaign` hash: [#683](https://github.com/cinema6/cwrx/issues/683)
 * Extra deployment steps: None
