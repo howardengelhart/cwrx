@@ -64,7 +64,7 @@ describe('content-cards (UT)', function() {
                 trackingPixel: 'track.me.plz',
             };
             caches = { cash: 'money' };
-            metagetta = { hasGoogleKey: true };
+            metagetta = { hasGoogleKey: true, hasWistiaKey: true, hasJWKey: true };
 
             boundFns = [];
             var bind = Function.prototype.bind;
@@ -136,12 +136,22 @@ describe('content-cards (UT)', function() {
             cardModule.setupSvc(mockDb, config, caches, { hasGoogleKey : false });
             expect(mockLog.warn).toHaveBeenCalledWith('Missing googleKey from secrets, will not be able to lookup meta data for youtube videos.');
         });
+
+        it('should complain if there is no wistia key',function(){
+            cardModule.setupSvc(mockDb, config, caches, { hasWistiaKey : false });
+            expect(mockLog.warn).toHaveBeenCalledWith('Missing wistiaKey from secrets, will not be able to lookup meta data for wistia videos.');
+        });
+
+        it('should complain if there is no jwplayer key',function(){
+            cardModule.setupSvc(mockDb, config, caches, { hasJWKey : false });
+            expect(mockLog.warn).toHaveBeenCalledWith('Missing jwKey from secrets, will not be able to lookup meta data for jwplayer videos.');
+        });
     });
     
     describe('card validation', function() {
         var svc, newObj, origObj, requester;
         beforeEach(function() {
-            svc = cardModule.setupSvc(mockDb, cardModule.config, { cash: 'money' }, { hasGoogleKey: true });
+            svc = cardModule.setupSvc(mockDb, cardModule.config, { cash: 'money' }, { hasGoogleKey: true, hasWistiaKey: true, hasJWKey: true });
             newObj = { campaignId: 'cam-1' };
             origObj = {};
             requester = { fieldValidation: { cards: {} } };
@@ -511,6 +521,7 @@ describe('content-cards (UT)', function() {
             expect(cardModule.isVideoCard({type : 'adUnit'})).toEqual(true);
             expect(cardModule.isVideoCard({type : 'vzaar'})).toEqual(true);
             expect(cardModule.isVideoCard({type : 'wistia'})).toEqual(true);
+            expect(cardModule.isVideoCard({type : 'jwplayer'})).toEqual(true);
             expect(cardModule.isVideoCard({type : 'instagram', data : { type : 'video' }}))
                 .toEqual(true);
         });
@@ -533,6 +544,8 @@ describe('content-cards (UT)', function() {
                 return q.resolve(mockData);
             });
             cardModule.metagetta.hasGoogleKey = true;
+            cardModule.metagetta.hasWistiaKey = true;
+            cardModule.metagetta.hasJWKey = true;
         });
 
         it('should not call metagetta if the req is not a video card',function(done){
@@ -567,7 +580,7 @@ describe('content-cards (UT)', function() {
         });
 
         it('should not call metagetta for unsupported cards',function(done){
-            q.all(['instagram','vzaar','wistia','article'].map(function(cardType){
+            q.all(['instagram'].map(function(cardType){
                 return cardModule.getMetaData({
                     uuid : 'testid-0000',
                     body : {
@@ -580,11 +593,7 @@ describe('content-cards (UT)', function() {
                 expect(cardModule.metagetta).not.toHaveBeenCalled();
                 expect(mockLog.info.calls.allArgs()).toEqual([
                     [ '[%1] - MetaData unsupported for CardType [%2].',
-                        'testid-0000', 'instagram' ],
-                    [ '[%1] - MetaData unsupported for CardType [%2].',
-                        'testid-0000', 'vzaar' ],
-                    [ '[%1] - MetaData unsupported for CardType [%2].',
-                        'testid-0000', 'wistia' ]
+                        'testid-0000', 'instagram' ]
                  ]);
                 expect(mockNext).toHaveBeenCalled();
             })
@@ -603,6 +612,42 @@ describe('content-cards (UT)', function() {
                 expect(mockReq.body.data.duration).toEqual(-1);
                 expect(mockLog.warn).toHaveBeenCalledWith(
                     '[%1] - Cannot get youtube duration without secrets.googleKey.',
+                    'testid-0000'
+                );
+            })
+            .then(done,done.fail);
+        });
+
+        it('should not call metagetta if wistia card, but no secrets.wistiaKey',function(done){
+            cardModule.metagetta.hasWistiaKey = false;
+
+            mockReq.body.data.videoid   = 'def456';
+            mockReq.body.type           = 'wistia';
+
+            cardModule.getMetaData(mockReq,mockNext,mockDone)
+            .then(function(){
+                expect(cardModule.metagetta).not.toHaveBeenCalled();
+                expect(mockReq.body.data.duration).toEqual(-1);
+                expect(mockLog.warn).toHaveBeenCalledWith(
+                    '[%1] - Cannot get wistia duration without secrets.wistiaKey.',
+                    'testid-0000'
+                );
+            })
+            .then(done,done.fail);
+        });
+
+        it('should not call metagetta if jwplayer card, but no secrets.jwKey or secrets.jwSecret',function(done){
+            cardModule.metagetta.hasJWKey = false;
+
+            mockReq.body.data.videoid   = 'def456';
+            mockReq.body.type           = 'jwplayer';
+
+            cardModule.getMetaData(mockReq,mockNext,mockDone)
+            .then(function(){
+                expect(cardModule.metagetta).not.toHaveBeenCalled();
+                expect(mockReq.body.data.duration).toEqual(-1);
+                expect(mockLog.warn).toHaveBeenCalledWith(
+                    '[%1] - Cannot get jwplayer duration without secrets.jwKey or secrets.jwSecret.',
                     'testid-0000'
                 );
             })
@@ -743,6 +788,75 @@ describe('content-cards (UT)', function() {
                 }));
                 expect(mockReq.body.data.duration).toEqual(29);
                 expect(mockNext).toHaveBeenCalled();
+            })
+            .then(done,done.fail);
+        });
+        
+        it('should be able to get duration metdata from wistia videos', function(done) {
+            mockReq.origObj = {
+                data : {
+                    videoid : 'abc123',
+                    duration : 29
+                },
+                type : 'wistia',
+                lastUpdated : new Date(1446063211664)
+            };
+            jasmine.clock().mockDate(mockReq.origObj.lastUpdated);
+            mockReq.body.data.videoid   = 'def456';
+            mockReq.body.type           = 'wistia';
+            mockReq.body.data.href      = 'some uri';
+
+            cardModule.getMetaData(mockReq,mockNext,mockDone)
+            .then(function(){
+                expect(cardModule.metagetta).toHaveBeenCalledWith({
+                    uri: 'some uri'
+                });
+            })
+            .then(done,done.fail);
+        });
+
+        it('should be able to get duration metdata from jwplayer videos', function(done) {
+            mockReq.origObj = {
+                data : {
+                    videoid : 'abc-123',
+                    duration : 29
+                },
+                type : 'jwplayer',
+                lastUpdated : new Date(1446063211664)
+            };
+            jasmine.clock().mockDate(mockReq.origObj.lastUpdated);
+            mockReq.body.data.videoid   = 'def-456';
+            mockReq.body.type           = 'jwplayer';
+
+            cardModule.getMetaData(mockReq,mockNext,mockDone)
+            .then(function(){
+                expect(cardModule.metagetta).toHaveBeenCalledWith({
+                    type: 'jwplayer',
+                    id: 'def'
+                });
+            })
+            .then(done,done.fail);
+        });
+
+        it('should be able to get duration metdata from vzaar videos', function(done) {
+            mockReq.origObj = {
+                data : {
+                    videoid : 'abc123',
+                    duration : 29
+                },
+                type : 'vzaar',
+                lastUpdated : new Date(1446063211664)
+            };
+            jasmine.clock().mockDate(mockReq.origObj.lastUpdated);
+            mockReq.body.data.videoid   = 'def456';
+            mockReq.body.type           = 'vzaar';
+
+            cardModule.getMetaData(mockReq,mockNext,mockDone)
+            .then(function(){
+                expect(cardModule.metagetta).toHaveBeenCalledWith({
+                    type: 'vzaar',
+                    id: 'def456'
+                });
             })
             .then(done,done.fail);
         });
