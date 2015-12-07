@@ -2,6 +2,8 @@
 
 * Allow a player to be fetched without a creative (experience/card) if
   standalone mode is enabled: [#676](https://github.com/cinema6/cwrx/pull/676)
+* Allow the first card to be preloaded when delivering an MRAID unit:
+  [#690](https://github.com/cinema6/cwrx/pull/690)
 
 ### 1.2.0: Mon Nov 30 11:02:27 EST 2015
 * Redirect deprecated player requests to their maintained peers.
