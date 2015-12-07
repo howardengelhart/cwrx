@@ -81,9 +81,11 @@
                 __allowed: false,
                 __type: 'number',
                 __base: 0.05,               // starting cpv; these props not used in model.validate
-                __pricePerGeo: 0.01,        // add-on price for each geo subcategory
-                __pricePerDemo: 0.01,       // add-on price for each demo subcategory
-                __priceForInterests: 0.01   // add-on price for interests
+                __pricePerGeo: 0,               // add-on price for each geo subcategory
+                __pricePerDemo: 0,              // add-on price for each demo subcategory
+                __priceForGeoTargeting: 0.01,   // add-on price if any demo subcategories are set
+                __priceForDemoTargeting: 0.01,  // add-on price if any demo subcategories are set
+                __priceForInterests: 0.01       // add-on price if any interests set
             }
         },
         pricingHistory: {
