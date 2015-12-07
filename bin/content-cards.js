@@ -103,6 +103,14 @@
             log.warn('Missing googleKey from secrets, will not be able to lookup ' +
                 'meta data for youtube videos.');
         }
+        if (!metagetta.hasWistiaKey) {
+            log.warn('Missing wistiaKey from secrets, will not be able to lookup ' +
+                'meta data for wistia videos.');
+        }
+        if (!metagetta.hasJWKey) {
+            log.warn('Missing jwKey from secrets, will not be able to lookup ' +
+                'meta data for jwplayer videos.');
+        }
         cardModule.metagetta = metagetta;
     
         var opts = { allowPublic: true },
@@ -202,6 +210,7 @@
                 (card.type === 'dailymotion')  ||
                 (card.type === 'vzaar')   ||
                 (card.type === 'wistia')  ||
+                (card.type === 'jwplayer')  ||
                 ((card.type === 'instagram') && (card.data) && (card.data.type === 'video'));
     };
 
@@ -258,6 +267,29 @@
         if (req.body.type === 'dailymotion') {
             opts.type = 'dailymotion';
             opts.id   = req.body.data.videoid;
+        } else
+        if(req.body.type === 'wistia') {
+            if (!cardModule.metagetta.hasWistiaKey) {
+                req.body.data.duration = -1;
+                log.warn('[%1] - Cannot get wistia duration without secrets.wistiaKey.',
+                    req.uuid);
+                return q(next());
+            }
+            opts.uri = req.body.data.href;
+        } else
+        if (req.body.type === 'jwplayer') {
+            if (!cardModule.metagetta.hasJWKey) {
+                req.body.data.duration = -1;
+                log.warn('[%1] - Cannot get jwplayer duration without secrets.jwKey or ' +
+                    'secrets.jwSecret.', req.uuid);
+                return q(next());
+            }
+            opts.type = 'jwplayer';
+            opts.id   = req.body.data.videoid.split('-')[0];
+        } else
+        if (req.body.type === 'vzaar') {
+            opts.type = 'vzaar';
+            opts.id   = req.body.data.videoid;
         } else {
             req.body.data.duration = -1;
             log.info('[%1] - MetaData unsupported for CardType [%2].',req.uuid,req.body.type);
@@ -279,6 +311,8 @@
         })
         .catch(function(err){
             delete opts.youtube;
+            delete opts.wistia;
+            delete opts.jwplayer;
             req.body.data.duration = -1;
             log.warn('[%1] - [%2] [%3]', req.uuid, err.message, JSON.stringify(opts));
             return next();

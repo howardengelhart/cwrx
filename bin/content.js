@@ -138,15 +138,23 @@
 
         authUtils._db = state.dbs.c6Db;
 
-        if (!state.secrets.googleKey) {
-            metagetta = require('metagetta');
-            metagetta.hasGoogleKey = false;
-        } else {
-            metagetta = require('metagetta').withConfig({
-                youtube: { key: state.secrets.googleKey }
-            });
-            metagetta.hasGoogleKey = true;
+        var metagettaConfig = {};
+        if (state.secrets.googleKey) {
+            metagettaConfig.youtube = { key: state.secrets.googleKey };
         }
+        if (state.secrets.wistiaKey) {
+            metagettaConfig.wistia = { key: state.secrets.wistiaKey };
+        }
+        if (state.secrets.jwKey && state.secrets.jwSecret) {
+            metagettaConfig.jwplayer = {
+                key: state.secrets.jwKey,
+                secret: state.secrets.jwSecret
+            };
+        }
+        metagetta = require('metagetta').withConfig(metagettaConfig);
+        metagetta.hasGoogleKey = ('youtube' in metagettaConfig);
+        metagetta.hasWistiaKey = ('wistia' in metagettaConfig);
+        metagetta.hasJWKey     = ('jwplayer' in metagettaConfig);
 
         cardSvc = cardModule.setupSvc(state.dbs.c6Db, state.config, caches, metagetta);
         catSvc = catModule.setupSvc(collections.categories);
