@@ -1566,17 +1566,17 @@ describe('content card endpoints (E2E):', function() {
             }).done(done);
         });
         
-        it('should not allow anyone to delete a card from a campaign with a pending update request', function(done) {
+        it('should allow anyone to delete a card from a campaign with a pending update request', function(done) {
             options.jar = adminJar;
             options.url = config.contentUrl + '/content/cards/rc-cam-update';
             requestUtils.qRequest('delete', options).then(function(resp) {
-                expect(resp.response.statusCode).toBe(400);
-                expect(resp.body).toBe('Campaign + cards locked until existing update request resolved');
+                expect(resp.response.statusCode).toBe(204);
+                expect(resp.body).toBe('');
                 options = {url: config.contentUrl + '/content/cards/rc-cam-update', jar: selfieJar};
                 return requestUtils.qRequest('get', options);
             }).then(function(resp) {
-                expect(resp.response.statusCode).toBe(200);
-                expect(resp.body).toEqual(jasmine.objectContaining({ id: 'rc-cam-update' }));
+                    expect(resp.response.statusCode).toBe(404);
+                    expect(resp.body).toBe('Object not found');
             }).catch(function(error) {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);

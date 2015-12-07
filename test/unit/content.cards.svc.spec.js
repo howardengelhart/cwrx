@@ -117,9 +117,8 @@ describe('content-cards (UT)', function() {
                 [cardModule, [Status.Draft, Status.Pending, Status.Canceled, Status.Expired]]));
         });
         
-        it('should prevent editing or deleting cards if the campaign has an update request', function() {
+        it('should prevent editing cards if the campaign has an update request', function() {
             expect(svc._middleware.edit).toContain(cardModule.enforceUpdateLock);
-            expect(svc._middleware.delete).toContain(cardModule.enforceUpdateLock);
         });
         
         it('should get video metadata on create + edit', function() {
