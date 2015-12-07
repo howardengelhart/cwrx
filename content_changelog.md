@@ -1,5 +1,6 @@
 # Content Service Changelog
 
+* [FIX]: Allow deleting cards from campaigns with pending update requests: [#694](https://github.com/cinema6/cwrx/issues/694)
 * Support getting video durations of wistia, jwplayer, and vzaar videos: [#685](https://github.com/cinema6/cwrx/issues/685)
 * Allow querying categories by `ids`: [#687](https://github.com/cinema6/cwrx/issues/687)
 * Extra deployment steps:

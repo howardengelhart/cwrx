@@ -137,7 +137,6 @@
             Status.Canceled,
             Status.Expired
         ]));
-        svc.use('delete', cardModule.enforceUpdateLock);
         
         svc.getPublicCard = cardModule.getPublicCard.bind(cardModule, svc, caches);
         
