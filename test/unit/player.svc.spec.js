@@ -1305,28 +1305,7 @@ describe('player service', function() {
                         });
                     });
 
-                    describe('if the context is "mraid"', function() {
-                        beforeEach(function(done) {
-                            success.calls.reset();
-                            failure.calls.reset();
-                            spyOn(player, '__getBranding__').and.returnValue(q([]));
-                            player.__loadExperience__.and.returnValue(q(experience));
-
-                            options.context = 'mraid';
-
-                            player.get(options).then(success, failure).finally(done);
-                        });
-
-                        it('should not preload the first card', function() {
-                            expect(experience.data.deck[0].data.preload).toBe(false);
-                        });
-
-                        it('should succeed', function() {
-                            expect(success).toHaveBeenCalledWith(document.toString());
-                        });
-                    });
-
-                    ['standalone', 'vpaid', 'embed'].forEach(function(context) {
+                    ['mraid', 'standalone', 'vpaid', 'embed'].forEach(function(context) {
                         describe('if the context is "' + context + '"', function() {
                             beforeEach(function(done) {
                                 success.calls.reset();
@@ -1339,7 +1318,7 @@ describe('player service', function() {
                                 player.get(options).then(success, failure).finally(done);
                             });
 
-                            it('should not preload the first card', function() {
+                            it('should preload the first card', function() {
                                 expect(experience.data.deck[0].data.preload).not.toBe(false);
                             });
 

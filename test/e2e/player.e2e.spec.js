@@ -131,27 +131,7 @@ describe('player service', function() {
                 expect($brandingHover.text().length).toBeGreaterThan(500);
             });
 
-            ['mraid'].forEach(function(context) {
-                describe('if the context is "' + context + '"', function() {
-                    beforeEach(function(done) {
-                        config.playerUrl.query.context = context;
-
-                        return request.get(getURL()).then(getResponse).then(done, done.fail);
-                    });
-
-                    it('should make the first card not preload', function() {
-                        var experience = parseResponse('lightbox').experience;
-
-                        expect(experience.data.deck[0].data.preload).toBe(false);
-                    });
-
-                    it('should provide the player', function() {
-                        expect(parseResponse('lightbox').seemsValid()).toBe(true);
-                    });
-                });
-            });
-
-            ['vpaid', 'embed', 'standalone'].forEach(function(context) {
+            ['mraid', 'vpaid', 'embed', 'standalone'].forEach(function(context) {
                 describe('if the context is "' + context + '"', function() {
                     beforeEach(function(done) {
                         config.playerUrl.query.context = context;
