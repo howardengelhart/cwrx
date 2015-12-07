@@ -1,8 +1,10 @@
 # Content Service Changelog
 
+### 3.3.0: Mon Dec  7 18:10:29 EST 2015
 * [FIX]: Allow deleting cards from campaigns with pending update requests: [#694](https://github.com/cinema6/cwrx/issues/694)
 * Support getting video durations of vzaar videos: [#685](https://github.com/cinema6/cwrx/issues/685)
 * Allow querying categories by `ids`: [#687](https://github.com/cinema6/cwrx/issues/687)
+* Extra deployment steps: None
 
 ### 3.2.0: Mon Nov 30 18:35:56 EST 2015
 * [FEATURE]: Set tracking pixels for `shareLinks`: [#663](https://github.com/cinema6/cwrx/issues/663)
