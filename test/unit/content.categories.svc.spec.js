@@ -56,7 +56,7 @@ describe('content-categories (UT)', function() {
             requester = { fieldValidation: { categories: {} } };
         });
 
-        ['name', 'type', 'source', 'externalId'].forEach(function(field) {
+        ['name', 'type', 'source', 'externalId', 'label'].forEach(function(field) {
             describe('when handling ' + field, function() {
                 it('should fail if the field is not a string', function() {
                     newObj[field] = 123;

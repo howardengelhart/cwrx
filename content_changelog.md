@@ -1,5 +1,7 @@
 # Content Service Changelog
 
+* Allow querying categories by `ids`: [#687](https://github.com/cinema6/cwrx/issues/687)
+
 ### 3.2.0: Mon Nov 30 18:35:56 EST 2015
 * [FEATURE]: Set tracking pixels for `shareLinks`: [#663](https://github.com/cinema6/cwrx/issues/663)
 * Extra deployment steps: None
