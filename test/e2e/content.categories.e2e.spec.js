@@ -19,6 +19,7 @@ describe('content category endpoints (E2E):', function() {
             {
                 id: 'e2e-id1',
                 name: 'snuffles',
+                label: 'Snuffles the Cat',
                 type: 'interest',
                 source: 'IABTier1',
                 externalId: 'IAB10',
@@ -27,6 +28,7 @@ describe('content category endpoints (E2E):', function() {
             {
                 id: 'e2e-id2',
                 name: 'fluffles',
+                label: 'Fluffles the Cat',
                 type: 'interest',
                 source: 'IABTier2',
                 externalId: 'IAB11',
@@ -35,6 +37,7 @@ describe('content category endpoints (E2E):', function() {
             {
                 id: 'e2e-id3',
                 name: 'puffles',
+                label: 'Puffles the Cat',
                 type: 'content',
                 source: 'IABTier1',
                 externalId: 'IAB12',
@@ -43,6 +46,7 @@ describe('content category endpoints (E2E):', function() {
             {
                 id: 'e2e-id4',
                 name: 'meowser',
+                label: 'Meowser the Cat',
                 type: 'content',
                 source: 'Cinema6',
                 status: 'active'
@@ -50,6 +54,7 @@ describe('content category endpoints (E2E):', function() {
             {
                 id: 'e2e-id5',
                 name: 'dog',
+                label: 'Dog the Cat',
                 type: 'interest',
                 source: 'IABTier1',
                 status: 'deleted'
@@ -127,6 +132,7 @@ describe('content category endpoints (E2E):', function() {
                 expect(resp.body).toEqual({
                     id: 'e2e-id1',
                     name: 'snuffles',
+                    label: 'Snuffles the Cat',
                     type: 'interest',
                     source: 'IABTier1',
                     externalId: 'IAB10',
@@ -326,6 +332,21 @@ describe('content category endpoints (E2E):', function() {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
+        
+        it('should be able to get categories by id list', function(done) {
+            options.jar = adminJar;
+            options.qs.ids = 'e2e-id2,e2e-id4';
+            requestUtils.qRequest('get', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.body instanceof Array).toBeTruthy('body is array');
+                expect(resp.body.length).toBe(2);
+                expect(resp.body[0].name).toBe('fluffles');
+                expect(resp.body[1].name).toBe('meowser');
+                expect(resp.response.headers['content-range']).toBe('items 1-2/2');
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
 
         it('should be able to get categories by type', function(done) {
             options.jar = adminJar;
@@ -360,6 +381,20 @@ describe('content category endpoints (E2E):', function() {
         it('should be able to get categories by externalId', function(done) {
             options.jar = adminJar;
             options.qs.externalId = 'IAB12';
+            requestUtils.qRequest('get', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.body instanceof Array).toBeTruthy('body is array');
+                expect(resp.body.length).toBe(1);
+                expect(resp.body[0].name).toBe('puffles');
+                expect(resp.response.headers['content-range']).toBe('items 1-1/1');
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should be able to get categories by label', function(done) {
+            options.jar = adminJar;
+            options.qs.label = 'Puffles the Cat';
             requestUtils.qRequest('get', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
                 expect(resp.body instanceof Array).toBeTruthy('body is array');

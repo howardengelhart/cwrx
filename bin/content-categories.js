@@ -15,6 +15,10 @@
             __allowed: true,
             __type: 'string'
         },
+        label: {
+            __allowed: true,
+            __type: 'string'
+        },
         type: {
             __allowed: true,
             __type: 'string'
@@ -74,11 +78,14 @@
 
         router.get('/', sessions, authGetCat, audit, function(req, res) {
             var query = {};
-            ['name', 'type', 'source', 'externalId'].forEach(function(prop) {
+            ['name', 'type', 'source', 'externalId', 'label'].forEach(function(prop) {
                 if (req.query[prop]) {
                     query[prop] = String(req.query[prop]);
                 }
             });
+            if ('ids' in req.query) {
+                query.id = String(req.query.ids).split(',');
+            }
 
             var promise = catSvc.getObjs(query, req, true);
             promise.finally(function() {
