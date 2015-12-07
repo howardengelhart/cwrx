@@ -1,6 +1,9 @@
 # Content Service Changelog
 
+* Support getting video durations of wistia, jwplayer, and vzaar videos: [#685](https://github.com/cinema6/cwrx/issues/685)
 * Allow querying categories by `ids`: [#687](https://github.com/cinema6/cwrx/issues/687)
+* Extra deployment steps:
+    * Deploy updated content cookbook
 
 ### 3.2.0: Mon Nov 30 18:35:56 EST 2015
 * [FEATURE]: Set tracking pixels for `shareLinks`: [#663](https://github.com/cinema6/cwrx/issues/663)
