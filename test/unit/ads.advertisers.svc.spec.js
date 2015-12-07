@@ -1,6 +1,6 @@
 var flush = true;
 describe('ads-advertisers (UT)', function() {
-    var mockLog, CrudSvc, logger, q, adtech, mockClient, advertModule, nextSpy, doneSpy, errorSpy, req;
+    var mockLog, CrudSvc, Model, logger, q, advertModule, nextSpy, doneSpy, errorSpy, req;
 
     beforeEach(function() {
         if (flush) { for (var m in require.cache){ delete require.cache[m]; } flush = false; }
@@ -8,6 +8,7 @@ describe('ads-advertisers (UT)', function() {
         logger          = require('../../lib/logger');
         advertModule    = require('../../bin/ads-advertisers');
         CrudSvc         = require('../../lib/crudSvc');
+        Model           = require('../../lib/model');
 
         mockLog = {
             trace : jasmine.createSpy('log_trace'),
@@ -25,232 +26,93 @@ describe('ads-advertisers (UT)', function() {
         nextSpy = jasmine.createSpy('next');
         doneSpy = jasmine.createSpy('done');
         errorSpy = jasmine.createSpy('caught error');
-
-        mockClient = {client: 'yes'};
-        delete require.cache[require.resolve('adtech/lib/customer')];
-        adtech = require('adtech');
-        adtech.customerAdmin = require('adtech/lib/customer');
-        Object.keys(adtech.customerAdmin).forEach(function(prop) {
-            if (typeof adtech.customerAdmin[prop] !== 'function') {
-                return;
-            }
-            adtech.customerAdmin[prop] = adtech.customerAdmin[prop].bind(adtech.customerAdmin, mockClient);
-            spyOn(adtech.customerAdmin, prop).and.callThrough();
-        });
     });
 
     describe('setupSvc', function() {
-        it('should setup the advertiser service', function() {
-            spyOn(CrudSvc.prototype.preventGetAll, 'bind').and.returnValue(CrudSvc.prototype.preventGetAll);
-            var mockColl = { collectionName: 'advertisers' },
-                svc = advertModule.setupSvc(mockColl);
+        var svc, mockColl;
+        beforeEach(function() {
+            spyOn(CrudSvc.prototype.validateUniqueProp, 'bind').and.returnValue(CrudSvc.prototype.validateUniqueProp);
+            mockColl = { collectionName: 'advertisers' };
+            svc = advertModule.setupSvc(mockColl);
+        });
 
-            expect(svc instanceof CrudSvc).toBe(true);
-            expect(svc._prefix).toBe('a');
+        it('should return a CrudSvc', function() {
+            expect(svc).toEqual(jasmine.any(CrudSvc));
+            expect(svc._coll).toEqual({ collectionName: 'advertisers' });
             expect(svc.objName).toBe('advertisers');
+            expect(svc._prefix).toBe('a');
             expect(svc._userProp).toBe(false);
             expect(svc._orgProp).toBe(false);
             expect(svc._allowPublic).toBe(false);
-            expect(svc._coll).toBe(mockColl);
-            expect(svc.createValidator._required).toContain('name');
-            expect(svc.createValidator._forbidden).toContain('adtechId');
-            expect(svc._middleware.read).toEqual([svc.preventGetAll]);
-            expect(svc._middleware.create).toEqual([jasmine.any(Function), jasmine.any(Function),
-                advertModule.createAdtechAdvert]);
-            expect(svc._middleware.edit).toEqual([jasmine.any(Function), jasmine.any(Function),
-                advertModule.editAdtechAdvert]);
-            expect(svc._middleware.delete).toEqual([jasmine.any(Function), advertModule.deleteAdtechAdvert]);
+            expect(svc.model).toEqual(jasmine.any(Model));
+            expect(svc.model.schema).toBe(advertModule.advertSchema);
+        });
+
+        it('should make sure the name is unique on create and edit', function() {
+            expect(svc._middleware.create).toContain(svc.validateUniqueProp);
+            expect(svc._middleware.edit).toContain(svc.validateUniqueProp);
+            expect(CrudSvc.prototype.validateUniqueProp.bind).toHaveBeenCalledWith(svc, 'name', null);
         });
     });
     
-    describe('formatAdtechAdvert', function() {
-        it('should create a new record if there is no original', function() {
-            var record = advertModule.formatAdtechAdvert({id: 'a-1', name: 'testy'});
-            expect(record).toEqual({ companyData: { address: {}, url: 'http://cinema6.com' },
-                                     extId: 'a-1', name: 'testy' });
+    describe('advertiser validation', function() {
+        var svc, newObj, origObj, requester;
+        beforeEach(function() {
+            svc = advertModule.setupSvc({ collectionName: 'advertisers' });
+            newObj = { name: 'test' };
+            origObj = {};
+            requester = { fieldValidation: { advertisers: {} } };
         });
         
-        it('should modify the original record, if there is one', function() {
-            var now = new Date();
-            var orig = {
-                archiveDate: now,
-                assignedUsers: ['1234', '4567'],
-                apples: null,
-                companyData: { address: {}, url: 'http://cinema6.com' },
-                contacts: [{email: 'test@foo.com', firstName: 'Johnny', lastName: 'Testmonkey'}],
-                extId: 'a-1',
-                id: 123,
-                name: 'old name'
-            };
-            var record = advertModule.formatAdtechAdvert({id: 'a-1', name: 'testy'}, orig);
-            expect(record).toEqual({
-                archiveDate: now.toISOString(),
-                assignedUsers: { Items: {
-                    attributes: { 'xmlns:cm' : 'http://www.w3.org/2001/XMLSchema' },
-                    Item: [
-                        { attributes: { 'xsi:type': 'cm:long' }, $value: '1234' },
-                        { attributes: { 'xsi:type': 'cm:long' }, $value: '4567' },
-                    ]
-                } },
-                companyData: { address: {}, url: 'http://cinema6.com' },
-                contacts: { Items: {
-                    attributes: { 'xmlns:cm' : 'http://systinet.com/wsdl/de/adtech/helios/UserManagement/' },
-                    Item: [{
-                        attributes: { 'xsi:type': 'cm:ContactData' },
-                        email: 'test@foo.com',
-                        firstName: 'Johnny',
-                        lastName: 'Testmonkey'
-                    }]
-                } },
-                extId: 'a-1',
-                id: 123,
-                name: 'testy'
+        describe('when handling name', function() {
+            it('should fail if the field is not a string', function() {
+                newObj.name = 123;
+                expect(svc.model.validate('create', newObj, origObj, requester))
+                    .toEqual({ isValid: false, reason: 'name must be in format: string' });
             });
-        });
-
-        it('should not set list properties if not defined on the original', function() {
-            var orig = { companyData: {address: {}, url: 'http://cinema6.com'},
-                         extId: 'a-1', id: 123, name: 'old name' };
             
-            expect(advertModule.formatAdtechAdvert({name: 'testy'}, orig)).toEqual({
-                companyData: {address: {}, url: 'http://cinema6.com'},
-                extId: 'a-1', id: 123, name: 'testy', assignedUsers: undefined, contacts: undefined
+            it('should allow the field to be set on create', function() {
+                expect(svc.model.validate('create', newObj, origObj, requester))
+                    .toEqual({ isValid: true, reason: undefined });
+                expect(newObj).toEqual({ name: 'test' });
             });
-        });
-    });
-    
-    describe('createAdtechAdvert', function() {
-        beforeEach(function() {
-            req.body = { id: 'a-1', name: 'testy' };
-            adtech.customerAdmin.createAdvertiser.and.returnValue(q({id: 123}));
-        });
-        
-        it('should create a new advertiser in adtech', function(done) {
-            advertModule.createAdtechAdvert(req, nextSpy, doneSpy).catch(errorSpy);
-            process.nextTick(function() {
-                expect(nextSpy).toHaveBeenCalled();
-                expect(doneSpy).not.toHaveBeenCalled();
-                expect(errorSpy).not.toHaveBeenCalled();
-                expect(req.body.adtechId).toBe(123);
-                expect(adtech.customerAdmin.createAdvertiser).toHaveBeenCalledWith({
-                    companyData: {address: {}, url: 'http://cinema6.com'}, extId: 'a-1', name: 'testy'});
-                done();
-            });
-        });
-        
-        it('should reject if adtech fails', function(done) {
-            adtech.customerAdmin.createAdvertiser.and.returnValue(q.reject('I GOT A PROBLEM'));
-            advertModule.createAdtechAdvert(req, nextSpy, doneSpy).catch(errorSpy);
-            process.nextTick(function() {
-                expect(nextSpy).not.toHaveBeenCalled();
-                expect(doneSpy).not.toHaveBeenCalled();
-                expect(errorSpy).toHaveBeenCalledWith(new Error('Adtech failure'));
-                expect(req.body.adtechId).not.toBeDefined();
-                done();
-            });
-        });
-    });
 
-    describe('editAdtechAdvert', function() {
-        beforeEach(function() {
-            req.body = { name: 'new name' };
-            req.origObj = { id: 'a-1', name: 'testy', adtechId: 123 };
-            adtech.customerAdmin.getAdvertiserById.and.returnValue(q({old: true, id: 123}));
-            adtech.customerAdmin.updateAdvertiser.and.returnValue(q({id: 123}));
-            spyOn(advertModule, 'formatAdtechAdvert').and.returnValue({formatted: true});
-        });
-
-        it('should edit an advertiser in adtech', function(done) {
-            advertModule.editAdtechAdvert(req, nextSpy, doneSpy).catch(errorSpy);
-            process.nextTick(function() {
-                expect(nextSpy).toHaveBeenCalled();
-                expect(doneSpy).not.toHaveBeenCalled();
-                expect(errorSpy).not.toHaveBeenCalled();
-                expect(adtech.customerAdmin.getAdvertiserById).toHaveBeenCalledWith(123);
-                expect(advertModule.formatAdtechAdvert).toHaveBeenCalledWith({name: 'new name'}, {old: true, id: 123});
-                expect(adtech.customerAdmin.updateAdvertiser).toHaveBeenCalledWith({formatted: true});
-                done();
+            it('should fail if the field is not defined', function() {
+                delete newObj.name;
+                expect(svc.model.validate('create', newObj, origObj, requester))
+                    .toEqual({ isValid: false, reason: 'Missing required field: name' });
             });
-        });
-    
-        it('should do nothing if the name is unchanged', function(done) {
-            req.body.name = 'testy';
-            advertModule.editAdtechAdvert(req, nextSpy, doneSpy).catch(errorSpy);
-            process.nextTick(function() {
-                expect(nextSpy).toHaveBeenCalled();
-                expect(doneSpy).not.toHaveBeenCalled();
-                expect(errorSpy).not.toHaveBeenCalled();
-                expect(adtech.customerAdmin.getAdvertiserById).not.toHaveBeenCalled();
-                expect(adtech.customerAdmin.updateAdvertiser).not.toHaveBeenCalled();
-                done();
+            
+            it('should pass if the field was defined on the original object', function() {
+                delete newObj.name;
+                origObj.name = 'old org name';
+                expect(svc.model.validate('edit', newObj, origObj, requester))
+                    .toEqual({ isValid: true, reason: undefined });
+                expect(newObj).toEqual({ name: 'old org name' });
             });
-        });
 
-        it('should reject if finding the existing advertiser fails', function(done) {
-            adtech.customerAdmin.getAdvertiserById.and.returnValue(q.reject('I GOT A PROBLEM'));
-            advertModule.editAdtechAdvert(req, nextSpy, doneSpy).catch(errorSpy);
-            process.nextTick(function() {
-                expect(nextSpy).not.toHaveBeenCalled();
-                expect(doneSpy).not.toHaveBeenCalled();
-                expect(errorSpy).toHaveBeenCalledWith(new Error('Adtech failure'));
-                expect(adtech.customerAdmin.getAdvertiserById).toHaveBeenCalled();
-                expect(adtech.customerAdmin.updateAdvertiser).not.toHaveBeenCalled();
-                done();
-            });
-        });
-
-        it('should reject if updating the advertiser fails', function(done) {
-            adtech.customerAdmin.updateAdvertiser.and.returnValue(q.reject('I GOT A PROBLEM'));
-            advertModule.editAdtechAdvert(req, nextSpy, doneSpy).catch(errorSpy);
-            process.nextTick(function() {
-                expect(nextSpy).not.toHaveBeenCalled();
-                expect(doneSpy).not.toHaveBeenCalled();
-                expect(errorSpy).toHaveBeenCalledWith(new Error('Adtech failure'));
-                expect(adtech.customerAdmin.getAdvertiserById).toHaveBeenCalled();
-                expect(adtech.customerAdmin.updateAdvertiser).toHaveBeenCalled();
-                done();
-            });
-        });
-    });
-
-    describe('deleteAdtechAdvert', function() {
-        beforeEach(function() {
-            req.origObj = { id: 'a-1', name: 'testy', adtechId: 123 };
-            adtech.customerAdmin.deleteAdvertiser.and.returnValue(q());
-        });
-        
-        it('should delete an advertiser in adtech', function(done) {
-            advertModule.deleteAdtechAdvert(req, nextSpy, doneSpy).catch(errorSpy);
-            process.nextTick(function() {
-                expect(nextSpy).toHaveBeenCalled();
-                expect(doneSpy).not.toHaveBeenCalled();
-                expect(errorSpy).not.toHaveBeenCalled();
-                expect(adtech.customerAdmin.deleteAdvertiser).toHaveBeenCalledWith(123);
-                done();
+            it('should allow the field to be changed', function() {
+                origObj.name = 'old pol name';
+                expect(svc.model.validate('edit', newObj, origObj, requester))
+                    .toEqual({ isValid: true, reason: undefined });
+                expect(newObj).toEqual({ name: 'test' });
             });
         });
         
-        it('should log a warning if the original object has no adtechId', function(done) {
-            delete req.origObj.adtechId;
-            advertModule.deleteAdtechAdvert(req, nextSpy, doneSpy).catch(errorSpy);
-            process.nextTick(function() {
-                expect(nextSpy).toHaveBeenCalled();
-                expect(doneSpy).not.toHaveBeenCalled();
-                expect(errorSpy).not.toHaveBeenCalled();
-                expect(mockLog.warn).toHaveBeenCalled();
-                expect(adtech.customerAdmin.deleteAdvertiser).not.toHaveBeenCalled();
-                done();
-            });
-        });
-        
-        it('should reject if adtech fails', function(done) {
-            adtech.customerAdmin.deleteAdvertiser.and.returnValue(q.reject('I GOT A PROBLEM'));
-            advertModule.deleteAdtechAdvert(req, nextSpy, doneSpy).catch(errorSpy);
-            process.nextTick(function() {
-                expect(nextSpy).not.toHaveBeenCalled();
-                expect(doneSpy).not.toHaveBeenCalled();
-                expect(errorSpy).toHaveBeenCalledWith(new Error('Adtech failure'));
-                done();
+        ['defaultLinks', 'defaultLogos'].forEach(function(field) {
+            describe('when handling ' + field, function() {
+                it('should fail if the field is not an object', function() {
+                    newObj[field] = 123;
+                    expect(svc.model.validate('create', newObj, origObj, requester))
+                        .toEqual({ isValid: false, reason: field + ' must be in format: object' });
+                });
+                
+                it('should allow the field to be set', function() {
+                    newObj[field] = { foo: 'bar' };
+                    expect(svc.model.validate('create', newObj, origObj, requester))
+                        .toEqual({ isValid: true, reason: undefined });
+                    expect(newObj[field]).toEqual({ foo: 'bar' });
+                });
             });
         });
     });

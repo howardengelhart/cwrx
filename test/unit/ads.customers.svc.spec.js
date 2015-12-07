@@ -8,6 +8,7 @@ describe('ads-customers (UT)', function() {
         logger          = require('../../lib/logger');
         custModule      = require('../../bin/ads-customers');
         CrudSvc         = require('../../lib/crudSvc');
+        Model           = require('../../lib/Model');
 
         mockLog = {
             trace : jasmine.createSpy('log_trace'),
@@ -26,17 +27,11 @@ describe('ads-customers (UT)', function() {
         doneSpy = jasmine.createSpy('done');
         errorSpy = jasmine.createSpy('caught error');
 
-        mockClient = {client: 'yes'};
-        delete require.cache[require.resolve('adtech/lib/customer')];
-        adtech = require('adtech');
-        adtech.customerAdmin = require('adtech/lib/customer');
-        Object.keys(adtech.customerAdmin).forEach(function(prop) {
-            if (typeof adtech.customerAdmin[prop] !== 'function') {
-                return;
-            }
-            adtech.customerAdmin[prop] = adtech.customerAdmin[prop].bind(adtech.customerAdmin, mockClient);
-            spyOn(adtech.customerAdmin, prop).and.callThrough();
-        });
+        mockDb = {
+            collection: jasmine.createSpy('db.collection()').and.callFake(function(objName) {
+                return { collectionName: objName };
+            })
+        };
     });
 
     describe('setupSvc', function() {
