@@ -57,7 +57,7 @@
             if (req.query.name) {
                 query.name = String(req.query.name);
             }
-            if ('ids' in req.query) { //TODO: test
+            if ('ids' in req.query) {
                 query.id = String(req.query.ids).split(',');
             }
 
