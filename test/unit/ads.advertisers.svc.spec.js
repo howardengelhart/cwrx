@@ -44,6 +44,7 @@ describe('ads-advertisers (UT)', function() {
             expect(svc._userProp).toBe(false);
             expect(svc._orgProp).toBe(false);
             expect(svc._allowPublic).toBe(false);
+            expect(svc._parentOfUser).toBe(true);
             expect(svc.model).toEqual(jasmine.any(Model));
             expect(svc.model.schema).toBe(advertModule.advertSchema);
         });

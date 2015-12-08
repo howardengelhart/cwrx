@@ -1,5 +1,6 @@
 # Ads Service Changelog
 
+* [FIX]: Users with `'own'` scope for reading adverts/custs should be able to get their own advert/cust: [#563](https://github.com/cinema6/cwrx/issues/563)
 * [BREAKING CHANGE]: Do not create Adtech advertisers: [#678](https://github.com/cinema6/cwrx/issues/678)
 * [BREAKING CHANGE]: Do not create Adtech customers: [#679](https://github.com/cinema6/cwrx/issues/679)
 * [BREAKING CHANGE]: Do not create Adtech Websites, Pages, and Placements for sites: [#680](https://github.com/cinema6/cwrx/issues/680)
