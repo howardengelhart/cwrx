@@ -6,58 +6,94 @@ var q               = require('q'),
     host            = process.env.host || 'localhost',
     config = {
         adsUrl  : 'http://' + (host === 'localhost' ? host + ':3900' : host) + '/api',
-        authUrl : 'http://' + (host === 'localhost' ? host + ':3200' : host) + '/api'
+        authUrl : 'http://' + (host === 'localhost' ? host + ':3200' : host) + '/api/auth'
     };
     
 
 describe('ads customers endpoints (E2E):', function() {
-    var cookieJar, mockUser;
+    var cookieJar, nonAdminJar;
 
     beforeEach(function(done) {
         jasmine.DEFAULT_TIMEOUT_INTERVAL = 10000;
 
-        if (cookieJar && cookieJar.cookies) {
+        if (cookieJar && cookieJar.cookies && nonAdminJar && nonAdminJar.cookies) {
             return done();
         }
+
         cookieJar = request.jar();
-        mockUser = {
+        nonAdminJar = request.jar();
+        var mockUser = {
             id: 'e2e-user',
             status: 'active',
-            email : 'custe2euser',
+            email : 'adminuser',
             password : '$2a$10$XomlyDak6mGSgrC/g1L7FO.4kMRkj4UturtKSzy6mFeL8QWOBmIWq', // hash of 'password'
-            org: 'e2e-org',
-            permissions: {
-                advertisers: { read: 'all', create: 'all', edit: 'all', delete: 'all' },
-                customers: { read: 'all', create: 'all', edit: 'all', delete: 'all' }
-            }
+            org: 'o-1234',
+            policies: ['manageAllCusts']
         };
-        var loginOpts = {
-            url: config.authUrl + '/auth/login',
-            jar: cookieJar,
-            json: {
-                email: 'custe2euser',
-                password: 'password'
-            }
+        var nonAdmin = {
+            id: 'e2e-nonAdminUser',
+            status: 'active',
+            email : 'nonadminuser',
+            advertiser: 'e2e-a-1',
+            customer: 'e2e-cu-1',
+            password : '$2a$10$XomlyDak6mGSgrC/g1L7FO.4kMRkj4UturtKSzy6mFeL8QWOBmIWq', // hash of 'password'
+            org: 'o-1234',
+            policies: ['manageOwnCust']
         };
-        testUtils.resetCollection('users', mockUser).then(function(resp) {
-            return requestUtils.qRequest('post', loginOpts);
-        }).done(function(resp) { done(); });
+        testPolicies = [
+            {
+                id: 'p-e2e-allCusts',
+                name: 'manageAllCusts',
+                status: 'active',
+                priority: 1,
+                permissions: {
+                    customers: { read: 'all', create: 'all', edit: 'all', delete: 'all' }
+                }
+            },
+            {
+                id: 'p-e2e-ownCust',
+                name: 'manageOwnCust',
+                status: 'active',
+                priority: 1,
+                permissions: {
+                    customers: { read: 'own', edit: 'own', delete: 'own' }
+                }
+            }
+        ];
+        var logins = [
+            {url: config.authUrl + '/login', json: {email: mockUser.email, password: 'password'}, jar: cookieJar},
+            {url: config.authUrl + '/login', json: {email: nonAdmin.email, password: 'password'}, jar: nonAdminJar},
+        ];
+        
+        q.all([
+            testUtils.resetCollection('users', [mockUser, nonAdmin]),
+            testUtils.resetCollection('policies', testPolicies)
+        ]).then(function(results) {
+            return q.all(logins.map(function(opts) { return requestUtils.qRequest('post', opts); }));
+        }).done(function(results) {
+            done();
+        });
     });
     
     describe('GET /api/account/customers/:id', function() {
+        var options;
         beforeEach(function(done) {
             var mockCusts = [
-                { id: 'e2e-getid1', name: 'cust 1', status: 'active' },
-                { id: 'e2e-getid2', name: 'cust 2', status: 'deleted' },
+                { id: 'e2e-cu-1', name: 'cust 1', status: 'active' },
+                { id: 'e2e-cu-2', name: 'cust 2', status: 'active' },
+                { id: 'e2e-deleted', name: 'cust deted', status: 'deleted' },
             ];
+            options = {
+                url: config.adsUrl + '/account/customers/e2e-cu-1',
+                jar: cookieJar
+            };
             testUtils.resetCollection('customers', mockCusts).done(done);
         });
 
         it('should get a customer by id', function(done) {
-            var options = { url: config.adsUrl + '/account/customers/e2e-getid1', jar: cookieJar };
             requestUtils.qRequest('get', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
-                expect(resp.body).toEqual({id: 'e2e-getid1', name: 'cust 1', status: 'active' });
+                expect(resp.body).toEqual({id: 'e2e-cu-1', name: 'cust 1', status: 'active' });
                 expect(resp.response.headers['content-range']).not.toBeDefined();
             }).catch(function(error) {
                 expect(util.inspect(error)).not.toBeDefined();
@@ -65,7 +101,6 @@ describe('ads customers endpoints (E2E):', function() {
         });
         
         it('should write an entry to the audit collection', function(done) {
-            var options = { url: config.adsUrl + '/account/customers/e2e-getid1', jar: cookieJar };
             requestUtils.qRequest('get', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
                 return testUtils.mongoFind('audit', {}, {$natural: -1}, 1, 0, {db: 'c6Journal'});
@@ -79,29 +114,40 @@ describe('ads customers endpoints (E2E):', function() {
                 expect(results[0].service).toBe('ads');
                 expect(results[0].version).toEqual(jasmine.any(String));
                 expect(results[0].data).toEqual({route: 'GET /api/account/customers/:id',
-                                                 params: { 'id': 'e2e-getid1' }, query: {} });
+                                                 params: { 'id': 'e2e-cu-1' }, query: {} });
             }).catch(function(error) {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
         
         it('should allow a user to specify which fields to return', function(done) {
-            var options = {
-                url: config.adsUrl + '/account/customers/e2e-getid1',
-                qs: { fields: 'id,name' },
-                jar: cookieJar
-            };
+            options.qs = { fields: 'id,name' };
             requestUtils.qRequest('get', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
-                expect(resp.body).toEqual({ id: 'e2e-getid1', name: 'cust 1' });
+                expect(resp.body).toEqual({ id: 'e2e-cu-1', name: 'cust 1' });
                 expect(resp.response.headers['content-range']).not.toBeDefined();
             }).catch(function(error) {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
 
+        it('should allow a non-admin to only retrieve their advertiser', function(done) {
+            options.jar = nonAdminJar;
+            q.all(['e2e-cu-1', 'e2e-cu-2'].map(function(id) {
+                options.url = config.adsUrl + '/account/customers/' + id;
+                return requestUtils.qRequest('get', options);
+            })).then(function(results) {
+                expect(results[0].response.statusCode).toBe(200);
+                expect(results[0].body).toEqual({ id: 'e2e-cu-1', name: 'cust 1', status: 'active' });
+                expect(results[1].response.statusCode).toBe(404);
+                expect(results[1].body).toEqual('Object not found');
+            }).catch(function(error) {
+                expect(error).not.toBeDefined();
+            }).done(done);
+        });
+
         it('should not show deleted customers', function(done) {
-            var options = { url: config.adsUrl + '/account/customers/e2e-getid2', jar: cookieJar };
+            options.url = config.adsUrl + '/account/customers/e2e-deleted';
             requestUtils.qRequest('get', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(404);
                 expect(resp.body).toEqual('Object not found');
@@ -111,7 +157,7 @@ describe('ads customers endpoints (E2E):', function() {
         });
 
         it('should return a 404 if nothing is found', function(done) {
-            var options = { url: config.adsUrl + '/account/customers/e2e-getid5678', jar: cookieJar };
+            options.url = config.adsUrl + '/account/customers/e2e-cu-5678';
             requestUtils.qRequest('get', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(404);
                 expect(resp.body).toEqual('Object not found');
@@ -121,7 +167,7 @@ describe('ads customers endpoints (E2E):', function() {
         });
         
         it('should throw a 401 error if the user is not authenticated', function(done) {
-            var options = { url: config.adsUrl + '/account/customers/e2e-getid1' };
+            delete options.jar;
             requestUtils.qRequest('get', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(401);
                 expect(resp.body).toBe('Unauthorized');
@@ -140,9 +186,9 @@ describe('ads customers endpoints (E2E):', function() {
                 jar: cookieJar
             };
             var mockCusts = [
-                { id: 'e2e-getquery1', name: 'cust 1', status: 'active' },
-                { id: 'e2e-getquery2', name: 'cust 2', status: 'inactive' },
-                { id: 'e2e-getquery3', name: 'cust 3', status: 'active' },
+                { id: 'e2e-cu-1', name: 'cust 1', status: 'active' },
+                { id: 'e2e-cu-2', name: 'cust 2', status: 'active' },
+                { id: 'e2e-cu-3', name: 'cust 3', status: 'inactive' },
                 { id: 'e2e-getgone', name: 'cust deleted', status: 'deleted' }
             ];
             testUtils.resetCollection('customers', mockCusts).done(done);
@@ -152,9 +198,9 @@ describe('ads customers endpoints (E2E):', function() {
             requestUtils.qRequest('get', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
                 expect(resp.body.length).toBe(3);
-                expect(resp.body[0].id).toBe('e2e-getquery1');
-                expect(resp.body[1].id).toBe('e2e-getquery2');
-                expect(resp.body[2].id).toBe('e2e-getquery3');
+                expect(resp.body[0].id).toBe('e2e-cu-1');
+                expect(resp.body[1].id).toBe('e2e-cu-2');
+                expect(resp.body[2].id).toBe('e2e-cu-3');
                 expect(resp.response.headers['content-range']).toBe('items 1-3/3');
             }).catch(function(error) {
                 expect(util.inspect(error)).not.toBeDefined();
@@ -186,9 +232,9 @@ describe('ads customers endpoints (E2E):', function() {
             requestUtils.qRequest('get', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
                 expect(resp.body).toEqual([
-                    { id: 'e2e-getquery1', name: 'cust 1' },
-                    { id: 'e2e-getquery2', name: 'cust 2' },
-                    { id: 'e2e-getquery3', name: 'cust 3' }
+                    { id: 'e2e-cu-1', name: 'cust 1' },
+                    { id: 'e2e-cu-2', name: 'cust 2' },
+                    { id: 'e2e-cu-3', name: 'cust 3' }
                 ]);
                 expect(resp.response.headers['content-range']).toBe('items 1-3/3');
             }).catch(function(error) {
@@ -201,7 +247,7 @@ describe('ads customers endpoints (E2E):', function() {
             requestUtils.qRequest('get', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
                 expect(resp.body.length).toBe(1);
-                expect(resp.body[0].id).toBe('e2e-getquery2');
+                expect(resp.body[0].id).toBe('e2e-cu-2');
                 expect(resp.response.headers['content-range']).toBe('items 1-1/1');
             }).catch(function(error) {
                 expect(util.inspect(error)).not.toBeDefined();
@@ -209,12 +255,12 @@ describe('ads customers endpoints (E2E):', function() {
         });
 
         it('should get customers by id list', function(done) {
-            options.qs.ids = 'e2e-getquery1,e2e-getquery3';
+            options.qs.ids = 'e2e-cu-1,e2e-cu-3';
             requestUtils.qRequest('get', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
                 expect(resp.body.length).toBe(2);
-                expect(resp.body[0].id).toBe('e2e-getquery1');
-                expect(resp.body[1].id).toBe('e2e-getquery3');
+                expect(resp.body[0].id).toBe('e2e-cu-1');
+                expect(resp.body[1].id).toBe('e2e-cu-3');
                 expect(resp.response.headers['content-range']).toBe('items 1-2/2');
             }).catch(function(error) {
                 expect(util.inspect(error)).not.toBeDefined();
@@ -238,19 +284,31 @@ describe('ads customers endpoints (E2E):', function() {
             requestUtils.qRequest('get', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
                 expect(resp.body.length).toBe(2);
-                expect(resp.body[0].id).toBe('e2e-getquery3');
-                expect(resp.body[1].id).toBe('e2e-getquery2');
+                expect(resp.body[0].id).toBe('e2e-cu-3');
+                expect(resp.body[1].id).toBe('e2e-cu-2');
                 expect(resp.response.headers['content-range']).toBe('items 1-2/3');
                 options.qs.skip = 1;
                 return requestUtils.qRequest('get', options);
             }).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
                 expect(resp.body.length).toBe(2);
-                expect(resp.body[0].id).toBe('e2e-getquery2');
-                expect(resp.body[1].id).toBe('e2e-getquery1');
+                expect(resp.body[0].id).toBe('e2e-cu-2');
+                expect(resp.body[1].id).toBe('e2e-cu-1');
                 expect(resp.response.headers['content-range']).toBe('items 2-3/3');
             }).catch(function(error) {
                 expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
+
+        it('should only show non-admins their own customer', function(done) {
+            options.jar = nonAdminJar;
+            requestUtils.qRequest('get', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.body.length).toBe(1);
+                expect(resp.body[0].id).toBe('e2e-cu-1');
+                expect(resp.response.headers['content-range']).toBe('items 1-1/1');
+            }).catch(function(error) {
+                expect(error).not.toBeDefined();
             }).done(done);
         });
 
@@ -395,12 +453,12 @@ describe('ads customers endpoints (E2E):', function() {
                 { id: 'a-3', name: 'advert 3', status: 'deleted' },
             ];
             mockCusts = [
-                { id: 'e2e-put1', status: 'active', name: 'cust 1', advertisers: ['a-1'] },
-                { id: 'e2e-put2', status: 'active', name: 'cust 2', advertisers: ['a-2'] },
+                { id: 'e2e-cu-1', status: 'active', name: 'cust 1', advertisers: ['a-1'] },
+                { id: 'e2e-cu-2', status: 'active', name: 'cust 2', advertisers: ['a-2'] },
                 { id: 'e2e-deleted', status: 'deleted', name: 'deleted cust' }
             ];
             options = {
-                url: config.adsUrl + '/account/customers/e2e-put1',
+                url: config.adsUrl + '/account/customers/e2e-cu-1',
                 json: { name: 'new name', advertisers: ['a-2', 'a-1'] },
                 jar: cookieJar
             };
@@ -414,7 +472,7 @@ describe('ads customers endpoints (E2E):', function() {
             requestUtils.qRequest('put', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
                 expect(resp.body._id).not.toBeDefined();
-                expect(resp.body.id).toBe('e2e-put1');
+                expect(resp.body.id).toBe('e2e-cu-1');
                 expect(resp.body.name).toBe('new name');
                 expect(resp.body.advertisers).toEqual(['a-2', 'a-1']);
             }).catch(function(error) {
@@ -436,7 +494,7 @@ describe('ads customers endpoints (E2E):', function() {
                 expect(results[0].service).toBe('ads');
                 expect(results[0].version).toEqual(jasmine.any(String));
                 expect(results[0].data).toEqual({route: 'PUT /api/account/customers/:id',
-                                                 params: { id: 'e2e-put1' }, query: {} });
+                                                 params: { id: 'e2e-cu-1' }, query: {} });
             }).catch(function(error) {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
@@ -474,8 +532,27 @@ describe('ads customers endpoints (E2E):', function() {
                 expect(resp.response.statusCode).toBe(200);
                 expect(resp.body._id).not.toBeDefined();
                 expect(resp.body.id).toBeDefined();
-                expect(resp.body.id).toBe('e2e-put1');
+                expect(resp.body.id).toBe('e2e-cu-1');
                 expect(resp.body.created).not.toEqual(options.json.created);
+            }).catch(function(error) {
+                expect(error).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should only allow non-admins to edit their own customer', function(done) {
+            options.jar = nonAdminJar;
+            delete options.json.name;
+            q.all(['e2e-cu-1', 'e2e-cu-2'].map(function(id) {
+                options.url = config.adsUrl + '/account/customers/' + id;
+                return requestUtils.qRequest('put', options);
+            })).then(function(results) {
+                expect(results[0].response.statusCode).toBe(200);
+                expect(results[0].body.id).toBe('e2e-cu-1');
+                expect(results[0].body.name).toBe('cust 1');
+                expect(results[0].body.advertisers).toEqual(['a-2', 'a-1']);
+                
+                expect(results[1].response.statusCode).toBe(403);
+                expect(results[1].body).toEqual('Not authorized to edit this');
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
             }).done(done);
@@ -492,7 +569,7 @@ describe('ads customers endpoints (E2E):', function() {
         });
         
         it('should not create a customer if they do not exist', function(done) {
-            options.url = config.adsUrl + '/account/customers/e2e-putfake';
+            options.url = config.adsUrl + '/account/customers/e2e-cu-fake';
             requestUtils.qRequest('put', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(404);
                 expect(resp.body).toBe('That does not exist');
@@ -516,11 +593,12 @@ describe('ads customers endpoints (E2E):', function() {
         var options;
         beforeEach(function(done) {
             var mockCusts = [
-                { id: 'e2e-del1', status: 'active', name: 'cust 1' },
-                { id: 'e2e-del2', status: 'deleted', name: 'cust 2' },
+                { id: 'e2e-cu-1', status: 'active', name: 'cust 1' },
+                { id: 'e2e-cu-2', status: 'active', name: 'cust 2' },
+                { id: 'e2e-deleted', status: 'deleted', name: 'cust deleted' }
             ];
             options = {
-                url: config.adsUrl + '/account/customers/e2e-del1',
+                url: config.adsUrl + '/account/customers/e2e-cu-1',
                 jar: cookieJar
             };
             testUtils.resetCollection('customers', mockCusts).done(done);
@@ -530,7 +608,7 @@ describe('ads customers endpoints (E2E):', function() {
             requestUtils.qRequest('delete', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(204);
                 expect(resp.body).toBe('');
-                options = { url: config.adsUrl + '/account/customers/e2e-del1', jar: cookieJar };
+                options = { url: config.adsUrl + '/account/customers/e2e-cu-1', jar: cookieJar };
                 return requestUtils.qRequest('get', options);
             }).then(function(resp) {
                 expect(resp.response.statusCode).toBe(404);
@@ -556,14 +634,14 @@ describe('ads customers endpoints (E2E):', function() {
                 expect(results[0].service).toBe('ads');
                 expect(results[0].version).toEqual(jasmine.any(String));
                 expect(results[0].data).toEqual({route: 'DELETE /api/account/customers/:id',
-                                                 params: { id: 'e2e-del1' }, query: {} });
+                                                 params: { id: 'e2e-cu-1' }, query: {} });
             }).catch(function(error) {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
         
         it('should still return a 204 if the customer has been deleted', function(done) {
-            options.url = config.adsUrl + '/account/customers/e2e-del2';
+            options.url = config.adsUrl + '/account/customers/e2e-deleted';
             requestUtils.qRequest('delete', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(204);
                 expect(resp.body).toBe('');
@@ -582,8 +660,24 @@ describe('ads customers endpoints (E2E):', function() {
             }).done(done);
         });
 
+        it('should only allow non-admins to edit their own advertiser', function(done) {
+            options.jar = nonAdminJar;
+            q.all(['e2e-cu-1', 'e2e-cu-2'].map(function(id) {
+                options.url = config.adsUrl + '/account/customers/' + id;
+                return requestUtils.qRequest('delete', options);
+            })).then(function(results) {
+                expect(results[0].response.statusCode).toBe(204);
+                expect(results[0].body).toBe('');
+                
+                expect(results[1].response.statusCode).toBe(403);
+                expect(results[1].body).toEqual('Not authorized to delete this');
+            }).catch(function(error) {
+                expect(error).not.toBeDefined();
+            }).done(done);
+        });
+
         it('should throw a 401 error if the user is not authenticated', function(done) {
-            requestUtils.qRequest('delete', {url: config.adsUrl + '/account/customers/e2e-del1'})
+            requestUtils.qRequest('delete', {url: config.adsUrl + '/account/customers/e2e-cu-1'})
             .then(function(resp) {
                 expect(resp.response.statusCode).toBe(401);
                 expect(resp.body).toBe('Unauthorized');

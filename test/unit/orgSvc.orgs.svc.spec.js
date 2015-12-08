@@ -61,13 +61,9 @@ describe('orgSvc-orgs (UT)', function() {
             expect(svc._prefix).toBe('o');
             expect(svc._userProp).toBe(false);
             expect(svc._orgProp).toBe(false);
+            expect(svc._parentOfUser).toBe(true);
             expect(svc.model).toEqual(jasmine.any(Model));
             expect(svc.model.schema).toBe(orgModule.orgSchema);
-        });
-        
-        it('should override some internal CrudSvc functions', function() {
-            expect(svc.userPermQuery).toBe(orgModule.userPermQuery);
-            expect(svc.checkScope).toBe(orgModule.checkScope);
         });
         
         it('should prevent getting all orgs', function() {
@@ -211,87 +207,6 @@ describe('orgSvc-orgs (UT)', function() {
                 expect(svc.model.validate('create', newObj, origObj, requester))
                     .toEqual({ isValid: false, reason: 'braintreeCustomer must be in format: string' });
             });
-        });
-    });
-    
-    describe('checkScope', function() {
-        it('should correctly handle the scopes', function() {
-            var requester = {
-                id: 'u-1234',
-                org: 'o-1234',
-                permissions: {
-                    orgs: {
-                        read: Scope.All,
-                        edit: Scope.Org,
-                        delete: Scope.Own
-                    }
-                }
-            };
-            var orgs = [{ name: 'org-1', id: 'o-1234'},
-                        { name: 'org-2', id: 'o-1234'},
-                        { name: 'org-1', id: 'o-4567'},
-                        { name: 'org-2', id: 'o-4567'}];
-            
-            expect(orgs.filter(function(target) {
-                return orgModule.checkScope(requester, target, 'read');
-            })).toEqual(orgs);
-            expect(orgs.filter(function(target) {
-                return orgModule.checkScope(requester, target, 'edit');
-            })).toEqual([orgs[0], orgs[1]]);
-            expect(orgs.filter(function(target) {
-                return orgModule.checkScope(requester, target, 'delete');
-            })).toEqual([orgs[0], orgs[1]]);
-        });
-
-        it('should sanity-check the user permissions object', function() {
-            var target = { id: 'o-1' };
-            expect(orgModule.checkScope({}, target, 'read')).toBe(false);
-            var requester = { id: 'u-1234', org: 'o-1234' };
-            expect(orgModule.checkScope(requester, target, 'read')).toBe(false);
-            requester.permissions = {};
-            expect(orgModule.checkScope(requester, target, 'read')).toBe(false);
-            requester.permissions.orgs = {};
-            requester.permissions.users = { read: Scope.All };
-            expect(orgModule.checkScope(requester, target, 'read')).toBe(false);
-            requester.permissions.orgs.read = '';
-            expect(orgModule.checkScope(requester, target, 'read')).toBe(false);
-            requester.permissions.orgs.read = Scope.All;
-            expect(orgModule.checkScope(requester, target, 'read')).toBe(true);
-        });
-
-    });
-    
-    describe('userPermQuery', function() {
-        var query, requester;
-        beforeEach(function() {
-            query = {};
-            requester = { id: 'u-1', org: 'o-1', permissions: { orgs: { read: Scope.Own } } };
-        });
-        
-        it('should just check that the orgs are not deleted if the requester is an admin', function() {
-            requester.permissions.orgs.read = Scope.All;
-            expect(orgModule.userPermQuery(query, requester))
-                .toEqual({ status: { $ne: Status.Deleted } });
-            expect(query).toEqual({});
-        });
-        
-        it('should only let the requester fetch their own org if they have Scope.Own', function() {
-            var statusQry = { $ne: Status.Deleted };
-            
-            expect(orgModule.userPermQuery({}, requester)).toEqual({ id: 'o-1', status: statusQry });
-            expect(orgModule.userPermQuery({ id: 'o-1' }, requester)).toEqual({ id: 'o-1', status: statusQry });
-            expect(orgModule.userPermQuery({ id: 'o-2' }, requester)).toEqual({ id: { $in: [] }, status: statusQry });
-            expect(orgModule.userPermQuery({ id: { $in: ['o-1', 'o-2', 'o-3'] } }, requester))
-                .toEqual({ id: { $in: ['o-1'] }, status: statusQry });
-            expect(orgModule.userPermQuery({ id: { $in: ['o-2', 'o-3'] } }, requester))
-                .toEqual({ id: { $in: [] }, status: statusQry });
-        });
-                
-        it('should log a warning if the requester has an invalid scope', function() {
-            requester.permissions.orgs.read = 'alfkjdf';
-            expect(orgModule.userPermQuery(query, requester))
-                .toEqual({ id: 'o-1', status: { $ne: Status.Deleted } });
-            expect(mockLog.warn).toHaveBeenCalled();
         });
     });
     

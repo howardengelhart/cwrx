@@ -24,7 +24,7 @@
     };
 
     advertModule.setupSvc = function(coll) {
-        var opts = { userProp: false, orgProp: false },
+        var opts = { userProp: false, orgProp: false, parentOfUser: true },
             svc = new CrudSvc(coll, 'a', opts, advertModule.advertSchema);
         
         var validateUniqueName = svc.validateUniqueProp.bind(svc, 'name', null);

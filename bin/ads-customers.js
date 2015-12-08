@@ -25,7 +25,7 @@
 
     custModule.setupSvc = function(db) {
         var coll = db.collection('customers'),
-            opts = { userProp: false, orgProp: false },
+            opts = { userProp: false, orgProp: false, parentOfUser: true },
             svc = new CrudSvc(coll, 'cu', opts, custModule.custSchema);
         svc._db = db;
         
