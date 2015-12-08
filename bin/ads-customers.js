@@ -28,12 +28,15 @@
             opts = { userProp: false, orgProp: false },
             svc = new CrudSvc(coll, 'cu', opts, custModule.custSchema);
         svc._db = db;
+        
+        var validateUniqueName = svc.validateUniqueProp.bind(svc, 'name', null),
+            validateAdvertisers = custModule.validateAdvertisers.bind(custModule, svc);
+        
+        svc.use('create', validateUniqueName);
+        svc.use('create', validateAdvertisers);
 
-        svc.use('create', svc.validateUniqueProp.bind(svc, 'name', null));
-        svc.use('create', custModule.validateAdvertisers(custModule, svc));
-
-        svc.use('edit', svc.validateUniqueProp.bind(svc, 'name', null));
-        svc.use('edit', custModule.validateAdvertisers(custModule, svc));
+        svc.use('edit', validateUniqueName);
+        svc.use('edit', validateAdvertisers);
 
         return svc;
     };
