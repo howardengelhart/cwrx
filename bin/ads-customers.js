@@ -94,7 +94,7 @@
 
         router.get('/', sessions, authGetCust, audit, function(req, res) {
             var query = {};
-            if ('ids' in req.query) { //TODO: test
+            if ('ids' in req.query) {
                 query.id = String(req.query.ids).split(',');
             }
             if (req.query.name) {

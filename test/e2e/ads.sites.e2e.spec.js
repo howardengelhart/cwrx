@@ -10,7 +10,7 @@ var q               = require('q'),
     };
 
 describe('ads sites endpoints (E2E):', function() {
-    var cookieJar, mockUser, createdSite;
+    var cookieJar, mockUser;
 
     beforeEach(function(done) {
         jasmine.DEFAULT_TIMEOUT_INTERVAL = 10000;
@@ -306,7 +306,7 @@ describe('ads sites endpoints (E2E):', function() {
                 expect(resp.body.status).toBe('active');
             }).catch(function(error) {
                 expect(util.inspect(error)).not.toBeDefined();
-            }).done(done)
+            }).done(done);
         });
         
         it('should write an entry to the audit collection', function(done) {
