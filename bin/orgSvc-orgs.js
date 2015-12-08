@@ -39,14 +39,11 @@
     };
 
     orgModule.setupSvc = function(db, gateway) {
-        var opts = { userProp: false, orgProp: false },
+        var opts = { userProp: false, orgProp: false, parentOfUser: true },
             svc = new CrudSvc(db.collection('orgs'), 'o', opts, orgModule.orgSchema);
             
         svc._db = db;
         
-        svc.userPermQuery = orgModule.userPermQuery;
-        svc.checkScope = orgModule.checkScope;
-
         svc.use('read', svc.preventGetAll.bind(svc));
 
         svc.use('create', orgModule.createPermCheck);
@@ -61,46 +58,6 @@
         svc.use('delete', orgModule.deleteBraintreeCustomer.bind(orgModule, gateway));
         
         return svc;
-    };
-    
-    
-    // Check whether the requester can operate on the target org according to their scope
-    orgModule.checkScope = function(requester, org, verb) {
-        return !!(requester && requester.permissions && requester.permissions.orgs &&
-                  requester.permissions.orgs[verb] &&
-             ( (requester.permissions.orgs[verb] === Scope.All) ||
-               (requester.permissions.orgs[verb] === Scope.Org && requester.org === org.id) ||
-               (requester.permissions.orgs[verb] === Scope.Own && requester.org === org.id) ) );
-    };
-
-    // Adds fields to a find query to filter out orgs the requester can't see
-    orgModule.userPermQuery = function(query, requester) {
-        var newQuery = JSON.parse(JSON.stringify(query)),
-            readScope = (requester.permissions.orgs || {}).read,
-            log = logger.getLog();
-        
-        newQuery.status = {$ne: Status.Deleted}; // never show deleted users
-        
-        if (!Scope.isScope(readScope)) {
-            log.warn('User has invalid scope ' + readScope);
-            readScope = Scope.Own;
-        }
-        
-        if (readScope === Scope.Own || readScope === Scope.Org) {
-            if (!newQuery.id || newQuery.id === requester.org) {
-                newQuery.id = requester.org;
-            } else {
-                if (newQuery.id.$in instanceof Array) {
-                    newQuery.id.$in = newQuery.id.$in.filter(function(id) {
-                        return id === requester.org;
-                    });
-                } else {
-                    newQuery.id = { $in: [] };
-                }
-            }
-        }
-        
-        return newQuery;
     };
     
     // Only allow creating org if requester has admin priviledges

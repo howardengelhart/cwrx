@@ -63,6 +63,7 @@ describe('CrudSvc', function() {
             expect(svc._userProp).toBe(true);
             expect(svc._orgProp).toBe(true);
             expect(svc._allowPublic).toBe(false);
+            expect(svc._parentOfUser).toBe(false);
 
             expect(svc.createValidator instanceof FieldValidator).toBe(true);
             expect(svc.createValidator._forbidden).toEqual(['id', 'created', '_id']);
@@ -93,11 +94,12 @@ describe('CrudSvc', function() {
 
         it('should allow setting various simple options', function() {
             var opts = {
-                objName: 'bananas', allowPublic: true,
+                objName: 'bananas', allowPublic: true, parentOfUser: true
             };
             svc = new CrudSvc(mockColl, 't', opts);
             expect(svc.objName).toBe('bananas');
             expect(svc._allowPublic).toBe(true);
+            expect(svc._parentOfUser).toBe(true);
         });
 
         it('should allow disabling the user + org props', function() {
@@ -189,6 +191,24 @@ describe('CrudSvc', function() {
             });
         });
     });
+    
+    describe('singularizeName', function() {
+        function createSvc(name) {
+            return new CrudSvc({ collectionName: name }, 'x');
+        }
+
+        it('should return the singular version of the internal objName', function() {
+            expect(createSvc('experiences').singularizeName()).toBe('experience');
+            expect(createSvc('cards').singularizeName()).toBe('card');
+            expect(createSvc('orgs').singularizeName()).toBe('org');
+            expect(createSvc('brownies').singularizeName()).toBe('brownie');
+        });
+        
+        it('should handle nouns with non-standard plurals properly', function() {
+            expect(createSvc('categories').singularizeName()).toBe('category');
+            expect(createSvc('policies').singularizeName()).toBe('policy');
+        });
+    });
 
     describe('checkScope', function() {
         it('should correctly handle the scopes', function() {
@@ -227,6 +247,41 @@ describe('CrudSvc', function() {
             user.permissions.thangs.read = '';
             expect(svc.checkScope(user, thang, 'read')).toBe(false);
         });
+        
+        describe('if parentOfUser is set on the svc', function() {
+            var user, thangs;
+            beforeEach(function() {
+                user = {
+                    id: 'u-1',
+                    org: 'o-1',
+                    thang: 't-1',
+                    permissions: { thangs: { read: Scope.All, edit: Scope.Org, delete: Scope.Own } }
+                };
+                thangs = [
+                    { id: 't-1', status: Status.Active, org: 'o-2' },
+                    { id: 't-2', status: Status.Active, org: 'o-1' },
+                    { id: 't-3', status: Status.Active }
+                ];
+                svc._parentOfUser = true;
+            });
+            
+            it('should allow users with own/org scope to get entities they belong to', function() {
+                // 'all' scope should still work the same
+                expect(thangs.filter(function(thang) {
+                    return svc.checkScope(user, thang, 'read');
+                })).toEqual(thangs);
+                
+                // 'org' scope should get thangs owned by the org + the user's thang
+                expect(thangs.filter(function(thang) {
+                    return svc.checkScope(user, thang, 'edit');
+                })).toEqual([thangs[0], thangs[1]]);
+
+                // 'own' scope should only get the user's thang
+                expect(thangs.filter(function(thang) {
+                    return svc.checkScope(user, thang, 'delete');
+                })).toEqual([thangs[0]]);
+            });
+        });
     });
 
     describe('userPermQuery', function() {
@@ -236,7 +291,7 @@ describe('CrudSvc', function() {
             user = { id: 'u-1', org: 'o-1', permissions: { thangs: { read: Scope.Own } } };
         });
 
-        it('should just check that the experience is not deleted if the user is an admin', function() {
+        it('should just check that the entity is not deleted if the user is an admin', function() {
             user.permissions.thangs.read = Scope.All;
             expect(svc.userPermQuery(query, user))
                 .toEqual({ type: 'foo', status: { $ne: Status.Deleted } });
@@ -251,7 +306,7 @@ describe('CrudSvc', function() {
         it('should check if the org owns the object if they have Scope.Org', function() {
             user.permissions.thangs.read = Scope.Org;
             expect(svc.userPermQuery(query, user))
-                .toEqual({ type: 'foo', status: { $ne: Status.Deleted }, $or: [{org: 'o-1'}, {user: 'u-1'}] });
+                .toEqual({ type: 'foo', status: { $ne: Status.Deleted }, $or: [{user: 'u-1'}, {org: 'o-1'}] });
         });
 
         it('should log a warning if the user has an invalid scope', function() {
@@ -277,8 +332,32 @@ describe('CrudSvc', function() {
                 status: { $ne: Status.Deleted },
                 $and: [
                     { $or: [ { name: 'foo' }, { advertiserDisplayName: 'foo' } ] },
-                    { $or: [ { org: 'o-1' }, { user: 'u-1' } ] }
+                    { $or: [ { user: 'u-1' }, { org: 'o-1' } ] }
                 ]
+            });
+        });
+        
+        describe('if parentOfUser is set on the svc', function() {
+            beforeEach(function() {
+                svc._parentOfUser = true;
+                user.thang = 't-1';
+            });
+
+            it('should just check that the entity is not deleted if the user is an admin', function() {
+                user.permissions.thangs.read = Scope.All;
+                expect(svc.userPermQuery(query, user))
+                    .toEqual({ type: 'foo', status: { $ne: Status.Deleted } });
+            });
+            
+            it('should check if the user belongs to the object if they have Scope.Own', function() {
+                expect(svc.userPermQuery(query, user))
+                    .toEqual({ type: 'foo', status: { $ne: Status.Deleted }, $or: [ { id: 't-1' } ] });
+            });
+
+            it('should also check if the org owns the object if they have Scope.Org', function() {
+                user.permissions.thangs.read = Scope.Org;
+                expect(svc.userPermQuery(query, user))
+                    .toEqual({ type: 'foo', status: { $ne: Status.Deleted }, $or: [ { id: 't-1' }, { org: 'o-1' } ] });
             });
         });
 
