@@ -281,6 +281,24 @@ describe('CrudSvc', function() {
                     return svc.checkScope(user, thang, 'delete');
                 })).toEqual([thangs[0]]);
             });
+
+            it('should handle users without a parent object id', function() {
+                delete user.thang;
+                // 'all' scope should still work the same
+                expect(thangs.filter(function(thang) {
+                    return svc.checkScope(user, thang, 'read');
+                })).toEqual(thangs);
+                
+                // 'org' scope should only get thangs owned by the org
+                expect(thangs.filter(function(thang) {
+                    return svc.checkScope(user, thang, 'edit');
+                })).toEqual([thangs[1]]);
+
+                // 'own' scope should get nothing
+                expect(thangs.filter(function(thang) {
+                    return svc.checkScope(user, thang, 'delete');
+                })).toEqual([]);
+            });
         });
     });
 
@@ -358,6 +376,12 @@ describe('CrudSvc', function() {
                 user.permissions.thangs.read = Scope.Org;
                 expect(svc.userPermQuery(query, user))
                     .toEqual({ type: 'foo', status: { $ne: Status.Deleted }, $or: [ { id: 't-1' }, { org: 'o-1' } ] });
+            });
+            
+            it('should handle users without a parent object id', function() {
+                delete user.thang;
+                expect(svc.userPermQuery(query, user))
+                    .toEqual({ type: 'foo', status: { $ne: Status.Deleted }, $or: [ { id: { $exists: false } } ] });
             });
         });
 
