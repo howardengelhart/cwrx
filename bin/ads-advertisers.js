@@ -24,7 +24,7 @@
     };
 
     advertModule.setupSvc = function(coll) {
-        var opts = { userProp: false, orgProp: false, parentOfUser: true },
+        var opts = { userProp: false },
             svc = new CrudSvc(coll, 'a', opts, advertModule.advertSchema);
         
         var validateUniqueName = svc.validateUniqueProp.bind(svc, 'name', null);
@@ -56,6 +56,9 @@
             var query = {};
             if (req.query.name) {
                 query.name = String(req.query.name);
+            }
+            if (req.query.org) {
+                query.org = String(req.query.org);
             }
             if ('ids' in req.query) {
                 query.id = String(req.query.ids).split(',');

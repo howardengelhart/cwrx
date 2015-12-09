@@ -1,10 +1,14 @@
 # Ads Service Changelog
 
-* [FIX]: Users with `'own'` scope for reading adverts/custs should be able to get their own advert/cust: [#563](https://github.com/cinema6/cwrx/issues/563)
+* [BREAKING CHANGE]: Do not store `advertiser` ids on users: [#697](https://github.com/cinema6/cwrx/pull/697)
 * [BREAKING CHANGE]: Do not create Adtech advertisers: [#678](https://github.com/cinema6/cwrx/issues/678)
-* [BREAKING CHANGE]: Do not create Adtech customers: [#679](https://github.com/cinema6/cwrx/issues/679)
+* [REMOVAL]: Remove the customers service: [#679](https://github.com/cinema6/cwrx/issues/679)
 * [BREAKING CHANGE]: Do not create Adtech Websites, Pages, and Placements for sites: [#680](https://github.com/cinema6/cwrx/issues/680)
 * [REMOVAL]: Removed the minireel groups service: [#671](https://github.com/cinema6/cwrx/issues/671)
+* Extra deployment steps:
+    * Update existing advertisers with `org` ids
+    * Update system user's policy with `fieldValidation` for advertisers
+    * Update selfie users with policy with read scope `'org'` for advertisers
 
 ### 3.0.7: Mon Dec  7 16:20:01 EST 2015
 * Support pricing per geo/demo subcategory and pricing for any geo/demo subcategory: [#688](https://github.com/cinema6/cwrx/issues/688)

@@ -203,20 +203,13 @@
             sixxyCookie = null,
             mutex = new CacheMutex(cache, 'confirmUser:' + id, 60 * 1000);
             
-        // Post a new entity of the given type, unless the appropriate id already exists on the user
-        function makeReqIfNeeded(entityName, opts) {
-            if (!!req.user[entityName]) {
-                log.info('[%1] %2 %3 already exists on user %4',
-                         req.uuid, entityName, req.user[entityName], id);
-                return q();
-            }
-            
+        // Post a new entity of the given type
+        function postEntity(entityName, opts) {
             return requestUtils.qRequest('post', opts).then(function(resp) {
                 if (resp.response.statusCode === 201) {
                     var createdId = resp.body.id;
                     log.info('[%1] Created %2 %3 for user %4', req.uuid, entityName, createdId, id);
-                    req.user[entityName] = createdId;
-                    return q();
+                    return q(createdId);
                 }
                 
                 return q.reject({ code: resp.response.statusCode, body: resp.body });
@@ -239,40 +232,39 @@
                 sixxyCookie = cookie;
                 log.info('[%1] Got cookie for sixxy user', req.uuid);
                 
-                var orgPromise = makeReqIfNeeded('org', {
+                return (!!req.user.org ? q(req.user.org) : postEntity('org', {
                     url: urlUtils.resolve(config.api.root, config.api.orgs.endpoint),
                     json: { name: (company ? company : 'newOrg') + ' (' + id + ')' },
                     headers: { cookie: sixxyCookie }
-                });
-                
-                var advertPromise = makeReqIfNeeded('advertiser', {
-                    url: urlUtils.resolve(config.api.root, config.api.advertisers.endpoint),
-                    json: { name: (company ? company : 'newAdvertiser') + ' (' + id + ')' },
-                    headers: { cookie: sixxyCookie }
-                });
-                
-                return q.allSettled([orgPromise, advertPromise])
-                .then(function(results) {
-                    // wait until all requests are finished, but reject if any fail
-                    for (var i = 0; i < results.length; i++) {
-                        if (results[i].state !== 'fulfilled') {
-                            return q.reject(results[i].reason);
-                        }
-                    }
-
+                }))
+                .then(function(orgId) {
+                    req.user.org = orgId;
+                    
+                    return postEntity('advertiser', {
+                        url: urlUtils.resolve(config.api.root, config.api.advertisers.endpoint),
+                        json: {
+                            name: (company ? company : 'newAdvertiser') + ' (' + id + ')',
+                            org: orgId
+                        },
+                        headers: { cookie: sixxyCookie }
+                    });
+                })
+                .then(function() {
                     return mutex.release();
                 })
                 .then(function() {
                     return next();
                 })
                 .catch(function() {
-                    // if any of these requests failed, save user with whatever ids it has so far
-                    log.info('[%1] Saving any created entity ids on user %2', req.uuid, id);
-                    return mongoUtils.editObject(svc._coll, {
-                        org: req.user.org || undefined,
-                        advertiser: req.user.advertiser || undefined,
-                    }, id)
-                    .finally(function() {
+                    var promise;
+                    if (req.user.org) {
+                        log.info('[%1] Saving created org id on user %2', req.uuid, id);
+                        promise = mongoUtils.editObject(svc._coll, { org: req.user.org }, id);
+                    } else {
+                        promise = q();
+                    }
+
+                    return promise.finally(function() {
                         return mutex.release().finally(function() {
                             return q.reject('Failed creating linked entities');
                         });
@@ -783,8 +775,7 @@
                     $set: {
                         lastUpdated: new Date(),
                         status: Status.Active,
-                        org: req.user.org,
-                        advertiser: req.user.advertiser
+                        org: req.user.org
                     },
                     $unset: { activationToken: 1 }
                 };

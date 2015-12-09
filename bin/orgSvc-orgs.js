@@ -39,7 +39,7 @@
     };
 
     orgModule.setupSvc = function(db, gateway) {
-        var opts = { userProp: false, orgProp: false, parentOfUser: true },
+        var opts = { userProp: false, orgProp: false, ownedByUser: false },
             svc = new CrudSvc(db.collection('orgs'), 'o', opts, orgModule.orgSchema);
             
         svc._db = db;

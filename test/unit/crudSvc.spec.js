@@ -63,7 +63,7 @@ describe('CrudSvc', function() {
             expect(svc._userProp).toBe(true);
             expect(svc._orgProp).toBe(true);
             expect(svc._allowPublic).toBe(false);
-            expect(svc._parentOfUser).toBe(false);
+            expect(svc._ownedByUser).toBe(true);
 
             expect(svc.createValidator instanceof FieldValidator).toBe(true);
             expect(svc.createValidator._forbidden).toEqual(['id', 'created', '_id']);
@@ -94,12 +94,12 @@ describe('CrudSvc', function() {
 
         it('should allow setting various simple options', function() {
             var opts = {
-                objName: 'bananas', allowPublic: true, parentOfUser: true
+                objName: 'bananas', allowPublic: true, ownedByUser: false
             };
             svc = new CrudSvc(mockColl, 't', opts);
             expect(svc.objName).toBe('bananas');
             expect(svc._allowPublic).toBe(true);
-            expect(svc._parentOfUser).toBe(true);
+            expect(svc._ownedByUser).toBe(false);
         });
 
         it('should allow disabling the user + org props', function() {
@@ -248,7 +248,7 @@ describe('CrudSvc', function() {
             expect(svc.checkScope(user, thang, 'read')).toBe(false);
         });
         
-        describe('if parentOfUser is set on the svc', function() {
+        describe('if handling entities not owned by users', function() {
             var user, thangs;
             beforeEach(function() {
                 user = {
@@ -262,7 +262,7 @@ describe('CrudSvc', function() {
                     { id: 't-2', status: Status.Active, org: 'o-1' },
                     { id: 't-3', status: Status.Active }
                 ];
-                svc._parentOfUser = true;
+                svc._ownedByUser = false;
             });
             
             it('should allow users with own/org scope to get entities they belong to', function() {
@@ -355,9 +355,9 @@ describe('CrudSvc', function() {
             });
         });
         
-        describe('if parentOfUser is set on the svc', function() {
+        describe('if handling entities not owned by users', function() {
             beforeEach(function() {
-                svc._parentOfUser = true;
+                svc._ownedByUser = false;
                 user.thang = 't-1';
             });
 
