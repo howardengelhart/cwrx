@@ -613,7 +613,6 @@ describe('userSvc (UT)', function() {
                 expect(doneSpy).not.toHaveBeenCalled();
                 expect(errorSpy).not.toHaveBeenCalled();
                 expect(req.user.org).toBe('orgs-id-123');
-                expect(req.user.advertiser).toBe('advertisers-id-123');
                 
                 expect(CacheMutex.prototype._init).toHaveBeenCalledWith(mockCache, 'confirmUser:u-12345', 60000);
                 expect(CacheMutex.prototype.acquire).toHaveBeenCalled();
@@ -627,7 +626,7 @@ describe('userSvc (UT)', function() {
                 });
                 expect(requestUtils.qRequest).toHaveBeenCalledWith('post', {
                     url: 'http://localhost/api/account/advertisers',
-                    json: { name: 'some company (u-12345)' },
+                    json: { name: 'some company (u-12345)', org: 'orgs-id-123' },
                     headers: { cookie: 'sixxy cookie' }
                 });
 
@@ -664,6 +663,133 @@ describe('userSvc (UT)', function() {
             }).done(done);
         });
         
+        describe('if the user already has an org', function() {
+            beforeEach(function() {
+                req.user.org = 'o-existing';
+            });
+
+            it('should not attempt to create another org', function(done) {
+                userModule.createLinkedEntities(mockConfig, mockCache, svc, req, nextSpy, doneSpy).catch(errorSpy)
+                .finally(function() {
+                    expect(nextSpy).toHaveBeenCalled();
+                    expect(doneSpy).not.toHaveBeenCalled();
+                    expect(errorSpy).not.toHaveBeenCalled();
+                    expect(req.user.org).toBe('o-existing');
+
+                    expect(requestUtils.qRequest.calls.count()).toBe(1);
+                    expect(requestUtils.qRequest).not.toHaveBeenCalledWith('post', jasmine.objectContaining({
+                        url: 'http://localhost/api/account/orgs'
+                    }));
+                    expect(requestUtils.qRequest).toHaveBeenCalledWith('post', jasmine.objectContaining({
+                        url: 'http://localhost/api/account/advertisers'
+                    }));
+
+                    expect(mongoUtils.editObject).not.toHaveBeenCalled();
+                    expect(mockLog.error).not.toHaveBeenCalled();
+                    expect(CacheMutex.prototype.release).toHaveBeenCalled();
+                }).done(done);
+            });
+        });
+        
+        ['4xx response', 'rejection'].forEach(function(failType) {
+            function failRequestFor(entity, method, opts) {
+                return function(method, opts) {
+                    var object = opts.url.match(/orgs|advertisers/)[0];
+                    if (object === (entity + 's')) {
+                        if (/reject/.test(failType)) {
+                            return q.reject('I GOT A PROBLEM');
+                        } else {
+                            return q({
+                                response: { statusCode: 400 },
+                                body: 'I can\'t let you do that, sixxy'
+                            });
+                        }
+                    } else {
+                        return q({
+                            response: { statusCode: 201 },
+                            body: { id: object + '-id-123' }
+                        });
+                    }
+                }
+            }
+
+            describe('if creating an org fails with a ' + failType, function() {
+                beforeEach(function() {
+                    requestUtils.qRequest.and.callFake(failRequestFor('org'));
+                });
+                
+                it('should reject without attempting to save the user', function(done) {
+                    userModule.createLinkedEntities(mockConfig, mockCache, svc, req, nextSpy, doneSpy).catch(errorSpy)
+                    .finally(function() {
+                        expect(nextSpy).not.toHaveBeenCalled();
+                        expect(doneSpy).not.toHaveBeenCalled();
+                        expect(errorSpy).toHaveBeenCalledWith('Failed creating linked entities');
+                        expect(req.user.org).not.toBeDefined();
+
+                        expect(requestUtils.qRequest.calls.count()).toBe(1);
+                        expect(requestUtils.qRequest).toHaveBeenCalledWith('post', jasmine.objectContaining({
+                            url: 'http://localhost/api/account/orgs'
+                        }));
+                        expect(mongoUtils.editObject).not.toHaveBeenCalled();
+                        
+                        expect(mockLog.error).toHaveBeenCalled();
+                        expect(mockLog.error.calls.mostRecent().args).toContain('org');
+                        if (/reject/.test(failType)) {
+                            expect(mockLog.error.calls.mostRecent().args).toContain(jasmine.stringMatching('I GOT A PROBLEM'));
+                        } else {
+                            expect(mockLog.error.calls.mostRecent().args).toContain(jasmine.stringMatching('400'));
+                            expect(mockLog.error.calls.mostRecent().args).toContain(jasmine.stringMatching('let you do that, sixxy'));
+                        }
+                        expect(CacheMutex.prototype.release).toHaveBeenCalled();
+                    }).done(done);
+                });
+            });
+            
+            describe('if creating an advertiser fails with a ' + failType, function() {
+                beforeEach(function() {
+                    requestUtils.qRequest.and.callFake(failRequestFor('advertiser'));
+                });
+                
+                it('should attempt to save the org id on the user', function(done) {
+                    userModule.createLinkedEntities(mockConfig, mockCache, svc, req, nextSpy, doneSpy).catch(errorSpy)
+                    .finally(function() {
+                        expect(nextSpy).not.toHaveBeenCalled();
+                        expect(doneSpy).not.toHaveBeenCalled();
+                        expect(errorSpy).toHaveBeenCalledWith('Failed creating linked entities');
+                        expect(req.user.org).toBe('orgs-id-123');
+
+                        expect(requestUtils.qRequest.calls.count()).toBe(2);
+                        expect(mongoUtils.editObject).toHaveBeenCalledWith('fakeColl', { org: 'orgs-id-123' }, 'u-12345');
+                        
+                        expect(mockLog.error).toHaveBeenCalled();
+                        expect(mockLog.error.calls.mostRecent().args).toContain('advertiser');
+                        if (/reject/.test(failType)) {
+                            expect(mockLog.error.calls.mostRecent().args).toContain(jasmine.stringMatching('I GOT A PROBLEM'));
+                        } else {
+                            expect(mockLog.error.calls.mostRecent().args).toContain(jasmine.stringMatching('400'));
+                            expect(mockLog.error.calls.mostRecent().args).toContain(jasmine.stringMatching('let you do that, sixxy'));
+                        }
+                        expect(CacheMutex.prototype.release).toHaveBeenCalled();
+                    }).done(done);
+                });
+
+                it('should reject with the same message if saving the user fails', function(done) {
+                    mongoUtils.editObject.and.returnValue(q.reject('Honey you got a big storm coming'));
+                    userModule.createLinkedEntities(mockConfig, mockCache, svc, req, nextSpy, doneSpy).catch(errorSpy)
+                    .finally(function() {
+                        expect(nextSpy).not.toHaveBeenCalled();
+                        expect(doneSpy).not.toHaveBeenCalled();
+                        expect(errorSpy).toHaveBeenCalledWith('Failed creating linked entities');
+                        expect(mongoUtils.editObject).toHaveBeenCalled();
+                        expect(mockLog.error).toHaveBeenCalled();
+                        expect(CacheMutex.prototype.release).toHaveBeenCalled();
+                    }).done(done);
+                });
+            });
+        });
+
+
+/*       
         ['org', 'advertiser'].forEach(function(entity) {
             var otherEntity = entity === 'org' ? 'advertiser' : 'org';
             function pluralize(name) {
@@ -676,26 +802,7 @@ describe('userSvc (UT)', function() {
                 });
 
                 it('should not attempt to create another ' + entity, function(done) {
-                    userModule.createLinkedEntities(mockConfig, mockCache, svc, req, nextSpy, doneSpy).catch(errorSpy)
-                    .finally(function() {
-                        expect(nextSpy).toHaveBeenCalled();
-                        expect(doneSpy).not.toHaveBeenCalled();
-                        expect(errorSpy).not.toHaveBeenCalled();
-                        expect(req.user[entity]).toBe('existing-id');
 
-                        expect(requestUtils.qRequest.calls.count()).toBe(1);
-                        expect(requestUtils.qRequest).not.toHaveBeenCalledWith('post', jasmine.objectContaining({
-                            url: 'http://localhost/api/account/' + pluralize(entity)
-                        }));
-                        expect(req.user[otherEntity]).toBe(pluralize(otherEntity) + '-id-123');
-                        expect(requestUtils.qRequest).toHaveBeenCalledWith('post', jasmine.objectContaining({
-                            url: 'http://localhost/api/account/' + pluralize(otherEntity)
-                        }));
-
-                        expect(mongoUtils.editObject).not.toHaveBeenCalled();
-                        expect(mockLog.error).not.toHaveBeenCalled();
-                        expect(CacheMutex.prototype.release).toHaveBeenCalled();
-                    }).done(done);
                 });
             });
             
@@ -722,7 +829,7 @@ describe('userSvc (UT)', function() {
                         });
                     });
                     
-                    it('should still create other entities and save the user with their ids', function(done) {
+                    it('should save the user with any created objects\' ids', function(done) {
                         userModule.createLinkedEntities(mockConfig, mockCache, svc, req, nextSpy, doneSpy).catch(errorSpy)
                         .finally(function() {
                             expect(nextSpy).not.toHaveBeenCalled();
@@ -730,11 +837,14 @@ describe('userSvc (UT)', function() {
                             expect(errorSpy).toHaveBeenCalledWith('Failed creating linked entities');
                             expect(req.user[entity]).not.toBeDefined();
 
-                            // otherwise, everything but <entity> should have been created
-                            expect(requestUtils.qRequest.calls.count()).toBe(2);
+                            if (entity === 'org') {
+                                expect(requestUtils.qRequest.calls.count()).toBe(1);
+                            } else {
+                                expect(requestUtils.qRequest.calls.count()).toBe(2);
+                            }
                             expect(mongoUtils.editObject).toHaveBeenCalledWith('fakeColl', {
                                 org         : entity === 'org' ? undefined : 'orgs-id-123',
-                                advertiser  : entity === 'advertiser' ? undefined : 'advertisers-id-123'
+                                advertiser  : undefined
                             }, 'u-12345');
                             
                             expect(mockLog.error).toHaveBeenCalled();
@@ -748,23 +858,10 @@ describe('userSvc (UT)', function() {
                             expect(CacheMutex.prototype.release).toHaveBeenCalled();
                         }).done(done);
                     });
-                    
-                    it('should reject with the same message if saving the user fails', function(done) {
-                        mongoUtils.editObject.and.returnValue(q.reject('Honey you got a big storm coming'));
-                        userModule.createLinkedEntities(mockConfig, mockCache, svc, req, nextSpy, doneSpy).catch(errorSpy)
-                        .finally(function() {
-                            expect(nextSpy).not.toHaveBeenCalled();
-                            expect(doneSpy).not.toHaveBeenCalled();
-                            expect(errorSpy).toHaveBeenCalledWith('Failed creating linked entities');
-                            expect(req.user[entity]).not.toBeDefined();
-                            expect(mongoUtils.editObject).toHaveBeenCalled();
-                            expect(mockLog.error).toHaveBeenCalled();
-                            expect(CacheMutex.prototype.release).toHaveBeenCalled();
-                        }).done(done);
-                    });
                 });
             });
         });
+*/
     });
 
     describe('sendConfirmationEmail', function() {
@@ -2189,8 +2286,7 @@ describe('userSvc (UT)', function() {
                     $set: {
                         lastUpdated: jasmine.any(Date),
                         status: 'active',
-                        org: 'o-12345',
-                        advertiser: 'a-12345'
+                        org: 'o-12345'
                     },
                     $unset: {
                         activationToken: 1

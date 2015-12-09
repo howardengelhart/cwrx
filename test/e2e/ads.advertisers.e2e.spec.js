@@ -22,22 +22,20 @@ describe('ads advertisers endpoints (E2E):', function() {
         cookieJar = request.jar();
         nonAdminJar = request.jar();
         var mockUser = {
-            id: 'e2e-user',
+            id: 'u-admin',
             status: 'active',
             email : 'adminuser',
             password : '$2a$10$XomlyDak6mGSgrC/g1L7FO.4kMRkj4UturtKSzy6mFeL8QWOBmIWq', // hash of 'password'
-            org: 'o-1234',
+            org: 'o-admin',
             policies: ['manageAllAdverts']
         };
         var nonAdmin = {
-            id: 'e2e-nonAdminUser',
+            id: 'u-selfie',
             status: 'active',
             email : 'nonadminuser',
-            advertiser: 'e2e-a-1',
-            customer: 'e2e-cu-1',
             password : '$2a$10$XomlyDak6mGSgrC/g1L7FO.4kMRkj4UturtKSzy6mFeL8QWOBmIWq', // hash of 'password'
-            org: 'o-1234',
-            policies: ['manageOwnAdvert']
+            org: 'o-selfie',
+            policies: ['manageOrgAdverts']
         };
         testPolicies = [
             {
@@ -50,12 +48,12 @@ describe('ads advertisers endpoints (E2E):', function() {
                 }
             },
             {
-                id: 'p-e2e-ownAdvert',
-                name: 'manageOwnAdvert',
+                id: 'p-e2e-orgAdverts',
+                name: 'manageOrgAdverts',
                 status: 'active',
                 priority: 1,
                 permissions: {
-                    advertisers: { read: 'own', edit: 'own', delete: 'own' }
+                    advertisers: { read: 'org', edit: 'org', delete: 'org' }
                 }
             }
         ];
@@ -78,8 +76,8 @@ describe('ads advertisers endpoints (E2E):', function() {
         var options;
         beforeEach(function(done) {
             var mockAdverts = [
-                { id: 'e2e-a-1', name: 'advert 1', status: 'active' },
-                { id: 'e2e-a-2', name: 'advert 2', status: 'active' },
+                { id: 'e2e-a-1', name: 'advert 1', status: 'active', org: 'o-selfie' },
+                { id: 'e2e-a-2', name: 'advert 2', status: 'active', org: 'o-other' },
                 { id: 'e2e-deleted', name: 'advert deleted', status: 'deleted' }
             ];
             options = {
@@ -92,7 +90,7 @@ describe('ads advertisers endpoints (E2E):', function() {
         it('should get an advertiser by id', function(done) {
             requestUtils.qRequest('get', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
-                expect(resp.body).toEqual({id: 'e2e-a-1', name: 'advert 1', status: 'active'});
+                expect(resp.body).toEqual({id: 'e2e-a-1', name: 'advert 1', status: 'active', org: 'o-selfie'});
                 expect(resp.response.headers['content-range']).not.toBeDefined();
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
@@ -104,7 +102,7 @@ describe('ads advertisers endpoints (E2E):', function() {
                 expect(resp.response.statusCode).toBe(200);
                 return testUtils.mongoFind('audit', {}, {$natural: -1}, 1, 0, {db: 'c6Journal'});
             }).then(function(results) {
-                expect(results[0].user).toBe('e2e-user');
+                expect(results[0].user).toBe('u-admin');
                 expect(results[0].created).toEqual(jasmine.any(Date));
                 expect(results[0].host).toEqual(jasmine.any(String));
                 expect(results[0].pid).toEqual(jasmine.any(Number));
@@ -132,14 +130,14 @@ describe('ads advertisers endpoints (E2E):', function() {
             }).done(done);
         });
         
-        it('should allow a non-admin to only retrieve their advertiser', function(done) {
+        it('should allow a non-admin to only retrieve their advertisers', function(done) {
             options.jar = nonAdminJar;
             q.all(['e2e-a-1', 'e2e-a-2'].map(function(id) {
                 options.url = config.adsUrl + '/account/advertisers/' + id;
                 return requestUtils.qRequest('get', options);
             })).then(function(results) {
                 expect(results[0].response.statusCode).toBe(200);
-                expect(results[0].body).toEqual({ id: 'e2e-a-1', name: 'advert 1', status: 'active' });
+                expect(results[0].body).toEqual({ id: 'e2e-a-1', name: 'advert 1', status: 'active', org: 'o-selfie' });
                 expect(results[1].response.statusCode).toBe(404);
                 expect(results[1].body).toEqual('Object not found');
             }).catch(function(error) {
@@ -183,10 +181,10 @@ describe('ads advertisers endpoints (E2E):', function() {
         beforeEach(function(done) {
             options = { url: config.adsUrl + '/account/advertisers', qs: {sort: 'id,1'}, jar: cookieJar };
             var mockAdverts = [
-                { id: 'e2e-a-1', name: 'advert 1', status: 'active' },
-                { id: 'e2e-a-2', name: 'advert 2', status: 'inactive' },
-                { id: 'e2e-a-3', name: 'advert 3', status: 'active' },
-                { id: 'e2e-getgone', name: 'advert deleted', status: 'deleted' }
+                { id: 'e2e-a-1', name: 'advert 1', status: 'active', org: 'o-selfie' },
+                { id: 'e2e-a-2', name: 'advert 2', status: 'inactive', org: 'o-selfie' },
+                { id: 'e2e-a-3', name: 'advert 3', status: 'active', org: 'o-admin' },
+                { id: 'e2e-getgone', name: 'advert deleted', status: 'deleted', org: 'o-selfie' }
             ];
             testUtils.resetCollection('advertisers', mockAdverts).done(done);
         });
@@ -209,7 +207,7 @@ describe('ads advertisers endpoints (E2E):', function() {
                 expect(resp.response.statusCode).toBe(200);
                 return testUtils.mongoFind('audit', {}, {$natural: -1}, 1, 0, {db: 'c6Journal'});
             }).then(function(results) {
-                expect(results[0].user).toBe('e2e-user');
+                expect(results[0].user).toBe('u-admin');
                 expect(results[0].created).toEqual(jasmine.any(Date));
                 expect(results[0].host).toEqual(jasmine.any(String));
                 expect(results[0].pid).toEqual(jasmine.any(Number));
@@ -262,6 +260,19 @@ describe('ads advertisers endpoints (E2E):', function() {
                 expect(error).not.toBeDefined();
             }).done(done);
         });
+        
+        it('should get advertisers by org', function(done) {
+            options.qs.org = 'o-selfie';
+            requestUtils.qRequest('get', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.body.length).toBe(2);
+                expect(resp.body[0].id).toBe('e2e-a-1');
+                expect(resp.body[1].id).toBe('e2e-a-2');
+                expect(resp.response.headers['content-range']).toBe('items 1-2/2');
+            }).catch(function(error) {
+                expect(error).not.toBeDefined();
+            }).done(done);
+        });
 
         it('should return a 200 and [] if nothing is found', function(done) {
             options.qs.name = 'hamboneHarry';
@@ -296,13 +307,14 @@ describe('ads advertisers endpoints (E2E):', function() {
             }).done(done);
         });
         
-        it('should only show non-admins their own advertiser', function(done) {
+        it('should only show non-admins their own advertisers', function(done) {
             options.jar = nonAdminJar;
             requestUtils.qRequest('get', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
-                expect(resp.body.length).toBe(1);
+                expect(resp.body.length).toBe(2);
                 expect(resp.body[0].id).toBe('e2e-a-1');
-                expect(resp.response.headers['content-range']).toBe('items 1-1/1');
+                expect(resp.body[1].id).toBe('e2e-a-2');
+                expect(resp.response.headers['content-range']).toBe('items 1-2/2');
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
             }).done(done);
@@ -345,6 +357,7 @@ describe('ads advertisers endpoints (E2E):', function() {
                 expect(resp.body._id).not.toBeDefined();
                 expect(resp.body.id).toBeDefined();
                 expect(resp.body.name).toBe('fake advert');
+                expect(resp.body.org).toBe('o-admin');
                 expect(resp.body.defaultLinks).toEqual({
                     facebook: 'http://facebook.com'
                 });
@@ -364,7 +377,7 @@ describe('ads advertisers endpoints (E2E):', function() {
                 expect(resp.response.statusCode).toBe(201);
                 return testUtils.mongoFind('audit', {}, {$natural: -1}, 1, 0, {db: 'c6Journal'});
             }).then(function(results) {
-                expect(results[0].user).toBe('e2e-user');
+                expect(results[0].user).toBe('u-admin');
                 expect(results[0].created).toEqual(jasmine.any(Date));
                 expect(results[0].host).toEqual(jasmine.any(String));
                 expect(results[0].pid).toEqual(jasmine.any(Number));
@@ -404,12 +417,14 @@ describe('ads advertisers endpoints (E2E):', function() {
         it('should trim off forbidden fields', function(done) {
             options.json.id = 'a-fake';
             options.json._id = '_WEORIULSKJF';
+            options.json.org = 'o-fake';
             options.json.created = new Date(Date.now() - 99999999);
             requestUtils.qRequest('post', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(201);
                 expect(resp.body._id).not.toBeDefined();
                 expect(resp.body.id).toBeDefined();
                 expect(resp.body.id).not.toBe('a-fake');
+                expect(resp.body.org).toBe('o-admin');
                 expect(new Date(resp.body.created)).toBeGreaterThan(options.json.created);
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
@@ -432,9 +447,9 @@ describe('ads advertisers endpoints (E2E):', function() {
         var mockAdverts, options;
         beforeEach(function(done) {
             mockAdverts = [
-                { id: 'e2e-a-1', status: 'active', name: 'advert 1', defaultLogos: { square: 'square.png' } },
-                { id: 'e2e-a-2', status: 'active', name: 'advert 2', defaultLinks: { google: 'google.com' } },
-                { id: 'e2e-a-eted', status: 'deleted', name: 'deleted advert' }
+                { id: 'e2e-a-1', status: 'active', org: 'o-selfie', name: 'advert 1', defaultLogos: { square: 'square.png' } },
+                { id: 'e2e-a-2', status: 'active', org: 'o-admin', name: 'advert 2', defaultLinks: { google: 'google.com' } },
+                { id: 'e2e-a-eted', status: 'deleted', org: 'o-selfie', name: 'deleted advert' }
             ];
             options = {
                 url: config.adsUrl + '/account/advertisers/e2e-a-1',
@@ -463,7 +478,7 @@ describe('ads advertisers endpoints (E2E):', function() {
                 expect(resp.response.statusCode).toBe(200);
                 return testUtils.mongoFind('audit', {}, {$natural: -1}, 1, 0, {db: 'c6Journal'});
             }).then(function(results) {
-                expect(results[0].user).toBe('e2e-user');
+                expect(results[0].user).toBe('u-admin');
                 expect(results[0].created).toEqual(jasmine.any(Date));
                 expect(results[0].host).toEqual(jasmine.any(String));
                 expect(results[0].pid).toEqual(jasmine.any(Number));
@@ -491,19 +506,21 @@ describe('ads advertisers endpoints (E2E):', function() {
         it('should trim off forbidden fields', function(done) {
             options.json.id = 'a-fake';
             options.json._id = '_WEORIULSKJF';
+            options.json.org = 'o-fake';
             options.json.created = new Date(Date.now() - 99999999);
             requestUtils.qRequest('put', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
                 expect(resp.body._id).not.toBeDefined();
                 expect(resp.body.id).toBeDefined();
                 expect(resp.body.id).toBe('e2e-a-1');
+                expect(resp.body.org).toBe('o-selfie');
                 expect(resp.body.created).not.toEqual(options.json.created);
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
             }).done(done);
         });
         
-        it('should only allow non-admins to edit their own advertiser', function(done) {
+        it('should only allow non-admins to edit their own advertisers', function(done) {
             options.jar = nonAdminJar;
             delete options.json.name;
             q.all(['e2e-a-1', 'e2e-a-2'].map(function(id) {
@@ -557,9 +574,9 @@ describe('ads advertisers endpoints (E2E):', function() {
         var options;
         beforeEach(function(done) {
             var mockAdverts = [
-                { id: 'e2e-a-1', name: 'advert 1', status: 'active' },
-                { id: 'e2e-a-2', name: 'advert 2', status: 'active' },
-                { id: 'e2e-deleted', name: 'advert 3', status: 'deleted' }
+                { id: 'e2e-a-1', name: 'advert 1', org: 'o-selfie', status: 'active' },
+                { id: 'e2e-a-2', name: 'advert 2', org: 'o-admin', status: 'active' },
+                { id: 'e2e-deleted', name: 'advert 3', org: 'o-selfie', status: 'deleted' }
             ];
             options = {
                 url: config.adsUrl + '/account/advertisers/e2e-a-1',
@@ -589,7 +606,7 @@ describe('ads advertisers endpoints (E2E):', function() {
                 
                 return testUtils.mongoFind('audit', {}, {$natural: -1}, 1, 0, {db: 'c6Journal'});
             }).then(function(results) {
-                expect(results[0].user).toBe('e2e-user');
+                expect(results[0].user).toBe('u-admin');
                 expect(results[0].created).toEqual(jasmine.any(Date));
                 expect(results[0].host).toEqual(jasmine.any(String));
                 expect(results[0].pid).toEqual(jasmine.any(Number));
@@ -624,7 +641,7 @@ describe('ads advertisers endpoints (E2E):', function() {
             }).done(done);
         });
 
-        it('should only allow non-admins to edit their own advertiser', function(done) {
+        it('should only allow non-admins to delete their own advertisers', function(done) {
             options.jar = nonAdminJar;
             q.all(['e2e-a-1', 'e2e-a-2'].map(function(id) {
                 options.url = config.adsUrl + '/account/advertisers/' + id;
