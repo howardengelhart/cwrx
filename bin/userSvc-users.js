@@ -30,10 +30,6 @@
             __allowed: false,
             __type: 'string'
         },
-        customer: {
-            __allowed: false,
-            __type: 'string'
-        },
         email: {
             __allowed: true,
             __type: 'string',
@@ -253,17 +249,6 @@
                     url: urlUtils.resolve(config.api.root, config.api.advertisers.endpoint),
                     json: { name: (company ? company : 'newAdvertiser') + ' (' + id + ')' },
                     headers: { cookie: sixxyCookie }
-                })
-                .then(function() {
-                    // can only create customer if advertiser created, because we need advert id
-                    return makeReqIfNeeded('customer', {
-                        url: urlUtils.resolve(config.api.root, config.api.customers.endpoint),
-                        json: {
-                            name: (company ? company : 'newCustomer') + ' (' + id + ')',
-                            advertisers: [req.user.advertiser]
-                        },
-                        headers: { cookie: sixxyCookie }
-                    });
                 });
                 
                 return q.allSettled([orgPromise, advertPromise])
@@ -286,7 +271,6 @@
                     return mongoUtils.editObject(svc._coll, {
                         org: req.user.org || undefined,
                         advertiser: req.user.advertiser || undefined,
-                        customer: req.user.customer || undefined,
                     }, id)
                     .finally(function() {
                         return mutex.release().finally(function() {
@@ -800,7 +784,6 @@
                         lastUpdated: new Date(),
                         status: Status.Active,
                         org: req.user.org,
-                        customer: req.user.customer,
                         advertiser: req.user.advertiser
                     },
                     $unset: { activationToken: 1 }
