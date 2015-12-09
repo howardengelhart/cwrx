@@ -1785,8 +1785,7 @@ describe('userSvc users (E2E):', function() {
                         lastUpdated: jasmine.any(String),
                         status: 'active',
                         company: 'e2e-tests-company',
-                        org: jasmine.any(String),
-                        advertiser: jasmine.any(String)
+                        org: jasmine.any(String)
                     });
                     expect(new Date(resp.body.lastUpdated)).toBeGreaterThan(new Date(0, 11, 25));
 
@@ -1821,19 +1820,25 @@ describe('userSvc users (E2E):', function() {
             });
 
             it('should create an advertiser for the user', function(done) {
+                var confirmedUser;
+
                 mailman.once(msgSubject, function(msg) {
                     done();
                 });
 
                 requestUtils.qRequest('post', options)
                 .then(function(resp) {
-                    var advertiserId = resp.body.advertiser;
-                    expect(advertiserId).toEqual(jasmine.any(String));
-                    return testUtils.mongoFind('advertisers', {id: advertiserId});
+                    confirmedUser = resp.body;
+                    return testUtils.mongoFind('advertisers', {org: confirmedUser.org});
                 })
                 .then(function(results) {
                     var advertiser = results[0];
-                    expect(advertiser.name).toBe('e2e-tests-company (u-12345)');
+                    if (!advertiser) {
+                        expect(advertiser).toBeDefined();
+                    } else {
+                        expect(advertiser.name).toBe('e2e-tests-company (u-12345)');
+                        expect(advertiser.org).toBe(confirmedUser.org);
+                    }
                 })
                 .catch(function(error) {
                     expect(util.inspect(error)).not.toBeDefined();
@@ -1855,7 +1860,7 @@ describe('userSvc users (E2E):', function() {
                     mailman.once(msgSubject, function(msg) {
                         return q.all([
                             testUtils.mongoFind('orgs', { id: modifiedUser.org }),
-                            testUtils.mongoFind('advertisers', { id: modifiedUser.advertiser }),
+                            testUtils.mongoFind('advertisers', { org: 'o-existent' }),
                         ]).spread(function(orgResult, advertResult) {
                             expect(orgResult).toEqual([]);
                             expect(advertResult).toEqual([jasmine.objectContaining({ name: 'e2e-tests-company (u-12345)' })]);
@@ -1867,7 +1872,6 @@ describe('userSvc users (E2E):', function() {
                         expect(resp.response.statusCode).toBe(200);
                         expect(resp.body.status).toBe('active');
                         expect(resp.body.org).toBe('o-existent');
-                        expect(resp.body.advertiser).toBeDefined();
                         modifiedUser = resp.body;
                     })
                     .catch(function(error) {
@@ -1900,7 +1904,6 @@ describe('userSvc users (E2E):', function() {
                                 expect(resp.body.id).toBe(userId);
                                 expect(resp.body.status).toBe('active');
                                 expect(resp.body.org).toBeDefined();
-                                expect(resp.body.advertiser).toBeDefined();
                                 done();
                             });
 

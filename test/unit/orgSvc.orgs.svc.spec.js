@@ -61,7 +61,7 @@ describe('orgSvc-orgs (UT)', function() {
             expect(svc._prefix).toBe('o');
             expect(svc._userProp).toBe(false);
             expect(svc._orgProp).toBe(false);
-            expect(svc._parentOfUser).toBe(true);
+            expect(svc._ownedByUser).toBe(false);
             expect(svc.model).toEqual(jasmine.any(Model));
             expect(svc.model.schema).toBe(orgModule.orgSchema);
         });
