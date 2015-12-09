@@ -3,7 +3,6 @@ var q               = require('q'),
     util            = require('util'),
     testUtils       = require('./testUtils'),
     requestUtils    = require('../../lib/requestUtils'),
-    adtech          = require('adtech'),
     host            = process.env.host || 'localhost',
     config = {
         usersUrl    : 'http://' + (host === 'localhost' ? host + ':3500' : host) + '/api/account/users',
@@ -75,7 +74,6 @@ describe('userSvc users (E2E):', function() {
                 permissions: {
                     users: { read: 'all', create: 'all', edit: 'all', delete: 'all' },
                     orgs: { delete: 'all' },
-                    customers: { read: 'all', delete: 'all' },
                     advertisers: { delete: 'all' }
                 },
                 fieldValidation: {
@@ -1608,7 +1606,6 @@ describe('userSvc users (E2E):', function() {
             });
 
             mockUser.org = 'o-4567';
-            mockUser.customer = 'some customer';
             mockUser.advertiser = 'some advertiser';
             mockUser.permissions = { cards: { read: 'all' } };
             mockUser.fieldValidation = { cards: { status: { __allowed: true } } };
@@ -1617,7 +1614,6 @@ describe('userSvc users (E2E):', function() {
             requestUtils.qRequest('post', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(201);
                 expect(resp.body.org).not.toBeDefined();
-                expect(resp.body.customer).not.toBeDefined();
                 expect(resp.body.advertiser).not.toBeDefined();
                 expect(resp.body.permissions).not.toBeDefined();
                 expect(resp.body.fieldValidation).not.toBeDefined();
@@ -1675,49 +1671,10 @@ describe('userSvc users (E2E):', function() {
             q.all([
                 testUtils.resetCollection('users', [mockNewUser, mockAdmin]),
                 testUtils.resetCollection('orgs'),
+                testUtils.resetCollection('advertisers'),
                 testUtils.resetCollection('roles', mockRoles),
                 testUtils.resetCollection('policies', mockPols.concat(testPolicies))
-            ]).then(function() {
-                if (!adtech.customerAdmin) {
-                    return adtech.createCustomerAdmin();
-                }
-            }).done(done);
-        });
-
-        function cleanupCustomers(customerName) {
-            if(!customerName) { return; }
-            var equalsCustAove = new adtech.AOVE();
-            equalsCustAove.addExpression(new adtech.AOVE.StringExpression('name', customerName));
-            return adtech.customerAdmin.getCustomerList(null, null, equalsCustAove).then(function(response) {
-                return q.allSettled(response.map(function(item) {
-                    return adtech.customerAdmin.deleteCustomer(item.id);
-                }));
-            }).catch(function(error) {
-                console.log('Error removing e2e customers:');
-                console.log(error);
-            });
-        }
-
-        function cleanupAdvertisers(advertiserName) {
-            if(!advertiserName) { return; }
-            var equalsAdvertiserAove = new adtech.AOVE();
-            equalsAdvertiserAove.addExpression(new adtech.AOVE.StringExpression('name', advertiserName));
-            return adtech.customerAdmin.getAdvertiserList(null, null, equalsAdvertiserAove).then(function(response) {
-                return q.allSettled(response.map(function(item) {
-                    return adtech.customerAdmin.deleteAdvertiser(item.id);
-                }));
-            }).catch(function(error) {
-                console.log('Error removing e2e advertisers:');
-                console.log(error);
-            });
-        }
-
-        afterEach(function(done) {
-            cleanupCustomers('e2e-tests-company (u-12345)')
-                .then(function() {
-                    return cleanupAdvertisers('e2e-tests-company (u-12345)');
-                })
-                .done(done);
+            ]).done(function() { done(); });
         });
 
         it('should 400 concurrent requests', function(done) {
@@ -1809,7 +1766,7 @@ describe('userSvc users (E2E):', function() {
                 options = { url: config.usersUrl + '/confirm/u-12345', json: { token: 'valid-token' } };
             });
 
-            it('should 200 and return the saved object as the body of the response ', function(done) {
+            it('should 200 and return the saved object as the body of the response', function(done) {
                 mailman.once(msgSubject, function(msg) {
                     expect(msg.from[0].address).toBe('no-reply@cinema6.com');
                     expect(msg.to[0].address).toBe('c6e2etester@gmail.com');
@@ -1829,10 +1786,12 @@ describe('userSvc users (E2E):', function() {
                         status: 'active',
                         company: 'e2e-tests-company',
                         org: jasmine.any(String),
-                        customer: jasmine.any(String),
                         advertiser: jasmine.any(String)
                     });
                     expect(new Date(resp.body.lastUpdated)).toBeGreaterThan(new Date(0, 11, 25));
+
+                    expect(resp.response.headers['set-cookie'].length).toBe(1);
+                    expect(resp.response.headers['set-cookie'][0]).toMatch(/^c6Auth=.+/);
                 })
                 .catch(function(error) {
                     expect(util.inspect(error)).not.toBeDefined();
@@ -1861,32 +1820,6 @@ describe('userSvc users (E2E):', function() {
                 });
             });
 
-            it('should create a customer for the user (linked to the advertiser)', function(done) {
-                mailman.once(msgSubject, function(msg) {
-                    done();
-                });
-
-                var advertiserId = null;
-                requestUtils.qRequest('post', options)
-                .then(function(resp) {
-                    var customerId = resp.body.customer;
-                    advertiserId = resp.body.advertiser;
-                    expect(customerId).toEqual(jasmine.any(String));
-                    expect(advertiserId).toBeDefined();
-                    var options = {url: config.adsUrl + '/account/customer/' + customerId, jar: adminJar};
-                    return requestUtils.qRequest('get', options);
-                })
-                .then(function(resp) {
-                    var customer = resp.body;
-                    expect(customer.name).toBe('e2e-tests-company (u-12345)');
-                    expect(customer.advertisers).toContain(advertiserId);
-                })
-                .catch(function(error) {
-                    expect(util.inspect(error)).not.toBeDefined();
-                    done();
-                });
-            });
-
             it('should create an advertiser for the user', function(done) {
                 mailman.once(msgSubject, function(msg) {
                     done();
@@ -1908,22 +1841,6 @@ describe('userSvc users (E2E):', function() {
                 });
             });
 
-            it('should login the new user', function(done) {
-                mailman.once(msgSubject, function(msg) {
-                    done();
-                });
-
-                requestUtils.qRequest('post', options)
-                .then(function(resp) {
-                    expect(resp.response.headers['set-cookie'].length).toBe(1);
-                    expect(resp.response.headers['set-cookie'][0]).toMatch(/^c6Auth=.+/);
-                })
-                .catch(function(error) {
-                    expect(util.inspect(error)).not.toBeDefined();
-                    done();
-                });
-            });
-            
             describe('if some of the user\'s linked entities have been created', function() {
                 beforeEach(function(done) {
                     mockNewUser.org = 'o-existent';
@@ -1939,11 +1856,9 @@ describe('userSvc users (E2E):', function() {
                         return q.all([
                             testUtils.mongoFind('orgs', { id: modifiedUser.org }),
                             testUtils.mongoFind('advertisers', { id: modifiedUser.advertiser }),
-                            testUtils.mongoFind('customers', { id: modifiedUser.customer })
-                        ]).spread(function(orgResult, advertResult, custResult) {
+                        ]).spread(function(orgResult, advertResult) {
                             expect(orgResult).toEqual([]);
                             expect(advertResult).toEqual([jasmine.objectContaining({ name: 'e2e-tests-company (u-12345)' })]);
-                            expect(custResult).toEqual([jasmine.objectContaining({ name: 'e2e-tests-company (u-12345)' })]);
                         }).done(done);
                     });
                     
@@ -1952,6 +1867,7 @@ describe('userSvc users (E2E):', function() {
                         expect(resp.response.statusCode).toBe(200);
                         expect(resp.body.status).toBe('active');
                         expect(resp.body.org).toBe('o-existent');
+                        expect(resp.body.advertiser).toBeDefined();
                         modifiedUser = resp.body;
                     })
                     .catch(function(error) {
@@ -1963,21 +1879,6 @@ describe('userSvc users (E2E):', function() {
         });
         
         describe('working with the signup endpoint', function() {
-            var createdCustomer, createdAdvertiser;
-            
-            beforeEach(function() {
-                createdCustomer = null;
-                createdAdvertiser = null;
-            });
-            
-            afterEach(function(done) {
-                cleanupCustomers(createdCustomer)
-                    .then(function() {
-                        return cleanupAdvertisers(createdAdvertiser);
-                    })
-                    .done(done);
-            });
-
             it('should work properly with /api/account/users/signup', function(done) {
                 var userId;
 
@@ -1995,13 +1896,11 @@ describe('userSvc users (E2E):', function() {
                         .then(function(resp) {
                             expect(resp.response.statusCode).toBe(200);
 
-                            // For cleaning up linked entities
-                            createdCustomer = 'newCustomer (' + resp.body.id + ')';
-                            createdAdvertiser = 'newAdvertiser (' + resp.body.id + ')';
-
                             mailman.once(msgSubject, function(msg) {
                                 expect(resp.body.id).toBe(userId);
                                 expect(resp.body.status).toBe('active');
+                                expect(resp.body.org).toBeDefined();
+                                expect(resp.body.advertiser).toBeDefined();
                                 done();
                             });
 
