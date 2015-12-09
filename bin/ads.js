@@ -17,7 +17,6 @@
         journal         = require('../lib/journal'),
         JobManager      = require('../lib/jobManager'),
         advertModule    = require('./ads-advertisers'),
-        custModule      = require('./ads-customers'),
         updateModule    = require('./ads-campaignUpdates'),
         campModule      = require('./ads-campaigns'),
         siteModule      = require('./ads-sites'),
@@ -120,7 +119,6 @@
         var app          = express(),
             jobManager   = new JobManager(state.cache, state.config.jobTimeouts),
             advertSvc    = advertModule.setupSvc(state.dbs.c6Db.collection('advertisers')),
-            custSvc      = custModule.setupSvc(state.dbs.c6Db),
             campSvc      = campModule.setupSvc(state.dbs.c6Db, state.config),
             updateSvc    = updateModule.setupSvc(state.dbs.c6Db, campSvc, state.config),
             siteSvc      = siteModule.setupSvc(state.dbs.c6Db.collection('sites')),
@@ -195,7 +193,6 @@
         });
         
         advertModule.setupEndpoints(app, advertSvc, sessWrap, audit, jobManager);
-        custModule.setupEndpoints(app, custSvc, sessWrap, audit, jobManager);
         
         // Update module endpoints MUST be added before campaign endpoints!
         updateModule.setupEndpoints(app, updateSvc, sessWrap, audit, jobManager);
