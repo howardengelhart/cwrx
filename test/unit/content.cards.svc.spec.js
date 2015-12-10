@@ -897,7 +897,8 @@ describe('content-cards (UT)', function() {
                 hostApp: 'Mapsaurus',
                 network: 'pocketmath',
                 cb: '{cachebreaker}',
-                event: 'completedView'
+                event: 'completedView',
+                d: '{delay}'
             });
         });
         
@@ -934,7 +935,8 @@ describe('content-cards (UT)', function() {
                 hostApp: '',
                 network: '',
                 cb: '{cachebreaker}',
-                event: 'completedView'
+                event: 'completedView',
+                d: '{delay}'
             });
         });
         
@@ -951,6 +953,7 @@ describe('content-cards (UT)', function() {
                 hostApp: 'Mapsaurus',
                 network: 'pocketmath',
                 cb: '{cachebreaker}',
+                d: '{delay}',
                 pd: '{playDelay}',
                 event: 'play'
             });
@@ -969,6 +972,7 @@ describe('content-cards (UT)', function() {
                 hostApp: 'Mapsaurus',
                 network: 'pocketmath',
                 cb: '{cachebreaker}',
+                d: '{delay}',
                 ld: '{loadDelay}',
                 event: 'load'
             });

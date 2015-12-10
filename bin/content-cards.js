@@ -329,7 +329,7 @@
         };
         
         var url = cardModule.config.trackingPixel + '?' + querystring.stringify(qps) +
-                                                          '&cb={cachebreaker}';
+                                                          '&d={delay}&cb={cachebreaker}';
                                                           
         if (event === 'play') {
             url += '&pd={playDelay}';
