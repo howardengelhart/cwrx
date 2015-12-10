@@ -329,7 +329,7 @@
         };
         
         var url = cardModule.config.trackingPixel + '?' + querystring.stringify(qps) +
-                                                          '&cb={cachebreaker}';
+                                                          '&d={delay}&cb={cachebreaker}';
                                                           
         if (event === 'play') {
             url += '&pd={playDelay}';
@@ -347,7 +347,8 @@
         function ensureList(prop) {
             return card.campaign[prop] || (card.campaign[prop] = []);
         }
-        
+
+        ensureList('bufferUrls').push(cardModule.formatUrl(card, req, 'buffer'));
         ensureList('viewUrls').push(cardModule.formatUrl(card, req, 'cardView'));
         ensureList('playUrls').push(cardModule.formatUrl(card, req, 'play'));
         ensureList('loadUrls').push(cardModule.formatUrl(card, req, 'load'));

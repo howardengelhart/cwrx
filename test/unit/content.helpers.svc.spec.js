@@ -466,7 +466,8 @@ describe('content (UT)', function() {
                 network: 'pocketmath',
                 cb: '{cachebreaker}',
                 event: 'launch',
-                ld: '{launchDelay}'
+                ld: '{launchDelay}',
+                d: '{delay}'
             });
         });
         

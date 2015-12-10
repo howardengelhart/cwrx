@@ -1,5 +1,8 @@
 # Content Service Changelog
 
+* [FEATURE]: Support tracking of video buffering: [#699](https://github.com/cinema6/cwrx/pull/699)
+* [FEATURE]: Support tracking of delay for all pixel events: [#699](https://github.com/cinema6/cwrx/pull/699)
+
 ### 3.3.0: Mon Dec  7 18:10:29 EST 2015
 * [FIX]: Allow deleting cards from campaigns with pending update requests: [#694](https://github.com/cinema6/cwrx/issues/694)
 * Support getting video durations of vzaar videos: [#685](https://github.com/cinema6/cwrx/issues/685)

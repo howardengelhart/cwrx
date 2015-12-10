@@ -165,7 +165,7 @@
         };
         
         var url = trackingPixel + '?' + querystring.stringify(qps) +
-            '&cb={cachebreaker}&ld={launchDelay}';
+            '&cb={cachebreaker}&ld={launchDelay}&d={delay}';
         
         (exp.data.campaign.launchUrls || (exp.data.campaign.launchUrls = [])).push(url);
     };

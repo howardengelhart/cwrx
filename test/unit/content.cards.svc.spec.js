@@ -897,7 +897,8 @@ describe('content-cards (UT)', function() {
                 hostApp: 'Mapsaurus',
                 network: 'pocketmath',
                 cb: '{cachebreaker}',
-                event: 'completedView'
+                event: 'completedView',
+                d: '{delay}'
             });
         });
         
@@ -934,7 +935,8 @@ describe('content-cards (UT)', function() {
                 hostApp: '',
                 network: '',
                 cb: '{cachebreaker}',
-                event: 'completedView'
+                event: 'completedView',
+                d: '{delay}'
             });
         });
         
@@ -951,6 +953,7 @@ describe('content-cards (UT)', function() {
                 hostApp: 'Mapsaurus',
                 network: 'pocketmath',
                 cb: '{cachebreaker}',
+                d: '{delay}',
                 pd: '{playDelay}',
                 event: 'play'
             });
@@ -969,6 +972,7 @@ describe('content-cards (UT)', function() {
                 hostApp: 'Mapsaurus',
                 network: 'pocketmath',
                 cb: '{cachebreaker}',
+                d: '{delay}',
                 ld: '{loadDelay}',
                 event: 'load'
             });
@@ -991,6 +995,7 @@ describe('content-cards (UT)', function() {
                 id          : 'rc-1',
                 campaignId  : 'cam-1',
                 campaign    : {
+                    bufferUrls  : [ 'track.png?event=buffer' ],
                     viewUrls    : [ 'track.png?event=cardView' ],
                     playUrls    : [ 'track.png?event=play' ],
                     loadUrls    : [ 'track.png?event=load' ],
@@ -1019,6 +1024,7 @@ describe('content-cards (UT)', function() {
                 id          : 'rc-1',
                 campaignId  : 'cam-1',
                 campaign    : {
+                    bufferUrls  : [ 'track.png?event=buffer' ],
                     viewUrls    : [ 'view.me', 'track.png?event=cardView' ],
                     playUrls    : [ 'play.me', 'track.png?event=play' ],
                     loadUrls    : [ 'load.me', 'track.png?event=load' ],
@@ -1045,6 +1051,7 @@ describe('content-cards (UT)', function() {
                     id          : 'rc-1',
                     campaignId  : 'cam-1',
                     campaign    : {
+                        bufferUrls  : [ 'track.png?event=buffer' ],
                         viewUrls    : [ 'track.png?event=cardView' ],
                         playUrls    : [ 'track.png?event=play' ],
                         loadUrls    : [ 'track.png?event=load' ],
@@ -1108,6 +1115,7 @@ describe('content-cards (UT)', function() {
                     id          : 'rc-1',
                     campaignId  : 'cam-1',
                     campaign    : {
+                        bufferUrls  : [ 'track.png?event=buffer' ],
                         viewUrls    : [ 'track.png?event=cardView' ],
                         playUrls    : [ 'track.png?event=play' ],
                         loadUrls    : [ 'track.png?event=load' ],

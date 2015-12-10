@@ -81,7 +81,8 @@ describe('content public experience endpoints (E2E):', function() {
                         network     : 'pocketmath',
                         cb          : '{cachebreaker}',
                         event       : 'launch',
-                        ld          : '{launchDelay}'
+                        ld          : '{launchDelay}',
+                        d           : '{delay}'
                     });
 
                     expect(new Date(resp.body.lastStatusChange)).not.toEqual('Invalid Date');
@@ -423,6 +424,7 @@ describe('content public experience endpoints (E2E):', function() {
                         }
 
                         [
+                            { prop: 'bufferUrls', event: 'buffer' },
                             { prop: 'viewUrls', event: 'cardView' },
                             { prop: 'playUrls', event: 'play' },
                             { prop: 'loadUrls', event: 'load' },
@@ -445,7 +447,8 @@ describe('content public experience endpoints (E2E):', function() {
                                 hostApp     : 'Mapsaurus',
                                 network     : 'pocketmath',
                                 cb          : '{cachebreaker}',
-                                event       : obj.event
+                                event       : obj.event,
+                                d           : '{delay}'
                             };
                             if (obj.prop === 'playUrls') {
                                 expectedQuery.pd = '{playDelay}';
