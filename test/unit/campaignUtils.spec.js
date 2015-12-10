@@ -38,9 +38,8 @@ describe('campaignUtils', function() {
     
     describe('validateDates', function() {
         var now = new Date(),
-            delays, obj, existing;
+            obj, existing;
         beforeEach(function() {
-            delays = { start: 2*60*60*1000, end: 3*60*60*1000 };
             obj = {};
             existing = {
                 startDate: new Date(now.valueOf() - 5000).toISOString(),
@@ -49,26 +48,26 @@ describe('campaignUtils', function() {
         });
         
         it('should not default the startDate and endDate if undefined', function() {
-            expect(campaignUtils.validateDates(obj, existing, delays)).toBe(true);
+            expect(campaignUtils.validateDates(obj, existing, '1234')).toBe(true);
             expect(mockLog.info).not.toHaveBeenCalled();
             expect(obj).toEqual({});
         });
 
         it('should return false if the startDate is not a valid date string', function() {
             obj.startDate = new Date().toISOString() + 'foo';
-            expect(campaignUtils.validateDates(obj, existing, delays)).toBe(false);
+            expect(campaignUtils.validateDates(obj, existing, '1234')).toBe(false);
             expect(mockLog.info).toHaveBeenCalled();
         });
 
         it('should return false if the endDate is not a valid date string', function() {
             obj.endDate = {foo: 'bar'};
-            expect(campaignUtils.validateDates(obj, existing, delays)).toBe(false);
+            expect(campaignUtils.validateDates(obj, existing, '1234')).toBe(false);
             expect(mockLog.info).toHaveBeenCalled();
         });
 
         it('should return false if the startDate is greater than the endDate', function() {
             obj = { startDate: now.toISOString(), endDate: new Date(now.valueOf() - 1000).toISOString() };
-            expect(campaignUtils.validateDates(obj, existing, delays)).toBe(false);
+            expect(campaignUtils.validateDates(obj, existing, '1234')).toBe(false);
             expect(mockLog.info).toHaveBeenCalled();
         });
         
@@ -77,60 +76,59 @@ describe('campaignUtils', function() {
                 startDate: new Date(now.valueOf() - 5000).toISOString(),
                 endDate: new Date(now.valueOf() - 1000).toISOString()
             };
-            expect(campaignUtils.validateDates(obj, existing, delays)).toBe(false);
+            expect(campaignUtils.validateDates(obj, existing, '1234')).toBe(false);
             expect(mockLog.info).toHaveBeenCalled();
-            expect(campaignUtils.validateDates(obj, undefined, delays)).toBe(false);
+            expect(campaignUtils.validateDates(obj, undefined, '1234')).toBe(false);
             obj.endDate = new Date(now.valueOf() - 4000).toISOString();
-            expect(campaignUtils.validateDates(obj, existing, delays)).toBe(true);
+            expect(campaignUtils.validateDates(obj, existing, '1234')).toBe(true);
             obj.endDate = new Date(new Date().valueOf() + 4000).toISOString();
-            expect(campaignUtils.validateDates(obj, existing, delays)).toBe(true);
+            expect(campaignUtils.validateDates(obj, existing, '1234')).toBe(true);
         });
     });
 
     describe('validateAllDates', function() {
-        var body, origObj, requester, delays, reqId;
+        var body, origObj, requester, reqId;
         beforeEach(function() {
             body = { cards: [
-                { id: 'rc-1', campaign: { adtechId: 11 } },
-                { id: 'rc-2', campaign: { adtechId: 12 } }
+                { id: 'rc-1', campaign: { minViewTime: 3 } },
+                { id: 'rc-2', campaign: { minViewTime: 4 } }
             ] };
             requester = { id: 'u-1', email: 'selfie@c6.com' };
-            delays = { start: 100, end: 200 };
             reqId = '1234';
             spyOn(campaignUtils, 'validateDates').and.returnValue(true);
         });
         
         it('should call campaignUtils.validateDates for every list object', function() {
-            var resp = campaignUtils.validateAllDates(body, origObj, requester, delays, reqId);
+            var resp = campaignUtils.validateAllDates(body, origObj, requester, reqId);
             expect(resp).toEqual({ isValid: true });
             expect(campaignUtils.validateDates.calls.count()).toBe(2);
-            expect(campaignUtils.validateDates).toHaveBeenCalledWith({ adtechId: 11 }, undefined, {start: 100, end: 200}, '1234');
-            expect(campaignUtils.validateDates).toHaveBeenCalledWith({ adtechId: 12 }, undefined, {start: 100, end: 200}, '1234');
+            expect(campaignUtils.validateDates).toHaveBeenCalledWith({ minViewTime: 3 }, undefined, '1234');
+            expect(campaignUtils.validateDates).toHaveBeenCalledWith({ minViewTime: 4 }, undefined, '1234');
         });
         
         it('should pass in existing sub-objects if they exist', function() {
-            origObj = { cards: [{ id: 'rc-1', campaign: { adtechId: 11, startDate: '2015-10-25T00:27:03.456Z' } }] };
-            var resp = campaignUtils.validateAllDates(body, origObj, requester, delays, reqId);
+            origObj = { cards: [{ id: 'rc-1', campaign: { minViewTime: 3, startDate: '2015-10-25T00:27:03.456Z' } }] };
+            var resp = campaignUtils.validateAllDates(body, origObj, requester, reqId);
             expect(resp).toEqual({ isValid: true });
             expect(campaignUtils.validateDates.calls.count()).toBe(2);
-            expect(campaignUtils.validateDates).toHaveBeenCalledWith({ adtechId: 11 },
-                { adtechId: 11, startDate: '2015-10-25T00:27:03.456Z' }, {start: 100, end: 200}, '1234');
-            expect(campaignUtils.validateDates).toHaveBeenCalledWith({ adtechId: 12 }, undefined, {start: 100, end: 200}, '1234');
+            expect(campaignUtils.validateDates).toHaveBeenCalledWith({ minViewTime: 3 },
+                { minViewTime: 3, startDate: '2015-10-25T00:27:03.456Z' }, '1234');
+            expect(campaignUtils.validateDates).toHaveBeenCalledWith({ minViewTime: 4 }, undefined, '1234');
         });
         
         it('should skip if no cards are defined', function() {
             delete body.cards;
-            var resp = campaignUtils.validateAllDates(body, origObj, requester, delays, reqId);
+            var resp = campaignUtils.validateAllDates(body, origObj, requester, reqId);
             expect(resp).toEqual({ isValid: true });
             expect(campaignUtils.validateDates).not.toHaveBeenCalled();
         });
         
         it('should return an invalid response if validateDates returns false', function() {
             campaignUtils.validateDates.and.callFake(function(obj) {
-                if (obj.adtechId === 12) return false;
+                if (obj.minViewTime === 4) return false;
                 else return true;
             });
-            var resp = campaignUtils.validateAllDates(body, origObj, requester, delays, reqId);
+            var resp = campaignUtils.validateAllDates(body, origObj, requester, reqId);
             expect(resp).toEqual({ isValid: false, reason: 'cards[1] has invalid dates' });
             expect(campaignUtils.validateDates.calls.count()).toBe(2);
         });

@@ -33,7 +33,8 @@
         },
         advertiserId: {
             __allowed: true,
-            __type: 'string'
+            __type: 'string',
+            __required: true
         },
         paymentMethod: {
             __allowed: true,
@@ -135,7 +136,6 @@
     };
 
     campModule.setupSvc = function(db, config) {
-        campModule.config.campaigns = config.campaigns;
         campModule.config.api = config.api;
         Object.keys(campModule.config.api)
         .filter(function(key) { return key !== 'root'; })
@@ -154,7 +154,6 @@
         
         svc.use('read', campModule.formatTextQuery);
         
-        svc.use('create', campModule.defaultAccountIds);
         svc.use('create', campModule.fetchCards);
         svc.use('create', extraValidation);
         svc.use('create', campModule.defaultReportingId);
@@ -163,7 +162,6 @@
 
         svc.use('edit', campModule.statusCheck.bind(campModule, [enums.Status.Draft]));
         svc.use('edit', campModule.enforceLock);
-        svc.use('edit', campModule.defaultAccountIds);
         svc.use('edit', campModule.fetchCards);
         svc.use('edit', extraValidation);
         svc.use('edit', campModule.defaultReportingId);
@@ -185,7 +183,6 @@
     };
     
     // Replace entries in cards array with fetched C6 cards. Should be called just before response
-    // TODO: need to fix 413 error when trying to fetch + decorate all campaigns...
     campModule.decorateWithCards = function(req, campResp) {
         var log = logger.getLog(),
             cardIds = [],
@@ -259,7 +256,7 @@
     };
     
     
-    // Format a 'text search' query: current just turns it into a regex query on name field
+    // Format a 'text search' query: currently just turns it into a regex query on name field
     campModule.formatTextQuery = function(req, next/*, done*/) {
         if (!req._query || !req._query.text) {
             return next();
@@ -307,29 +304,6 @@
         return next();
     };
 
-    // Set advertiserId and customerId on the body to the user's advert + cust ids, if not defined
-    campModule.defaultAccountIds = function(req, next, done) { //TODO: still default advertiserId?
-        var log = logger.getLog();
-
-        if ((req.body.advertiserId && req.body.customerId) ||
-            (req.origObj && req.origObj.advertiserId && req.origObj.customerId)) {
-            return next();
-        }
-        
-        req.body.advertiserId = req.user.advertiser;
-        req.body.customerId = req.user.customer;
-        
-        if (!(req.body.advertiserId && req.body.customerId)) {
-            log.info('[%1] Advertiser + customer must be set on campaign or user', req.uuid);
-            return done({
-                code: 400,
-                body: 'Must provide advertiserId + customerId'
-            });
-        }
-        
-        return next();
-    };
-    
     /* Fetch cards defined in req.body.cards + req.origObj.cards from content svc. Stores entities
      * in req._cards + req._origCards, respectively. */
     campModule.fetchCards = function(req, next, done) {
@@ -355,45 +329,14 @@
             return reqCache[id];
         }
         
-        // TODO: temp fix for backwards compat with campaign manager, remove eventually
-        function shuffleAdtechProps(card) {
-            ['startDate', 'endDate', 'bannerNumber', 'bannerId', 'adtechId', 'reportingId']
-            .forEach(function(prop) {
-                if (card[prop]) {
-                    card.campaign[prop] = card[prop];
-                }
-            });
-            
-            if (card.name) {
-                card.campaign.adtechName = card.name;
-            }
-        }
-        
         return q.all((req.body.cards || []).map(function(newCard) {
-            // ensure all req.body.cards entries have campaign hash
-            newCard.campaign = newCard.campaign || {};
-            
-            shuffleAdtechProps(newCard);
-
             if (!newCard.id) {
                 return q();
             }
 
             return makeRequest(newCard.id).then(function(resp) {
-                // merge req.body.cards entry with fetched C6 card
                 if (resp.response.statusCode === 200) {
                     req._cards[newCard.id] = resp.body;
-
-                    // ensure existing campaign hash is not overwritten with empty object
-                    if (objUtils.compareObjects(newCard.campaign, {})) {
-                        newCard.campaign = resp.body.campaign || {};
-                    }
-                    // ensure adtech ids are preserved
-                    ['adtechId', 'bannerId', 'bannerNumber'].forEach(function(prop) {
-                        if (!newCard.campaign[prop]) {
-                            newCard.campaign[prop] = resp.body.campaign && resp.body.campaign[prop];
-                        }
-                    });
                     return;
                 }
                 
@@ -412,9 +355,6 @@
                 if (resp.response.statusCode === 200) {
                     req._origCards[oldCard.id] = resp.body;
 
-                    oldCard.campaign = oldCard.campaign || {};
-                    shuffleAdtechProps(oldCard);
-                    
                     objUtils.extend(oldCard, resp.body);
                     return;
                 }
@@ -434,12 +374,11 @@
     
     // Additional validation for cards array + pricing not covered by model; may mutate body
     campModule.extraValidation = function(svc, req, next, done) {
-        var log = logger.getLog(),
-            dateDelays = campModule.config.campaigns.dateDelays;
+        var log = logger.getLog();
         
         var validResps = [
             campaignUtils.ensureUniqueIds(req.body),
-            campaignUtils.validateAllDates(req.body, req.origObj, req.user, dateDelays, req.uuid),
+            campaignUtils.validateAllDates(req.body, req.origObj, req.user, req.uuid),
             campaignUtils.validatePricing(req.body, req.origObj, req.user, svc.model),
         ];
         
@@ -468,13 +407,13 @@
     };
     
     // Set the reportingId for each card without one to the campaign's name
-    campModule.defaultReportingId = function(req, next/*, done*/) { //TODO: fix to handle autosave?
+    campModule.defaultReportingId = function(req, next/*, done*/) {
         if (!req.body.cards) {
             return next();
         }
         
         req.body.cards.forEach(function(card) {
-            if (!card.campaign.reportingId) {
+            if (card.campaign && !card.campaign.reportingId) {
                 card.campaign.reportingId = req.body.name || (req.origObj && req.origObj.name);
             }
         });
@@ -700,6 +639,7 @@
             next();
         });
     };
+
     
     campModule.setupEndpoints = function(app, svc, sessions, audit, jobManager) {
         var router      = express.Router(),

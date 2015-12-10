@@ -35,12 +35,7 @@
             reviewLink: 'http://localhost:9000/#/apps/selfie/campaigns/manage/:campId/admin',
             dashboardLink: 'http://localhost:9000/#/apps/selfie/campaigns'
         },
-        campaigns: { //TODO: cookbook changes
-            dateDelays: {
-                start: 24*60*60*1000,   // new campaigns default to starting now + this (ms)
-                end: 366*24*60*60*1000  // new campaigns default to ending now + this (ms)
-            }
-        },
+        //TODO: cookbook changes, incl. removing config vars
         api: {
             root: 'http://localhost',   // for proxying requests
             experiences: {

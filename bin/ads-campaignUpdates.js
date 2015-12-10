@@ -62,7 +62,6 @@
     }
 
     updateModule.setupSvc = function(db, campSvc, config) {
-        updateModule.config.campaigns = config.campaigns;
         updateModule.config.emails = config.emails;
         updateModule.config.api = config.api;
         Object.keys(updateModule.config.api)
@@ -200,6 +199,8 @@
         var mergedData = {},
             origData = req.origObj && req.origObj.data;
             
+        //TODO: reconsider all this extending...
+            
         objUtils.extend(mergedData, req.body.data);
 
         // set the ignoreArrays flag for objUtils.extend so array entries not merged        
@@ -227,12 +228,11 @@
     
     // Additional validation for cards array + pricing not covered by campaign model
     updateModule.extraValidation = function(model, req, next, done) {
-        var log = logger.getLog(),
-            delays = updateModule.config.campaigns.dateDelays;
+        var log = logger.getLog();
         
         var validResps = [
             campaignUtils.ensureUniqueIds(req.body.data),
-            campaignUtils.validateAllDates(req.body.data, req.campaign, req.user, delays,req.uuid),
+            campaignUtils.validateAllDates(req.body.data, req.campaign, req.user, req.uuid),
             campaignUtils.validatePricing(req.body.data, req.campaign, req.user, model, true),
         ];
         
