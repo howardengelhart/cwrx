@@ -35,10 +35,6 @@ describe('ads-campaignUpdates (UT)', function() {
             })
         };
         
-        updateModule.config.campaigns = {
-            statusDelay: 1000, statusAttempts: 10, campaignTypeId: 454545,
-            dateDelays: { start: 100, end: 200 }
-        };
         updateModule.config.api = {
             root: 'https://test.com',
             cards: {
@@ -116,7 +112,6 @@ describe('ads-campaignUpdates (UT)', function() {
         it('should save some config variables locally', function() {
             expect(updateModule.config.api).toBeDefined();
             expect(updateModule.config.emails).toBeDefined();
-            expect(updateModule.config.campaigns).toBeDefined();
         });
         
         it('should enable statusHistory', function() {
@@ -575,7 +570,7 @@ describe('ads-campaignUpdates (UT)', function() {
             expect(nextSpy).toHaveBeenCalled();
             expect(doneSpy).not.toHaveBeenCalled();
             expect(campaignUtils.ensureUniqueIds).toHaveBeenCalledWith({ newCampaign: 'yes' });
-            expect(campaignUtils.validateAllDates).toHaveBeenCalledWith({ newCampaign: 'yes' }, { oldCampaign: 'yes' }, req.user, { start: 100, end: 200 }, '1234');
+            expect(campaignUtils.validateAllDates).toHaveBeenCalledWith({ newCampaign: 'yes' }, { oldCampaign: 'yes' }, req.user, '1234');
             expect(campaignUtils.validatePricing).toHaveBeenCalledWith({ newCampaign: 'yes' }, { oldCampaign: 'yes' }, req.user, model, true);
         });
         
