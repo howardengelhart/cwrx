@@ -995,6 +995,7 @@ describe('content-cards (UT)', function() {
                 id          : 'rc-1',
                 campaignId  : 'cam-1',
                 campaign    : {
+                    bufferUrls  : [ 'track.png?event=buffer' ],
                     viewUrls    : [ 'track.png?event=cardView' ],
                     playUrls    : [ 'track.png?event=play' ],
                     loadUrls    : [ 'track.png?event=load' ],
@@ -1023,6 +1024,7 @@ describe('content-cards (UT)', function() {
                 id          : 'rc-1',
                 campaignId  : 'cam-1',
                 campaign    : {
+                    bufferUrls  : [ 'track.png?event=buffer' ],
                     viewUrls    : [ 'view.me', 'track.png?event=cardView' ],
                     playUrls    : [ 'play.me', 'track.png?event=play' ],
                     loadUrls    : [ 'load.me', 'track.png?event=load' ],
@@ -1049,6 +1051,7 @@ describe('content-cards (UT)', function() {
                     id          : 'rc-1',
                     campaignId  : 'cam-1',
                     campaign    : {
+                        bufferUrls  : [ 'track.png?event=buffer' ],
                         viewUrls    : [ 'track.png?event=cardView' ],
                         playUrls    : [ 'track.png?event=play' ],
                         loadUrls    : [ 'track.png?event=load' ],
@@ -1112,6 +1115,7 @@ describe('content-cards (UT)', function() {
                     id          : 'rc-1',
                     campaignId  : 'cam-1',
                     campaign    : {
+                        bufferUrls  : [ 'track.png?event=buffer' ],
                         viewUrls    : [ 'track.png?event=cardView' ],
                         playUrls    : [ 'track.png?event=play' ],
                         loadUrls    : [ 'track.png?event=load' ],
