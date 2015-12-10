@@ -169,6 +169,7 @@ describe('content card endpoints (E2E):', function() {
                             adtechId: 100,
                             bannerNumber: 10,
                             adtechName: 'adtech sux',
+                            bufferUrls: [jasmine.any(String)],
                             viewUrls: [jasmine.any(String)],
                             playUrls: [jasmine.any(String)],
                             loadUrls: [jasmine.any(String)],
@@ -181,6 +182,7 @@ describe('content card endpoints (E2E):', function() {
                     });
                     
                     [
+                        { prop: 'bufferUrls', event: 'buffer' },
                         { prop: 'viewUrls', event: 'cardView' },
                         { prop: 'playUrls', event: 'play' },
                         { prop: 'loadUrls', event: 'load' },
@@ -203,7 +205,8 @@ describe('content card endpoints (E2E):', function() {
                             hostApp     : 'Mapsaurus',
                             network     : 'pocketmath',
                             cb          : '{cachebreaker}',
-                            event       : obj.event
+                            event       : obj.event,
+                            d           : '{delay}'
                         };
                         if (obj.prop === 'playUrls') {
                             expectedQuery.pd = '{playDelay}';
@@ -237,6 +240,7 @@ describe('content card endpoints (E2E):', function() {
                         adtechId: 100,
                         bannerNumber: 10,
                         adtechName: 'adtech sux',
+                        bufferUrls: [jasmine.any(String)],
                         viewUrls: [jasmine.any(String)],
                         playUrls: [jasmine.any(String)],
                         loadUrls: [jasmine.any(String)],
@@ -351,7 +355,8 @@ describe('content card endpoints (E2E):', function() {
                                 hostApp     : 'Mapsaurus',
                                 network     : 'pocketmath',
                                 cb          : '{cachebreaker}',
-                                event       : 'link.' + prop
+                                event       : 'link.' + prop,
+                                d           : '{delay}'
                             });
                         });
                         
@@ -368,7 +373,8 @@ describe('content card endpoints (E2E):', function() {
                                 hostApp     : 'Mapsaurus',
                                 network     : 'pocketmath',
                                 cb          : '{cachebreaker}',
-                                event       : 'shareLink.' + prop
+                                event       : 'shareLink.' + prop,
+                                d           : '{delay}'
                             });
                         });
                     }).catch(function(error) {
