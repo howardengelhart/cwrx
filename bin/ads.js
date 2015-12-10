@@ -3,13 +3,11 @@
     'use strict';
     var __ut__      = (global.jasmine !== undefined) ? true : false;
     
-    var q               = require('q'),
-        aws             = require('aws-sdk'),
+    var aws             = require('aws-sdk'),
         path            = require('path'),
         express         = require('express'),
         bodyParser      = require('body-parser'),
         sessionLib      = require('express-session'),
-        adtech          = require('adtech'),
         authUtils       = require('../lib/authUtils'),
         service         = require('../lib/service'),
         expressUtils    = require('../lib/expressUtils'),
@@ -30,10 +28,6 @@
         caches : { //TODO: may want to rename this now...
             run     : path.normalize('/usr/local/share/cwrx/' + state.name + '/caches/run/'),
         },
-        adtechCreds: {
-            keyPath: path.join(process.env.HOME, '.ssh/adtech.key'),
-            certPath: path.join(process.env.HOME, '.ssh/adtech.crt')
-        },
         emails: {
             awsRegion: 'us-east-1',
             sender: 'no-reply@cinema6.com',
@@ -41,10 +35,7 @@
             reviewLink: 'http://localhost:9000/#/apps/selfie/campaigns/manage/:campId/admin',
             dashboardLink: 'http://localhost:9000/#/apps/selfie/campaigns'
         },
-        campaigns: {
-            statusDelay: 1000,      // How long to delay between polls for campaigns' statuses
-            statusAttempts: 60,     // How many times to try polling for campaigns' statuses
-            campaignTypeId: 26954,  // id for Open Campaign type; differs across networks
+        campaigns: { //TODO: cookbook changes
             dateDelays: {
                 start: 24*60*60*1000,   // new campaigns default to starting now + this (ms)
                 end: 366*24*60*60*1000  // new campaigns default to ending now + this (ms)
@@ -227,17 +218,6 @@
         .then(service.prepareServer)
         .then(service.daemonize)
         .then(service.cluster)
-        .then(function(state) { // NOTE: adtech.createClient() blocks for ~2-3s!
-            var log = logger.getLog();
-            log.info('Creating adtech client');
-            return adtech.createClient(
-                state.config.adtechCreds.keyPath,
-                state.config.adtechCreds.certPath
-            ).then(function() {
-                log.info('Finished creating adtech client');
-                return q(state);
-            });
-        })
         .then(service.initMongo)
         .then(service.initSessionStore)
         .then(service.initPubSubChannels)

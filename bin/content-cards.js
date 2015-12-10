@@ -31,10 +31,6 @@
                 __type: 'number',
                 __default: 3
             },
-            adtechName: {
-                __allowed: true,
-                __type: 'string'
-            },
             startDate: {
                 __allowed: true,
                 __type: 'string'
@@ -42,21 +38,6 @@
             endDate: {
                 __allowed: true,
                 __type: 'string'
-            },
-            adtechId: {
-                __allowed: false,
-                __type: 'number',
-                __locked: true
-            },
-            bannerId: {
-                __allowed: false,
-                __type: 'number',
-                __locked: true
-            },
-            bannerNumber: {
-                __allowed: false,
-                __type: 'number',
-                __locked: true
             }
         },
         data: {
