@@ -7,7 +7,6 @@
         express         = require('express'),
         campaignUtils   = require('../lib/campaignUtils'),
         requestUtils    = require('../lib/requestUtils'),
-        bannerUtils     = require('../lib/bannerUtils'),
         mongoUtils      = require('../lib/mongoUtils'),
         authUtils       = require('../lib/authUtils'),
         objUtils        = require('../lib/objUtils'),
@@ -33,13 +32,7 @@
             __default: 'studio'
         },
         advertiserId: {
-            __allowed: false,
-            __unchangeable: true,
-            __type: 'string'
-        },
-        customerId: {
-            __allowed: false,
-            __unchangeable: true,
+            __allowed: true,
             __type: 'string'
         },
         paymentMethod: {
@@ -157,34 +150,26 @@
             svc = new CrudSvc(campColl, 'cam', { statusHistory: true }, campModule.campSchema);
         svc._db = db;
         
-        var getAccountIds           = campaignUtils.getAccountIds.bind(campaignUtils, svc._db),
-            extraValidation         = campModule.extraValidation.bind(campModule, svc),
-            editSponsoredCamps      = campModule.editSponsoredCamps.bind(campModule, svc),
-            createSponsoredCamps    = campModule.createSponsoredCamps.bind(campModule, svc);
+        var extraValidation = campModule.extraValidation.bind(campModule, svc);
         
         svc.use('read', campModule.formatTextQuery);
         
         svc.use('create', campModule.defaultAccountIds);
-        svc.use('create', getAccountIds);
         svc.use('create', campModule.fetchCards);
         svc.use('create', extraValidation);
         svc.use('create', campModule.defaultReportingId);
         svc.use('create', campModule.updateCards);
-        svc.use('create', createSponsoredCamps);
         svc.use('create', campModule.handlePricingHistory);
 
         svc.use('edit', campModule.statusCheck.bind(campModule, [enums.Status.Draft]));
         svc.use('edit', campModule.enforceLock);
         svc.use('edit', campModule.defaultAccountIds);
-        svc.use('edit', getAccountIds);
         svc.use('edit', campModule.fetchCards);
         svc.use('edit', extraValidation);
         svc.use('edit', campModule.defaultReportingId);
         svc.use('edit', campModule.cleanCards);
         svc.use('edit', campModule.cleanMiniReels);
         svc.use('edit', campModule.updateCards);
-        svc.use('edit', editSponsoredCamps);
-        svc.use('edit', createSponsoredCamps);
         svc.use('edit', campModule.handlePricingHistory);
 
         svc.use('delete', campModule.statusCheck.bind(campModule, [
@@ -195,12 +180,12 @@
         ]));
         svc.use('delete', campModule.fetchCards);
         svc.use('delete', campModule.deleteContent);
-        svc.use('delete', campModule.deleteSponsoredCamps);
 
         return svc;
     };
     
     // Replace entries in cards array with fetched C6 cards. Should be called just before response
+    // TODO: need to fix 413 error when trying to fetch + decorate all campaigns...
     campModule.decorateWithCards = function(req, campResp) {
         var log = logger.getLog(),
             cardIds = [],
@@ -323,7 +308,7 @@
     };
 
     // Set advertiserId and customerId on the body to the user's advert + cust ids, if not defined
-    campModule.defaultAccountIds = function(req, next, done) {
+    campModule.defaultAccountIds = function(req, next, done) { //TODO: still default advertiserId?
         var log = logger.getLog();
 
         if ((req.body.advertiserId && req.body.customerId) ||
@@ -454,7 +439,6 @@
         
         var validResps = [
             campaignUtils.ensureUniqueIds(req.body),
-            campaignUtils.ensureUniqueNames(req.body),
             campaignUtils.validateAllDates(req.body, req.origObj, req.user, dateDelays, req.uuid),
             campaignUtils.validatePricing(req.body, req.origObj, req.user, svc.model),
         ];
@@ -484,7 +468,7 @@
     };
     
     // Set the reportingId for each card without one to the campaign's name
-    campModule.defaultReportingId = function(req, next/*, done*/) {
+    campModule.defaultReportingId = function(req, next/*, done*/) { //TODO: fix to handle autosave?
         if (!req.body.cards) {
             return next();
         }
@@ -543,55 +527,36 @@
         });
     };
 
-    /* Middleware to delete unused sponsored cards and cards. Deletes their campaigns from
-     * Adtech, as well their objects in mongo through the content service */
+    /* Middleware to delete unused sponsored cards and cards. Also calls cleanStaticMap() */
     campModule.cleanCards = function(req, next/*, done*/) {
         var log = logger.getLog(),
             id = req.body.id || (req.origObj && req.origObj.id),
-            delay = campModule.config.campaigns.statusDelay,
-            attempts = campModule.config.campaigns.statusAttempts,
-            toDelete = { adtechIds: [], cards: [] };
+            toDelete = [];
         
         if (!req.origObj || !req.origObj.cards || !req.body.cards) {
             return q(next());
         }
         
-        req.origObj.cards.forEach(function(oldEntry) {
+        return q.all(req.origObj.cards.map(function(oldEntry) {
             if (!!req._cards[oldEntry.id]) {
                 log.trace('[%1] Campaign for %2 still exists for %3', req.uuid, oldEntry.id, id);
-                return;
+                return q();
             }
             
-            var oldCard = req._origCards[oldEntry.id],
-                adtechId = oldCard && oldCard.campaign.adtechId;
+            var oldCard = req._origCards[oldEntry.id];
                 
             if (!oldCard) {
                 log.info('[%1] Card %2 not fetched, so not deleting it', req.uuid, oldEntry.id);
-                return;
+                return q();
             }
             
-            log.info('[%1] Card %2 with adtechId %3 removed from %4, deleting it',
-                     req.uuid, oldEntry.id, adtechId, id);
-            toDelete.cards.push(oldEntry.id);
-                     
-            if (!adtechId) {
-                log.warn('[%1] Card %2 has no adtechId, cannot delete its campaign',
-                         req.uuid, oldEntry.id);
-            } else {
-                toDelete.adtechIds.push(adtechId);
-            }
-        });
-        
-        campModule.cleanStaticMap(req, toDelete.cards);
-        
-        return campaignUtils.deleteCampaigns(toDelete.adtechIds, delay, attempts)
-        .then(function() {
-            return q.all(toDelete.cards.map(function(id) {
-                return campModule.sendDeleteRequest(req, id, 'cards');
-            }));
-        })
+            log.info('[%1] Card %2 removed from %3, deleting it', req.uuid, oldEntry.id, id);
+            toDelete.push(oldEntry.id);
+            return campModule.sendDeleteRequest(req, oldEntry.id, 'cards');
+        }))
         .then(function() {
             log.trace('[%1] Deleted all unused cards for %2', req.uuid, id);
+            campModule.cleanStaticMap(req, toDelete);
             next();
         });
     };
@@ -691,154 +656,6 @@
         });
     };
     
-
-    // Middleware to edit Adtech campaigns. Can edit keywords, adtechName, startDate, & endDate
-    campModule.editSponsoredCamps = function(svc, req, next/*, done*/) {
-        var log = logger.getLog(),
-            interests = req.body.targeting && req.body.targeting.interests,
-            origInterests = (req.origObj.targeting && req.origObj.targeting.interests) || [],
-            id = req.body.id || (req.origObj && req.origObj.id),
-            promise;
-        
-        // skip if no cards in original campaign to edit
-        if (!req.origObj.cards || req.origObj.cards.length === 0) {
-            return q(next());
-        }
-        
-        // only create keywords if they have changed
-        if (!interests || objUtils.compareObjects(interests.slice().sort(),
-                                                  origInterests.slice().sort())) {
-            promise = q();
-        } else {
-            var keywords = { level1: [id], level3: (interests.length === 0) ? ['*'] : interests };
-            promise = campaignUtils.makeKeywordLevels(keywords);
-        }
-        
-        return promise.then(function(keys) {
-            return q.all(req.origObj.cards.map(function(oldEntry) {
-                var oldCard = req._origCards[oldEntry.id],
-                    matching = !!req.body.cards ? req._cards[oldEntry.id] : oldCard;
-
-                // don't edit old camps that no longer exist in new version
-                if (!matching) {
-                    return q();
-                }
-            
-                // Only edit sponsored campaign if some fields have changed
-                if (!keys && ['adtechName', 'startDate', 'endDate'].every(function(field) {
-                    return oldCard.campaign[field] === matching.campaign[field];
-                })) {
-                    return q();
-                }
-                
-                log.info('[%1] Campaign %2 for %3 changed, updating',
-                         req.uuid, oldCard.campaign.adtechId, oldCard.id);
-                         
-                var campaignCopy = JSON.parse(JSON.stringify(matching.campaign));
-
-                return campaignUtils.editCampaign(
-                    matching.campaign.adtechName + ' (' + id + ')',
-                    matching.campaign,
-                    keys,
-                    req.uuid
-                )
-                .then(function() {
-                    if (objUtils.compareObjects(matching.campaign, campaignCopy)) {
-                        return q();
-                    }
-                    
-                    // card.campaign may change in editCampaign(), so edit card in mongo
-                    return mongoUtils.editObject(
-                        svc._db.collection('cards'),
-                        { campaign: matching.campaign },
-                        matching.id
-                    ).then(function(updated) {
-                        req._cards[updated.id] = CrudSvc.prototype.formatOutput(updated);
-                    });
-                });
-            }));
-        })
-        .then(function() {
-            log.trace('[%1] All sponsored campaigns for %2 have been edited', req.uuid, id);
-            next();
-        });
-    };
-
-    // Middleware to create adtech campaigns for cards
-    campModule.createSponsoredCamps = function(svc, req, next/*, done*/) {
-        var log = logger.getLog(),
-            id = req.body.id || (req.origObj && req.origObj.id),
-            interests = (req.body.targeting && req.body.targeting.interests) ||
-                        (req.origObj && req.origObj.targeting && req.origObj.targeting.interests) ||
-                        [],
-            keyLevels = {
-                level1: [id],
-                level3: (interests.length === 0) ? ['*'] : interests
-            };
-        
-        // skip if no cards
-        if (!req.body.cards || req.body.cards.length === 0) {
-            log.trace('[%1] No cards to make campaigns for', req.uuid);
-            return q(next());
-        }
-        
-        // create keywords in adtech
-        return campaignUtils.makeKeywordLevels(keyLevels)
-        .then(function(keywords) {
-            return q.all(req.body.cards.map(function(cardEntry) {
-                var card = req._cards[cardEntry.id];
-
-                if (card.campaign.adtechId) {
-                    log.trace('[%1] Campaign %2 already exists for %3',
-                              req.uuid, card.campaign.adtechId, card.id);
-                    return q();
-                }
-                
-                card.campaign.adtechName = card.campaign.adtechName || 'card_' + card.id;
-                
-                return campaignUtils.createCampaign({
-                    id              : card.id,
-                    name            : card.campaign.adtechName + ' (' + id + ')',
-                    startDate       : card.campaign.startDate,
-                    endDate         : card.campaign.endDate,
-                    campaignTypeId  : campModule.config.campaigns.campaignTypeId,
-                    keywords        : keywords,
-                    advertiserId    : req._advertiserId,
-                    customerId      : req._customerId
-                }, req.uuid)
-                .then(function(resp) {
-                    card.campaign.adtechId = parseInt(resp.id);
-                    return bannerUtils.createBanners(
-                        [card],
-                        null,
-                        'card',
-                        true,
-                        card.campaign.adtechId
-                    );
-                })
-                .then(function() {
-                    // directly edit card in mongo with new `campaign` block, bypassing field val
-                    return mongoUtils.editObject(
-                        svc._db.collection('cards'),
-                        { campaign: card.campaign },
-                        card.id
-                    ).then(function(updated) {
-                        req._cards[updated.id] = CrudSvc.prototype.formatOutput(updated);
-                    });
-                });
-            }));
-        })
-        .then(function() {
-            log.trace('[%1] All sponsored campaigns for %2 have been created', req.uuid, id);
-            next();
-        })
-        .catch(function(error) {
-            log.error('[%1] Error creating sponsored campaigns: %2',
-                      req.uuid, error && error.stack || error);
-            return q.reject('Adtech failure');
-        });
-    };
-    
     // Initialize or update the pricingHistory property when the pricing changes
     campModule.handlePricingHistory = function(req, next/*, done*/) {
         var orig = req.origObj || {},
@@ -880,36 +697,6 @@
         )
         .then(function() {
             log.trace('[%1] Successfully deleted content for campaign %2',req.uuid,req.origObj.id);
-            next();
-        });
-    };
-    
-    // Middleware to delete all sponsored and target adtech campaigns for this C6 campaign
-    campModule.deleteSponsoredCamps = function(req, next/*, done*/) {
-        var log = logger.getLog(),
-            delay = campModule.config.campaigns.statusDelay,
-            attempts = campModule.config.campaigns.statusAttempts,
-            toDelete = [];
-            
-        log.trace('[%1] Deleting all sponsored campaigns for %2', req.uuid, req.params.id);
-        
-        if (!req.origObj.cards) {
-            return q(next());
-        }
-        
-        req.origObj.cards.forEach(function(cardEntry) {
-            var card = req._origCards[cardEntry.id];
-            
-            if (!card || !card.campaign.adtechId) {
-                log.warn('[%1] Card %2 has no adtechId', req.uuid, cardEntry.id);
-            } else {
-                toDelete.push(card.campaign.adtechId);
-            }
-        });
-        
-        return campaignUtils.deleteCampaigns(toDelete, delay, attempts)
-        .then(function() {
-            log.info('[%1] Deleted all adtech campaigns for %2', req.uuid, req.params.id);
             next();
         });
     };

@@ -565,7 +565,6 @@ describe('ads-campaignUpdates (UT)', function() {
             req.body = { data: { newCampaign: 'yes' } };
             req.campaign = { oldCampaign: 'yes' };
             spyOn(campaignUtils, 'ensureUniqueIds').and.returnValue({ isValid: true });
-            spyOn(campaignUtils, 'ensureUniqueNames').and.returnValue({ isValid: true });
             spyOn(campaignUtils, 'validateAllDates').and.returnValue({ isValid: true });
             spyOn(campaignUtils, 'validatePricing').and.returnValue({ isValid: true });
             model = new Model('campaigns', {});
@@ -576,13 +575,12 @@ describe('ads-campaignUpdates (UT)', function() {
             expect(nextSpy).toHaveBeenCalled();
             expect(doneSpy).not.toHaveBeenCalled();
             expect(campaignUtils.ensureUniqueIds).toHaveBeenCalledWith({ newCampaign: 'yes' });
-            expect(campaignUtils.ensureUniqueNames).toHaveBeenCalledWith({ newCampaign: 'yes' });
             expect(campaignUtils.validateAllDates).toHaveBeenCalledWith({ newCampaign: 'yes' }, { oldCampaign: 'yes' }, req.user, { start: 100, end: 200 }, '1234');
             expect(campaignUtils.validatePricing).toHaveBeenCalledWith({ newCampaign: 'yes' }, { oldCampaign: 'yes' }, req.user, model, true);
         });
         
         it('should call done if any of the methods fail', function() {
-            var methods = ['ensureUniqueIds', 'ensureUniqueNames', 'validateAllDates', 'validatePricing'];
+            var methods = ['ensureUniqueIds', 'validateAllDates', 'validatePricing'];
             methods.forEach(function(method) {
                 // reset all methods
                 methods.forEach(function(meth) { campaignUtils[meth].and.returnValue({ isValid: true }); });

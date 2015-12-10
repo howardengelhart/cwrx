@@ -86,12 +86,6 @@ function setupCampaignSvcFieldVal(policy) {
         application: {
             __allowed: true
         },
-        advertiserId: {
-            __allowed: true
-        },
-        customerId: {
-            __allowed: true
-        },
         staticCardMap: {
             __allowed: true
         },
@@ -115,8 +109,7 @@ function setupCampaignSvcFieldVal(policy) {
             }
         },
         cards: {
-            __length: 100,
-            __unchangeable: false
+            __length: 100
         },
         miniReels: {
             __allowed: true

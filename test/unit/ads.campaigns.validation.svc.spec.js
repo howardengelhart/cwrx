@@ -83,51 +83,20 @@ describe('campaign validation', function() {
         });
     });
     
-    // advertiser + customer
-    ['advertiserId', 'customerId'].forEach(function(field) {
+    ['advertiserId', 'paymentMethod'].forEach(function(field) {
         describe('when handling ' + field, function() {
-            it('should trim the field if set', function() {
-                newObj[field] = 'someAccount';
-                expect(svc.model.validate('create', newObj, origObj, requester))
-                    .toEqual({ isValid: true, reason: undefined });
-                expect(newObj[field]).not.toBeDefined();
-            });
-            
-            it('should allow some requesters to initially set but not change the field', function() {
-                requester.fieldValidation.campaigns[field] = { __allowed: true };
-                newObj[field] = 'someAccount';
-                expect(svc.model.validate('create', newObj, origObj, requester))
-                    .toEqual({ isValid: true, reason: undefined });
-                expect(newObj[field]).toEqual('someAccount');
-                
-                newObj[field] = 'someAccount';
-                origObj[field] = 'oldAccount';
-                expect(svc.model.validate('edit', newObj, origObj, requester))
-                    .toEqual({ isValid: true, reason: undefined });
-                expect(newObj[field]).toEqual('oldAccount');
-            });
-            
             it('should fail if the field is not a string', function() {
-                requester.fieldValidation.campaigns[field] = { __allowed: true };
                 newObj[field] = 123;
                 expect(svc.model.validate('create', newObj, origObj, requester))
                     .toEqual({ isValid: false, reason: field + ' must be in format: string' });
             });
-        });
-    });
-
-    describe('when handling paymentMethod', function() {
-        it('should fail if the field is not a string', function() {
-            newObj.paymentMethod = 123;
-            expect(svc.model.validate('create', newObj, origObj, requester))
-                .toEqual({ isValid: false, reason: 'paymentMethod must be in format: string' });
-        });
-        
-        it('should allow the field to be set', function() {
-            newObj.paymentMethod = 'slush fund';
-            expect(svc.model.validate('create', newObj, origObj, requester))
-                .toEqual({ isValid: true, reason: undefined });
-            expect(newObj.paymentMethod).toEqual('slush fund');
+            
+            it('should allow the field to be set', function() {
+                newObj[field] = 'slush fund';
+                expect(svc.model.validate('create', newObj, origObj, requester))
+                    .toEqual({ isValid: true, reason: undefined });
+                expect(newObj[field]).toEqual('slush fund');
+            });
         });
     });
 

@@ -196,9 +196,9 @@ describe('content-cards (UT)', function() {
                 });
             });
         
-            ['reportingId', 'adtechName', 'startDate', 'endDate'].forEach(function(field) {
+            ['reportingId', 'startDate', 'endDate'].forEach(function(field) {
                 describe('subfield ' + field, function() {
-                    it('should fail if the field is not a number', function() {
+                    it('should fail if the field is not a string', function() {
                         newObj.campaign[field] = 1234;
                         expect(svc.model.validate('create', newObj, origObj, requester))
                             .toEqual({ isValid: false, reason: 'campaign.' + field + ' must be in format: string' });
@@ -234,18 +234,6 @@ describe('content-cards (UT)', function() {
                     newObj.campaign.minViewTime = 'foo';
                     expect(svc.model.validate('create', newObj, origObj, requester))
                         .toEqual({ isValid: false, reason: 'campaign.minViewTime must be in format: number' });
-                });
-            });
-
-            ['bannerId', 'bannerNumber', 'adtechId'].forEach(function(field) {
-                describe('subfield ' + field, function() {
-                    it('should not allow anyone to set the field', function() {
-                        requester.fieldValidation.cards.campaign[field] = { __allowed: true };
-                        newObj.campaign[field] = 666666;
-                        expect(svc.model.validate('create', newObj, origObj, requester))
-                            .toEqual({ isValid: true, reason: undefined });
-                        expect(newObj.campaign[field]).not.toBeDefined();
-                    });
                 });
             });
         });
