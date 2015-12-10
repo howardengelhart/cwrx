@@ -47,7 +47,8 @@ Vagrant.configure("2") do |config|
                 }
             ],
             :cfg => {
-                :auth => true
+                :auth => true,
+                :smallfiles => true
             }
         },
         :auth => {
