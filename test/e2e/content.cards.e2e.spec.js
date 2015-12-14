@@ -926,7 +926,7 @@ describe('content card endpoints (E2E):', function() {
                 expect(resp.body.campaign).toEqual({ minViewTime: 3 });
                 expect(resp.body.data).toEqual({
                     foo: 'bar',
-                    skip: 30,
+                    skip: 5,
                     controls: true,
                     autoplay: true,
                     autoadvance: false,
@@ -1045,7 +1045,7 @@ describe('content card endpoints (E2E):', function() {
                 expect(selfieResp.body.org).toBe('e2e-org');
                 expect(selfieResp.body.campaign).toEqual({ minViewTime: 3 });
                 expect(selfieResp.body.data).toEqual({
-                    skip: 30,
+                    skip: 5,
                     controls: true,
                     autoplay: true,
                     autoadvance: false,
@@ -1103,10 +1103,7 @@ describe('content card endpoints (E2E):', function() {
                     user: 'e2e-user',
                     org: 'e2e-org',
                     campaign: {
-                        minViewTime: 3,
-                        adtechId: 111,
-                        bannerId: 1234,
-                        bannerNumber: 1
+                        minViewTime: 3
                     },
                     data: {
                         skip: 30,
@@ -1332,10 +1329,7 @@ describe('content card endpoints (E2E):', function() {
                 user: 'another-user',
                 org: 'another-org',
                 campaign: {
-                    minViewTime: 55,
-                    adtechId: 666,
-                    bannerId: 9876,
-                    bannerNumber: 55
+                    minViewTime: 55
                 },
                 data: {
                     skip: true,
@@ -1363,11 +1357,8 @@ describe('content card endpoints (E2E):', function() {
                 title: 'best card',
                 user: 'another-user',
                 org: 'another-org',
-                campaign: { // minViewTime should change but not adtech-related props
-                    minViewTime: 55,
-                    adtechId: 666,
-                    bannerId: 9876,
-                    bannerNumber: 55
+                campaign: {
+                    minViewTime: 55
                 },
                 data: {
                     skip: true,
@@ -1383,10 +1374,7 @@ describe('content card endpoints (E2E):', function() {
                 expect(resp.body.user).toBe('another-user');
                 expect(resp.body.org).toBe('another-org');
                 expect(resp.body.campaign).toEqual({
-                    minViewTime: 55,
-                    adtechId: 111,
-                    bannerId: 1234,
-                    bannerNumber: 1
+                    minViewTime: 55
                 });
                 expect(resp.body.data).toEqual({
                     skip: true,
@@ -1684,14 +1672,13 @@ describe('content card endpoints (E2E):', function() {
                         __type: 'number',
                         __allowed: true,
                         __default: 3
-                    },
-                    adtechId: JSON.parse(JSON.stringify(cardModule.cardSchema.campaign.adtechId))
+                    }
                 }));
                 expect(adminResult.body.data).toEqual(jasmine.objectContaining({
                     skip: {
                         __allowed: true,
                         __required: true,
-                        __default: 30
+                        __default: 5
                     },
                     controls: {
                         __allowed: true,

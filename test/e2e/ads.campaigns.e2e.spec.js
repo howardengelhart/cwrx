@@ -1,11 +1,8 @@
 var q               = require('q'),
-    adtech          = require('adtech'),
     braintree       = require('braintree'),
     request         = require('request'),
     util            = require('util'),
     testUtils       = require('./testUtils'),
-    adtechErr       = testUtils.handleAdtechError,
-    keywords        = testUtils.keyMap,
     requestUtils    = require('../../lib/requestUtils'),
     host            = process.env.host || 'localhost',
     config = {
@@ -22,10 +19,10 @@ var q               = require('q'),
     });
 
 describe('ads campaigns endpoints (E2E):', function() {
-    var selfieJar, adminJar, adminCreatedCamp, selfieCreatedCamp, keptAdvert, keptCust, selfiePayment, adminPayment, mockOrgs;
+    var selfieJar, adminJar, selfiePayment, adminPayment, mockOrgs, mockCards, mockExps;
 
     beforeEach(function(done) {
-        jasmine.DEFAULT_TIMEOUT_INTERVAL = 90000;
+        jasmine.DEFAULT_TIMEOUT_INTERVAL = 10000;
 
         if (selfieJar && selfieJar.cookies && adminJar && adminJar.cookies) {
             return done();
@@ -85,8 +82,6 @@ describe('ads campaigns endpoints (E2E):', function() {
                 fieldValidation: {
                     campaigns: {
                         status: { __allowed: true },
-                        advertiserId : { __allowed: true },
-                        customerId : { __allowed: true },
                         pricing: {
                             model: { __allowed: true },
                             cost: { __allowed: true }
@@ -98,6 +93,17 @@ describe('ads campaigns endpoints (E2E):', function() {
                         },
                         miniReels: {
                             __allowed: true,
+                        }
+                    },
+                    cards: {
+                        campaign: {
+                            minViewTime: { __allowed: true }
+                        },
+                        data: {
+                            skip: { __allowed: true },
+                            controls: { __allowed: true },
+                            autoplay: { __allowed: true },
+                            autoadvance: { __allowed: true }
                         }
                     }
                 },
@@ -136,44 +142,6 @@ describe('ads campaigns endpoints (E2E):', function() {
         });
     });
     
-    // Initialize adtech client
-    beforeAll(function(done) {
-        adtech.createClient().catch(adtechErr).done(function(resp) { done(); });
-    });
-
-    // Setup an advertiser + customer in mongo so we can use them to create campaigns.
-    beforeAll(function(done) {
-        q.all([
-            adtech.customerAdmin.getCustomerByExtId('e2e-cu-keepme').catch(adtechErr),
-            adtech.customerAdmin.getAdvertiserByExtId('e2e-a-keepme').catch(adtechErr)
-        ]).spread(function(customer, advertiser) {
-            keptCust = { id: 'e2e-cu-keepme', status: 'active', name: customer.name, adtechId: customer.id };
-            keptAdvert = { id: 'e2e-a-keepme', status: 'active', name: advertiser.name, adtechId: advertiser.id };
-            return q.all([
-                testUtils.resetCollection('advertisers', keptAdvert),
-                testUtils.resetCollection('customers', keptCust)
-            ]);
-        }).done(function(results) { done(); });
-    });
-
-    // Initialize exps + cards
-    beforeAll(function(done) {
-        var mockCards = [
-            { id: 'e2e-rc-1', title: 'test card 1', campaign: {}, status: 'active', user: 'not-e2e-user', org: 'o-selfie' },
-            { id: 'e2e-rc-2', title: 'test card 2', campaign: {}, status: 'active', user: 'not-e2e-user', org: 'o-selfie' },
-            { id: 'e2e-rc-3', title: 'test card 3', campaign: {}, status: 'active', user: 'not-e2e-user', org: 'o-admin' }
-        ];
-        var mockExps = [
-            { id: 'e2e-e-1', status: [{status: 'active'}], user: 'not-e2e-user', org: 'o-admin' },
-            { id: 'e2e-e-2', status: [{status: 'active'}], user: 'not-e2e-user', org: 'o-selfie' }
-        ];
-
-        q.all([
-            testUtils.resetCollection('cards', mockCards),
-            testUtils.resetCollection('experiences', mockExps),
-        ]).done(function(results) { done(); });
-    });
-    
     // Initialize orgs with Braintree customers + payment methods
     beforeAll(function(done) {
         mockOrgs = [
@@ -197,8 +165,25 @@ describe('ads campaigns endpoints (E2E):', function() {
         }).done(done, done.fail);
     });
 
+    // Ensure exps + cards
+    beforeAll(function(done) {
+        mockCards = [
+            { id: 'e2e-rc-1', title: 'test card 1', campaign: {}, status: 'active', user: 'not-e2e-user', org: 'o-selfie' },
+            { id: 'e2e-rc-2', title: 'test card 2', campaign: {}, status: 'active', user: 'not-e2e-user', org: 'o-selfie' },
+            { id: 'e2e-rc-3', title: 'test card 3', campaign: {}, status: 'active', user: 'not-e2e-user', org: 'o-admin' }
+        ];
+        mockExps = [
+            { id: 'e2e-e-1', status: [{status: 'active'}], user: 'not-e2e-user', org: 'o-admin' },
+            { id: 'e2e-e-2', status: [{status: 'active'}], user: 'not-e2e-user', org: 'o-selfie' }
+        ];
 
-    describe('GET /api/campaign/:id', function() {
+        q.all([
+            testUtils.resetCollection('cards', mockCards),
+            testUtils.resetCollection('experiences', mockExps),
+        ]).done(function(results) { done(); });
+    });
+
+    describe('GET /api/campaigns/:id', function() {
         beforeEach(function(done) {
             var mockCamps = [
                 { id: 'e2e-getid1', name: 'camp 1', status: 'active', user: 'not-e2e-user', org: 'o-selfie' },
@@ -210,7 +195,7 @@ describe('ads campaigns endpoints (E2E):', function() {
         });
 
         it('should get a campaign by id', function(done) {
-            var options = {url: config.adsUrl + '/campaign/e2e-getid1', jar: selfieJar};
+            var options = {url: config.adsUrl + '/campaigns/e2e-getid1', jar: selfieJar};
             requestUtils.qRequest('get', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
                 expect(resp.body).toEqual({ id: 'e2e-getid1', name: 'camp 1', status: 'active',
@@ -222,7 +207,7 @@ describe('ads campaigns endpoints (E2E):', function() {
         });
         
         it('should write an entry to the audit collection', function(done) {
-            var options = {url: config.adsUrl + '/campaign/e2e-getid1', jar: selfieJar};
+            var options = {url: config.adsUrl + '/campaigns/e2e-getid1', jar: selfieJar};
             requestUtils.qRequest('get', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
                 return testUtils.mongoFind('audit', {}, {$natural: -1}, 1, 0, {db: 'c6Journal'});
@@ -235,7 +220,7 @@ describe('ads campaigns endpoints (E2E):', function() {
                 expect(results[0].sessionID).toEqual(jasmine.any(String));
                 expect(results[0].service).toBe('ads');
                 expect(results[0].version).toEqual(jasmine.any(String));
-                expect(results[0].data).toEqual({route: 'GET /api/campaign/:id',
+                expect(results[0].data).toEqual({route: 'GET /api/campaigns/:id',
                                                  params: { 'id': 'e2e-getid1' }, query: {} });
             }).catch(function(error) {
                 expect(util.inspect(error)).not.toBeDefined();
@@ -243,7 +228,7 @@ describe('ads campaigns endpoints (E2E):', function() {
         });
         
         it('should decorate a campaign with cards if defined', function(done) {
-            var options = {url: config.adsUrl + '/campaign/e2e-getCards', jar: selfieJar};
+            var options = {url: config.adsUrl + '/campaigns/e2e-getCards', jar: selfieJar};
             requestUtils.qRequest('get', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
                 expect(resp.body).toEqual({
@@ -265,7 +250,7 @@ describe('ads campaigns endpoints (E2E):', function() {
         
         it('should allow a user to specify which fields to return', function(done) {
             var options = {
-                url: config.adsUrl + '/campaign/e2e-getid1',
+                url: config.adsUrl + '/campaigns/e2e-getid1',
                 qs: { fields: 'name,status' },
                 jar: selfieJar
             };
@@ -283,7 +268,7 @@ describe('ads campaigns endpoints (E2E):', function() {
         });
 
         it('should not show deleted campaigns', function(done) {
-            var options = {url: config.adsUrl + '/campaign/e2e-getid2', jar: selfieJar};
+            var options = {url: config.adsUrl + '/campaigns/e2e-getid2', jar: selfieJar};
             requestUtils.qRequest('get', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(404);
                 expect(resp.body).toEqual('Object not found');
@@ -293,7 +278,7 @@ describe('ads campaigns endpoints (E2E):', function() {
         });
 
         it('should not show campaigns the user does not have permission to see', function(done) {
-            var options = {url: config.adsUrl + '/campaign/e2e-getid3', jar: selfieJar};
+            var options = {url: config.adsUrl + '/campaigns/e2e-getid3', jar: selfieJar};
             requestUtils.qRequest('get', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(404);
                 expect(resp.body).toEqual('Object not found');
@@ -303,7 +288,7 @@ describe('ads campaigns endpoints (E2E):', function() {
         });
         
         it('should return a 401 error if the user is not authenticated', function(done) {
-            var options = { url: config.adsUrl + '/campaign/e2e-getid1' };
+            var options = { url: config.adsUrl + '/campaigns/e2e-getid1' };
             requestUtils.qRequest('get', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(401);
                 expect(resp.body).toBe('Unauthorized');
@@ -313,7 +298,7 @@ describe('ads campaigns endpoints (E2E):', function() {
         });
 
         it('should return a 404 if nothing is found', function(done) {
-            var options = {url: config.adsUrl + '/campaign/e2e-getid5678', jar: selfieJar};
+            var options = {url: config.adsUrl + '/campaigns/e2e-getid5678', jar: selfieJar};
             requestUtils.qRequest('get', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(404);
                 expect(resp.body).toEqual('Object not found');
@@ -655,29 +640,26 @@ describe('ads campaigns endpoints (E2E):', function() {
     });
 
     describe('POST /api/campaign', function() {
-        var name = 'e2e_test-' + new Date().toISOString(),
-            start = new Date(new Date().valueOf() + 2*60*60*1000),
+        var start = new Date(new Date().valueOf() + 2*60*60*1000),
             end = new Date(new Date().valueOf() + 3*60*60*1000),
-            mockCamp, options;
+            options;
         beforeEach(function() {
-            mockCamp = {
-                name: name,
-                targeting: {
-                    interests: ['cat-1', 'cat-2']
-                },
-                advertiserId: keptAdvert.id,
-                customerId: keptCust.id,
-                miniReels: [{ id: 'e2e-e-1' }],
-                cards: [
-                    { id: 'e2e-rc-1', campaign:  { startDate: start.toISOString(), adtechName: null, reportingId: 'report me' } },
-                    { title: 'my new card', campaign: { adtechName: 'card 2', startDate: start.toISOString(), endDate: end.toISOString() } }
-                ],
-                staticCardMap: { 'e2e-fake': { 'rc-pl1': 'e2e-rc-1' } }
-            };
             options = {
-                url: config.adsUrl + '/campaign',
+                url: config.adsUrl + '/campaigns',
                 jar: adminJar,
-                json: mockCamp
+                json: {
+                    name: 'my test campaign',
+                    targeting: {
+                        interests: ['cat-1', 'cat-2']
+                    },
+                    advertiserId: 'e2e-a-1',
+                    miniReels: [{ id: 'e2e-e-1' }],
+                    cards: [
+                        { id: 'e2e-rc-1', campaign:  { startDate: start.toISOString(), reportingId: 'report me' } },
+                        { title: 'my new card', campaign: { startDate: start.toISOString(), endDate: end.toISOString() } }
+                    ],
+                    staticCardMap: { 'e2e-fake': { 'rc-pl1': 'e2e-rc-1' } }
+                }
             };
         });
 
@@ -692,7 +674,7 @@ describe('ads campaigns endpoints (E2E):', function() {
                 expect(resp.body.statusHistory).toEqual([
                     { status: 'draft', userId: 'admin-e2e-user', user: 'adminuser', date: jasmine.any(String) }
                 ]);
-                expect(resp.body.name).toBe(mockCamp.name);
+                expect(resp.body.name).toBe('my test campaign');
                 expect(resp.body.targeting).toEqual({ interests: ['cat-1', 'cat-2'] });
                 expect(resp.body.miniReels).toEqual([{ id: 'e2e-e-1' }]);
                 expect(resp.body.staticCardMap).toEqual({'e2e-fake':{'rc-pl1': 'e2e-rc-1'}});
@@ -702,11 +684,7 @@ describe('ads campaigns endpoints (E2E):', function() {
                 expect(resp.body.cards.length).toBe(2);
                 expect(resp.body.cards[0].id).toEqual('e2e-rc-1');
                 expect(resp.body.cards[0].title).toEqual('test card 1');
-                expect(resp.body.cards[0].campaign.adtechName).toEqual('card_e2e-rc-1');
                 expect(resp.body.cards[0].campaign.reportingId).toEqual('report me');
-                expect(resp.body.cards[0].campaign.adtechId).toEqual(jasmine.any(Number));
-                expect(resp.body.cards[0].campaign.bannerId).toEqual(jasmine.any(Number));
-                expect(resp.body.cards[0].campaign.bannerNumber).toEqual(jasmine.any(Number));
                 expect(resp.body.cards[0].campaign.startDate).toEqual(start.toISOString());
                 expect(resp.body.cards[0].campaign.endDate).not.toBeDefined();
                 expect(resp.body.cards[0].status).toEqual('active');
@@ -715,46 +693,24 @@ describe('ads campaigns endpoints (E2E):', function() {
 
                 expect(resp.body.cards[1].id).toEqual(jasmine.any(String));
                 expect(resp.body.cards[1].title).toEqual('my new card');
-                expect(resp.body.cards[1].campaign.adtechName).toEqual('card 2');
-                expect(resp.body.cards[1].campaign.reportingId).toEqual(mockCamp.name);
-                expect(resp.body.cards[1].campaign.adtechId).toEqual(jasmine.any(Number));
-                expect(resp.body.cards[1].campaign.bannerId).toEqual(jasmine.any(Number));
-                expect(resp.body.cards[1].campaign.bannerNumber).toEqual(jasmine.any(Number));
+                expect(resp.body.cards[1].campaign.reportingId).toEqual('my test campaign');
                 expect(resp.body.cards[1].campaign.startDate).toEqual(start.toISOString());
                 expect(resp.body.cards[1].campaign.endDate).toEqual(end.toISOString());
                 expect(resp.body.cards[1].status).toEqual('active');
                 expect(resp.body.cards[1].user).toEqual('admin-e2e-user');
                 expect(resp.body.cards[1].org).toEqual('o-admin');
 
-                adminCreatedCamp = resp.body;
-                return testUtils.checkCardEntities(adminCreatedCamp, adminJar, config.contentUrl);
+                return testUtils.checkCardEntities(resp.body, adminJar, config.contentUrl);
 
             }).catch(function(error) {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
         
-        describe('created campaign', function() {
-            it('should have a sponsored campaign for each entry in cards', function(done) {
-                q.all(adminCreatedCamp.cards.map(function(card) {
-                    return adtech.campaignAdmin.getCampaignByExtId(card.id).catch(adtechErr).then(function(camp) {
-                        // these keyword ids for the category ids should never change, so we can hardcode
-                        testUtils.checkCardCampaign(camp, adminCreatedCamp, card, [keywords['cat-1'], keywords['cat-2']], keptAdvert, keptCust);
-                        return testUtils.getCampaignBanners(camp.id);
-                    }).then(function(banners) {
-                        testUtils.compareBanners(banners, [card.id], 'card');
-                    });
-                })).catch(function(error) {
-                    expect(util.inspect(error)).not.toBeDefined();
-                }).done(function(results) { done(); });
-            });
-        });
-        
         it('should be able to create a campaign with multiple new sponsored cards', function(done) {
-            delete mockCamp.miniReels;
-            mockCamp.name = 'multi cards';
-            mockCamp.cards = [{ title: 'dogs are cool' }, { title: 'and so are cats' }];
-            
+            delete options.json.miniReels;
+            options.json.name = 'multi cards';
+            options.json.cards = [{ title: 'dogs are cool' }, { title: 'and so are cats' }];
             var newCamp;
             
             requestUtils.qRequest('post', options, null, { maxAttempts: 30 }).then(function(resp) {
@@ -765,57 +721,27 @@ describe('ads campaigns endpoints (E2E):', function() {
 
                 expect(resp.body.cards.length).toBe(2);
                 expect(resp.body.cards[0].id).toEqual(jasmine.any(String));
-                expect(resp.body.cards[0].campaign.adtechName).toEqual(jasmine.any(String));
-                expect(resp.body.cards[0].campaign.adtechId).toEqual(jasmine.any(Number));
-                expect(resp.body.cards[0].campaign.bannerId).toEqual(jasmine.any(Number));
-                expect(resp.body.cards[0].campaign.bannerNumber).toEqual(jasmine.any(Number));
                 expect(resp.body.cards[0].campaign.startDate).not.toBeDefined();
                 expect(resp.body.cards[0].campaign.endDate).not.toBeDefined();
                 expect(resp.body.cards[0].status).toEqual('active');
 
                 expect(resp.body.cards[1].id).toEqual(jasmine.any(String));
                 expect(resp.body.cards[1].title).toEqual('and so are cats');
-                expect(resp.body.cards[1].campaign.adtechName).toEqual(jasmine.any(String));
-                expect(resp.body.cards[1].campaign.adtechId).toEqual(jasmine.any(Number));
-                expect(resp.body.cards[1].campaign.bannerId).toEqual(jasmine.any(Number));
-                expect(resp.body.cards[1].campaign.bannerNumber).toEqual(jasmine.any(Number));
                 expect(resp.body.cards[1].campaign.startDate).not.toBeDefined();
                 expect(resp.body.cards[1].campaign.endDate).not.toBeDefined();
                 expect(resp.body.cards[1].status).toEqual('active');
                 
                 newCamp = resp.body;
-
                 return testUtils.checkCardEntities(newCamp, adminJar, config.contentUrl);
-            }).then(function() {
-                return requestUtils.qRequest('delete', {
-                    url: config.adsUrl + '/campaigns/' + newCamp.id,
-                    jar: adminJar
-                });
-            }).then(function(resp) {
-                expect(resp.response.statusCode).toBe(204);
             }).catch(function(error) {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
         
-        it('should be able to create a campaign without sponsored sub-campaigns', function(done) {
-            options.json = { name: 'empty camp', targeting: { interests: ['cat-1', 'cat-2'] },
-                             advertiserId: keptAdvert.id, customerId: keptCust.id };
+        it('should write an entry to the audit collection', function(done) {
+            options.json = { name: 'empty camp', advertiserId: 'e2e-a-1' };
             requestUtils.qRequest('post', options, null, { maxAttempts: 30 }).then(function(resp) {
                 expect(resp.response.statusCode).toBe(201);
-                expect(resp.body._id).not.toBeDefined();
-                expect(resp.body.id).toBeDefined();
-                expect(resp.body.targeting).toEqual({
-                    interests: ['cat-1', 'cat-2']
-                });
-                expect(resp.body.miniReels).not.toBeDefined();
-                expect(resp.body.cards).not.toBeDefined();
-                expect(resp.body.pricingHistory).not.toBeDefined();
-                expect(new Date(resp.body.created).toString()).not.toEqual('Invalid Date');
-                expect(resp.body.lastUpdated).toEqual(resp.body.created);
-                expect(resp.body.status).toBe('draft');
-                
-                // check that it wrote an entry to the audit collection
                 return testUtils.mongoFind('audit', {}, {$natural: -1}, 1, 0, {db: 'c6Journal'});
             }).then(function(results) {
                 expect(results[0].user).toBe('admin-e2e-user');
@@ -826,7 +752,7 @@ describe('ads campaigns endpoints (E2E):', function() {
                 expect(results[0].sessionID).toEqual(jasmine.any(String));
                 expect(results[0].service).toBe('ads');
                 expect(results[0].version).toEqual(jasmine.any(String));
-                expect(results[0].data).toEqual({route: 'POST /api/campaign/', params: {}, query: {} });
+                expect(results[0].data).toEqual({route: 'POST /api/campaigns/', params: {}, query: {} });
             }).catch(function(error) {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
@@ -835,8 +761,7 @@ describe('ads campaigns endpoints (E2E):', function() {
         it('should initialize pricingHistory when creating a campaign with pricing', function(done) {
             options.json = {
                 name: 'withPricing',
-                advertiserId: keptAdvert.id,
-                customerId: keptCust.id,
+                advertiserId: 'e2e-a-1',
                 pricing: {
                     budget: 1000,
                     dailyLimit: 200,
@@ -874,8 +799,7 @@ describe('ads campaigns endpoints (E2E):', function() {
             beforeEach(function() {
                 options.json = {
                     name: 'withPaymentMethod',
-                    advertiserId: keptAdvert.id,
-                    customerId: keptCust.id,
+                    advertiserId: 'e2e-a-1',
                     paymentMethod: adminPayment.token
                 };
             });
@@ -907,15 +831,11 @@ describe('ads campaigns endpoints (E2E):', function() {
             });
         });
 
-        it('should return a 400 if the body is incomplete', function(done) {
-            q.all([{advertiserId: 'fake'}, {customerId: 'fake'}].map(function(body) {
-                options.json = body;
-                return requestUtils.qRequest('post', options, null, { maxAttempts: 30 });
-            })).then(function(results) {
-                results.forEach(function(resp) {
-                    expect(resp.response.statusCode).toBe(400);
-                    expect(resp.body).toBe('Must provide advertiserId + customerId');
-                });
+        it('should return a 400 if no advertiserId is provided', function(done) {
+            delete options.json.advertiserId;
+            requestUtils.qRequest('post', options, null, { maxAttempts: 30 }).then(function(resp) {
+                expect(resp.response.statusCode).toBe(400);
+                expect(resp.body).toBe('Missing required field: advertiserId');
             }).catch(function(error) {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
@@ -926,8 +846,7 @@ describe('ads campaigns endpoints (E2E):', function() {
                 { cards: [{id: 'e2e-rc-1'}, {id: 'e2e-rc-1'}] },
                 { miniReels: [{id: 'e2e-e-1'}, {id: 'e2e-e-1'}] }
             ].map(function(obj) {
-                obj.advertiserId = keptAdvert.id;
-                obj.customerId = keptCust.id;
+                obj.advertiserId = 'e2e-a-1';
                 options.json = obj;
                 return requestUtils.qRequest('post', options, null, { maxAttempts: 30 });
             })).then(function(results) {
@@ -940,19 +859,8 @@ describe('ads campaigns endpoints (E2E):', function() {
             }).done(done);
         });
         
-        it('should return a 400 if multiple sub-campaigns have the same name', function(done) {
-            mockCamp.cards[0].campaign.adtechName = 'card 2';
-            requestUtils.qRequest('post', options, null, { maxAttempts: 30 })
-            .then(function(resp) {
-                expect(resp.response.statusCode).toBe(400);
-                expect(resp.body).toBe('cards[1] has a non-unique name: "card 2"');
-            }).catch(function(error) {
-                expect(util.inspect(error)).not.toBeDefined();
-            }).done(done);
-        });
-        
         it('should return a 400 if dates are invalid', function(done) {
-            var mockCamps = [{}, {}, {}, {}].map(function() { return JSON.parse(JSON.stringify(mockCamp)); });
+            var mockCamps = [{}, {}, {}, {}].map(function() { return JSON.parse(JSON.stringify(options.json)); });
             mockCamps[0].cards[0].campaign.startDate = 'foo';
             mockCamps[1].cards[1].campaign.endDate = 'bar';
             mockCamps[2].cards[0].campaign.startDate = end;
@@ -977,23 +885,6 @@ describe('ads campaigns endpoints (E2E):', function() {
             }).done(done);
         });
         
-        it('should return a 400 if the advertiser or customer don\'t exist', function(done) {
-            q.all([
-                {name: 'test', advertiserId: 'fake', customerId: mockCamp.customerId},
-                {name: 'test', advertiserId: mockCamp.advertiserId, customerId: 'fake'}
-            ].map(function(body) {
-                options.json = body;
-                return requestUtils.qRequest('post', options, null, { maxAttempts: 30 });
-            })).then(function(results) {
-                expect(results[0].response.statusCode).toBe(400);
-                expect(results[0].body).toBe('advertiser fake does not exist');
-                expect(results[1].response.statusCode).toBe(400);
-                expect(results[1].body).toBe('customer fake does not exist');
-            }).catch(function(error) {
-                expect(util.inspect(error)).not.toBeDefined();
-            }).done(done);
-        });
-
         it('should return a 401 error if the user is not authenticated', function(done) {
             delete options.jar;
             requestUtils.qRequest('post', options, null, { maxAttempts: 30 })
@@ -1007,17 +898,17 @@ describe('ads campaigns endpoints (E2E):', function() {
         
         describe('for selfie users', function(done) {
             beforeEach(function() {
-                mockCamp = {
-                    name: 'Always On Dollars',
-                    cards: [{ title: 'dolla dolla billz' }],
-                    targeting: {
-                        interests: []
-                    }
-                };
                 options = {
-                    url: config.adsUrl + '/campaign',
+                    url: config.adsUrl + '/campaigns',
                     jar: selfieJar,
-                    json: mockCamp
+                    json: {
+                        name: 'Always On Dollars',
+                        advertiserId: 'e2e-a-1',
+                        cards: [{ title: 'dolla dolla billz' }],
+                        targeting: {
+                            interests: []
+                        }
+                    }
                 };
             });
             
@@ -1027,8 +918,7 @@ describe('ads campaigns endpoints (E2E):', function() {
                     expect(resp.body.id).toEqual(jasmine.any(String));
                     expect(resp.body.user).toEqual('e2e-user');
                     expect(resp.body.org).toEqual('o-selfie');
-                    expect(resp.body.advertiserId).toEqual('e2e-a-keepme');
-                    expect(resp.body.customerId).toEqual('e2e-cu-keepme');
+                    expect(resp.body.advertiserId).toEqual('e2e-a-1');
                     expect(resp.body.created).toEqual(jasmine.any(String));
                     expect(resp.body.lastUpdated).toEqual(jasmine.any(String));
                     expect(resp.body.status).toEqual('draft');
@@ -1044,43 +934,25 @@ describe('ads campaigns endpoints (E2E):', function() {
                     expect(resp.body.cards.length).toBe(1);
                     expect(resp.body.cards[0].id).toEqual(jasmine.any(String));
                     expect(resp.body.cards[0].title).toEqual('dolla dolla billz');
-                    expect(resp.body.cards[0].campaign.adtechName).toEqual('card_' + resp.body.cards[0].id);
-                    expect(resp.body.cards[0].campaign.reportingId).toEqual(mockCamp.name);
-                    expect(resp.body.cards[0].campaign.adtechId).toEqual(jasmine.any(Number));
-                    expect(resp.body.cards[0].campaign.bannerId).toEqual(jasmine.any(Number));
-                    expect(resp.body.cards[0].campaign.bannerNumber).toEqual(jasmine.any(Number));
+                    expect(resp.body.cards[0].campaign.reportingId).toEqual('Always On Dollars');
                     expect(resp.body.cards[0].campaign.startDate).not.toBeDefined();
                     expect(resp.body.cards[0].campaign.endDate).not.toBeDefined();
+                    expect(resp.body.cards[0].campaign.minViewTime).toBe(3);
                     expect(resp.body.cards[0].status).toEqual('active');
                     expect(resp.body.cards[0].user).toEqual('e2e-user');
                     expect(resp.body.cards[0].org).toEqual('o-selfie');
 
-                    selfieCreatedCamp = resp.body;
-                    return testUtils.checkCardEntities(selfieCreatedCamp, selfieJar, config.contentUrl);
+                    return testUtils.checkCardEntities(resp.body, selfieJar, config.contentUrl);
 
                 }).catch(function(error) {
                     expect(util.inspect(error)).not.toBeDefined();
                 }).done(done);
             });
             
-            describe('created campaign', function() {
-                it('should have a sponsored campaign for each entry in cards', function(done) {
-                    q.all(selfieCreatedCamp.cards.map(function(card) {
-                        return adtech.campaignAdmin.getCampaignByExtId(card.id).catch(adtechErr).then(function(camp) {
-                            testUtils.checkCardCampaign(camp, selfieCreatedCamp, card, [keywords['*']], keptAdvert, keptCust);
-                            return testUtils.getCampaignBanners(camp.id);
-                        }).then(function(banners) {
-                            testUtils.compareBanners(banners, [card.id], 'card');
-                        });
-                    })).catch(function(error) {
-                        expect(util.inspect(error)).not.toBeDefined();
-                    }).done(function(results) { done(); });
-                });
-            });
-            
             it('should be able to create a campaign with some pricing opts', function(done) {
                 options.json = {
                     name: 'withPricing',
+                    advertiserId: 'e2e-a-1',
                     pricing: {
                         budget: 2000,
                         dailyLimit: 500,
@@ -1111,6 +983,7 @@ describe('ads campaigns endpoints (E2E):', function() {
             it('should increase the cost appropriately for additional targeting', function(done) {
                 options.json = {
                     name: 'pricing & targeting',
+                    advertiserId: 'e2e-a-1',
                     pricing: { budget: 2000, dailyLimit: 500 },
                     targeting: {
                         geo: {
@@ -1153,7 +1026,7 @@ describe('ads campaigns endpoints (E2E):', function() {
                     { budget: 1000, dailyLimit: 2000 },
                     { budget: 1000, dailyLimit: 1 }
                 ].map(function(pricing) {
-                    options.json = { pricing: pricing };
+                    options.json = { pricing: pricing, advertiserId: 'e2e-a-1' };
                     return requestUtils.qRequest('post', options, null, { maxAttempts: 30 });
                 })).then(function(results) {
                     expect(results[0].response.statusCode).toBe(400);
@@ -1172,6 +1045,7 @@ describe('ads campaigns endpoints (E2E):', function() {
             it('should be able to create a campaign with other targeting options', function(done) {
                 options.json = {
                     name: 'withTargeting',
+                    advertiserId: 'e2e-a-1',
                     targeting: {
                         geo: {
                             states: ['ohio', 'iowa'],
@@ -1208,7 +1082,8 @@ describe('ads campaigns endpoints (E2E):', function() {
             
             it('should return a 400 if the user tries to create multiple sponsored cards', function(done) {
                 options.json = {
-                    cards: [{ id: 'e2e-rc-selfie1' }, { id: 'e2e-rc-1' }]
+                    cards: [{ id: 'e2e-rc-selfie1' }, { id: 'e2e-rc-1' }],
+                    advertiserId: 'e2e-a-1'
                 };
                 requestUtils.qRequest('post', options, null, { maxAttempts: 30 })
                 .then(function(resp) {
@@ -1222,8 +1097,7 @@ describe('ads campaigns endpoints (E2E):', function() {
             it('should trim off other forbidden properties', function(done) {
                 options.json = {
                     name: 'hax',
-                    advertiserId: 'a-fake',
-                    customerId: 'cu-fake',
+                    advertiserId: 'e2e-a-1',
                     application: 'proshop',
                     minViewTime: 999,
                     statusHistory: ['foo'],
@@ -1237,8 +1111,7 @@ describe('ads campaigns endpoints (E2E):', function() {
                         id: jasmine.any(String),
                         user: 'e2e-user',
                         org: 'o-selfie',
-                        advertiserId: 'e2e-a-keepme',
-                        customerId: 'e2e-cu-keepme',
+                        advertiserId: 'e2e-a-1',
                         created: jasmine.any(String),
                         lastUpdated: jasmine.any(String),
                         status: 'draft',
@@ -1255,8 +1128,8 @@ describe('ads campaigns endpoints (E2E):', function() {
         });
     });
 
-    describe('PUT /api/campaign/:id', function() {
-        var mockCamps, options, origPricing, oldDate;
+    describe('PUT /api/campaigns/:id', function() {
+        var mockCamps, options, origPricing, oldDate, adminCreatedCamp, selfieCreatedCamp;
         beforeEach(function(done) {
             oldDate = new Date(new Date().valueOf() - 5000);
             origPricing = {
@@ -1266,28 +1139,15 @@ describe('ads campaigns endpoints (E2E):', function() {
                 cost: 0.1
             };
             mockCamps = [
-                {
-                    id: 'e2e-put1', status: 'active', advertiserId: keptAdvert.id, customerId: keptCust.id,
-                    name: 'fake camp', user: 'e2e-user', org: 'o-selfie'
-                },
-                {
-                    id: 'e2e-put2', status: 'active', advertiserId: keptAdvert.id, customerId: keptCust.id,
-                    name: 'fake camp 2', user: 'not-e2e-user', org: 'o-admin'
-                },
-                {
-                    id: 'e2e-put3', status: 'active', advertiserId: keptAdvert.id, customerId: keptCust.id,
-                    name: 'fake camp 3', updateRequest: 'e2e-ur-1', user: 'e2e-user', org: 'o-selfie'
-                },
-                {
-                    id: 'e2e-deleted', status: 'deleted', advertiserId: keptAdvert.id, customerId: keptCust.id,
-                    name: 'deleted camp'
-                },
+                { id: 'e2e-put1', status: 'active', name: 'fake camp', user: 'e2e-user', org: 'o-selfie', advertiserId: 'e2e-a-1' },
+                { id: 'e2e-put2', status: 'active', name: 'fake camp 2', user: 'admin-e2e-user', org: 'o-admin', advertiserId: 'e2e-a-1' },
+                { id: 'e2e-update', status: 'active', updateRequest: 'e2e-ur-1', user: 'e2e-user', org: 'o-selfie', advertiserId: 'e2e-a-1' },
+                { id: 'e2e-deleted', status: 'deleted', user: 'e2e-user', org: 'o-selfie', advertiserId: 'e2e-a-1' },
                 {
                     id: 'e2e-withPricing',
                     name: 'withPricing',
                     status: 'active',
-                    advertiserId: keptAdvert.id,
-                    customerId: keptCust.id,
+                    advertiserId: 'e2e-a-1',
                     user: 'e2e-user',
                     org: 'o-selfie',
                     pricing: origPricing,
@@ -1299,21 +1159,62 @@ describe('ads campaigns endpoints (E2E):', function() {
                     }]
                 }
             ];
-            return testUtils.mongoFind(
-                'campaigns',
-                { id: { $in: [adminCreatedCamp.id, selfieCreatedCamp.id] } }
-            ).then(function(results) {
-                mockCamps = mockCamps.concat(results);
-                return testUtils.resetCollection('campaigns', mockCamps);
-            }).done(done);
+            options = {
+                url: config.adsUrl + '/campaigns/e2e-put1',
+                json: {},
+                jar: adminJar
+            };
+
+            var promise;
+            if (selfieCreatedCamp && adminCreatedCamp) {
+                promise = q();
+            } else {
+                promise = q.all([
+                    requestUtils.qRequest('post', {
+                        url: config.adsUrl + '/campaigns/',
+                        jar: adminJar,
+                        json: {
+                            name: 'admin created campaign',
+                            advertiserId: 'e2e-a-1',
+                            cards: [{ title: 'admin card 1' }, { title: 'admin card 2' }],
+                            miniReels: [{ id: 'e2e-e-1' }]
+                        }
+                    }),
+                    requestUtils.qRequest('post', {
+                        url: config.adsUrl + '/campaigns/',
+                        jar: selfieJar,
+                        json: {
+                            name: 'selfie created campaign',
+                            advertiserId: 'e2e-a-1',
+                            cards: [{ title: 'selfie card 1' }]
+                        }
+                    }),
+                ]).spread(function(adminResp, selfieResp) {
+                    if (adminResp.response.statusCode !== 201) {
+                        return q.reject({ code: adminResp.response.statusCode, body: adminResp.body });
+                    }
+                    if (selfieResp.response.statusCode !== 201) {
+                        return q.reject({ code: selfieResp.response.statusCode, body: selfieResp.body });
+                    }
+                    adminCreatedCamp = adminResp.body;
+                    selfieCreatedCamp = selfieResp.body;
+                });
+            }
+            
+            promise.then(function() {
+                return testUtils.mongoFind(
+                    'campaigns',
+                    { id: { $in: [adminCreatedCamp.id, selfieCreatedCamp.id] } }
+                ).then(function(results) {
+                    mockCamps = mockCamps.concat(results);
+                    return testUtils.resetCollection('campaigns', mockCamps);
+                }).done(done);
+            });
         });
         
         it('should successfully update a campaign in our database', function(done) {
-            options = {
-                url: config.adsUrl + '/campaign/e2e-put1',
-                json: { name: 'updated fake camp' },
-                jar: adminJar
-            };
+            options.json = { name: 'updated fake camp' };
+
             requestUtils.qRequest('put', options, null, { maxAttempts: 30 }).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
                 expect(resp.body._id).not.toBeDefined();
@@ -1322,6 +1223,16 @@ describe('ads campaigns endpoints (E2E):', function() {
                 expect(resp.body.name).toBe('updated fake camp');
                 expect(resp.body.pricing).not.toBeDefined();
                 expect(resp.body.pricingHistory).not.toBeDefined();
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should write an entry to the audit collection', function(done) {
+            options.json = { name: 'updated fake camp' };
+
+            requestUtils.qRequest('put', options, null, { maxAttempts: 30 }).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
                 return testUtils.mongoFind('audit', {}, {$natural: -1}, 1, 0, {db: 'c6Journal'});
             }).then(function(results) {
                 expect(results[0].user).toBe('admin-e2e-user');
@@ -1332,7 +1243,7 @@ describe('ads campaigns endpoints (E2E):', function() {
                 expect(results[0].sessionID).toEqual(jasmine.any(String));
                 expect(results[0].service).toBe('ads');
                 expect(results[0].version).toEqual(jasmine.any(String));
-                expect(results[0].data).toEqual({route: 'PUT /api/campaign/:id',
+                expect(results[0].data).toEqual({route: 'PUT /api/campaigns/:id',
                                                  params: { id: 'e2e-put1' }, query: {} });
             }).catch(function(error) {
                 expect(util.inspect(error)).not.toBeDefined();
@@ -1346,11 +1257,9 @@ describe('ads campaigns endpoints (E2E):', function() {
                 model: 'cpcv',
                 cost: 0.666
             };
-            options = {
-                url: config.adsUrl + '/campaign/e2e-withPricing',
-                json: { pricing: newPricing },
-                jar: adminJar
-            };
+            options.url = config.adsUrl + '/campaigns/e2e-withPricing';
+            options.json = { pricing: newPricing };
+
             requestUtils.qRequest('put', options, null, { maxAttempts: 30 }).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
                 expect(resp.body.name).toBe('withPricing');
@@ -1375,18 +1284,15 @@ describe('ads campaigns endpoints (E2E):', function() {
         });
 
         it('should not update the pricingHistory if the pricing stays the same', function(done) {
-            options = {
-                url: config.adsUrl + '/campaign/e2e-withPricing',
-                json: {
-                    name: 'withPricing-updated',
-                    pricing: {
-                        budget: 1000,
-                        dailyLimit: 400,
-                        model: 'cpv',
-                        cost: 0.1
-                    }
-                },
-                jar: adminJar
+            options.url = config.adsUrl + '/campaigns/e2e-withPricing';
+            options.json = {
+                name: 'withPricing-updated',
+                pricing: {
+                    budget: 1000,
+                    dailyLimit: 400,
+                    model: 'cpv',
+                    cost: 0.1
+                }
             };
             requestUtils.qRequest('put', options, null, { maxAttempts: 30 }).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
@@ -1410,11 +1316,9 @@ describe('ads campaigns endpoints (E2E):', function() {
                 model: 'cpv',
                 cost: 0.1
             };
-            options = {
-                url: config.adsUrl + '/campaign/e2e-put1',
-                json: { pricing: newPricing },
-                jar: adminJar
-            };
+            options.url = config.adsUrl + '/campaigns/e2e-put1';
+            options.json = { pricing: newPricing };
+
             requestUtils.qRequest('put', options, null, { maxAttempts: 30 }).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
                 expect(resp.body.name).toBe('fake camp');
@@ -1430,14 +1334,44 @@ describe('ads campaigns endpoints (E2E):', function() {
             }).done(done);
         });
         
-        it('should be able to add+remove sponsored cards', function(done) {
-            options = {
-                url: config.adsUrl + '/campaign/' + adminCreatedCamp.id,
-                json: { cards: [{ id: adminCreatedCamp.cards[1].id }, { title: 'card numba 3' }] },
-                jar: adminJar
-            };
-
+        it('should be able to edit properties on cards', function(done) {
+            adminCreatedCamp.cards[0].title = 'Grand Magister';
+            adminCreatedCamp.cards[1].data.skip = true;
+            adminCreatedCamp.cards[1].campaign.minViewTime = 55;
+            options.url = config.adsUrl + '/campaigns/' + adminCreatedCamp.id;
+            options.json = { cards: adminCreatedCamp.cards };
+            
             requestUtils.qRequest('put', options, null, { maxAttempts: 30 }).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.body._id).not.toBeDefined();
+                expect(resp.body.cards[0].title).toBe('Grand Magister');
+                expect(resp.body.cards[0].campaign).toEqual(adminCreatedCamp.cards[0].campaign);
+                expect(resp.body.cards[0].data).toEqual(adminCreatedCamp.cards[0].data);
+
+                expect(resp.body.cards[1].title).toBe('admin card 2');
+                expect(resp.body.cards[1].campaign).toEqual({ minViewTime: 55, reportingId: 'admin created campaign' });
+                expect(resp.body.cards[1].data).toEqual(jasmine.objectContaining({ skip: true }));
+
+                adminCreatedCamp = resp.body;
+                return testUtils.checkCardEntities(adminCreatedCamp, adminJar, config.contentUrl);
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should be able to add+remove sponsored cards', function(done) {
+            var cardToDelete = adminCreatedCamp.cards[0].id;
+            options.url = config.adsUrl + '/campaigns/' + adminCreatedCamp.id;
+            options.json = { staticCardMap: { 'e2e-fake': { 'rc-pl1': cardToDelete } } };
+
+            // initialize staticCardMap so we can test auto-updating it when cards removed
+            requestUtils.qRequest('put', options, null, { maxAttempts: 30 }).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.body.staticCardMap).toEqual({ 'e2e-fake': { 'rc-pl1': adminCreatedCamp.cards[0].id } });
+                
+                options.json = { cards: [{ id: adminCreatedCamp.cards[1].id }, { title: 'card numba 3' }] };
+                return requestUtils.qRequest('put', options, null, { maxAttempts: 30 });
+            }).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
                 expect(resp.body.created).toBe(adminCreatedCamp.created);
                 expect(new Date(resp.body.lastUpdated)).toBeGreaterThan(new Date(adminCreatedCamp.lastUpdated));
@@ -1445,11 +1379,7 @@ describe('ads campaigns endpoints (E2E):', function() {
 
                 expect(resp.body.cards[1].id).toEqual(jasmine.any(String));
                 expect(resp.body.cards[1].title).toEqual('card numba 3');
-                expect(resp.body.cards[1].campaign.adtechName).toEqual('card_' + resp.body.cards[1].id);
                 expect(resp.body.cards[1].campaign.reportingId).toEqual(resp.body.name);
-                expect(resp.body.cards[1].campaign.adtechId).toEqual(jasmine.any(Number));
-                expect(resp.body.cards[1].campaign.bannerId).toEqual(jasmine.any(Number));
-                expect(resp.body.cards[1].campaign.bannerNumber).toEqual(jasmine.any(Number));
                 expect(resp.body.cards[1].campaign.startDate).not.toBeDefined();
                 expect(resp.body.cards[1].campaign.endDate).not.toBeDefined();
                 expect(resp.body.cards[1].status).toEqual('active');
@@ -1460,30 +1390,7 @@ describe('ads campaigns endpoints (E2E):', function() {
                 adminCreatedCamp = resp.body;
                 return testUtils.checkCardEntities(adminCreatedCamp, adminJar, config.contentUrl);
             }).then(function() {
-                return q.allSettled([
-                    adtech.campaignAdmin.getCampaignByExtId(adminCreatedCamp.cards[0].id),
-                    adtech.campaignAdmin.getCampaignByExtId('e2e-rc-1'),
-                    adtech.campaignAdmin.getCampaignByExtId(adminCreatedCamp.cards[1].id)
-                ]);
-            }).then(function(results) {
-                // just check that first camp still exists
-                expect(results[0].state).toBe('fulfilled');
-                expect(results[0].value).toBeDefined();
-
-                // e2e-rc-1 campaign should no longer exist
-                expect(results[1].state).toBe('rejected');
-                expect(results[1].reason && results[1].reason.message).toMatch(/^Unable to locate object: /);
-
-                // check that new campaign created properly
-                expect(results[2].state).toBe('fulfilled');
-                testUtils.checkCardCampaign(results[2].value, adminCreatedCamp, adminCreatedCamp.cards[1],
-                    [keywords['cat-2'], keywords['cat-1']], keptAdvert, keptCust);
-
-                return testUtils.getCampaignBanners(results[2].value.id);
-            }).then(function(banners) {
-                testUtils.compareBanners(banners, [adminCreatedCamp.cards[1].id], 'card');
-                
-                return testUtils.mongoFind('cards', {id: 'e2e-rc-1'});
+                return testUtils.mongoFind('cards', { id: cardToDelete });
             }).then(function(results) {
                 expect(results[0].status).toBe('deleted');
             }).catch(function(error) {
@@ -1491,12 +1398,9 @@ describe('ads campaigns endpoints (E2E):', function() {
             }).done(done);
         });
         
-        it('should be ale to add + remove sponsored miniReels', function(done) {
-            options = {
-                url: config.adsUrl + '/campaign/' + adminCreatedCamp.id,
-                json: { miniReels: [{ id: 'e2e-e-2' }] },
-                jar: adminJar
-            };
+        it('should be able to add + remove sponsored miniReels', function(done) {
+            options.url = config.adsUrl + '/campaigns/' + adminCreatedCamp.id;
+            options.json = { miniReels: [{ id: 'e2e-e-2' }] };
 
             requestUtils.qRequest('put', options, null, { maxAttempts: 30 }).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
@@ -1517,139 +1421,10 @@ describe('ads campaigns endpoints (E2E):', function() {
             }).done(done);
         });
         
-        it('should edit sponsored campaigns\' keywords if the interests change', function(done) {
-            options = {
-                url: config.adsUrl + '/campaign/' + adminCreatedCamp.id,
-                json: {
-                    cards: adminCreatedCamp.cards,
-                    targeting: { interests: ['cat-1', 'cat-3'] }
-                },
-                jar: adminJar
-            };
-            
-            requestUtils.qRequest('put', options, null, { maxAttempts: 30 }).then(function(resp) {
-                expect(resp.response.statusCode).toBe(200);
-                expect(resp.body.targeting).toEqual({
-                    interests: ['cat-1', 'cat-3']
-                });
-                adminCreatedCamp = resp.body;
-                
-                return q.all(adminCreatedCamp.cards.map(function(card) {
-                    return adtech.campaignAdmin.getCampaignByExtId(card.id).then(function(camp) {
-                        testUtils.checkCardCampaign(camp, adminCreatedCamp, card, [keywords['cat-3'], keywords['cat-1']], keptAdvert, keptCust);
-                        return q();
-                    });
-                }));
-            }).catch(function(error) {
-                expect(util.inspect(error)).not.toBeDefined();
-            }).done(function(results) { done(); });
-        });
-        
-        it('should switch to using * as kwlp3 if no interests are set', function(done) {
-            options = {
-                url: config.adsUrl + '/campaign/' + adminCreatedCamp.id,
-                json: {
-                    targeting: { interests: [] }
-                },
-                jar: adminJar
-            };
-            
-            requestUtils.qRequest('put', options, null, { maxAttempts: 30 }).then(function(resp) {
-                expect(resp.response.statusCode).toBe(200);
-                expect(resp.body.targeting).toEqual({ interests: [] });
-                adminCreatedCamp = resp.body;
-                
-                return q.all(adminCreatedCamp.cards.map(function(card) {
-                    return adtech.campaignAdmin.getCampaignByExtId(card.id).then(function(camp) {
-                        testUtils.checkCardCampaign(camp, adminCreatedCamp, card, [keywords['*']], keptAdvert, keptCust);
-                        return q();
-                    });
-                }));
-            }).catch(function(error) {
-                expect(util.inspect(error)).not.toBeDefined();
-            }).done(function(results) { done(); });
-        });
-
-        it('should be able to edit cards\' campaigns\' names', function(done) {
-            adminCreatedCamp.cards[0].campaign.adtechName = 'humphrey';
-            options = {
-                url: config.adsUrl + '/campaign/' + adminCreatedCamp.id,
-                json: { cards: adminCreatedCamp.cards },
-                jar: adminJar
-            };
-            
-            requestUtils.qRequest('put', options, null, { maxAttempts: 30 }).then(function(resp) {
-                expect(resp.response.statusCode).toBe(200);
-                expect(resp.body._id).not.toBeDefined();
-                expect(resp.body.cards[0].campaign.adtechName).toEqual('humphrey');
-                expect(resp.body.cards[1].campaign).toEqual(adminCreatedCamp.cards[1].campaign);
-
-                adminCreatedCamp = resp.body;
-                return testUtils.checkCardEntities(adminCreatedCamp, adminJar, config.contentUrl);
-            }).then(function() {
-                return adtech.campaignAdmin.getCampaignByExtId(adminCreatedCamp.cards[0].id);
-            }).then(function(camp) {
-                testUtils.checkCardCampaign(camp, adminCreatedCamp, adminCreatedCamp.cards[0], [keywords['*']], keptAdvert, keptCust);
-            }).catch(function(error) {
-                expect(util.inspect(error)).not.toBeDefined();
-            }).done(done);
-        });
-        
-        it('should be able to edit cards\' campaigns\' start + end dates', function(done) {
-            var now = new Date();
-            adminCreatedCamp.cards[1].campaign.startDate = new Date(now.valueOf() + 20*24*60*60*1000).toISOString();
-            adminCreatedCamp.cards[1].campaign.endDate = new Date(now.valueOf() + 30*24*60*60*1000).toISOString();
-            options = {
-                url: config.adsUrl + '/campaign/' + adminCreatedCamp.id,
-                json: { cards: adminCreatedCamp.cards },
-                jar: adminJar
-            };
-            
-            requestUtils.qRequest('put', options, null, { maxAttempts: 30 }).then(function(resp) {
-                expect(resp.response.statusCode).toBe(200);
-                expect(resp.body._id).not.toBeDefined();
-                expect(resp.body.cards[0].campaign).toEqual(adminCreatedCamp.cards[0].campaign);
-                expect(resp.body.cards[1].campaign.startDate).toEqual(new Date(now.valueOf() + 20*24*60*60*1000).toISOString());
-                expect(resp.body.cards[1].campaign.endDate).toEqual(new Date(now.valueOf() + 30*24*60*60*1000).toISOString());
-
-                adminCreatedCamp = resp.body;
-                return testUtils.checkCardEntities(adminCreatedCamp, adminJar, config.contentUrl);
-            }).then(function() {
-                return adtech.campaignAdmin.getCampaignByExtId(adminCreatedCamp.cards[1].id);
-            }).then(function(camp) {
-                testUtils.checkCardCampaign(camp, adminCreatedCamp, adminCreatedCamp.cards[1], [keywords['*']], keptAdvert, keptCust);
-            }).catch(function(error) {
-                expect(util.inspect(error)).not.toBeDefined();
-            }).done(done);
-        });
-        
-        it('should be able to edit other props on cards', function(done) {
-            adminCreatedCamp.cards[0].title = 'Grand Magister';
-            options = {
-                url: config.adsUrl + '/campaign/' + adminCreatedCamp.id,
-                json: { cards: adminCreatedCamp.cards },
-                jar: adminJar
-            };
-            
-            requestUtils.qRequest('put', options, null, { maxAttempts: 30 }).then(function(resp) {
-                expect(resp.response.statusCode).toBe(200);
-                expect(resp.body._id).not.toBeDefined();
-                expect(resp.body.cards[0].title).toBe('Grand Magister');
-                expect(resp.body.cards[1].campaign).toEqual(adminCreatedCamp.cards[1].campaign);
-
-                adminCreatedCamp = resp.body;
-                return testUtils.checkCardEntities(adminCreatedCamp, adminJar, config.contentUrl);
-            }).catch(function(error) {
-                expect(util.inspect(error)).not.toBeDefined();
-            }).done(done);
-        });
-        
         it('should not edit a campaign that has an updateRequest', function(done) {
-            options = {
-                url: config.adsUrl + '/campaign/e2e-put3',
-                json: { name: 'sneaky edit' },
-                jar: adminJar
-            };
+            options.url = config.adsUrl + '/campaigns/e2e-update';
+            options.json = { name: 'sneaky edit' };
+
             requestUtils.qRequest('put', options, null, { maxAttempts: 30 }).then(function(resp) {
                 expect(resp.response.statusCode).toBe(400);
                 expect(resp.body).toBe('Campaign locked until existing update request resolved');
@@ -1659,11 +1434,9 @@ describe('ads campaigns endpoints (E2E):', function() {
         });
         
         it('should not edit a campaign that has been deleted', function(done) {
-            options = {
-                url: config.adsUrl + '/campaign/e2e-deleted',
-                json: { name: 'resurrected' },
-                jar: adminJar
-            };
+            options.url = config.adsUrl + '/campaigns/e2e-deleted';
+            options.json = { name: 'resurrected' };
+
             requestUtils.qRequest('put', options, null, { maxAttempts: 30 }).then(function(resp) {
                 expect(resp.response.statusCode).toBe(404);
                 expect(resp.body).toBe('That has been deleted');
@@ -1673,11 +1446,9 @@ describe('ads campaigns endpoints (E2E):', function() {
         });
         
         it('should not create a campaign if they do not exist', function(done) {
-            options = {
-                url: config.adsUrl + '/campaign/e2e-putfake',
-                json: { name: 'the best thing' },
-                jar: adminJar
-            };
+            options.url = config.adsUrl + '/campaigns/e2e-putfake';
+            options.json = { name: 'the best thing' };
+
             requestUtils.qRequest('put', options, null, { maxAttempts: 30 }).then(function(resp) {
                 expect(resp.response.statusCode).toBe(404);
                 expect(resp.body).toBe('That does not exist');
@@ -1687,11 +1458,9 @@ describe('ads campaigns endpoints (E2E):', function() {
         });
         
         it('should return a 400 if any of the lists are not distinct', function(done) {
-            options = { url: config.adsUrl + '/campaign/e2e-put1', jar: adminJar };
-
             q.all([
-                { cards: [{id: adminCreatedCamp.cards[0].id}, {id: adminCreatedCamp.cards[0].id}] },
-                { miniReels: [{id: 'e2e-e-1'}, {id: 'e2e-e-1'}] }
+                { cards: [{ id: 'e2e-rc-1' }, { id: 'e2e-rc-1' }] },
+                { miniReels: [{ id: 'e2e-e-1' }, { id: 'e2e-e-1' }] }
             ].map(function(obj) {
                 options.json = obj;
                 return requestUtils.qRequest('put', options, null, { maxAttempts: 30 });
@@ -1705,31 +1474,12 @@ describe('ads campaigns endpoints (E2E):', function() {
             }).done(done);
         });
 
-        it('should return a 400 if multiple sub-campaigns have the same name', function(done) {
-            var cards = JSON.parse(JSON.stringify(adminCreatedCamp.cards));
-            cards[0].campaign.adtechName = cards[1].campaign.adtechName;
-            options = {
-                url: config.adsUrl + '/campaign/' + adminCreatedCamp.id,
-                json: { cards: cards },
-                jar: adminJar
-            };
-            requestUtils.qRequest('put', options, null, { maxAttempts: 30 })
-            .then(function(resp) {
-                expect(resp.response.statusCode).toBe(400);
-                expect(resp.body).toBe('cards[1] has a non-unique name: "' + cards[1].campaign.adtechName + '"');
-            }).catch(function(error) {
-                expect(util.inspect(error)).not.toBeDefined();
-            }).done(done);
-        });
-        
         it('should return a 400 if dates are invalid', function(done) {
             var cards = JSON.parse(JSON.stringify(adminCreatedCamp.cards));
             cards[0].campaign.startDate = 'foo';
-            options = {
-                url: config.adsUrl + '/campaign/' + adminCreatedCamp.id,
-                json: { cards: cards },
-                jar: adminJar
-            };
+            options.url = config.adsUrl + '/campaigns/' + adminCreatedCamp.id;
+            options.json = { cards: cards };
+
             requestUtils.qRequest('put', options, null, { maxAttempts: 30 })
             .then(function(resp) {
                 expect(resp.response.statusCode).toBe(400);
@@ -1740,10 +1490,8 @@ describe('ads campaigns endpoints (E2E):', function() {
         });
 
         it('should return a 401 error if the user is not authenticated', function(done) {
-            options = {
-                url: config.adsUrl + '/campaign/e2e-put1',
-                json: { name: 'mine now' }
-            };
+            options.json = { name: 'mine now' };
+            delete options.jar;
             requestUtils.qRequest('put', options, null, { maxAttempts: 30 }).then(function(resp) {
                 expect(resp.response.statusCode).toBe(401);
                 expect(resp.body).toBe('Unauthorized');
@@ -1755,7 +1503,7 @@ describe('ads campaigns endpoints (E2E):', function() {
         describe('for selfie users', function(done) {
             beforeEach(function() {
                 options = {
-                    url: config.adsUrl + '/campaign/' + selfieCreatedCamp.id,
+                    url: config.adsUrl + '/campaigns/' + selfieCreatedCamp.id,
                     json: {},
                     jar: selfieJar
                 };
@@ -1781,6 +1529,7 @@ describe('ads campaigns endpoints (E2E):', function() {
                 selfieCreatedCamp.cards[0].campaign.startDate = start;
                 selfieCreatedCamp.cards[0].campaign.endDate = end;
                 options.json = { cards: selfieCreatedCamp.cards };
+
                 requestUtils.qRequest('put', options, null, { maxAttempts: 30 }).then(function(resp) {
                     expect(resp.response.statusCode).toBe(200);
                     expect(resp.body.cards[0].campaign.startDate).toEqual(start);
@@ -1797,6 +1546,7 @@ describe('ads campaigns endpoints (E2E):', function() {
                 delete selfieCreatedCamp.cards[0].campaign.startDate;
                 delete selfieCreatedCamp.cards[0].campaign.endDate;
                 options.json = { cards: selfieCreatedCamp.cards };
+
                 requestUtils.qRequest('put', options, null, { maxAttempts: 30 }).then(function(resp) {
                     expect(resp.response.statusCode).toBe(200);
                     expect(resp.body.cards[0].startDate).not.toBeDefined();
@@ -1879,15 +1629,6 @@ describe('ads campaigns endpoints (E2E):', function() {
                     }]);
                     
                     selfieCreatedCamp = resp.body;
-
-                    return q.all(
-                        selfieCreatedCamp.cards.map(function(card) {
-                            return adtech.campaignAdmin.getCampaignByExtId(card.id).then(function(camp) {
-                                testUtils.checkCardCampaign(camp, selfieCreatedCamp, card, [keywords['cat-3']], keptAdvert, keptCust);
-                                return q();
-                            });
-                        })
-                    );
                 }).catch(function(error) {
                     expect(util.inspect(error)).not.toBeDefined();
                 }).done(function(results) { done(); });
@@ -1934,16 +1675,12 @@ describe('ads campaigns endpoints (E2E):', function() {
             
             it('should trim off other forbidden fields', function(done) {
                 options.json = {
-                    advertiserId: 'a-fake',
-                    customerId: 'cu-fake',
                     application: 'proshop',
                     staticCardMap: { 'e2e-fake': { 'rc-pl1': 'e2e-rc-1' } },
                     miniReels: [{ id: 'e-1' }]
                 };
                 requestUtils.qRequest('put', options, null, { maxAttempts: 30 }).then(function(resp) {
                     expect(resp.response.statusCode).toBe(200);
-                    expect(resp.body.advertiserId).toEqual('e2e-a-keepme');
-                    expect(resp.body.customerId).toEqual('e2e-cu-keepme');
                     expect(resp.body.application).toEqual('selfie');
                     expect(resp.body.staticCardMap).not.toBeDefined();
                     expect(resp.body.miniReels).not.toBeDefined();
@@ -1955,7 +1692,7 @@ describe('ads campaigns endpoints (E2E):', function() {
 
             it('should not edit a campaign the user does not own', function(done) {
                 options = {
-                    url: config.adsUrl + '/campaign/e2e-put2',
+                    url: config.adsUrl + '/campaigns/e2e-put2',
                     json: { name: 'mine now' },
                     jar: selfieJar
                 };
@@ -1969,7 +1706,7 @@ describe('ads campaigns endpoints (E2E):', function() {
             
             it('should not edit a campaign not in draft mode', function(done) {
                 options = {
-                    url: config.adsUrl + '/campaign/e2e-put1',
+                    url: config.adsUrl + '/campaigns/e2e-put1',
                     json: { name: 'mine now' },
                     jar: selfieJar
                 };
@@ -1983,94 +1720,72 @@ describe('ads campaigns endpoints (E2E):', function() {
         });
     });
 
-    describe('DELETE /api/campaign/:id', function() {
+    describe('DELETE /api/campaigns/:id', function() {
         beforeEach(function(done) {
             var mockCamps = [
-                { id: 'e2e-del1', status: 'deleted' },
+                {
+                    id: 'e2e-withContent',
+                    status: 'active',
+                    user: 'admin-e2e-user',
+                    org: 'o-admin',
+                    cards: [{ id: 'e2e-rc-1' }, { id: 'e2e-rc-2' }],
+                    miniReels: [{ id: 'e2e-e-1' }, { id: 'e2e-e-2' }]
+                },
+                {
+                    id: 'e2e-selfieContent',
+                    status: 'draft',
+                    user: 'e2e-user',
+                    org: 'o-selfie',
+                    cards: [{ id: 'e2e-rc-1' }]
+                },
                 { id: 'e2e-del2', status: 'active', user: 'e2e-user', org: 'o-selfie' },
-                { id: 'e2e-del3', status: 'draft', user: 'not-e2e-user', org: 'o-selfie' },
                 { id: 'e2e-active', status: 'active', user: 'e2e-user', org: 'o-selfie' },
                 { id: 'e2e-paused', status: 'paused', user: 'e2e-user', org: 'o-selfie' },
                 { id: 'e2e-error', status: 'error', user: 'e2e-user', org: 'o-selfie' },
                 { id: 'e2e-pending', status: 'pending', user: 'e2e-user', org: 'o-selfie' },
                 { id: 'e2e-canceled', status: 'canceled', user: 'e2e-user', org: 'o-selfie' },
-                { id: 'e2e-expired', status: 'expired', user: 'e2e-user', org: 'o-selfie' }
+                { id: 'e2e-expired', status: 'expired', user: 'e2e-user', org: 'o-selfie' },
+                { id: 'e2e-deleted', status: 'deleted', user: 'e2e-user', org: 'o-selfie' }
             ];
             
-            return testUtils.mongoFind(
-                'campaigns',
-                { id: { $in: [adminCreatedCamp.id, selfieCreatedCamp.id] } }
-            ).then(function(results) {
-                mockCamps = mockCamps.concat(results);
-                return testUtils.resetCollection('campaigns', mockCamps);
-            }).done(done);
+            q.all([
+                testUtils.resetCollection('campaigns', mockCamps),
+                testUtils.resetCollection('cards', mockCards),
+                testUtils.resetCollection('experiences', mockExps)
+            ]).done(function(results) { done(); });
         });
 
-        it('should delete campaigns from adtech and set the parent campaign\'s status to deleted', function(done) {
-            var options = {jar: adminJar, url: config.adsUrl + '/campaign/' + adminCreatedCamp.id};
+        it('should delete campaigns and all their content', function(done) {
+            var options = { jar: adminJar, url: config.adsUrl + '/campaigns/e2e-withContent' };
             requestUtils.qRequest('delete', options, null, { maxAttempts: 30 }).then(function(resp) {
                 expect(resp.response.statusCode).toBe(204);
                 expect(resp.body).toBe('');
-                options = {url: config.adsUrl + '/campaign/' + adminCreatedCamp.id, jar: adminJar};
-                return requestUtils.qRequest('get', options);
-            }).then(function(resp) {
-                expect(resp.response.statusCode).toBe(404);
-                expect(resp.body).toBe('Object not found');
+                
+                return q.all([
+                    config.adsUrl + '/campaigns/e2e-withContent',
+                    config.contentUrl + '/cards?ids=e2e-rc-1,e2e-rc-2',
+                    config.contentUrl + '/experiences?ids=e2e-e-1,e2e-e-2',
+                ].map(function(url) {
+                    return requestUtils.qRequest('get', { url: url, jar: adminJar });
+                }));
+            }).spread(function(campResp, cardResp, expResp) {
+                expect(campResp.response.statusCode).toBe(404);
+                expect(campResp.body).toBe('Object not found');
+                expect(cardResp.response.statusCode).toBe(200);
+                expect(cardResp.body).toEqual([]);
+                expect(expResp.response.statusCode).toBe(200);
+                expect(expResp.body).toEqual([]);
             }).catch(function(error) {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
         
-        describe('campaign deletion', function() {
-            it('should delete all adtech campaigns', function(done) {
-                q.allSettled(
-                    adminCreatedCamp.cards.map(function(card) {
-                        return adtech.campaignAdmin.getCampaignByExtId(card.id).catch(adtechErr);
-                    })
-                ).then(function(results) {
-                    results.forEach(function(result) {
-                        expect(result.state).toBe('rejected');
-                        expect(result.reason && result.reason.message).toMatch(/^Unable to locate object: /);
-                    });
-                }).catch(function(error) {
-                    expect(util.inspect(error)).not.toBeDefined();
-                }).done(done);
-            });
-            
-            it('should delete all cards + minireels', function(done) {
-                testUtils.mongoFind(
-                    'experiences',
-                    { id: { $in: ['e2e-e-1', 'e2e-e-2'] } },
-                    { id: 1 }
-                ).then(function(results) {
-                    expect(results[0].id).toBe('e2e-e-1');
-                    expect(results[0].status[0].status).toBe('deleted');
-                    expect(results[1].id).toBe('e2e-e-2');
-                    expect(results[1].status[0].status).toBe('deleted');
-                    
-                    return testUtils.mongoFind(
-                        'cards',
-                        { id: { $in: adminCreatedCamp.cards.map(function(card) { return card.id; }) } },
-                        { id: 1 }
-                    );
-                }).then(function(results) {
-                    expect(results.length).toBe(2);
-                    results.forEach(function(result) {
-                        expect(result.status).toBe('deleted');
-                    });
-                }).catch(function(error) {
-                    expect(util.inspect(error)).not.toBeDefined();
-                }).done(done);
-            });
-        });
-
-        it('should handle campaigns that have no sub-campaigns', function(done) {
-            var options = {jar: adminJar, url: config.adsUrl + '/campaign/e2e-del2'};
+        it('should write to the audit collection', function(done) {
+            var options = { jar: adminJar, url: config.adsUrl + '/campaigns/e2e-del2' };
             requestUtils.qRequest('delete', options, null, { maxAttempts: 30 }).then(function(resp) {
                 expect(resp.response.statusCode).toBe(204);
                 expect(resp.body).toBe('');
                 
-                // Check that it's writing to the audit collection
                 return testUtils.mongoFind('audit', {}, {$natural: -1}, 1, 0, {db: 'c6Journal'});
             }).then(function(results) {
                 expect(results[0].user).toBe('admin-e2e-user');
@@ -2081,21 +1796,15 @@ describe('ads campaigns endpoints (E2E):', function() {
                 expect(results[0].sessionID).toEqual(jasmine.any(String));
                 expect(results[0].service).toBe('ads');
                 expect(results[0].version).toEqual(jasmine.any(String));
-                expect(results[0].data).toEqual({route: 'DELETE /api/campaign/:id',
+                expect(results[0].data).toEqual({route: 'DELETE /api/campaigns/:id',
                                                  params: { id: 'e2e-del2' }, query: {} });
-                
-                options = {url: config.adsUrl + '/campaign/e2e-del2' + adminCreatedCamp.id, jar: selfieJar};
-                return requestUtils.qRequest('get', options);
-            }).then(function(resp) {
-                expect(resp.response.statusCode).toBe(404);
-                expect(resp.body).toBe('Object not found');
             }).catch(function(error) {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
         
         it('should still return a 204 if the campaign has been deleted', function(done) {
-            var options = {jar: adminJar, url: config.adsUrl + '/campaign/e2e-del1'};
+            var options = {jar: adminJar, url: config.adsUrl + '/campaigns/e2e-del1'};
             requestUtils.qRequest('delete', options, null, { maxAttempts: 30 }).then(function(resp) {
                 expect(resp.response.statusCode).toBe(204);
                 expect(resp.body).toBe('');
@@ -2105,7 +1814,7 @@ describe('ads campaigns endpoints (E2E):', function() {
         });
         
         it('should still return a 204 if the campaign does not exist', function(done) {
-            var options = {jar: adminJar, url: config.adsUrl + '/campaign/LDFJDKJFWOI'};
+            var options = {jar: adminJar, url: config.adsUrl + '/campaigns/LDFJDKJFWOI'};
             requestUtils.qRequest('delete', options, null, { maxAttempts: 30 }).then(function(resp) {
                 expect(resp.response.statusCode).toBe(204);
                 expect(resp.body).toBe('');
@@ -2115,7 +1824,7 @@ describe('ads campaigns endpoints (E2E):', function() {
         });
         
         it('should return a 401 error if the user is not authenticated', function(done) {
-            requestUtils.qRequest('delete', {url: config.adsUrl + '/campaign/e2e-del1'})
+            requestUtils.qRequest('delete', {url: config.adsUrl + '/campaigns/e2e-del1'})
             .then(function(resp) {
                 expect(resp.response.statusCode).toBe(401);
                 expect(resp.body).toBe('Unauthorized');
@@ -2126,47 +1835,29 @@ describe('ads campaigns endpoints (E2E):', function() {
 
         describe('for selfie users', function() {
             it('should allow a user to delete campaigns they own', function(done) {
-                var options = {jar: selfieJar, url: config.adsUrl + '/campaign/' + selfieCreatedCamp.id};
+                var options = { jar: selfieJar, url: config.adsUrl + '/campaigns/e2e-selfieContent' };
                 requestUtils.qRequest('delete', options, null, { maxAttempts: 30 }).then(function(resp) {
                     expect(resp.response.statusCode).toBe(204);
                     expect(resp.body).toBe('');
-                    options = {url: config.adsUrl + '/campaign/' + selfieCreatedCamp.id, jar: selfieJar};
-                    return requestUtils.qRequest('get', options);
-                }).then(function(resp) {
-                    expect(resp.response.statusCode).toBe(404);
-                    expect(resp.body).toBe('Object not found');
+                    
+                    return q.all([
+                        config.adsUrl + '/campaigns/e2e-selfieContent',
+                        config.contentUrl + '/cards/e2e-rc-1'
+                    ].map(function(url) {
+                        return requestUtils.qRequest('get', { url: url, jar: adminJar });
+                    }));
+                }).spread(function(campResp, cardResp) {
+                    expect(campResp.response.statusCode).toBe(404);
+                    expect(campResp.body).toBe('Object not found');
+                    expect(cardResp.response.statusCode).toBe(404);
+                    expect(cardResp.body).toBe('Object not found');
                 }).catch(function(error) {
                     expect(util.inspect(error)).not.toBeDefined();
                 }).done(done);
             });
             
-            describe('campaign deletion', function() {
-                it('should delete the card campaign', function(done) {
-                    q.allSettled(
-                        selfieCreatedCamp.cards.map(function(card) {
-                            return adtech.campaignAdmin.getCampaignByExtId(card.id).catch(adtechErr);
-                        })
-                    ).then(function(results) {
-                        results.forEach(function(result) {
-                            expect(result.state).toBe('rejected');
-                            expect(result.reason && result.reason.message).toMatch(/^Unable to locate object: /);
-                        });
-                    }).catch(function(error) {
-                        expect(util.inspect(error)).not.toBeDefined();
-                    }).done(done);
-                });
-                
-                it('should delete the C6 card', function(done) {
-                    testUtils.mongoFind('cards', { id: selfieCreatedCamp.cards[0].id }).then(function(results) {
-                        expect(results[0].status).toBe('deleted');
-                    }).catch(function(error) {
-                        expect(util.inspect(error)).not.toBeDefined();
-                    }).done(done);
-                });
-            });
-        
             it('should not allow a user to delete campaigns they do not own', function(done) {
-                var options = {jar: selfieJar, url: config.adsUrl + '/campaign/e2e-del3'};
+                var options = {jar: selfieJar, url: config.adsUrl + '/campaigns/e2e-withContent'};
                 requestUtils.qRequest('delete', options, null, { maxAttempts: 30 }).then(function(resp) {
                     expect(resp.response.statusCode).toBe(403);
                     expect(resp.body).toBe('Not authorized to delete this');

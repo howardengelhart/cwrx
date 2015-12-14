@@ -664,7 +664,8 @@ describe('ads-campaigns (UT)', function() {
                 cards: [
                     { id: 'rc-1', campaign: {} },
                     { id: 'rc-2', campaign: { reportingId: 'card2' } },
-                    { id: 'rc-3', campaign: {} }
+                    { title: 'new card 1' },
+                    { title: 'new card 2', campaign: { minViewTime: 3 } },
                 ]
             };
             req.origObj = { name: 'campaign 2' };
@@ -689,7 +690,8 @@ describe('ads-campaigns (UT)', function() {
                 expect(req.body.cards).toEqual([
                     { id: 'rc-1', campaign: { reportingId: 'campaign 1' } },
                     { id: 'rc-2', campaign: { reportingId: 'card2' } },
-                    { id: 'rc-3', campaign: { reportingId: 'campaign 1' } }
+                    { title: 'new card 1', campaign: { reportingId: 'campaign 1' } },
+                    { title: 'new card 2', campaign: { minViewTime: 3, reportingId: 'campaign 1' } },
                 ]);
                 done();
             });
@@ -704,7 +706,8 @@ describe('ads-campaigns (UT)', function() {
                 expect(req.body.cards).toEqual([
                     { id: 'rc-1', campaign: { reportingId: 'campaign 2' } },
                     { id: 'rc-2', campaign: { reportingId: 'card2' } },
-                    { id: 'rc-3', campaign: { reportingId: 'campaign 2' } }
+                    { title: 'new card 1', campaign: { reportingId: 'campaign 2' } },
+                    { title: 'new card 2', campaign: { minViewTime: 3, reportingId: 'campaign 2' } },
                 ]);
                 done();
             });

@@ -541,17 +541,4 @@ describe('campaignUtils', function() {
             }).done(done);
         });
     });
-    
-    describe('objectify', function() {
-        it('should transform all of a list\'s items into objects', function() {
-            expect(campaignUtils.objectify(['e1', 'e2', 'bananas'])).toEqual([{id: 'e1'}, {id: 'e2'}, {id: 'bananas'}]);
-            expect(campaignUtils.objectify(['e1', {id: 'e2'}, 'bananas'])).toEqual([{id: 'e1'}, {id: 'e2'}, {id: 'bananas'}]);
-            expect(campaignUtils.objectify([{foo: 'bar'}, {id: 'e2'}, 'bananas'])).toEqual([{foo: 'bar'}, {id: 'e2'}, {id: 'bananas'}]);
-        });
-        
-        it('should just return a non-list param', function() {
-            expect(campaignUtils.objectify(undefined)).toEqual(undefined);
-            expect(campaignUtils.objectify('bananas')).toEqual('bananas');
-        });
-    });
 });

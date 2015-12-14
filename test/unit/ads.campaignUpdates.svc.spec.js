@@ -460,8 +460,7 @@ describe('ads-campaignUpdates (UT)', function() {
                         gender: ['male']
                     },
                     interests: ['cat-3']
-                },
-                cards: undefined
+                }
             } });
         });
         
@@ -477,18 +476,18 @@ describe('ads-campaignUpdates (UT)', function() {
             req.body.data.cards = [{
                 id: 'rc-1',
                 title: 'card 1',
-                campaign: { campaign: 11, adtechName: 'adtech 1' }
+                campaign: { startDate: 'right now' }
             }];
             req.campaign.cards = [
                 {
                     id: 'rc-1',
                     title: 'card 1',
-                    campaign: { campaign: 11, adtechName: 'old name', startDate: 'right now' }
+                    campaign: { startDate: 'eventually', endDate: 'never' }
                 },
                 {
                     id: 'rc-2',
                     title: 'card 2',
-                    campaign: { campaign: 12, adtechName: 'adtech 2' }
+                    campaign: { startDate: 'tomorrow' }
                 }
             ];
             updateModule.validateData(model, req, nextSpy, doneSpy).catch(errorSpy);
@@ -513,7 +512,7 @@ describe('ads-campaignUpdates (UT)', function() {
             expect(req.body.data.cards).toEqual([{
                 id: 'rc-1',
                 title: 'card 1',
-                campaign: { campaign: 11, adtechName: 'adtech 1' }
+                campaign: { startDate: 'right now' }
             }]);
         });
         
@@ -532,7 +531,7 @@ describe('ads-campaignUpdates (UT)', function() {
                     cards: [{
                         id: 'rc-2',
                         title: 'card 2 is da best',
-                        campaign: { campaign: 12, adtechName: 'adtech 2.1' }
+                        campaign: { startDate: 'a long long time ago' }
                     }]
                 } };
             });
@@ -563,7 +562,7 @@ describe('ads-campaignUpdates (UT)', function() {
                 expect(req.body.data.cards).toEqual([{
                     id: 'rc-2',
                     title: 'card 2 is da best',
-                    campaign: { campaign: 12, adtechName: 'adtech 2.1' }
+                    campaign: { startDate: 'a long long time ago' }
                 }]);
             });
         });

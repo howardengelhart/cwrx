@@ -20,7 +20,6 @@ var q               = require('q'),
         privateKey  : '0a150dac004756370706a195e2bde296'
     });
 
-// jasmine.DEFAULT_TIMEOUT_INTERVAL = 90000; // TODO
 jasmine.DEFAULT_TIMEOUT_INTERVAL = 30000;
 
 describe('ads campaignUpdates endpoints (E2E):', function() {
