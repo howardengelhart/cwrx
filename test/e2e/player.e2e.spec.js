@@ -862,9 +862,9 @@ describe('player service', function() {
                 expect(response.body.toString()).toBe('You must specify either an experience, card, campaign or categories.');
             });
 
-            describe('but with standalone=false', function() {
+            describe('but with embed=true', function() {
                 beforeEach(function(done) {
-                    config.playerUrl.query.standalone = false;
+                    config.playerUrl.query.embed = true;
 
                     request.get(getURL()).then(getResponse).then(done, done.fail);
                 });
