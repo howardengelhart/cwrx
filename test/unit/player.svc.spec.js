@@ -930,7 +930,8 @@ describe('player service', function() {
                             launchUrls: ['launch1.gif', 'launch2.gif'],
                             desktop: true,
                             secure: true,
-                            standalone: true
+                            standalone: true,
+                            embed: false
                         };
 
                         document = new HTMLDocument(playerHTML);
@@ -1083,7 +1084,7 @@ describe('player service', function() {
                                 });
                             });
 
-                            describe('but with standalone: false', function() {
+                            describe('but with embed: true', function() {
                                 beforeEach(function(done) {
                                     success.calls.reset();
                                     failure.calls.reset();
@@ -1093,7 +1094,7 @@ describe('player service', function() {
 
                                     player.__getPlayer__.and.returnValue(q(document));
 
-                                    options.standalone = false;
+                                    options.embed = true;
                                     player.get(options).then(success, failure).finally(done);
                                 });
 

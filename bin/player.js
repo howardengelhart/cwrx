@@ -671,7 +671,7 @@ Player.prototype.get = function get(/*options*/) {
     var card = options.card;
     var campaign = options.campaign;
     var categories = options.categories;
-    var standalone = options.standalone;
+    var embed = options.embed;
 
     log.trace('[%1] Getting player with options (%2.)', uuid, inspect(options));
 
@@ -711,7 +711,7 @@ Player.prototype.get = function get(/*options*/) {
     }
 
     if (!(experience || card || campaign || categories)) {
-        if (!standalone) {
+        if (embed) {
             return this.__getPlayer__(type, secure, uuid).then(stringify);
         }
 
