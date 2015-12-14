@@ -1,6 +1,5 @@
 # Ads Service Changelog
 
-* [BREAKING CHANGE]: Do not store `advertiser` ids on users: [#697](https://github.com/cinema6/cwrx/pull/697)
 * [BREAKING CHANGE]: Do not create Adtech advertisers: [#678](https://github.com/cinema6/cwrx/issues/678)
 * [REMOVAL]: Remove the customers service: [#679](https://github.com/cinema6/cwrx/issues/679)
 * [BREAKING CHANGE]: Do not create Adtech Websites, Pages, and Placements for sites: [#680](https://github.com/cinema6/cwrx/issues/680)
