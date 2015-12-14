@@ -45,7 +45,7 @@
             skip: {
                 __allowed: false,
                 __required: true,
-                __default: 30
+                __default: 5
             },
             controls: {
                 __allowed: false,

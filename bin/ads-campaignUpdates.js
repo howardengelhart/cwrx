@@ -214,10 +214,6 @@
         }
         objUtils.extend(mergedData, req.campaign, true);
         
-        // ensure cards only set on request if user defined them for update
-        //TODO: do we need this line anymore? can we default to taking req.campaign.cards?
-        mergedData.cards = req.body.data.cards || (origData && origData.cards) || undefined;
-
         req.body.data = mergedData;
         delete req.body.data.rejectionReason;
 
@@ -372,6 +368,7 @@
         
         return mongoUtils.editObject(svc._db.collection('campaigns'), updateObj, req.campaign.id)
         .then(function() {
+            log.trace('[%1] Edited %2 with pending status', req.uuid, req.campaign.id);
             next();
         });
     };

@@ -413,6 +413,9 @@
         }
         
         req.body.cards.forEach(function(card) {
+            if (!card.id) { // can safely initialize campaign hash to {} for new cards
+                card.campaign = card.campaign || {};
+            }
             if (card.campaign && !card.campaign.reportingId) {
                 card.campaign.reportingId = req.body.name || (req.origObj && req.origObj.name);
             }

@@ -254,7 +254,7 @@ describe('content-cards (UT)', function() {
                 expect(svc.model.validate('create', newObj, origObj, requester))
                     .toEqual({ isValid: true, reason: undefined });
                 expect(newObj.data).toEqual({
-                    skip: 30,
+                    skip: 5,
                     controls: true,
                     autoplay: true,
                     autoadvance: false,
@@ -267,7 +267,7 @@ describe('content-cards (UT)', function() {
                     newObj.data.skip = 666;
                     expect(svc.model.validate('create', newObj, origObj, requester))
                         .toEqual({ isValid: true, reason: undefined });
-                    expect(newObj.data.skip).toBe(30);
+                    expect(newObj.data.skip).toBe(5);
                 });
                 
                 it('should be able to allow some requesters to set the field', function() {
@@ -288,7 +288,7 @@ describe('content-cards (UT)', function() {
                     newObj.data.skip = null;
                     expect(svc.model.validate('create', newObj, origObj, requester))
                         .toEqual({ isValid: true, reason: undefined });
-                    expect(newObj.data.skip).toBe(30);
+                    expect(newObj.data.skip).toBe(5);
                 });
             });
             
