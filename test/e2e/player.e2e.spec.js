@@ -881,6 +881,24 @@ describe('player service', function() {
                     expect(parsed.experience).toBeNull();
                     expect($('base').attr('href')).toBe('http://localhost/apps/mini-reel-player/v1.0.0-rc2-0-ga4912c3/');
                 });
+
+                describe('and a branding', function() {
+                    beforeEach(function(done) {
+                        config.playerUrl.query.branding = 'digitaljournal';
+
+                        request.get(getURL()).then(getResponse).then(done, done.fail);
+                    });
+
+                    it('should inline the branding', function() {
+                        var $branding = $('head style[data-href="http://localhost/collateral/branding/digitaljournal/styles/lightbox/theme.css"]');
+                        var $brandingHover = $('head style[data-href="http://localhost/collateral/branding/digitaljournal/styles/lightbox/theme--hover.css"]');
+
+                        expect($branding.length).toBe(1);
+                        expect($branding.text().length).toBeGreaterThan(500);
+                        expect($brandingHover.length).toBe(1);
+                        expect($brandingHover.text().length).toBeGreaterThan(500);
+                    });
+                });
             });
         });
 
