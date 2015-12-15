@@ -204,8 +204,6 @@
         var mergedData = {},
             origData = req.origObj && req.origObj.data;
             
-        //TODO: reconsider all this extending...
-            
         objUtils.extend(mergedData, req.body.data);
 
         // set the ignoreArrays flag for objUtils.extend so array entries not merged        

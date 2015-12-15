@@ -1,11 +1,8 @@
 var q               = require('q'),
-    adtech          = require('adtech'),
     braintree       = require('braintree'),
     request         = require('request'),
     util            = require('util'),
     testUtils       = require('./testUtils'),
-    adtechErr       = testUtils.handleAdtechError,
-    keywords        = testUtils.keyMap,
     requestUtils    = require('../../lib/requestUtils'),
     host            = process.env.host || 'localhost',
     config = {
@@ -24,7 +21,7 @@ jasmine.DEFAULT_TIMEOUT_INTERVAL = 30000;
 
 describe('ads campaignUpdates endpoints (E2E):', function() {
     var selfieJar, adminJar, testPolicies, createdCamp, createdCampDecorated,
-        keptAdvert, keptCust, mailman, selfieCredit, selfiePaypal, adminCredit, mockOrgs;
+        mailman, selfieCredit, selfiePaypal, adminCredit, mockOrgs;
 
     beforeAll(function(done) {
 
@@ -142,26 +139,6 @@ describe('ads campaignUpdates endpoints (E2E):', function() {
         });
     });
     
-    // Initialize adtech client
-    beforeAll(function(done) {
-        adtech.createClient().catch(adtechErr).done(function(resp) { done(); });
-    });
-
-    // Setup an advertiser + customer in mongo so we can use them to create campaigns.
-    beforeAll(function(done) {
-        q.all([
-            adtech.customerAdmin.getCustomerByExtId('e2e-cu-keepme').catch(adtechErr),
-            adtech.customerAdmin.getAdvertiserByExtId('e2e-a-keepme').catch(adtechErr)
-        ]).spread(function(customer, advertiser) {
-            keptCust = { id: 'e2e-cu-keepme', status: 'active', name: customer.name, adtechId: customer.id };
-            keptAdvert = { id: 'e2e-a-keepme', status: 'active', name: advertiser.name, adtechId: advertiser.id };
-            return q.all([
-                testUtils.resetCollection('advertisers', keptAdvert),
-                testUtils.resetCollection('customers', keptCust)
-            ]);
-        }).done(function(results) { done(); });
-    });
-    
     // Initialize orgs with Braintree customers + payment methods
     beforeAll(function(done) {
         mockOrgs = [
@@ -205,8 +182,7 @@ describe('ads campaignUpdates endpoints (E2E):', function() {
                 customerId: 'e2e-cu-keepme',
                 targeting: { interests: ['cat-1'] },
                 cards: [{
-                    title: 'my test card',
-                    campaign: { adtechName: 'orig adtech name' }
+                    title: 'my test card'
                 }]
             }
         }).then(function(resp) {
@@ -214,19 +190,14 @@ describe('ads campaignUpdates endpoints (E2E):', function() {
                 done.fail(util.inspect({ code: resp.response.statusCode, body: resp.body }));
             }
             createdCampDecorated = resp.body;
-        }).done(done, done.fail);
-    });
-    
-    // Lookup + save created campaign before all tests; as long as this is used in resetCollection, changes to campaign will not persist
-    beforeEach(function(done) { //TODO: may have to come back to this for PUTs
-        testUtils.mongoFind('campaigns', { id: createdCampDecorated.id }).then(function(results) {
-            if (!results[0]) {
-                return q.reject('Created campaign ' + createdCampDecorated.id + ' has mysteriously disappeared');
-            }
+            
+            return testUtils.mongoFind('campaigns', { id: createdCampDecorated.id });
+        }).then(function(results) {
+            // As long as createdCamp is used in resetCollection, changes to this campaign will not persist
             createdCamp = results[0];
         }).done(done, done.fail);
     });
-
+    
     // Setup mailman for receiving email messages
     beforeEach(function(done) {
         if (mailman && mailman.state === 'authenticated') {
@@ -285,7 +256,7 @@ describe('ads campaignUpdates endpoints (E2E):', function() {
     }
 
 
-    fdescribe('GET /api/campaigns/:campId/updates/:id', function() {
+    describe('GET /api/campaigns/:campId/updates/:id', function() {
         var options;
         beforeEach(function(done) {
             options = {
@@ -379,7 +350,7 @@ describe('ads campaignUpdates endpoints (E2E):', function() {
         });
     });
 
-    fdescribe('GET /api/campaigns/:campId/updates/', function() {
+    describe('GET /api/campaigns/:campId/updates/', function() {
         var options;
         beforeEach(function(done) {
             options = {
@@ -540,7 +511,7 @@ describe('ads campaignUpdates endpoints (E2E):', function() {
         });
     });
 
-    fdescribe('POST /api/campaigns/:campId/updates', function() {
+    describe('POST /api/campaigns/:campId/updates', function() {
         var options, mockCamps, msgSubject;
         beforeEach(function(done) {
             msgSubject = 'New update request from Heinz for campaign "e2e test 1"';
@@ -751,7 +722,7 @@ describe('ads campaignUpdates endpoints (E2E):', function() {
                     }).done(done);
                 });
             });
-            /*
+/* paymentMethod not required for demo
             it('should return a 400 if POSTing an initial submit request but no paymentMethod is set yet', function(done) {
                 mailman.once(msgSubject, function(msg) {
                     expect(msg).not.toBeDefined();
@@ -777,7 +748,7 @@ describe('ads campaignUpdates endpoints (E2E):', function() {
                     expect(util.inspect(error)).not.toBeDefined();
                 }).done(done);
             });
-            */
+*/
         });
         
         describe('if creating an update for a campaign with cards', function() {
@@ -813,13 +784,11 @@ describe('ads campaignUpdates endpoints (E2E):', function() {
                     expect(resp.body.data).toEqual(jasmine.objectContaining({
                         id: createdCamp.id,
                         name: 'updated name',
-                        cards: [ jasmine.objectContaining({
+                        cards: [{
                             id: createdCampDecorated.cards[0].id,
-                            status: 'active',
-                            title: 'Brand New Title!',
-                            campaign: createdCampDecorated.cards[0].campaign,
-                            data: createdCampDecorated.cards[0].data
-                        }) ]
+                            campaignId: createdCampDecorated.id,
+                            title: 'Brand New Title!'
+                        }]
                     }));
                     createdUpdate = resp.body;
                 }).catch(function(error) {
@@ -853,9 +822,7 @@ describe('ads campaignUpdates endpoints (E2E):', function() {
                 };
                 options.json.data.cards[0].campaign = {
                     minViewTime: 55,
-                    adtechId: 666,
-                    bannerId: 9876,
-                    bannerNumber: 55
+                    reportingId: createdCampDecorated.cards[0].campaign.reportingId
                 };
                 requestUtils.qRequest('post', options).then(function(resp) {
                     expect(resp.response.statusCode).toBe(201);
@@ -870,17 +837,16 @@ describe('ads campaignUpdates endpoints (E2E):', function() {
                     expect(resp.body.user).toBe('e2e-user');
                     expect(resp.body.org).toBe('o-selfie');
                     expect(resp.body.data).toEqual(jasmine.objectContaining({
-                        id: createdCamp.id,
+                        id: createdCampDecorated.id,
                         name: 'updated name',
                         cards: [ jasmine.objectContaining({
                             id: createdCampDecorated.cards[0].id,
-                            status: 'active',
+                            campaignId: createdCampDecorated.id,
                             title: 'Brand New Title!',
                             campaign: createdCampDecorated.cards[0].campaign,
                             data: createdCampDecorated.cards[0].data
                         }) ]
                     }));
-                    createdUpdate = resp.body;
                 }).catch(function(error) {
                     expect(util.inspect(error)).not.toBeDefined();
                     done();
@@ -944,8 +910,6 @@ describe('ads campaignUpdates endpoints (E2E):', function() {
                 name: 'updated name',
                 miniReels: [{ id: 'e-1' }],
                 staticCardMap: { foo: 'bar' },
-                advertiserId: 'a-fake',
-                customerId: 'cu-fake',
                 rejectionReason: 'i am a bad selfie user',
             };
             
@@ -959,8 +923,6 @@ describe('ads campaignUpdates endpoints (E2E):', function() {
                 expect(resp.body.status).toBe('pending');
                 expect(resp.body.data.name).toBe('updated name');
                 expect(resp.body.data.miniReels).not.toBeDefined();
-                expect(resp.body.data.advertiserId).toBe('e2e-a-keepme');
-                expect(resp.body.data.customerId).toBe('e2e-cu-keepme');
                 expect(resp.body.data.staticCardMap).not.toBeDefined();
                 expect(resp.body.data.rejectionReason).not.toBeDefined();
                 createdUpdate = resp.body;
@@ -1040,7 +1002,7 @@ describe('ads campaignUpdates endpoints (E2E):', function() {
     });
 
     describe('PUT /api/campaigns/:campId/updates/:id', function() {
-        var options, mockCamps, mockUpdates, approveSubject, rejectSubject, createdCamp;
+        var options, mockCamps, mockUpdates, approveSubject, rejectSubject;
         beforeEach(function(done) {
             approveSubject = 'Your Campaign Change Request Has Been Approved';
             rejectSubject = 'Your Campaign Change Request Has Been Rejected';
@@ -1342,62 +1304,37 @@ describe('ads campaignUpdates endpoints (E2E):', function() {
             });
         });
         
-        describe('if the update was modifying the campaign\'s cards', function(done) { //TODO: redo
+        describe('if the update was modifying the campaign\'s cards', function(done) {
             beforeEach(function(done) {
-                requestUtils.qRequest('post', {
-                    url: config.adsUrl + '/campaigns/',
-                    jar: selfieJar,
-                    json: {
-                        name: 'camp with card',
-                        advertiserId: 'e2e-a-keepme',
-                        customerId: 'e2e-cu-keepme',
-                        targeting: { interests: ['cat-1'] },
+                var mockUpdate = {
+                    id: 'ur-cards',
+                    status: 'pending',
+                    user: 'e2e-user',
+                    org: 'o-selfie',
+                    campaign: createdCampDecorated.id,
+                    data: {
                         cards: [{
-                            title: 'my test card',
-                            campaign: { adtechName: 'old adtech name', minViewTime: 3 }
+                            id: createdCampDecorated.cards[0].id,
+                            title: 'test card 2.0',
+                            data: createdCampDecorated.cards[0].data
                         }]
                     }
-                }).then(function(resp) {
-                    if (resp.response.statusCode !== 201) {
-                        done.fail(util.inspect({ code: resp.response.statusCode, body: resp.body }));
-                    }
-                    createdCamp = resp.body;
-                    
-                    var mockUpdate = {
-                        id: 'ur-cards',
-                        status: 'pending',
-                        user: 'e2e-user',
-                        org: 'o-selfie',
-                        campaign: createdCamp.id,
-                        data: {
-                            cards: [{
-                                id: createdCamp.cards[0].id,
-                                title: 'test card 2.0',
-                                campaign: {
-                                    adtechName: 'new adtech name',
-                                    minViewTime: 3
-                                }
-                            }],
-                            targeting: {
-                                interests: ['cat-2', 'cat-3']
-                            }
-                        }
-                    };
-                    
-                    createdCamp.updateRequest = 'ur-cards';
-                    
-                    return q.all([
-                        testUtils.resetCollection('campaignUpdates', mockUpdate),
-                        testUtils.resetCollection('campaigns', createdCamp),
-                    ]);
-                }).done(function() { done(); });
+                };
+                mockUpdate.data.cards[0].data.videoid = 'v123';
+                
+                createdCamp.updateRequest = 'ur-cards';
+                
+                return q.all([
+                    testUtils.resetCollection('campaignUpdates', mockUpdate),
+                    testUtils.resetCollection('campaigns', createdCamp),
+                ]).done(function() { done(); });
             });
 
             it('should apply edits to the cards as well', function(done) {
                 mailman.once(rejectSubject, function(msg) { expect(msg).not.toBeDefined(); });
 
                 options = {
-                    url: config.adsUrl + '/campaigns/' + createdCamp.id + '/updates/ur-cards',
+                    url: config.adsUrl + '/campaigns/' + createdCampDecorated.id + '/updates/ur-cards',
                     json: { status: 'approved' },
                     jar: adminJar
                 };
@@ -1410,41 +1347,35 @@ describe('ads campaignUpdates endpoints (E2E):', function() {
 
                     expect(resp.body.id).toEqual('ur-cards');
                     expect(resp.body.status).toBe('approved');
-                    expect(resp.body.campaign).toBe(createdCamp.id);
+                    expect(resp.body.campaign).toBe(createdCampDecorated.id);
                 }).catch(function(error) {
                     expect(util.inspect(error)).not.toBeDefined();
                     done();
                 });
 
                 mailman.once(approveSubject, function(msg) {
-                    testApprovalMsg(msg, createdCamp, false);
+                    testApprovalMsg(msg, createdCampDecorated, false);
                     
                     // test that campaign successfully edited
                     requestUtils.qRequest('get', {
-                        url: config.adsUrl + '/campaigns/' + createdCamp.id,
+                        url: config.adsUrl + '/campaigns/' + createdCampDecorated.id,
                         jar: selfieJar
                     }).then(function(resp) {
                         expect(resp.response.statusCode).toBe(200);
                         expect(resp.body.updateRequest).not.toBeDefined();
-                        expect(resp.body.targeting).toEqual({ interests: ['cat-2', 'cat-3'] });
                         expect(resp.body.cards[0].title).toBe('test card 2.0');
-                        expect(resp.body.cards[0].campaign).toEqual({
-                            adtechName: 'new adtech name',
-                            adtechId: createdCamp.cards[0].campaign.adtechId,
-                            bannerId: createdCamp.cards[0].campaign.bannerId,
-                            bannerNumber: createdCamp.cards[0].campaign.bannerNumber,
-                            reportingId: jasmine.any(String),
-                            minViewTime: 3
+                        expect(resp.body.cards[0].campaign).toEqual(createdCampDecorated.cards[0].campaign);
+                        expect(resp.body.cards[0].data).toEqual({
+                            skip: 5,
+                            controls: true,
+                            autoplay: true,
+                            autoadvance: false,
+                            moat: createdCampDecorated.cards[0].data.moat,
+                            videoid: 'v123'
                         });
                         
-                        createdCamp = resp.body;
-                        
-                        return adtech.campaignAdmin.getCampaignByExtId(resp.body.cards[0].id);
-                    }).then(function(adtechCamp) {
-                        testUtils.checkCardCampaign(adtechCamp, createdCamp, createdCamp.cards[0], [keywords['cat-2'], keywords['cat-3']], keptAdvert, keptCust);
-                        
-                        return testUtils.checkCardEntities(createdCamp, adminJar, config.contentUrl);
-
+                        createdCampDecorated = resp.body;
+                        return testUtils.checkCardEntities(createdCampDecorated, adminJar, config.contentUrl);
                     }).catch(function(error) {
                         expect(util.inspect(error)).not.toBeDefined();
                     }).done(done);
