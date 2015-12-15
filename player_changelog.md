@@ -3,6 +3,8 @@
 ### 1.4.0: Mon Dec 14 13:40:01 EST 2015
 * Allow a player to be fetched without a creative (experience/card) if
   embed mode is enabled: [#702](https://github.com/cinema6/cwrx/pull/702)
+* Make sure the branding param is respected when delivering a player with no
+  experience: [#705](https://github.com/cinema6/cwrx/pull/705)
 
 ### 1.3.0: Mon Dec  7 16:37:44 EST 2015
 * Allow a player to be fetched without a creative (experience/card) if

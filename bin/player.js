@@ -672,6 +672,7 @@ Player.prototype.get = function get(/*options*/) {
     var campaign = options.campaign;
     var categories = options.categories;
     var embed = options.embed;
+    var branding = options.branding;
 
     log.trace('[%1] Getting player with options (%2.)', uuid, inspect(options));
 
@@ -690,19 +691,29 @@ Player.prototype.get = function get(/*options*/) {
         return experience;
     }
 
-    function loadBranding(experience) {
-        var branding = experience.data.branding;
+    function loadBranding(branding) {
+        return function inlineBranding(document) {
+            if (!branding) {
+                log.trace('[%1] branding is %2. Skipping branding load.', uuid, branding);
+                return q(document);
+            }
 
-        if (!branding) {
-            log.trace(
-                '[%1] Experience {%2} has no branding. Skipping branding load.',
-                uuid, experience.id
-            );
+            return self.__getBranding__(branding, type, desktop, uuid).then(function add(items) {
+                items.forEach(function addBrandingCSS(branding) {
+                    var src = branding.src;
+                    var contents = branding.styles;
 
-            return q([]);
-        }
+                    log.trace(
+                        '[%1] Inlining branding CSS (%2) into %3 player HTML.',
+                        uuid, src, type
+                    );
 
-        return self.__getBranding__(branding, type, desktop, uuid);
+                    document.addCSS(src, contents);
+                });
+
+                return document;
+            });
+        };
     }
 
     function stringify(document) {
@@ -712,7 +723,9 @@ Player.prototype.get = function get(/*options*/) {
 
     if (!(experience || card || campaign || categories)) {
         if (embed) {
-            return this.__getPlayer__(type, secure, uuid).then(stringify);
+            return this.__getPlayer__(type, secure, uuid)
+                .then(loadBranding(branding))
+                .then(stringify);
         }
 
         return q.reject(new ServiceError(
@@ -741,21 +754,10 @@ Player.prototype.get = function get(/*options*/) {
 
         addTrackingPixels(experience);
 
-        return loadBranding(experience).then(function inlineResources(brandings) {
-            brandings.forEach(function addBrandingCSS(branding) {
-                var src = branding.src;
-                var contents = branding.styles;
+        log.trace('[%1] Adding experience (%2) to %3 player HTML.', uuid, experience.id, type);
+        document.addResource('experience', 'application/json', experience);
 
-                log.trace('[%1] Inlining branding CSS (%2) into %3 player HTML.', uuid, src, type);
-
-                document.addCSS(src, contents);
-            });
-
-            log.trace('[%1] Adding experience (%2) to %3 player HTML.', uuid, experience.id, type);
-            document.addResource('experience', 'application/json', experience);
-
-            return document;
-        });
+        return loadBranding(experience.data.branding)(document);
     }).then(stringify);
 };
 
