@@ -37,7 +37,7 @@ describe('ads advertisers endpoints (E2E):', function() {
             org: 'o-selfie',
             policies: ['manageOrgAdverts']
         };
-        testPolicies = [
+        var testPolicies = [
             {
                 id: 'p-e2e-allAdverts',
                 name: 'manageAllAdverts',

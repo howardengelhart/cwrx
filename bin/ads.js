@@ -35,7 +35,6 @@
             reviewLink: 'http://localhost:9000/#/apps/selfie/campaigns/manage/:campId/admin',
             dashboardLink: 'http://localhost:9000/#/apps/selfie/campaigns'
         },
-        //TODO: cookbook changes, incl. removing config vars
         api: {
             root: 'http://localhost',   // for proxying requests
             experiences: {

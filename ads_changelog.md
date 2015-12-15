@@ -1,5 +1,6 @@
 # Ads Service Changelog
 
+* [BREAKING CHANGE]: Do not create Adtech campaigns: [#677](https://github.com/cinema6/cwrx/issues/677)
 * [BREAKING CHANGE]: Do not create Adtech advertisers: [#678](https://github.com/cinema6/cwrx/issues/678)
 * [REMOVAL]: Remove the customers service: [#679](https://github.com/cinema6/cwrx/issues/679)
 * [BREAKING CHANGE]: Do not create Adtech Websites, Pages, and Placements for sites: [#680](https://github.com/cinema6/cwrx/issues/680)
@@ -8,6 +9,7 @@
     * Update existing advertisers with `org` ids
     * Update system user's policy with `fieldValidation` for advertisers
     * Update selfie users with policy with read scope `'org'` for advertisers
+    * Deploy version 2.0.0 of ads cookbook (can be done after cwrx deploy)
 
 ### 3.0.7: Mon Dec  7 16:20:01 EST 2015
 * Support pricing per geo/demo subcategory and pricing for any geo/demo subcategory: [#688](https://github.com/cinema6/cwrx/issues/688)
