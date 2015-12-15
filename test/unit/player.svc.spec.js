@@ -1095,6 +1095,7 @@ describe('player service', function() {
                                     player.__getPlayer__.and.returnValue(q(document));
 
                                     options.embed = true;
+                                    delete options.branding;
                                     player.get(options).then(success, failure).finally(done);
                                 });
 
@@ -1110,6 +1111,54 @@ describe('player service', function() {
 
                                 it('should fulfill with the document as a String', function() {
                                     expect(success).toHaveBeenCalledWith(document.toString());
+                                });
+
+                                describe('and a branding', function() {
+                                    var brandings;
+
+                                    beforeEach(function(done) {
+                                        success.calls.reset();
+                                        failure.calls.reset();
+                                        player.__loadExperience__.calls.reset();
+                                        player.__loadCard__.calls.reset();
+                                        player.__getPlayer__.calls.reset();
+                                        spyOn(document, 'addCSS').and.callThrough();
+
+                                        brandings = [
+                                            { src: 'theme.css', styles: 'body { padding: 10px; }' },
+                                            { src: 'theme--hover.css', styles: 'body { margin: 20px; }' }
+                                        ];
+                                        spyOn(player, '__getBranding__').and.returnValue(q(brandings));
+
+                                        options.branding = 'rcplatform';
+
+                                        player.get(options).then(success, failure).finally(done);
+                                    });
+
+                                    it('should not call __loadExperience__() or __loadCard__()', function() {
+                                        [player.__loadExperience__, player.__loadCard__].forEach(function(spy) {
+                                            expect(spy).not.toHaveBeenCalled();
+                                        });
+                                    });
+
+                                    it('should call __getPlayer__()', function() {
+                                        expect(player.__getPlayer__).toHaveBeenCalledWith(options.type, options.secure, options.uuid);
+                                    });
+
+                                    it('should loading brandings for the player', function() {
+                                        expect(player.__getBranding__).toHaveBeenCalledWith(options.branding, options.type, options.desktop, options.uuid);
+                                    });
+
+                                    it('should add the brandings as a resource', function() {
+                                        expect(brandings.length).toBeGreaterThan(0);
+                                        brandings.forEach(function(branding) {
+                                            expect(document.addCSS).toHaveBeenCalledWith(branding.src, branding.styles);
+                                        });
+                                    });
+
+                                    it('should resolve to the player as a string of HTML', function() {
+                                        expect(success).toHaveBeenCalledWith(document.toString());
+                                    });
                                 });
                             });
                         });
