@@ -72,6 +72,46 @@ describe('AdLoader()', function() {
     describe('static:', function() {
         describe('@public', function() {
             describe('methods:', function() {
+                describe('isSponsored(card)', function() {
+                    var card;
+
+                    beforeEach(function() {
+                        card = {};
+                    });
+
+                    describe('if the card has a campaignId', function() {
+                        beforeEach(function() {
+                            card.campaignId = 'cam-8h6r5bv674e5tg';
+                        });
+
+                        it('should be true', function() {
+                            expect(AdLoader.isSponsored(card)).toBe(true);
+                        });
+                    });
+
+                    describe('if the card has no campaignId', function() {
+                        beforeEach(function() {
+                            delete card.campaignId;
+                        });
+
+                        it('should be false', function() {
+                            expect(AdLoader.isSponsored(card)).toBe(false);
+                        });
+                    });
+
+                    [null, undefined, 33, true, false, {}, []].forEach(function(value) {
+                        describe('if the card\'s campaignId is ' + value, function() {
+                            beforeEach(function() {
+                                card.campaignId = value;
+                            });
+
+                            it('should be false', function() {
+                                expect(AdLoader.isSponsored(card)).toBe(false);
+                            });
+                        });
+                    });
+                });
+
                 describe('addTrackingPixels(pixels, card)', function() {
                     var pixels, card;
                     var originalCard;
