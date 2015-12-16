@@ -424,24 +424,13 @@
                     return q();
                 }
                 
-                card.advertiserId = camp.advertiserId;
                 card.params = card.params || {};
                 card.campaign = card.campaign || {};
                 card.params.sponsor = camp.advertiserDisplayName || card.params.sponsor;
-                
-                var campEntry = (camp.cards || []).filter(function(cardObj) {
-                    return cardObj.id === card.id;
-                })[0] || {};
 
-                card.adtechId = card.campaign.adtechId || campEntry.adtechId;
-                card.bannerId = card.campaign.bannerNumber || campEntry.bannerNumber;
-
-                // don't show card without an adtechId
-                if (!card.adtechId) {
-                    log.warn('[%1] No adtechId for %2 in cards list of %3',
-                             req.uuid, card.id, camp.id);
-                    return q();
-                }
+                //TODO: Kept for backwards compatibility with player service, remove eventually
+                card.adtechId = card.campaign.adtechId;
+                card.bannerId = card.campaign.bannerNumber;
                 
                 return card;
             });

@@ -1,5 +1,7 @@
 # Content Service Changelog
 
+* Do not require `adtechId` to return card from public endpoint: [#672](https://github.com/cinema6/cwrx/issues/672)
+
 ### 3.4.0: Tue Dec 15 10:07:02 EST 2015
 * [FEATURE]: Support tracking of video buffering: [#699](https://github.com/cinema6/cwrx/pull/699)
 * [FEATURE]: Support tracking of delay for all pixel events: [#699](https://github.com/cinema6/cwrx/pull/699)

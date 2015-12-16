@@ -111,7 +111,7 @@ describe('content card endpoints (E2E):', function() {
             mockCards = [
                 {
                     id: 'e2e-pubget1',
-                    campaign: { adtechId: 100, bannerNumber: 10, adtechName: 'adtech sux' },
+                    campaign: { minViewTime: 3 },
                     campaignId: 'cam-cards-e2e1',
                     status: 'active',
                     user: 'e2e-user',
@@ -119,10 +119,10 @@ describe('content card endpoints (E2E):', function() {
                 },
                 { id: 'e2e-pubget2', campaignId: 'cam-cards-e2e1', status: 'inactive', user: 'e2e-user', org: 'e2e-org' },
                 { id: 'e2e-pubget3', campaignId: 'cam-cards-e2e1', status: 'deleted', user: 'e2e-user', org: 'e2e-org' },
-                { id: 'e2e-draftCamp', campaign: { adtechId: 123 }, campaignId: 'cam-cards-e2e2', status: 'active', user: 'e2e-user', org: 'e2e-org' },
-                { id: 'e2e-canceledCamp', campaign: { adtechId: 123 }, campaignId: 'cam-cards-e2e3', status: 'active', user: 'e2e-user', org: 'e2e-org' },
-                { id: 'e2e-expiredCamp', campaign: { adtechId: 123 }, campaignId: 'cam-cards-e2e4', status: 'active', user: 'e2e-user', org: 'e2e-org' },
-                { id: 'rc-deletedCamp', campaign: { adtechId: 123 }, campaignId: 'cam-cards-e2e5', status: 'active', user: 'e2e-user', org: 'e2e-org' },
+                { id: 'e2e-draftCamp', campaign: { minViewTime: 3 }, campaignId: 'cam-cards-e2e2', status: 'active', user: 'e2e-user', org: 'e2e-org' },
+                { id: 'e2e-canceledCamp', campaign: { minViewTime: 3 }, campaignId: 'cam-cards-e2e3', status: 'active', user: 'e2e-user', org: 'e2e-org' },
+                { id: 'e2e-expiredCamp', campaign: { minViewTime: 3 }, campaignId: 'cam-cards-e2e4', status: 'active', user: 'e2e-user', org: 'e2e-org' },
+                { id: 'rc-deletedCamp', campaign: { minViewTime: 3 }, campaignId: 'cam-cards-e2e5', status: 'active', user: 'e2e-user', org: 'e2e-org' },
             ];
             mockCamps = [
                 {
@@ -161,14 +161,9 @@ describe('content card endpoints (E2E):', function() {
                         id: 'e2e-pubget1',
                         status: 'active',
                         campaignId: 'cam-cards-e2e1',
-                        advertiserId: 'a-1',
                         params: { sponsor: 'Heinz' },
-                        adtechId: 100,
-                        bannerId: 10,
                         campaign: {
-                            adtechId: 100,
-                            bannerNumber: 10,
-                            adtechName: 'adtech sux',
+                            minViewTime: 3,
                             bufferUrls: [jasmine.any(String)],
                             viewUrls: [jasmine.any(String)],
                             playUrls: [jasmine.any(String)],
@@ -228,7 +223,7 @@ describe('content card endpoints (E2E):', function() {
                 options.qs.preview = true;
                 requestUtils.qRequest('get', options).then(function(resp) {
                     expect(resp.response.statusCode).toBe(200);
-                    expect(resp.body.campaign).toEqual({ adtechId: 100, bannerNumber: 10, adtechName: 'adtech sux' });
+                    expect(resp.body.campaign).toEqual({ minViewTime: 3 });
                 }).then(done,done.fail);
             });
 
@@ -237,9 +232,7 @@ describe('content card endpoints (E2E):', function() {
                 requestUtils.qRequest('get', options).then(function(resp) {
                     expect(resp.response.statusCode).toBe(200);
                     expect(resp.body.campaign).toEqual({
-                        adtechId: 100,
-                        bannerNumber: 10,
-                        adtechName: 'adtech sux',
+                        minViewTime: 3,
                         bufferUrls: [jasmine.any(String)],
                         viewUrls: [jasmine.any(String)],
                         playUrls: [jasmine.any(String)],
@@ -261,10 +254,7 @@ describe('content card endpoints (E2E):', function() {
                         id: 'e2e-pubget1',
                         status: 'active',
                         campaignId: 'cam-cards-e2e1',
-                        advertiserId: 'a-1',
                         params: { sponsor: 'Heinz' },
-                        adtechId: 100,
-                        bannerId: 10,
                         campaign: jasmine.any(Object)
                     });
                     
@@ -281,6 +271,7 @@ describe('content card endpoints (E2E):', function() {
                 beforeEach(function(done) {
                     mockCards.push({
                         id: 'e2e-pubgetlinks',
+                        campaign: { adtechId: 14, bannerNumber: 2 },
                         campaignId: 'cam-links',
                         status: 'active',
                         user: 'e2e-user',
@@ -295,7 +286,7 @@ describe('content card endpoints (E2E):', function() {
                             pinterest: 'http://pntrst.com'
                         }
                     });
-                    mockCamps[0].cards.push({ id: 'e2e-pubgetlinks', adtechId: 14, bannerNumber: 2 });
+                    mockCamps[0].cards.push({ id: 'e2e-pubgetlinks' });
                     mockCamps[0].id = 'cam-links';
                     options.url = config.contentUrl + '/public/content/cards/e2e-pubgetlinks';
                     q.all([
@@ -311,7 +302,6 @@ describe('content card endpoints (E2E):', function() {
                             id: 'e2e-pubgetlinks',
                             status: 'active',
                             campaignId: 'cam-links',
-                            advertiserId: 'a-1',
                             params: { sponsor: 'Heinz' },
                             adtechId: 14,
                             bannerId: 2,
@@ -425,7 +415,7 @@ describe('content card endpoints (E2E):', function() {
                         status: 'active',
                         campaignId: 'cam-cards-e2e2',
                         campaign: jasmine.objectContaining({
-                            adtechId: 123,
+                            minViewTime: 3
                         })
                     }));
                     expect(resp.response.headers['cache-control']).toEqual(jasmine.any(String));
@@ -469,10 +459,7 @@ describe('content card endpoints (E2E):', function() {
                         id: 'e2e-pubget1',
                         status: 'active',
                         campaignId: 'cam-cards-e2e1',
-                        advertiserId: 'a-1',
                         params: { sponsor: 'Heinz' },
-                        adtechId: 100,
-                        bannerId: 10,
                         campaign: jasmine.any(Object)
                     });
                     expect(resp.response.headers['content-type']).toBe('application/json; charset=utf-8');
@@ -525,7 +512,6 @@ describe('content card endpoints (E2E):', function() {
                 requestUtils.qRequest('get', options).then(function(resp) {
                     expect(resp.response.statusCode).toBe(200);
                     expect(resp.body.id).toBe('e2e-pubget1');
-                    expect(resp.body.adtechId).toBe(100);
                     expect(resp.response.headers['content-type']).toBe('application/json; charset=utf-8');
                     expect(resp.response.headers['cache-control']).toEqual(jasmine.any(String));
                     expect(resp.response.headers['cache-control']).not.toBe('max-age=0');

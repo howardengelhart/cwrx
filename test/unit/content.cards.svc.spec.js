@@ -1185,10 +1185,7 @@ describe('content-cards (UT)', function() {
                 advertiserId: 'a-1',
                 customerId: 'cu-1',
                 advertiserDisplayName: 'Heinz',
-                cards: [
-                    { id: 'rc-1', adtechId: 11, bannerId: 1234, bannerNumber: 2 },
-                    { id: 'rc-2', adtechId: 12, bannerId: 5678, bannerNumber: 1 }
-                ]
+                cards: [{ id: 'rc-1' }, { id: 'rc-2' }]
             };
             caches = {
                 cards: {
@@ -1221,10 +1218,9 @@ describe('content-cards (UT)', function() {
                     campaignId: 'cam-1',
                     campaign: { pixels: 'setup' },
                     status: Status.Active,
-                    advertiserId: 'a-1',
                     params: { sponsor: 'Heinz' },
-                    adtechId: 11,
-                    bannerId: 2,
+                    adtechId: undefined,
+                    bannerId: undefined,
                     formatted: true
                 });
                 expect(cardSvc.formatOutput).toHaveBeenCalled();
@@ -1352,34 +1348,6 @@ describe('content-cards (UT)', function() {
             })).then(function(results) {
                 expect(mockLog.warn).not.toHaveBeenCalled();
                 expect(caches.campaigns.getPromise.calls.count()).toBe(3);
-            }).catch(function(error) {
-                expect(error.toString()).not.toBeDefined();
-            }).done(done);
-        });
-        
-        it('should return nothing if the card does not exist in the campaign', function(done) {
-            mockCamp.cards[0].id = 'rc-2';
-            cardModule.getPublicCard(cardSvc, caches, 'rc-1', req).then(function(resp) {
-                expect(resp).not.toBeDefined();
-                expect(caches.cards.getPromise).toHaveBeenCalledWith({id: 'rc-1'});
-                expect(caches.campaigns.getPromise).toHaveBeenCalledWith({id: 'cam-1'});
-                expect(cardSvc.formatOutput).toHaveBeenCalled();
-                expect(cardModule.setupTrackingPixels).toHaveBeenCalled();
-                expect(mockLog.warn).toHaveBeenCalled();
-            }).catch(function(error) {
-                expect(error.toString()).not.toBeDefined();
-            }).done(done);
-        });
-
-        it('should return nothing if the card\'s entry in the campaign has no adtechId', function(done) {
-            delete mockCamp.cards[0].adtechId;
-            cardModule.getPublicCard(cardSvc, caches, 'rc-1', req).then(function(resp) {
-                expect(resp).not.toBeDefined();
-                expect(caches.cards.getPromise).toHaveBeenCalledWith({id: 'rc-1'});
-                expect(caches.campaigns.getPromise).toHaveBeenCalledWith({id: 'cam-1'});
-                expect(cardSvc.formatOutput).toHaveBeenCalled();
-                expect(cardModule.setupTrackingPixels).toHaveBeenCalled();
-                expect(mockLog.warn).toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
             }).done(done);
