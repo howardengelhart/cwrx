@@ -902,7 +902,7 @@ describe('player service', function() {
                 describe('get(options)', function() {
                     var success, failure;
                     var options;
-                    var document, experience, sponsoredCards;
+                    var document, experience, sponsoredCards, normalCards;
                     var loadExperienceDeferred, loadCardDeferred;
 
                     beforeEach(function(done) {
@@ -931,7 +931,8 @@ describe('player service', function() {
                             desktop: true,
                             secure: true,
                             standalone: true,
-                            embed: false
+                            embed: false,
+                            countdown: false
                         };
 
                         document = new HTMLDocument(playerHTML);
@@ -947,11 +948,12 @@ describe('player service', function() {
                                 campaign: { launchUrls: ['launch.gif'] },
                                 deck: [null, 'cam-2955fce737e487', null, null, 'cam-1e05bbe2a3ef74', 'cam-8a2f40a0344018', null]
                                     .map(function(campaignId, index) {
-                                        return { id: 'rc-' + index, type: 'youtube', campaignId: campaignId, data: {} };
+                                        return { id: 'rc-' + index, type: 'youtube', campaignId: campaignId, data: { skip: 30 } };
                                     })
                             }
                         };
                         sponsoredCards = AdLoader.getSponsoredCards(experience);
+                        normalCards = experience.data.deck.filter(function(card) { return sponsoredCards.indexOf(card) < 0; });
                         spyOn(player, '__loadExperience__').and.returnValue(loadExperienceDeferred.promise);
                         spyOn(player, '__loadCard__').and.returnValue(loadCardDeferred.promise);
 
@@ -1009,6 +1011,18 @@ describe('player service', function() {
                             expect(MockAdLoader.addTrackingPixels.calls.count()).toBe(sponsoredCards.length);
                         });
 
+                        it('should set the skip value on each sponsored card', function() {
+                            sponsoredCards.forEach(function(card) {
+                                expect(card.data.skip).toBe(options.countdown, card.id);
+                            });
+                            normalCards.forEach(function(card) {
+                                expect(card.data.skip).toBe(30, card.id);
+                            });
+
+                            expect(sponsoredCards.length).toBeGreaterThan(0);
+                            expect(normalCards.length).toBeGreaterThan(0);
+                        });
+
                         it('should add the brandings as a resource', function() {
                             expect(brandings.length).toBeGreaterThan(0);
                             brandings.forEach(function(branding) {
@@ -1022,6 +1036,26 @@ describe('player service', function() {
 
                         it('should resolve to the player as a string of HTML', function() {
                             expect(success).toHaveBeenCalledWith(document.toString());
+                        });
+                    });
+
+                    describe('if the countdown param is undefined', function() {
+                        beforeEach(function(done) {
+                            success.calls.reset();
+                            failure.calls.reset();
+
+                            spyOn(player, '__getBranding__').and.returnValue(q([]));
+                            player.__loadExperience__.and.returnValue(q(experience));
+
+                            options.countdown = undefined;
+
+                            player.get(options).then(success, failure).finally(done);
+                        });
+
+                        it('should not set the skip value on any of the cards', function() {
+                            experience.data.deck.forEach(function(card) {
+                                expect(card.data.skip).toBe(30);
+                            });
                         });
                     });
 
@@ -1225,6 +1259,10 @@ describe('player service', function() {
                                         playUrls: options.playUrls,
                                         countUrls: options.countUrls
                                     }, experience.data.deck[0]);
+                                });
+
+                                it('should set the skip value on the card', function() {
+                                    expect(experience.data.deck[0].data.skip).toBe(options.countdown);
                                 });
 
                                 it('should add the brandings as a resource', function() {
