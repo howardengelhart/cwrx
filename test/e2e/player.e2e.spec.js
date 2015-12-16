@@ -225,8 +225,8 @@ describe('player service', function() {
                             var experience = JSON.parse($experience.text());
                             var card = experience.data.deck[1];
 
-                            expect(card.campaign.countUrls).toEqual(jasmine.arrayContaining([jasmine.stringMatching(/^http:\/\/adserver\.adtechus\.com\/adcount/)]));
-                            expect(card.campaign.playUrls).toEqual(jasmine.arrayContaining([jasmine.stringMatching(/^http:\/\/adserver\.adtechus\.com\/adlink/)]));
+                            expect(card.campaign.countUrls).toEqual(jasmine.arrayContaining([jasmine.stringMatching(/^https:\/\/adserver\.adtechus\.com\/adcount/)]));
+                            expect(card.campaign.playUrls).toEqual(jasmine.arrayContaining([jasmine.stringMatching(/^https:\/\/adserver\.adtechus\.com\/adlink/)]));
                         });
 
                         it('should remove all placeholders', function() {
@@ -359,11 +359,11 @@ describe('player service', function() {
                             var card1 = find(experience.data.deck, function(card) { return card.id === cards[0].id; });
                             var card2 = find(experience.data.deck, function(card) { return card.id === cards[1].id; });
 
-                            expect(card1.campaign.countUrls).toEqual(jasmine.arrayContaining([jasmine.stringMatching(/^http:\/\/adserver\.adtechus\.com\/adcount/)]));
-                            expect(card1.campaign.playUrls).toEqual(jasmine.arrayContaining([jasmine.stringMatching(/^http:\/\/adserver\.adtechus\.com\/adlink/)]));
+                            expect(card1.campaign.countUrls).toEqual(jasmine.arrayContaining([jasmine.stringMatching(/^https:\/\/adserver\.adtechus\.com\/adcount/)]));
+                            expect(card1.campaign.playUrls).toEqual(jasmine.arrayContaining([jasmine.stringMatching(/^https:\/\/adserver\.adtechus\.com\/adlink/)]));
 
-                            expect(card2.campaign.countUrls).toEqual(jasmine.arrayContaining([jasmine.stringMatching(/^http:\/\/adserver\.adtechus\.com\/adcount/)]));
-                            expect(card2.campaign.playUrls).toEqual(jasmine.arrayContaining([jasmine.stringMatching(/^http:\/\/adserver\.adtechus\.com\/adlink/)]));
+                            expect(card2.campaign.countUrls).toEqual(jasmine.arrayContaining([jasmine.stringMatching(/^https:\/\/adserver\.adtechus\.com\/adcount/)]));
+                            expect(card2.campaign.playUrls).toEqual(jasmine.arrayContaining([jasmine.stringMatching(/^https:\/\/adserver\.adtechus\.com\/adlink/)]));
                         });
 
                         it('should remove all placeholders', function() {
@@ -690,8 +690,8 @@ describe('player service', function() {
                 it('should stick some ADTECH tracking pixels in the card', function() {
                     var card = parseResponse('light').experience.data.deck[0];
 
-                    expect(card.campaign.countUrls).toEqual(jasmine.arrayContaining([jasmine.stringMatching(/^http:\/\/adserver\.adtechus\.com\/adcount/)]));
-                    expect(card.campaign.playUrls).toEqual(jasmine.arrayContaining([jasmine.stringMatching(/^http:\/\/adserver\.adtechus\.com\/adlink/)]));
+                    expect(card.campaign.countUrls).toEqual(jasmine.arrayContaining([jasmine.stringMatching(/^https:\/\/adserver\.adtechus\.com\/adcount/)]));
+                    expect(card.campaign.playUrls).toEqual(jasmine.arrayContaining([jasmine.stringMatching(/^https:\/\/adserver\.adtechus\.com\/adlink/)]));
                 });
 
                 it('should load the player', function() {
@@ -731,8 +731,8 @@ describe('player service', function() {
                     it('should not stick ADTECH tracking pixels in the card', function() {
                         var card = parseResponse('light').experience.data.deck[0];
 
-                        expect(card.campaign.countUrls).not.toEqual(jasmine.arrayContaining([jasmine.stringMatching(/^http:\/\/adserver\.adtechus\.com\/adcount/)]));
-                        expect(card.campaign.playUrls).not.toEqual(jasmine.arrayContaining([jasmine.stringMatching(/^http:\/\/adserver\.adtechus\.com\/adlink/)]));
+                        expect(card.campaign.countUrls).not.toEqual(jasmine.arrayContaining([jasmine.stringMatching(/^https:\/\/adserver\.adtechus\.com\/adcount/)]));
+                        expect(card.campaign.playUrls).not.toEqual(jasmine.arrayContaining([jasmine.stringMatching(/^https:\/\/adserver\.adtechus\.com\/adlink/)]));
                     });
 
                     it('should load the player', function() {
@@ -773,8 +773,8 @@ describe('player service', function() {
                 it('should stick some ADTECH tracking pixels in the card', function() {
                     var card = parseResponse('light').experience.data.deck[0];
 
-                    expect(card.campaign.countUrls).toEqual(jasmine.arrayContaining([jasmine.stringMatching(/^http:\/\/adserver\.adtechus\.com\/adcount/)]));
-                    expect(card.campaign.playUrls).toEqual(jasmine.arrayContaining([jasmine.stringMatching(/^http:\/\/adserver\.adtechus\.com\/adlink/)]));
+                    expect(card.campaign.countUrls).toEqual(jasmine.arrayContaining([jasmine.stringMatching(/^https:\/\/adserver\.adtechus\.com\/adcount/)]));
+                    expect(card.campaign.playUrls).toEqual(jasmine.arrayContaining([jasmine.stringMatching(/^https:\/\/adserver\.adtechus\.com\/adlink/)]));
                 });
 
                 it('should load the player', function() {
@@ -829,8 +829,8 @@ describe('player service', function() {
                 it('should stick some ADTECH tracking pixels in the card', function() {
                     var card = parseResponse('light').experience.data.deck[0];
 
-                    expect(card.campaign.countUrls).toEqual(jasmine.arrayContaining([jasmine.stringMatching(/^http:\/\/adserver\.adtechus\.com\/adcount/)]));
-                    expect(card.campaign.playUrls).toEqual(jasmine.arrayContaining([jasmine.stringMatching(/^http:\/\/adserver\.adtechus\.com\/adlink/)]));
+                    expect(card.campaign.countUrls).toEqual(jasmine.arrayContaining([jasmine.stringMatching(/^https:\/\/adserver\.adtechus\.com\/adcount/)]));
+                    expect(card.campaign.playUrls).toEqual(jasmine.arrayContaining([jasmine.stringMatching(/^https:\/\/adserver\.adtechus\.com\/adlink/)]));
                 });
 
                 it('should load the player', function() {
