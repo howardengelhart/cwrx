@@ -932,7 +932,8 @@ describe('player service', function() {
                             secure: true,
                             standalone: true,
                             embed: false,
-                            countdown: false
+                            countdown: false,
+                            prebuffer: true
                         };
 
                         document = new HTMLDocument(playerHTML);
@@ -1023,6 +1024,12 @@ describe('player service', function() {
                             expect(normalCards.length).toBeGreaterThan(0);
                         });
 
+                        it('should set the prebuffer property on each card', function() {
+                            experience.data.deck.forEach(function(card) {
+                                expect(card.data.prebuffer).toBe(options.prebuffer);
+                            });
+                        });
+
                         it('should add the brandings as a resource', function() {
                             expect(brandings.length).toBeGreaterThan(0);
                             brandings.forEach(function(branding) {
@@ -1055,6 +1062,28 @@ describe('player service', function() {
                         it('should not set the skip value on any of the cards', function() {
                             experience.data.deck.forEach(function(card) {
                                 expect(card.data.skip).toBe(30);
+                            });
+                        });
+                    });
+
+                    [false, undefined, null, ''].forEach(function(value) {
+                        describe('if the prebuffer param is ' + value, function() {
+                            beforeEach(function(done) {
+                                success.calls.reset();
+                                failure.calls.reset();
+
+                                spyOn(player, '__getBranding__').and.returnValue(q([]));
+                                player.__loadExperience__.and.returnValue(q(experience));
+
+                                options.prebuffer = value;
+
+                                player.get(options).then(success, failure).finally(done);
+                            });
+
+                            it('should set the prebuffer property on each card to false', function() {
+                                experience.data.deck.forEach(function(card) {
+                                    expect(card.data.prebuffer).toBe(false);
+                                });
                             });
                         });
                     });
@@ -1263,6 +1292,10 @@ describe('player service', function() {
 
                                 it('should set the skip value on the card', function() {
                                     expect(experience.data.deck[0].data.skip).toBe(options.countdown);
+                                });
+
+                                it('should set the prebuffer value on the card', function() {
+                                    expect(experience.data.deck[0].data.prebuffer).toBe(options.prebuffer);
                                 });
 
                                 it('should add the brandings as a resource', function() {

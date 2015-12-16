@@ -674,6 +674,7 @@ Player.prototype.get = function get(/*options*/) {
     var embed = options.embed;
     var branding = options.branding;
     var countdown = options.countdown;
+    var prebuffer = !!options.prebuffer;
 
     log.trace('[%1] Getting player with options (%2.)', uuid, inspect(options));
 
@@ -682,15 +683,19 @@ Player.prototype.get = function get(/*options*/) {
 
         push.apply(campaign.launchUrls || (campaign.launchUrls = []), launchUrls);
 
-        AdLoader.getSponsoredCards(experience).forEach(function addPixels(card) {
-            AdLoader.addTrackingPixels({
-                playUrls: playUrls,
-                countUrls: countUrls
-            }, card);
+        experience.data.deck.forEach(function setupCard(card) {
+            if (AdLoader.isSponsored(card)) {
+                AdLoader.addTrackingPixels({
+                    playUrls: playUrls,
+                    countUrls: countUrls
+                }, card);
 
-            if (countdown !== undefined) {
-                card.data.skip = countdown;
+                if (countdown !== undefined) {
+                    card.data.skip = countdown;
+                }
             }
+
+            card.data.prebuffer = prebuffer;
         });
 
         return experience;
