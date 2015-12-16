@@ -69,7 +69,7 @@ describe('content-cards (UT)', function() {
             boundFns = [];
             var bind = Function.prototype.bind;
             
-            [cardModule.fetchCamp, cardModule.campStatusCheck, cardModule.getPublicCard].forEach(function(fn) {
+            [cardModule.fetchCamp, cardModule.campStatusCheck, cardModule.getPublicCard, cardModule.chooseCards].forEach(function(fn) {
                 spyOn(fn, 'bind').and.callFake(function() {
                     var boundFn = bind.apply(fn, arguments);
 
@@ -103,6 +103,11 @@ describe('content-cards (UT)', function() {
         it('should save some config variables locally', function() {
             expect(cardModule.config.trackingPixel).toBe('track.me.plz');
             expect(cardModule.metagetta).toBe(metagetta);
+        });
+        
+        it('should save some bound methods on the service', function() {
+            expect(svc.getPublicCard).toEqual(getBoundFn(cardModule.getPublicCard, [cardModule, svc, caches]));
+            expect(svc.chooseCards).toEqual(getBoundFn(cardModule.chooseCards, [cardModule, svc, caches]));
         });
         
         it('should fetch the campaign on create, edit, and delete', function() {
@@ -1467,6 +1472,254 @@ describe('content-cards (UT)', function() {
                     expect(error.toString()).not.toBeDefined();
                 }).done(done);
             });
+        });
+    });
+    
+    describe('chooseCards', function() {
+        var cardSvc, mockCamp, caches;
+        beforeEach(function() {
+            var existent = ['rc-1', 'rc-2', 'rc-3'];
+            mockCamp = {
+                id: 'cam-1',
+                status: Status.Active,
+                cards: [{ id: 'rc-1' }, { id: 'rc-2' }, { id: 'rc-3' }]
+            };
+            caches = {
+                campaigns: {
+                    getPromise: jasmine.createSpy('caches.campaigns.getPromise').and.callFake(function() {
+                        return q([mockCamp]);
+                    })
+                }
+            };
+            cardSvc = {
+                getPublicCard: jasmine.createSpy('svc.getPublicCard').and.callFake(function(id, req) {
+                    if (existent.indexOf(id) !== -1) return { id: id, title: 'card ' + id.replace('rc-', '') };
+                    else return q();
+                })
+            };
+            req.query = { campaign: 'cam-1' };
+        });
+        
+        it('should fetch and return all cards from a campaign', function(done) {
+            cardModule.chooseCards(cardSvc, caches, req).then(function(resp) {
+                expect(resp.code).toEqual(200);
+                expect(resp.body).toEqual([
+                    { id: 'rc-1', title: 'card 1' },
+                    { id: 'rc-2', title: 'card 2' },
+                    { id: 'rc-3', title: 'card 3' }
+                ]);
+                expect(resp.headers).toEqual({ 'content-range': 'items 1-3/3' });
+                expect(caches.campaigns.getPromise).toHaveBeenCalledWith({ id: 'cam-1' });
+                expect(cardSvc.getPublicCard.calls.count()).toBe(3);
+                expect(cardSvc.getPublicCard).toHaveBeenCalledWith('rc-1', req);
+                expect(cardSvc.getPublicCard).toHaveBeenCalledWith('rc-2', req);
+                expect(cardSvc.getPublicCard).toHaveBeenCalledWith('rc-3', req);
+                expect(mockLog.error).not.toHaveBeenCalled();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should be use the limit param to fetch a subset of the cards from a campaign', function(done) {
+            req.query.limit = '2';
+            cardModule.chooseCards(cardSvc, caches, req).then(function(resp) {
+                expect(resp.code).toEqual(200);
+                expect(resp.body).toEqual([
+                    { id: 'rc-1', title: 'card 1' },
+                    { id: 'rc-2', title: 'card 2' },
+                ]);
+                expect(resp.headers).toEqual({ 'content-range': 'items 1-2/3' });
+                expect(cardSvc.getPublicCard.calls.count()).toBe(2);
+                expect(cardSvc.getPublicCard).toHaveBeenCalledWith('rc-1', req);
+                expect(cardSvc.getPublicCard).toHaveBeenCalledWith('rc-2', req);
+                expect(mockLog.error).not.toHaveBeenCalled();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should cap the limit property appropriately', function(done) {
+            req.query.limit = '20000';
+            cardModule.chooseCards(cardSvc, caches, req).then(function(resp) {
+                expect(resp.code).toEqual(200);
+                expect(resp.body).toEqual([
+                    { id: 'rc-1', title: 'card 1' },
+                    { id: 'rc-2', title: 'card 2' },
+                    { id: 'rc-3', title: 'card 3' }
+                ]);
+                expect(resp.headers).toEqual({ 'content-range': 'items 1-3/3' });
+                expect(cardSvc.getPublicCard.calls.count()).toBe(3);
+                expect(mockLog.error).not.toHaveBeenCalled();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should handle weird query parameter values', function(done) {
+            req.query.random = 'omg im soooo random!11!!!1 lol XD ;)';
+            req.query.campaign = { $gt: '' };
+            req.query.limit = 'gimme all ya got';
+            cardModule.chooseCards(cardSvc, caches, req).then(function(resp) {
+                expect(resp.code).toEqual(200);
+                expect(resp.body).toEqual([
+                    { id: 'rc-1', title: 'card 1' },
+                    { id: 'rc-2', title: 'card 2' },
+                    { id: 'rc-3', title: 'card 3' }
+                ]);
+                expect(resp.headers).toEqual({ 'content-range': 'items 1-3/3' });
+                expect(caches.campaigns.getPromise).toHaveBeenCalledWith({ id: '[object Object]' });
+                expect(cardSvc.getPublicCard.calls.count()).toBe(3);
+                expect(mockLog.error).not.toHaveBeenCalled();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
+        });
+
+        it('should return a 400 if the campaign param is not set', function(done) {
+            delete req.query.campaign;
+            cardModule.chooseCards(cardSvc, caches, req).then(function(resp) {
+                expect(resp.code).toEqual(400);
+                expect(resp.body).toEqual('Must provide campaign id');
+                expect(resp.headers).not.toBeDefined();
+                expect(cardSvc.getPublicCard).not.toHaveBeenCalled();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
+        });
+
+        it('should return a 404 if the campaign is not found', function(done) {
+            mockCamp = undefined;
+            cardModule.chooseCards(cardSvc, caches, req).then(function(resp) {
+                expect(resp.code).toEqual(404);
+                expect(resp.body).toEqual('Campaign not found');
+                expect(resp.headers).not.toBeDefined();
+                expect(cardSvc.getPublicCard).not.toHaveBeenCalled();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should return a 400 if the campaign is not running', function(done) {
+            q.all([Status.Canceled, Status.Expired, Status.Deleted].map(function(status) {
+                mockCamp.status = status;
+                return cardModule.chooseCards(cardSvc, caches, req).then(function(resp) {
+                    expect(resp).toEqual({ code: 400, body: 'Campaign not running' });
+                });
+            })).then(function(results) {
+                expect(cardSvc.getPublicCard).not.toHaveBeenCalled();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
+        });
+        
+        describe('if the random parameter is set', function() {
+            beforeEach(function() {
+                req.query.random = 'true';
+            });
+            
+            it('should return all cards in a random order if limit is not set', function(done) {
+                cardModule.chooseCards(cardSvc, caches, req).then(function(resp) {
+                    expect(resp.code).toEqual(200);
+                    expect(resp.body).toContain({ id: 'rc-1', title: 'card 1' });
+                    expect(resp.body).toContain({ id: 'rc-2', title: 'card 2' });
+                    expect(resp.body).toContain({ id: 'rc-3', title: 'card 3' });
+                    expect(resp.headers).toEqual({ 'content-range': 'items 1-3/3' });
+                    expect(cardSvc.getPublicCard.calls.count()).toBe(3);
+                    expect(mockLog.error).not.toHaveBeenCalled();
+                }).catch(function(error) {
+                    expect(error.toString()).not.toBeDefined();
+                }).done(done);
+            });
+
+            it('should return a random subset of cards if limit is set', function(done) {
+                req.query.limit = '2';
+                cardModule.chooseCards(cardSvc, caches, req).then(function(resp) {
+                    expect(resp.code).toEqual(200);
+                    var optionalMatcher = { asymmetricMatch: function(actual) {
+                        return (actual.id === 'rc-1' && actual.title === 'card 1') ||
+                            (actual.id === 'rc-2' && actual.title === 'card 2') ||
+                            (actual.id === 'rc-3' && actual.title === 'card 3');
+                    } };
+                    expect(resp.body).toEqual([optionalMatcher, optionalMatcher]);
+                    expect(resp.body[1]).not.toEqual(resp.body[0]);
+                    expect(resp.headers).toEqual({ 'content-range': 'items 1-2/3' });
+                    expect(cardSvc.getPublicCard.calls.count()).toBe(2);
+                    expect(mockLog.error).not.toHaveBeenCalled();
+                }).catch(function(error) {
+                    expect(error.toString()).not.toBeDefined();
+                }).done(done);
+            });
+        });
+        
+        describe('if some cards cannot be fetched', function() {
+            beforeEach(function() {
+                mockCamp.cards.unshift({ id: 'rc-4' });
+                req.query.limit = 2;
+            });
+            
+            it('should make additional calls to get enough cards', function(done) {
+                cardModule.chooseCards(cardSvc, caches, req).then(function(resp) {
+                    expect(resp.code).toEqual(200);
+                    expect(resp.body).toEqual([
+                        { id: 'rc-1', title: 'card 1' },
+                        { id: 'rc-2', title: 'card 2' }
+                    ]);
+                    expect(resp.headers).toEqual({ 'content-range': 'items 1-2/4' });
+                    expect(cardSvc.getPublicCard.calls.count()).toBe(3);
+                    expect(cardSvc.getPublicCard).toHaveBeenCalledWith('rc-4', req);
+                    expect(cardSvc.getPublicCard).toHaveBeenCalledWith('rc-1', req);
+                    expect(cardSvc.getPublicCard).toHaveBeenCalledWith('rc-2', req);
+                    expect(mockLog.error).not.toHaveBeenCalled();
+                }).catch(function(error) {
+                    expect(error.toString()).not.toBeDefined();
+                }).done(done);
+            });
+            
+            it('should return what it can if not enough can be fetched', function(done) {
+                req.query.limit = 4;
+                mockCamp.cards.unshift({ id: 'rc-5' }, { id: 'rc-6' });
+                cardModule.chooseCards(cardSvc, caches, req).then(function(resp) {
+                    expect(resp.code).toEqual(200);
+                    expect(resp.body).toEqual([
+                        { id: 'rc-1', title: 'card 1' },
+                        { id: 'rc-2', title: 'card 2' },
+                        { id: 'rc-3', title: 'card 3' }
+                    ]);
+                    expect(resp.headers).toEqual({ 'content-range': 'items 1-3/6' });
+                    expect(cardSvc.getPublicCard.calls.count()).toBe(6);
+                    ['rc-1', 'rc-2', 'rc-3', 'rc-4', 'rc-5', 'rc-6'].forEach(function(id) {
+                        expect(cardSvc.getPublicCard).toHaveBeenCalledWith(id, req);
+                    });
+                    expect(mockLog.error).not.toHaveBeenCalled();
+                }).catch(function(error) {
+                    expect(error.toString()).not.toBeDefined();
+                }).done(done);
+            });
+        });
+        
+        it('should reject if fetching the campaign rejects', function(done) {
+            caches.campaigns.getPromise.and.returnValue(q.reject('I GOT A PROBLEM'));
+            cardModule.chooseCards(cardSvc, caches, req).then(function(resp) {
+                expect(resp).not.toBeDefined();
+            }).catch(function(error) {
+                expect(error).toBe('Mongo error');
+                expect(mockLog.error).toHaveBeenCalled();
+                expect(cardSvc.getPublicCard).not.toHaveBeenCalled();
+            }).done(done);
+        });
+
+        it('should reject if fetching a card rejects', function(done) {
+            cardSvc.getPublicCard.and.callFake(function(id, req) {
+                if (id === 'rc-2') return q.reject('I GOT A PROBLEM');
+                else return { id: id, title: 'card ' + id.replace('rc-', '') };
+            });
+            cardModule.chooseCards(cardSvc, caches, req).then(function(resp) {
+                expect(resp).not.toBeDefined();
+            }).catch(function(error) {
+                expect(error).toBe('Mongo error');
+                expect(mockLog.error).toHaveBeenCalled();
+                expect(cardSvc.getPublicCard.calls.count()).toBe(3);
+            }).done(done);
         });
     });
 });

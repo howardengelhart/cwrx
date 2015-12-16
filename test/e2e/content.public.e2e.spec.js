@@ -9,7 +9,7 @@ var q               = require('q'),
         contentUrl  : 'http://' + (host === 'localhost' ? host + ':3300' : host) + '/api',
     };
 
-describe('content public experience endpoints (E2E):', function() {
+describe('content public endpoints (E2E):', function() {
     beforeEach(function() {
         jasmine.DEFAULT_TIMEOUT_INTERVAL = 5000;
     });

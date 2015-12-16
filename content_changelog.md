@@ -1,6 +1,9 @@
 # Content Service Changelog
 
+### 3.5.0: Wed Dec 16 18:28:59 EST 2015
+* [FEATURE]: Add public endpoint for retrieving multiple cards: [#673](https://github.com/cinema6/cwrx/issues/673)
 * Do not require `adtechId` to return card from public endpoint: [#672](https://github.com/cinema6/cwrx/issues/672)
+* Extra deployment steps: None
 
 ### 3.4.0: Tue Dec 15 10:07:02 EST 2015
 * [FEATURE]: Support tracking of video buffering: [#699](https://github.com/cinema6/cwrx/pull/699)
