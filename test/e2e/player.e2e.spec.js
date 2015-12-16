@@ -697,6 +697,40 @@ describe('player service', function() {
                 it('should load the player', function() {
                     expect(parseResponse('light').seemsValid()).toBe(true);
                 });
+
+                describe('and no countdown configuration', function() {
+                    beforeEach(function(done) {
+                        delete config.playerUrl.query.countdown;
+
+                        request.get(getURL()).then(getResponse).then(done, done.fail);
+                    });
+
+                    it('should respond with a player', function() {
+                        expect(parseResponse('light').seemsValid()).toBe(true);
+                    });
+
+                    it('should not change the card\'s skip setting', function() {
+                        var card = parseResponse('light').experience.data.deck[0];
+
+                        expect(card.data.skip).toBe(cards[0].data.skip);
+                    });
+                });
+
+                [true, false, 30].forEach(function(value) {
+                    describe('and a countdown configuration of ' + value, function() {
+                        beforeEach(function(done) {
+                            config.playerUrl.query.countdown = value;
+
+                            request.get(getURL()).then(getResponse).then(done, done.fail);
+                        });
+
+                        it('should set the card\'s skip property to ' + value, function() {
+                            var card = parseResponse('light').experience.data.deck[0];
+
+                            expect(card.data.skip).toBe(value);
+                        });
+                    });
+                });
             });
 
             describe('with an invalid placement', function() {
