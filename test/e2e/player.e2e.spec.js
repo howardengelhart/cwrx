@@ -118,7 +118,11 @@ describe('player service', function() {
 
                 expect($experience.length).toBe(1);
                 expect(responseExperience.id).toBe(experience.id);
-                expect(responseExperience.data.deck).toEqual(experience.data[0].data.deck);
+                expect(responseExperience.data.deck).toEqual(experience.data[0].data.deck.map(function(card) {
+                    card.data.prebuffer = false;
+
+                    return card;
+                }));
             });
 
             it('should inline the branding', function() {
@@ -516,6 +520,8 @@ describe('player service', function() {
                     });
 
                     it('should [200]', function() {
+                        experience.data[0].data.deck[0].data.prebuffer = false;
+
                         expect(response.statusCode).toBe(200);
                         expect(parseResponse('lightbox').seemsValid()).toBe(true);
                         expect(parseResponse('lightbox').experience.data.deck[0]).toEqual(experience.data[0].data.deck[0]);
@@ -694,8 +700,62 @@ describe('player service', function() {
                     expect(card.campaign.playUrls).toEqual(jasmine.arrayContaining([jasmine.stringMatching(/^https:\/\/adserver\.adtechus\.com\/adlink/)]));
                 });
 
+                it('should set the prebuffer property on the card', function() {
+                    var card = parseResponse('light').experience.data.deck[0];
+
+                    expect(card.data.prebuffer).toBe(false);
+                });
+
                 it('should load the player', function() {
                     expect(parseResponse('light').seemsValid()).toBe(true);
+                });
+
+                describe('and no countdown configuration', function() {
+                    beforeEach(function(done) {
+                        delete config.playerUrl.query.countdown;
+
+                        request.get(getURL()).then(getResponse).then(done, done.fail);
+                    });
+
+                    it('should respond with a player', function() {
+                        expect(parseResponse('light').seemsValid()).toBe(true);
+                    });
+
+                    it('should not change the card\'s skip setting', function() {
+                        var card = parseResponse('light').experience.data.deck[0];
+
+                        expect(card.data.skip).toBe(cards[0].data.skip);
+                    });
+                });
+
+                [true, false, 30].forEach(function(value) {
+                    describe('and a countdown configuration of ' + value, function() {
+                        beforeEach(function(done) {
+                            config.playerUrl.query.countdown = value;
+
+                            request.get(getURL()).then(getResponse).then(done, done.fail);
+                        });
+
+                        it('should set the card\'s skip property to ' + value, function() {
+                            var card = parseResponse('light').experience.data.deck[0];
+
+                            expect(card.data.skip).toBe(value);
+                        });
+                    });
+                });
+
+                describe('and skip: true', function() {
+                    beforeEach(function(done) {
+                        config.playerUrl.query.prebuffer = true;
+
+                        request.get(getURL()).then(getResponse).then(done, done.fail);
+                    });
+
+                    it('should set the prebuffer property on the card to true', function() {
+                        var card = parseResponse('light').experience.data.deck[0];
+
+                        expect(card.data.prebuffer).toBe(true);
+                    });
                 });
             });
 

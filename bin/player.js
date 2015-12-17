@@ -673,19 +673,29 @@ Player.prototype.get = function get(/*options*/) {
     var categories = options.categories;
     var embed = options.embed;
     var branding = options.branding;
+    var countdown = options.countdown;
+    var prebuffer = !!options.prebuffer;
 
     log.trace('[%1] Getting player with options (%2.)', uuid, inspect(options));
 
-    function addTrackingPixels(experience) {
+    function setupExperience(experience) {
         var campaign = experience.data.campaign;
 
         push.apply(campaign.launchUrls || (campaign.launchUrls = []), launchUrls);
 
-        AdLoader.getSponsoredCards(experience).forEach(function addPixels(card) {
-            AdLoader.addTrackingPixels({
-                playUrls: playUrls,
-                countUrls: countUrls
-            }, card);
+        experience.data.deck.forEach(function setupCard(card) {
+            if (AdLoader.isSponsored(card)) {
+                AdLoader.addTrackingPixels({
+                    playUrls: playUrls,
+                    countUrls: countUrls
+                }, card);
+
+                if (countdown !== undefined) {
+                    card.data.skip = countdown;
+                }
+            }
+
+            card.data.prebuffer = prebuffer;
         });
 
         return experience;
@@ -752,7 +762,7 @@ Player.prototype.get = function get(/*options*/) {
             throw new ServiceError('VPAID does not support MiniReels.', 400);
         }
 
-        addTrackingPixels(experience);
+        setupExperience(experience);
 
         log.trace('[%1] Adding experience (%2) to %3 player HTML.', uuid, experience.id, type);
         document.addResource('experience', 'application/json', experience);
