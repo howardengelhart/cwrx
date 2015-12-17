@@ -1623,7 +1623,7 @@ describe('content-cards (UT)', function() {
                     expect(resp.body).toContain({ id: 'rc-1', title: 'card 1' });
                     expect(resp.body).toContain({ id: 'rc-2', title: 'card 2' });
                     expect(resp.body).toContain({ id: 'rc-3', title: 'card 3' });
-                    expect(resp.headers).toEqual({ 'content-range': 'items 1-3/3' });
+                    expect(resp.headers).not.toBeDefined();
                     expect(cardSvc.getPublicCard.calls.count()).toBe(3);
                     expect(mockLog.error).not.toHaveBeenCalled();
                 }).catch(function(error) {
@@ -1642,7 +1642,7 @@ describe('content-cards (UT)', function() {
                     } };
                     expect(resp.body).toEqual([optionalMatcher, optionalMatcher]);
                     expect(resp.body[1]).not.toEqual(resp.body[0]);
-                    expect(resp.headers).toEqual({ 'content-range': 'items 1-2/3' });
+                    expect(resp.headers).not.toBeDefined();
                     expect(cardSvc.getPublicCard.calls.count()).toBe(2);
                     expect(mockLog.error).not.toHaveBeenCalled();
                 }).catch(function(error) {

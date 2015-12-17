@@ -648,7 +648,7 @@ describe('content card endpoints (E2E):', function() {
                         expect(resp.body).toContain(jasmine.objectContaining({ id: 'e2e-pubget2', campaign: jasmine.any(Object) }));
                         expect(resp.body).toContain(jasmine.objectContaining({ id: 'e2e-pubget3', campaign: jasmine.any(Object) }));
                         expect(resp.body).toContain(jasmine.objectContaining({ id: 'e2e-pubget4', campaign: jasmine.any(Object) }));
-                        expect(resp.response.headers['content-range']).toBe('items 1-3/3');
+                        expect(resp.response.headers['content-range']).not.toBeDefined();
                     }).catch(function(error) {
                         expect(util.inspect(error)).not.toBeDefined();
                     }).done(done);
@@ -665,7 +665,7 @@ describe('content card endpoints (E2E):', function() {
                         expect(resp.body[0]).toEqual(optionalMatcher);
                         expect(resp.body[1]).toEqual(optionalMatcher);
                         expect(resp.body[1]).not.toEqual(resp.body[0]);
-                        expect(resp.response.headers['content-range']).toBe('items 1-2/3');
+                        expect(resp.response.headers['content-range']).not.toBeDefined();
                     }).catch(function(error) {
                         expect(util.inspect(error)).not.toBeDefined();
                     }).done(done);

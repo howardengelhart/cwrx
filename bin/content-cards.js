@@ -527,14 +527,15 @@
             return chooseAndFetch(available, [], numToFetch)
             .then(function(cards) {
                 log.info('[%1] Returning %2 cards from %3', req.uuid, cards.length, campId);
-                var rangeStr = 'items ' + (cards.length > 0 ? '1-' : '0-') +
-                               cards.length + '/' + camp.cards.length;
-
-                return q({
-                    code: 200,
-                    body: cards,
-                    headers: { 'content-range': rangeStr }
-                });
+                var resp = { code: 200, body: cards };
+                
+                if (!randomize) {
+                    var rangeStr = 'items ' + (cards.length > 0 ? '1-' : '0-') +
+                                   cards.length + '/' + camp.cards.length;
+                    resp.headers = { 'content-range': rangeStr };
+                }
+                
+                return q(resp);
             });
         })
         .catch(function(error) {
