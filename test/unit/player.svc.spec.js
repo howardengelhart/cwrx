@@ -1675,26 +1675,6 @@ describe('player service', function() {
                                 it('should fulfill with the experience', function() {
                                     expect(success).toHaveBeenCalledWith(experience);
                                 });
-
-                                describe('in preview mode', function() {
-                                    beforeEach(function(done) {
-                                        success.calls.reset();
-                                        failure.calls.reset();
-                                        player.adLoadTimeReporter.push.calls.reset();
-
-                                        params.preview = true;
-
-                                        player.__loadCard__(params, origin, uuid).then(success, failure).finally(done);
-                                    });
-
-                                    it('should fulfill with the experience', function() {
-                                        expect(success).toHaveBeenCalledWith(experience);
-                                    });
-
-                                    it('should not send timing metrics', function() {
-                                        expect(player.adLoadTimeReporter.push).not.toHaveBeenCalled();
-                                    });
-                                });
                             });
 
                             describe('and no card is found', function() {
@@ -1831,26 +1811,6 @@ describe('player service', function() {
 
                                 it('should fulfill with the experience', function() {
                                     expect(success).toHaveBeenCalledWith(experience);
-                                });
-
-                                describe('in preview mode', function() {
-                                    beforeEach(function(done) {
-                                        success.calls.reset();
-                                        failure.calls.reset();
-                                        player.adLoadTimeReporter.push.calls.reset();
-
-                                        params.preview = true;
-
-                                        player.__loadCard__(params, origin, uuid).then(success, failure).finally(done);
-                                    });
-
-                                    it('should fulfill with the experience', function() {
-                                        expect(success).toHaveBeenCalledWith(experience);
-                                    });
-
-                                    it('should not send timing metrics', function() {
-                                        expect(player.adLoadTimeReporter.push).not.toHaveBeenCalled();
-                                    });
                                 });
                             });
 
@@ -2038,12 +1998,12 @@ describe('player service', function() {
                             expect(player.__getExperience__).not.toHaveBeenCalled();
                         });
 
-                        it('should not loadAds()', function() {
-                            expect(player.adLoader.loadAds).not.toHaveBeenCalled();
+                        it('should load ads for the experience', function() {
+                            expect(player.adLoader.loadAds).toHaveBeenCalledWith(experience, params.categories, params.campaign, uuid);
                         });
 
-                        it('should removePlaceholders() from the experience', function() {
-                            expect(MockAdLoader.removePlaceholders).toHaveBeenCalledWith(experience);
+                        it('should not removePlaceholders() from the experience', function() {
+                            expect(MockAdLoader.removePlaceholders).not.toHaveBeenCalled();
                         });
 
                         it('should not removeSponsoredCards() from the experience', function() {

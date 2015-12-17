@@ -134,7 +134,6 @@ Player.prototype.__loadCard__ = function __loadCard__(params, origin, uuid) {
     var adLoader = this.adLoader;
     var adLoadTimeReporter = this.adLoadTimeReporter;
     var validParams = this.__apiParams__('experience', params);
-    var preview = params.preview;
     var cardId = params.card;
     var campaignId = params.campaign;
     var categories = params.categories;
@@ -180,11 +179,7 @@ Player.prototype.__loadCard__ = function __loadCard__(params, origin, uuid) {
                         return card;
                     });
                 }()).tap(function sendMetrics() {
-                    var end = Date.now();
-
-                    if (!preview) {
-                        adLoadTimeReporter.push(end - start);
-                    }
+                    adLoadTimeReporter.push(Date.now() - start);
                 }).catch(function createServiceError(reason) {
                     throw new ServiceError(reason.message, 404);
                 });
@@ -219,16 +214,14 @@ Player.prototype.__loadExperience__ = function __loadExperience__(id, params, or
     function loadAds(experience) {
         var start = Date.now();
 
-        if (preview || !AdLoader.hasAds(experience)) {
+        if (!AdLoader.hasAds(experience)) {
             log.trace('[%1] Skipping ad calls.', uuid);
             return AdLoader.removePlaceholders(experience);
         }
 
         return adLoader.loadAds(experience, categories, campaign, uuid)
             .tap(function sendMetrics() {
-                var end = Date.now();
-
-                adLoadTimeReporter.push(end - start);
+                adLoadTimeReporter.push(Date.now() - start);
             })
             .catch(function trimCards(reason) {
                 log.warn('[%1] Unexpected failure loading ads: %2', uuid, inspect(reason));
