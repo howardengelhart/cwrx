@@ -285,16 +285,6 @@ describe('player service', function() {
                                         }
                                     }
                                 },
-                                adtech: {
-                                    protocol: 'https:',
-                                    server: 'adserver.adtechus.com',
-                                    network: '5491.1',
-                                    request: {
-                                        maxSockets: 250,
-                                        timeout: 3000,
-                                        keepAlive: true
-                                    }
-                                },
                                 cloudwatch: {
                                     namespace: 'C6/Player',
                                     region: 'us-east-1',
@@ -795,16 +785,6 @@ describe('player service', function() {
                         }
                     }
                 },
-                adtech: {
-                    protocol: 'https:',
-                    server: 'adserver.adtechus.com',
-                    network: '5491.1',
-                    request: {
-                        maxSockets: 250,
-                        timeout: 3000,
-                        keepAlive: true
-                    }
-                },
                 cloudwatch: {
                     namespace: 'C6/Player',
                     region: 'us-east-1',
@@ -874,13 +854,7 @@ describe('player service', function() {
                         expect(MockAdLoader).toHaveBeenCalledWith({
                             envRoot: config.api.root,
                             cardEndpoint: config.api.card.endpoint,
-                            cardCacheTTLs: config.api.card.cacheTTLs,
-                            protocol: config.adtech.protocol,
-                            server: config.adtech.server,
-                            network: config.adtech.network,
-                            maxSockets: config.adtech.request.maxSockets,
-                            timeout: config.adtech.request.timeout,
-                            keepAlive: config.adtech.request.keepAlive
+                            cardCacheTTLs: config.api.card.cacheTTLs
                         });
                     });
                 });
@@ -2270,11 +2244,6 @@ describe('player service', function() {
 
                         it('should decorate the experience with params', function() {
                             expect(experience.$params).toEqual(params);
-                        });
-
-                        it('should decorate the experience with an adServer config', function() {
-                            expect(experience.data.adServer.server).toBe(config.adtech.server);
-                            expect(experience.data.adServer.network).toBe(config.adtech.network);
                         });
                     });
 

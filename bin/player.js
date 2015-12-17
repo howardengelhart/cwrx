@@ -88,13 +88,7 @@ function Player(config) {
     this.adLoader = new AdLoader({
         envRoot: config.api.root,
         cardEndpoint: config.api.card.endpoint,
-        cardCacheTTLs: config.api.card.cacheTTLs,
-        protocol: config.adtech.protocol,
-        server: config.adtech.server,
-        network: config.adtech.network,
-        maxSockets: config.adtech.request.maxSockets,
-        timeout: config.adtech.request.timeout,
-        keepAlive: config.adtech.request.keepAlive
+        cardCacheTTLs: config.api.card.cacheTTLs
     });
     this.adLoadTimeReporter = new CloudWatchReporter(config.cloudwatch.namespace, {
         MetricName: 'AdLoadTime',
@@ -255,10 +249,7 @@ Player.prototype.__getExperience__ = function __getExperience__(id, params, orig
         headers: { origin: origin },
         json: true
     })).then(function decorate(experience) {
-        return extend(experience, {
-            data: { adServer: { server: config.adtech.server, network: config.adtech.network } },
-            $params: params
-        });
+        return extend(experience, { $params: params });
     }).catch(function convertError(reason) {
         var message = reason.message;
         var statusCode = reason.statusCode;
@@ -464,16 +455,6 @@ Player.startService = function startService() {
                         fresh: 1,
                         max: 5
                     }
-                }
-            },
-            adtech: {
-                protocol: 'https:',
-                server: 'adserver.adtechus.com',
-                network: '5491.1',
-                request: {
-                    maxSockets: 250,
-                    timeout: 3000,
-                    keepAlive: true
                 }
             },
             cloudwatch: {
