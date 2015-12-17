@@ -130,7 +130,8 @@
             Status.Expired
         ]));
         
-        svc.getPublicCard = cardModule.getPublicCard.bind(cardModule, svc, caches);
+        svc.getPublicCard   = cardModule.getPublicCard.bind(cardModule, svc, caches);
+        svc.chooseCards     = cardModule.chooseCards.bind(cardModule, svc, caches);
         
         return svc;
     };
@@ -424,24 +425,13 @@
                     return q();
                 }
                 
-                card.advertiserId = camp.advertiserId;
                 card.params = card.params || {};
                 card.campaign = card.campaign || {};
                 card.params.sponsor = camp.advertiserDisplayName || card.params.sponsor;
-                
-                var campEntry = (camp.cards || []).filter(function(cardObj) {
-                    return cardObj.id === card.id;
-                })[0] || {};
 
-                card.adtechId = card.campaign.adtechId || campEntry.adtechId;
-                card.bannerId = card.campaign.bannerNumber || campEntry.bannerNumber;
-
-                // don't show card without an adtechId
-                if (!card.adtechId) {
-                    log.warn('[%1] No adtechId for %2 in cards list of %3',
-                             req.uuid, card.id, camp.id);
-                    return q();
-                }
+                //TODO: Kept for backwards compatibility with player service, remove eventually
+                card.adtechId = card.campaign.adtechId;
+                card.bannerId = card.campaign.bannerNumber;
                 
                 return card;
             });
@@ -479,11 +469,100 @@
         });
     };
 
+    cardModule.chooseCards = function(cardSvc, caches, req) {
+        var log = logger.getLog(),
+            randomize = req.query.random === 'true',
+            campId = String(req.query.campaign || ''),
+            limit = Math.max(Number(req.query.limit), 0) || Infinity;
+        
+        if (!campId) {
+            return q({ code: 400, body: 'Must provide campaign id' });
+        }
+        
+        // Choose card entries from available, fetch using getPublicCard, and add them to fetched
+        function chooseAndFetch(available, fetched, numToFetch) {
+            var chosen = [];
+            while ((chosen.length + fetched.length) < numToFetch && available.length > 0) {
+                var idx = randomize ? Math.floor(Math.random() * available.length) : 0;
+                chosen = chosen.concat(available.splice(idx, 1));
+            }
+            
+            return q.all(chosen.map(function(cardEntry) {
+                return cardSvc.getPublicCard(cardEntry.id, req);
+            }))
+            .then(function(cards) {
+                fetched = fetched.concat(cards.filter(function(card) { return !!card; }));
+                
+                // if some cards couldn't be fetched + we don't have enough cards, recurse
+                if (fetched.length < numToFetch && available.length > 0) {
+                    return chooseAndFetch(available, fetched, numToFetch);
+                } else {
+                    return fetched;
+                }
+            });
+        }
+        
+        return caches.campaigns.getPromise({ id: campId })
+        .spread(function(camp) {
+            if (!camp) {
+                log.info('[%1] Campaign %2 not found', req.uuid, campId);
+                return q({ code: 404, body: 'Campaign not found' });
+            }
+            if ([Status.Canceled, Status.Expired, Status.Deleted].indexOf(camp.status) !== -1) {
+                log.info('[%1] Campaign %2 is %3, not getting cards',req.uuid, campId, camp.status);
+                return q({ code: 400, body: 'Campaign not running' });
+            }
+            if (!camp.cards || camp.cards.length === 0) {
+                log.info('[%1] No cards in campaign %2', req.uuid, campId);
+                return q({
+                    code: 200,
+                    body: [],
+                    headers: { 'content-range': 'items 0-0/0' }
+                });
+            }
+            
+            var numToFetch = Math.min(camp.cards.length, limit),
+                available = JSON.parse(JSON.stringify(camp.cards));
+            
+            return chooseAndFetch(available, [], numToFetch)
+            .then(function(cards) {
+                log.info('[%1] Returning %2 cards from %3', req.uuid, cards.length, campId);
+                var resp = { code: 200, body: cards };
+                
+                if (!randomize) {
+                    var rangeStr = 'items ' + (cards.length > 0 ? '1-' : '0-') +
+                                   cards.length + '/' + camp.cards.length;
+                    resp.headers = { 'content-range': rangeStr };
+                }
+                
+                return q(resp);
+            });
+        })
+        .catch(function(error) {
+            log.error('[%1] Error choosing cards from campaign %2: %3',
+                      req.uuid, campId, util.inspect(error));
+            return q.reject('Mongo error');
+        });
+    };
+
+
     cardModule.setupEndpoints = function(app, cardSvc, sessions, audit, config, jobManager) {
         // Public get card; regex at end allows client to optionally specify extension (js|json)
         app.get('/api/public/content/cards?/:id([^.]+).?:ext?', function(req, res) {
             cardModule.handlePublicGet(req, res, cardSvc, config).then(function(resp) {
                 res.send(resp.code, resp.body);
+            });
+        });
+        
+        app.get('/api/public/content/cards?/', function(req, res) {
+            cardSvc.chooseCards(req).then(function(resp) {
+                if (resp.headers && resp.headers['content-range']) {
+                    res.header('content-range', resp.headers['content-range']);
+                }
+                res.send(resp.code, resp.body);
+            })
+            .catch(function(error) {
+                res.send(500, { error: 'Error retrieving cards', detail: error });
             });
         });
 

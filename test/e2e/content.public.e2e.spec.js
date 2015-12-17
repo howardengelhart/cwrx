@@ -9,7 +9,7 @@ var q               = require('q'),
         contentUrl  : 'http://' + (host === 'localhost' ? host + ':3300' : host) + '/api',
     };
 
-describe('content public experience endpoints (E2E):', function() {
+describe('content public endpoints (E2E):', function() {
     beforeEach(function() {
         jasmine.DEFAULT_TIMEOUT_INTERVAL = 5000;
     });
@@ -394,7 +394,6 @@ describe('content public experience endpoints (E2E):', function() {
                         {
                             id: 'rc-sp1',
                             campaignId: 'cam-pubexp1',
-                            advertiserId: 'a-1',
                             params: { sponsor: 'Heinz' },
                             status: 'active',
                             foo: 'baz',
@@ -405,7 +404,6 @@ describe('content public experience endpoints (E2E):', function() {
                         {
                             id: 'rc-sp2',
                             campaignId: 'cam-pubexp1',
-                            advertiserId: 'a-1',
                             params: { sponsor: 'Heinz' },
                             status: 'active',
                             foo: 'buz',
