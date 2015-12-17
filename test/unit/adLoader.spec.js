@@ -1,6 +1,5 @@
 describe('AdLoader()', function() {
     var AdLoader;
-    var ADTECHBannerClient;
     var q;
     var FunctionCache;
     var request;
@@ -14,7 +13,6 @@ describe('AdLoader()', function() {
     var requestDeferreds;
 
     beforeEach(function() {
-        ADTECHBannerClient = require('../../lib/adtechBannerClient');
         q = require('q');
         FunctionCache = require('../../lib/functionCache');
         request = require('request-promise');
