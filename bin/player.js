@@ -152,7 +152,6 @@ Player.prototype.__loadCard__ = function __loadCard__(params, origin, uuid) {
             throw reason;
         })
         .then(function fetch(experience) {
-            var wildCardPlacement = experience.data.wildCardPlacement;
             var cardParams = extend({
                 experience: experienceId
             }, self.__apiParams__('card', params));
@@ -162,11 +161,10 @@ Player.prototype.__loadCard__ = function __loadCard__(params, origin, uuid) {
 
                 return (function() {
                     if (cardId) {
-                        return adLoader.getCard(cardId, wildCardPlacement, cardParams, uuid);
+                        return adLoader.getCard(cardId, cardParams, uuid);
                     }
 
                     return adLoader.findCard({
-                        placement: wildCardPlacement,
                         campaign: campaignId,
                         categories: categories
                     }, cardParams, uuid).catch(function logError(reason) {
@@ -463,7 +461,7 @@ Player.startService = function startService() {
                     default: 'e-00000000000000'
                 },
                 card: {
-                    endpoint: 'api/public/content/card/',
+                    endpoint: 'api/public/content/cards/',
                     validParams: [
                         'container', 'pageUrl',
                         'hostApp', 'network', 'experience',

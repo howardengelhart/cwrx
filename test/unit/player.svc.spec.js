@@ -273,7 +273,7 @@ describe('player service', function() {
                                         default: 'e-00000000000000'
                                     },
                                     card: {
-                                        endpoint: 'api/public/content/card/',
+                                        endpoint: 'api/public/content/cards/',
                                         validParams: [
                                             'container', 'pageUrl',
                                             'hostApp', 'network', 'experience',
@@ -783,7 +783,7 @@ describe('player service', function() {
                         default: 'e-00000000000000'
                     },
                     card: {
-                        endpoint: 'api/public/content/card/',
+                        endpoint: 'api/public/content/cards/',
                         validParams: [
                             'container', 'pageUrl',
                             'hostApp', 'network', 'experience',
@@ -1641,7 +1641,6 @@ describe('player service', function() {
 
                             it('should find the card', function() {
                                 expect(player.adLoader.findCard).toHaveBeenCalledWith({
-                                    placement: experience.data.wildCardPlacement,
                                     campaign: params.campaign,
                                     categories: params.categories
                                 }, extend({ experience: experience.id }, player.__apiParams__('card', params)), uuid);
@@ -1799,7 +1798,7 @@ describe('player service', function() {
                             });
 
                             it('should find the card', function() {
-                                expect(player.adLoader.getCard).toHaveBeenCalledWith(params.card, experience.data.wildCardPlacement, extend({
+                                expect(player.adLoader.getCard).toHaveBeenCalledWith(params.card, extend({
                                     experience: experience.id
                                 }, player.__apiParams__('card', params)), uuid);
                             });
