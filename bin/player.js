@@ -88,13 +88,7 @@ function Player(config) {
     this.adLoader = new AdLoader({
         envRoot: config.api.root,
         cardEndpoint: config.api.card.endpoint,
-        cardCacheTTLs: config.api.card.cacheTTLs,
-        protocol: config.adtech.protocol,
-        server: config.adtech.server,
-        network: config.adtech.network,
-        maxSockets: config.adtech.request.maxSockets,
-        timeout: config.adtech.request.timeout,
-        keepAlive: config.adtech.request.keepAlive
+        cardCacheTTLs: config.api.card.cacheTTLs
     });
     this.adLoadTimeReporter = new CloudWatchReporter(config.cloudwatch.namespace, {
         MetricName: 'AdLoadTime',
@@ -134,15 +128,14 @@ Player.prototype.__loadCard__ = function __loadCard__(params, origin, uuid) {
     var adLoader = this.adLoader;
     var adLoadTimeReporter = this.adLoadTimeReporter;
     var validParams = this.__apiParams__('experience', params);
-    var preview = params.preview;
     var cardId = params.card;
     var campaignId = params.campaign;
     var categories = params.categories;
     var experienceId = this.config.api.experience.default;
 
-    if (cardId && (campaignId || categories)) {
+    if (cardId && campaignId) {
         return q.reject(new ServiceError(
-            'Cannot specify campaign or categories with card.', 400
+            'Cannot specify campaign with card.', 400
         ));
     }
 
@@ -152,7 +145,6 @@ Player.prototype.__loadCard__ = function __loadCard__(params, origin, uuid) {
             throw reason;
         })
         .then(function fetch(experience) {
-            var wildCardPlacement = experience.data.wildCardPlacement;
             var cardParams = extend({
                 experience: experienceId
             }, self.__apiParams__('card', params));
@@ -162,11 +154,10 @@ Player.prototype.__loadCard__ = function __loadCard__(params, origin, uuid) {
 
                 return (function() {
                     if (cardId) {
-                        return adLoader.getCard(cardId, wildCardPlacement, cardParams, uuid);
+                        return adLoader.getCard(cardId, cardParams, uuid);
                     }
 
                     return adLoader.findCard({
-                        placement: wildCardPlacement,
                         campaign: campaignId,
                         categories: categories
                     }, cardParams, uuid).catch(function logError(reason) {
@@ -182,11 +173,7 @@ Player.prototype.__loadCard__ = function __loadCard__(params, origin, uuid) {
                         return card;
                     });
                 }()).tap(function sendMetrics() {
-                    var end = Date.now();
-
-                    if (!preview) {
-                        adLoadTimeReporter.push(end - start);
-                    }
+                    adLoadTimeReporter.push(Date.now() - start);
                 }).catch(function createServiceError(reason) {
                     throw new ServiceError(reason.message, 404);
                 });
@@ -221,16 +208,14 @@ Player.prototype.__loadExperience__ = function __loadExperience__(id, params, or
     function loadAds(experience) {
         var start = Date.now();
 
-        if (preview || !AdLoader.hasAds(experience)) {
+        if (!AdLoader.hasAds(experience)) {
             log.trace('[%1] Skipping ad calls.', uuid);
             return AdLoader.removePlaceholders(experience);
         }
 
         return adLoader.loadAds(experience, categories, campaign, uuid)
             .tap(function sendMetrics() {
-                var end = Date.now();
-
-                adLoadTimeReporter.push(end - start);
+                adLoadTimeReporter.push(Date.now() - start);
             })
             .catch(function trimCards(reason) {
                 log.warn('[%1] Unexpected failure loading ads: %2', uuid, inspect(reason));
@@ -264,10 +249,7 @@ Player.prototype.__getExperience__ = function __getExperience__(id, params, orig
         headers: { origin: origin },
         json: true
     })).then(function decorate(experience) {
-        return extend(experience, {
-            data: { adServer: { server: config.adtech.server, network: config.adtech.network } },
-            $params: params
-        });
+        return extend(experience, { $params: params });
     }).catch(function convertError(reason) {
         var message = reason.message;
         var statusCode = reason.statusCode;
@@ -463,7 +445,7 @@ Player.startService = function startService() {
                     default: 'e-00000000000000'
                 },
                 card: {
-                    endpoint: 'api/public/content/card/',
+                    endpoint: 'api/public/content/cards/',
                     validParams: [
                         'container', 'pageUrl',
                         'hostApp', 'network', 'experience',
@@ -473,16 +455,6 @@ Player.startService = function startService() {
                         fresh: 1,
                         max: 5
                     }
-                }
-            },
-            adtech: {
-                protocol: 'https:',
-                server: 'adserver.adtechus.com',
-                network: '5491.1',
-                request: {
-                    maxSockets: 250,
-                    timeout: 3000,
-                    keepAlive: true
                 }
             },
             cloudwatch: {
@@ -670,7 +642,6 @@ Player.prototype.get = function get(/*options*/) {
     var experience = options.experience;
     var card = options.card;
     var campaign = options.campaign;
-    var categories = options.categories;
     var embed = options.embed;
     var branding = options.branding;
     var countdown = options.countdown;
@@ -731,7 +702,7 @@ Player.prototype.get = function get(/*options*/) {
         return document.toString();
     }
 
-    if (!(experience || card || campaign || categories)) {
+    if (!(experience || card || campaign)) {
         if (embed) {
             return this.__getPlayer__(type, secure, uuid)
                 .then(loadBranding(branding))
@@ -739,7 +710,7 @@ Player.prototype.get = function get(/*options*/) {
         }
 
         return q.reject(new ServiceError(
-            'You must specify either an experience, card, campaign or categories.', 400
+            'You must specify either an experience, card or campaign.', 400
         ));
     }
 

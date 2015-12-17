@@ -273,7 +273,7 @@ describe('player service', function() {
                                         default: 'e-00000000000000'
                                     },
                                     card: {
-                                        endpoint: 'api/public/content/card/',
+                                        endpoint: 'api/public/content/cards/',
                                         validParams: [
                                             'container', 'pageUrl',
                                             'hostApp', 'network', 'experience',
@@ -283,16 +283,6 @@ describe('player service', function() {
                                             fresh: 1,
                                             max: 5
                                         }
-                                    }
-                                },
-                                adtech: {
-                                    protocol: 'https:',
-                                    server: 'adserver.adtechus.com',
-                                    network: '5491.1',
-                                    request: {
-                                        maxSockets: 250,
-                                        timeout: 3000,
-                                        keepAlive: true
                                     }
                                 },
                                 cloudwatch: {
@@ -783,7 +773,7 @@ describe('player service', function() {
                         default: 'e-00000000000000'
                     },
                     card: {
-                        endpoint: 'api/public/content/card/',
+                        endpoint: 'api/public/content/cards/',
                         validParams: [
                             'container', 'pageUrl',
                             'hostApp', 'network', 'experience',
@@ -793,16 +783,6 @@ describe('player service', function() {
                             fresh: 1,
                             max: 5
                         }
-                    }
-                },
-                adtech: {
-                    protocol: 'https:',
-                    server: 'adserver.adtechus.com',
-                    network: '5491.1',
-                    request: {
-                        maxSockets: 250,
-                        timeout: 3000,
-                        keepAlive: true
                     }
                 },
                 cloudwatch: {
@@ -874,13 +854,7 @@ describe('player service', function() {
                         expect(MockAdLoader).toHaveBeenCalledWith({
                             envRoot: config.api.root,
                             cardEndpoint: config.api.card.endpoint,
-                            cardCacheTTLs: config.api.card.cacheTTLs,
-                            protocol: config.adtech.protocol,
-                            server: config.adtech.server,
-                            network: config.adtech.network,
-                            maxSockets: config.adtech.request.maxSockets,
-                            timeout: config.adtech.request.timeout,
-                            keepAlive: config.adtech.request.keepAlive
+                            cardCacheTTLs: config.api.card.cacheTTLs
                         });
                     });
                 });
@@ -1125,11 +1099,10 @@ describe('player service', function() {
                             delete options.experience;
                         });
 
-                        describe('and no card, campaign or categories', function() {
+                        describe('and no card or campaign', function() {
                             beforeEach(function(done) {
                                 delete options.card;
                                 delete options.campaign;
-                                delete options.categories;
 
                                 player.get(options).then(success, failure).finally(done);
                             });
@@ -1137,7 +1110,7 @@ describe('player service', function() {
                             it('should reject the promise', function() {
                                 var error = failure.calls.mostRecent().args[0];
 
-                                expect(error.message).toBe('You must specify either an experience, card, campaign or categories.');
+                                expect(error.message).toBe('You must specify either an experience, card or campaign.');
                                 expect(error.status).toBe(400);
                             });
 
@@ -1226,11 +1199,10 @@ describe('player service', function() {
                             });
                         });
 
-                        describe('and a card, campaign and categories', function() {
+                        describe('and a card and campaign', function() {
                             beforeEach(function() {
                                 options.card = 'rc-815770d013a72c';
                                 options.campaign = 'cam-d702b101d0a046';
-                                options.categories = ['food', 'tech'];
                                 options.secure = false;
 
                                 player.get(options).then(success, failure);
@@ -1574,7 +1546,7 @@ describe('player service', function() {
                         failure = jasmine.createSpy('failure()');
                     });
 
-                    describe('with a card id, campaign and categories', function() {
+                    describe('with a card id and campaign', function() {
                         beforeEach(function(done) {
                             success.calls.reset();
                             failure.calls.reset();
@@ -1584,7 +1556,6 @@ describe('player service', function() {
 
                             params.card = 'rc-4a51653fcd65ac';
                             params.campaign = 'cam-dd8f7c06153451';
-                            params.categories = ['food', 'tech'];
 
                             player.__loadCard__(params, origin, uuid).then(success, failure).finally(done);
                         });
@@ -1598,7 +1569,7 @@ describe('player service', function() {
                         it('should reject the promise', function() {
                             var error = failure.calls.mostRecent().args[0];
 
-                            expect(error.message).toBe('Cannot specify campaign or categories with card.');
+                            expect(error.message).toBe('Cannot specify campaign with card.');
                             expect(error.status).toBe(400);
                         });
                     });
@@ -1641,7 +1612,6 @@ describe('player service', function() {
 
                             it('should find the card', function() {
                                 expect(player.adLoader.findCard).toHaveBeenCalledWith({
-                                    placement: experience.data.wildCardPlacement,
                                     campaign: params.campaign,
                                     categories: params.categories
                                 }, extend({ experience: experience.id }, player.__apiParams__('card', params)), uuid);
@@ -1678,26 +1648,6 @@ describe('player service', function() {
 
                                 it('should fulfill with the experience', function() {
                                     expect(success).toHaveBeenCalledWith(experience);
-                                });
-
-                                describe('in preview mode', function() {
-                                    beforeEach(function(done) {
-                                        success.calls.reset();
-                                        failure.calls.reset();
-                                        player.adLoadTimeReporter.push.calls.reset();
-
-                                        params.preview = true;
-
-                                        player.__loadCard__(params, origin, uuid).then(success, failure).finally(done);
-                                    });
-
-                                    it('should fulfill with the experience', function() {
-                                        expect(success).toHaveBeenCalledWith(experience);
-                                    });
-
-                                    it('should not send timing metrics', function() {
-                                        expect(player.adLoadTimeReporter.push).not.toHaveBeenCalled();
-                                    });
                                 });
                             });
 
@@ -1799,7 +1749,7 @@ describe('player service', function() {
                             });
 
                             it('should find the card', function() {
-                                expect(player.adLoader.getCard).toHaveBeenCalledWith(params.card, experience.data.wildCardPlacement, extend({
+                                expect(player.adLoader.getCard).toHaveBeenCalledWith(params.card, extend({
                                     experience: experience.id
                                 }, player.__apiParams__('card', params)), uuid);
                             });
@@ -1835,26 +1785,6 @@ describe('player service', function() {
 
                                 it('should fulfill with the experience', function() {
                                     expect(success).toHaveBeenCalledWith(experience);
-                                });
-
-                                describe('in preview mode', function() {
-                                    beforeEach(function(done) {
-                                        success.calls.reset();
-                                        failure.calls.reset();
-                                        player.adLoadTimeReporter.push.calls.reset();
-
-                                        params.preview = true;
-
-                                        player.__loadCard__(params, origin, uuid).then(success, failure).finally(done);
-                                    });
-
-                                    it('should fulfill with the experience', function() {
-                                        expect(success).toHaveBeenCalledWith(experience);
-                                    });
-
-                                    it('should not send timing metrics', function() {
-                                        expect(player.adLoadTimeReporter.push).not.toHaveBeenCalled();
-                                    });
                                 });
                             });
 
@@ -2042,12 +1972,12 @@ describe('player service', function() {
                             expect(player.__getExperience__).not.toHaveBeenCalled();
                         });
 
-                        it('should not loadAds()', function() {
-                            expect(player.adLoader.loadAds).not.toHaveBeenCalled();
+                        it('should load ads for the experience', function() {
+                            expect(player.adLoader.loadAds).toHaveBeenCalledWith(experience, params.categories, params.campaign, uuid);
                         });
 
-                        it('should removePlaceholders() from the experience', function() {
-                            expect(MockAdLoader.removePlaceholders).toHaveBeenCalledWith(experience);
+                        it('should not removePlaceholders() from the experience', function() {
+                            expect(MockAdLoader.removePlaceholders).not.toHaveBeenCalled();
                         });
 
                         it('should not removeSponsoredCards() from the experience', function() {
@@ -2314,11 +2244,6 @@ describe('player service', function() {
 
                         it('should decorate the experience with params', function() {
                             expect(experience.$params).toEqual(params);
-                        });
-
-                        it('should decorate the experience with an adServer config', function() {
-                            expect(experience.data.adServer.server).toBe(config.adtech.server);
-                            expect(experience.data.adServer.network).toBe(config.adtech.network);
                         });
                     });
 
