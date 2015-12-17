@@ -1,5 +1,9 @@
 # Player Service Changelog
 
+* Remove calls to ADECH: [#709](https://github.com/cinema6/cwrx/pull/709)
+* [REMOVAL]: Remove the ability to look-up sponsored cards by
+  categories: [#709](https://github.com/cinema6/cwrx/pull/709)
+
 ### 1.5.0: Thu Dec 17 10:17:39 EST 2015
 * [FEATURE]: Support overriding the skip settings of sponsored cards
   with the `skip` query param: [#707](https://github.com/cinema6/cwrx/pull/707)
