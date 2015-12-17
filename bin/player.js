@@ -140,9 +140,9 @@ Player.prototype.__loadCard__ = function __loadCard__(params, origin, uuid) {
     var categories = params.categories;
     var experienceId = this.config.api.experience.default;
 
-    if (cardId && (campaignId || categories)) {
+    if (cardId && campaignId) {
         return q.reject(new ServiceError(
-            'Cannot specify campaign or categories with card.', 400
+            'Cannot specify campaign with card.', 400
         ));
     }
 
@@ -668,7 +668,6 @@ Player.prototype.get = function get(/*options*/) {
     var experience = options.experience;
     var card = options.card;
     var campaign = options.campaign;
-    var categories = options.categories;
     var embed = options.embed;
     var branding = options.branding;
     var countdown = options.countdown;
@@ -729,7 +728,7 @@ Player.prototype.get = function get(/*options*/) {
         return document.toString();
     }
 
-    if (!(experience || card || campaign || categories)) {
+    if (!(experience || card || campaign)) {
         if (embed) {
             return this.__getPlayer__(type, secure, uuid)
                 .then(loadBranding(branding))
@@ -737,7 +736,7 @@ Player.prototype.get = function get(/*options*/) {
         }
 
         return q.reject(new ServiceError(
-            'You must specify either an experience, card, campaign or categories.', 400
+            'You must specify either an experience, card or campaign.', 400
         ));
     }
 
