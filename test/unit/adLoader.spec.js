@@ -589,6 +589,25 @@ describe('AdLoader()', function() {
                             expect(success).toHaveBeenCalledWith(cards);
                         });
                     });
+
+                    describe('if the amount is 0', function() {
+                        beforeEach(function(done) {
+                            request.get.calls.reset();
+                            success.calls.reset();
+                            failure.calls.reset();
+
+                            amount = 0;
+                            loader.__findCards__(campaign, params, amount, uuid).then(success, failure).finally(done);
+                        });
+
+                        it('should not make a request', function() {
+                            expect(request.get).not.toHaveBeenCalled();
+                        });
+
+                        it('should fulfill with an empty array', function() {
+                            expect(success).toHaveBeenCalledWith([]);
+                        });
+                    });
                 });
             });
         });
