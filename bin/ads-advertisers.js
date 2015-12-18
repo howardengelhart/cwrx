@@ -1,115 +1,39 @@
 (function(){
     'use strict';
 
-    var q               = require('q'),
-        express         = require('express'),
+    var express         = require('express'),
         authUtils       = require('../lib/authUtils'),
         CrudSvc         = require('../lib/crudSvc'),
-        logger          = require('../lib/logger'),
-        objUtils        = require('../lib/objUtils'),
-        adtech          = require('adtech'),
 
         advertModule = {};
+    
+    advertModule.advertSchema = {
+        name: {
+            __allowed: true,
+            __type: 'string',
+            __required: true
+        },
+        defaultLinks: {
+            __allowed: true,
+            __type: 'object'
+        },
+        defaultLogos: {
+            __allowed: true,
+            __type: 'object'
+        }
+    };
 
     advertModule.setupSvc = function(coll) {
-        var opts = { userProp: false, orgProp: false },
-            svc = new CrudSvc(coll, 'a', opts);
-        svc.createValidator._required.push('name');
-        svc.createValidator._forbidden.push('adtechId');
-        svc.use('read', svc.preventGetAll.bind(svc));
-        svc.use('create', advertModule.createAdtechAdvert);
-        svc.use('edit', advertModule.editAdtechAdvert);
-        svc.use('delete', advertModule.deleteAdtechAdvert);
+        var opts = { userProp: false },
+            svc = new CrudSvc(coll, 'a', opts, advertModule.advertSchema);
+        
+        var validateUniqueName = svc.validateUniqueProp.bind(svc, 'name', null);
+        
+        svc.use('create', validateUniqueName);
+        svc.use('edit', validateUniqueName);
         
         return svc;
     };
-    
-    advertModule.formatAdtechAdvert = function(body, orig) {
-        if (!orig) {
-            return {
-                companyData: {
-                    address: {},
-                    url: 'http://cinema6.com'
-                },
-                extId: body.id,
-                name: body.name
-            };
-        }
-        
-        var record = JSON.parse(JSON.stringify(orig));
-        objUtils.trimNull(record);
-
-        record.assignedUsers = record.assignedUsers ?
-            adtech.customerAdmin.makeUserList(record.assignedUsers) : undefined;
-        record.contacts = record.contacts ?
-            adtech.customerAdmin.makeContactList(record.contacts) : undefined;
-        record.name = body.name || record.name;
-        
-        return record;
-    };
-    
-    advertModule.createAdtechAdvert = function(req, next/*, done*/) {
-        var log = logger.getLog(),
-            record = advertModule.formatAdtechAdvert(req.body);
-        
-        return adtech.customerAdmin.createAdvertiser(record)
-        .then(function(resp) {
-            log.info('[%1] Created Adtech advertiser %2 for C6 advertiser %3',
-                     req.uuid, resp.id, req.body.id);
-            req.body.adtechId = parseInt(resp.id);
-            next();
-        })
-        .catch(function(error) {
-            log.error('[%1] Failed creating Adtech advertiser for %2: %3',
-                      req.uuid, req.body.id, error);
-            return q.reject(new Error('Adtech failure'));
-        });
-    };
-    
-    advertModule.editAdtechAdvert = function(req, next/*, done*/) {
-        var log = logger.getLog();
-        
-        if (req.origObj && req.body.name === req.origObj.name) {
-            log.info('[%1] Advertiser name unchanged; not updating adtech', req.uuid);
-            return q(next());
-        }
-        
-        return adtech.customerAdmin.getAdvertiserById(req.origObj.adtechId)
-        .then(function(advert) {
-            log.info('[%1] Retrieved previous advertiser %2', req.uuid, advert.id);
-            var record = advertModule.formatAdtechAdvert(req.body, advert);
-            return adtech.customerAdmin.updateAdvertiser(record);
-        })
-        .then(function(resp) {
-            log.info('[%1] Updated Adtech advertiser %2', req.uuid, resp.id);
-            next();
-        }).catch(function(error) {
-            log.error('[%1] Failed editing Adtech advertiser %2: %3',
-                      req.uuid, req.origObj.adtechId, error);
-            return q.reject(new Error('Adtech failure'));
-        });
-    };
-
-    advertModule.deleteAdtechAdvert = function(req, next/*, done*/) {
-        var log = logger.getLog();
-        
-        if (!req.origObj || !req.origObj.adtechId) {
-            log.warn('[%1] Advert %2 has no adtechId, nothing to delete', req.uuid, req.origObj.id);
-            return q(next());
-        }
-        
-        return adtech.customerAdmin.deleteAdvertiser(req.origObj.adtechId)
-        .then(function() {
-            log.info('[%1] Deleted Adtech advertiser %2', req.uuid, req.origObj.adtechId);
-            next();
-        })
-        .catch(function(error) {
-            log.error('[%1] Error deleting Adtech advertiser %2: %3',
-                      req.uuid, req.origObj.adtechId, error);
-            return q.reject(new Error('Adtech failure'));
-        });
-    };
-
     
     advertModule.setupEndpoints = function(app, svc, sessions, audit, jobManager) {
         var router      = express.Router(),
@@ -133,8 +57,11 @@
             if (req.query.name) {
                 query.name = String(req.query.name);
             }
-            if (req.query.adtechId) {
-                query.adtechId = Number(req.query.adtechId);
+            if (req.query.org) {
+                query.org = String(req.query.org);
+            }
+            if ('ids' in req.query) {
+                query.id = String(req.query.ids).split(',');
             }
 
             var promise = svc.getObjs(query, req, true);

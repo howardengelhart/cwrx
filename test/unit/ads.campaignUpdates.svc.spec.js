@@ -35,10 +35,6 @@ describe('ads-campaignUpdates (UT)', function() {
             })
         };
         
-        updateModule.config.campaigns = {
-            statusDelay: 1000, statusAttempts: 10, campaignTypeId: 454545,
-            dateDelays: { start: 100, end: 200 }
-        };
         updateModule.config.api = {
             root: 'https://test.com',
             cards: {
@@ -116,7 +112,6 @@ describe('ads-campaignUpdates (UT)', function() {
         it('should save some config variables locally', function() {
             expect(updateModule.config.api).toBeDefined();
             expect(updateModule.config.emails).toBeDefined();
-            expect(updateModule.config.campaigns).toBeDefined();
         });
         
         it('should enable statusHistory', function() {
@@ -131,6 +126,7 @@ describe('ads-campaignUpdates (UT)', function() {
             expect(svc._middleware.create).toContain(updateModule.enforceLock);
             expect(svc._middleware.create).toContain(updateModule.validateData);
             expect(svc._middleware.create).toContain(updateModule.extraValidation);
+            expect(svc._middleware.create).toContain(updateModule.validateCards);
             expect(svc._middleware.create).toContain(updateModule.validatePaymentMethod);
             expect(svc._middleware.create).toContain(updateModule.handleInitialSubmit);
             expect(svc._middleware.create).toContain(updateModule.notifySupport);
@@ -143,6 +139,7 @@ describe('ads-campaignUpdates (UT)', function() {
             expect(svc._middleware.edit).toContain(updateModule.requireReason);
             expect(svc._middleware.edit).toContain(updateModule.validateData);
             expect(svc._middleware.edit).toContain(updateModule.extraValidation);
+            expect(svc._middleware.edit).toContain(updateModule.validateCards);
             expect(svc._middleware.edit).toContain(updateModule.validatePaymentMethod);
             expect(svc._middleware.edit).toContain(updateModule.unlockCampaign);
             expect(svc._middleware.edit).toContain(updateModule.applyUpdate);
@@ -327,13 +324,22 @@ describe('ads-campaignUpdates (UT)', function() {
     describe('fetchCamp', function() {
         var campSvc, mockCamp;
         beforeEach(function() {
-            mockCamp = { id: 'cam-1', name: 'camp 1', updateRequest: 'ur-1', user: 'u-1', org: 'o-1' };
-            campSvc = campModule.setupSvc(mockDb, updateModule.config);
-            spyOn(campSvc, 'getObjs').and.callFake(function() { return q({ code: 200, body: mockCamp }); });
+            mockCamp = {
+                id: 'cam-1',
+                name: 'camp 1',
+                updateRequest: 'ur-1',
+                user: 'u-1',
+                org: 'o-1',
+                cards: [{ id: 'rc-1', decorated: 'yes' }]
+            };
             req.params.campId = 'cam-1';
             req.body = { data: { foo: 'bar' } };
             req.origObj = { id: 'ur-1' };
             req.user.permissions = { campaigns: { read: 'own', edit: 'own' } };
+            campSvc = campModule.setupSvc(mockDb, updateModule.config);
+            spyOn(requestUtils, 'qRequest').and.callFake(function() {
+                return q({ response: { statusCode: 200 }, body: mockCamp });
+            });
         });
         
         it('should attach the campaign as req.campaign and call next if it is found', function(done) {
@@ -343,12 +349,16 @@ describe('ads-campaignUpdates (UT)', function() {
                 expect(errorSpy).not.toHaveBeenCalled();
                 expect(req.campaign).toEqual(mockCamp);
                 expect(req.body).toEqual({ campaign: 'cam-1', data: { foo: 'bar' } });
+                expect(requestUtils.qRequest).toHaveBeenCalledWith('get', {
+                    url: 'https://test.com/api/campaigns/cam-1',
+                    headers: { cookie: 'chocolate' }
+                });
                 done();
             });
         });
         
         it('should call done if a 4xx is returned', function(done) {
-            campSvc.getObjs.and.returnValue(q({ code: 404, body: 'Campaign not found' }));
+            requestUtils.qRequest.and.returnValue(q({ response: { statusCode: 404 }, body: 'Campaign not found' }));
             updateModule.fetchCamp(campSvc, req, nextSpy, doneSpy).catch(errorSpy).finally(function() {
                 expect(nextSpy).not.toHaveBeenCalled();
                 expect(doneSpy).toHaveBeenCalledWith({ code: 404, body: 'Campaign not found' });
@@ -377,8 +387,8 @@ describe('ads-campaignUpdates (UT)', function() {
             });
         });
 
-        it('should reject if campSvc.getObjs rejects', function(done) {
-            campSvc.getObjs.and.returnValue(q.reject('I GOT A PROBLEM'));
+        it('should reject if the request fails', function(done) {
+            requestUtils.qRequest.and.returnValue(q.reject('I GOT A PROBLEM'));
             updateModule.fetchCamp(campSvc, req, nextSpy, doneSpy).catch(errorSpy).finally(function() {
                 expect(nextSpy).not.toHaveBeenCalled();
                 expect(doneSpy).not.toHaveBeenCalled();
@@ -450,8 +460,7 @@ describe('ads-campaignUpdates (UT)', function() {
                         gender: ['male']
                     },
                     interests: ['cat-3']
-                },
-                cards: undefined
+                }
             } });
         });
         
@@ -467,18 +476,18 @@ describe('ads-campaignUpdates (UT)', function() {
             req.body.data.cards = [{
                 id: 'rc-1',
                 title: 'card 1',
-                campaign: { campaign: 11, adtechName: 'adtech 1' }
+                campaign: { startDate: 'right now' }
             }];
             req.campaign.cards = [
                 {
                     id: 'rc-1',
                     title: 'card 1',
-                    campaign: { campaign: 11, adtechName: 'old name', startDate: 'right now' }
+                    campaign: { startDate: 'eventually', endDate: 'never' }
                 },
                 {
                     id: 'rc-2',
                     title: 'card 2',
-                    campaign: { campaign: 12, adtechName: 'adtech 2' }
+                    campaign: { startDate: 'tomorrow' }
                 }
             ];
             updateModule.validateData(model, req, nextSpy, doneSpy).catch(errorSpy);
@@ -503,7 +512,7 @@ describe('ads-campaignUpdates (UT)', function() {
             expect(req.body.data.cards).toEqual([{
                 id: 'rc-1',
                 title: 'card 1',
-                campaign: { campaign: 11, adtechName: 'adtech 1' }
+                campaign: { startDate: 'right now' }
             }]);
         });
         
@@ -522,7 +531,7 @@ describe('ads-campaignUpdates (UT)', function() {
                     cards: [{
                         id: 'rc-2',
                         title: 'card 2 is da best',
-                        campaign: { campaign: 12, adtechName: 'adtech 2.1' }
+                        campaign: { startDate: 'a long long time ago' }
                     }]
                 } };
             });
@@ -553,7 +562,7 @@ describe('ads-campaignUpdates (UT)', function() {
                 expect(req.body.data.cards).toEqual([{
                     id: 'rc-2',
                     title: 'card 2 is da best',
-                    campaign: { campaign: 12, adtechName: 'adtech 2.1' }
+                    campaign: { startDate: 'a long long time ago' }
                 }]);
             });
         });
@@ -565,7 +574,6 @@ describe('ads-campaignUpdates (UT)', function() {
             req.body = { data: { newCampaign: 'yes' } };
             req.campaign = { oldCampaign: 'yes' };
             spyOn(campaignUtils, 'ensureUniqueIds').and.returnValue({ isValid: true });
-            spyOn(campaignUtils, 'ensureUniqueNames').and.returnValue({ isValid: true });
             spyOn(campaignUtils, 'validateAllDates').and.returnValue({ isValid: true });
             spyOn(campaignUtils, 'validatePricing').and.returnValue({ isValid: true });
             model = new Model('campaigns', {});
@@ -576,13 +584,12 @@ describe('ads-campaignUpdates (UT)', function() {
             expect(nextSpy).toHaveBeenCalled();
             expect(doneSpy).not.toHaveBeenCalled();
             expect(campaignUtils.ensureUniqueIds).toHaveBeenCalledWith({ newCampaign: 'yes' });
-            expect(campaignUtils.ensureUniqueNames).toHaveBeenCalledWith({ newCampaign: 'yes' });
-            expect(campaignUtils.validateAllDates).toHaveBeenCalledWith({ newCampaign: 'yes' }, { oldCampaign: 'yes' }, req.user, { start: 100, end: 200 }, '1234');
+            expect(campaignUtils.validateAllDates).toHaveBeenCalledWith({ newCampaign: 'yes' }, { oldCampaign: 'yes' }, req.user, '1234');
             expect(campaignUtils.validatePricing).toHaveBeenCalledWith({ newCampaign: 'yes' }, { oldCampaign: 'yes' }, req.user, model, true);
         });
         
         it('should call done if any of the methods fail', function() {
-            var methods = ['ensureUniqueIds', 'ensureUniqueNames', 'validateAllDates', 'validatePricing'];
+            var methods = ['ensureUniqueIds', 'validateAllDates', 'validatePricing'];
             methods.forEach(function(method) {
                 // reset all methods
                 methods.forEach(function(meth) { campaignUtils[meth].and.returnValue({ isValid: true }); });
@@ -596,6 +603,110 @@ describe('ads-campaignUpdates (UT)', function() {
                 expect(nextSpy).not.toHaveBeenCalled();
                 expect(doneSpy).toHaveBeenCalledWith({ code: 400, body: method + ' has failed' });
             });
+        });
+    });
+    
+    describe('validateCards', function() {
+        var ModelSpy;
+        beforeEach(function() {
+            req.body = { data: {
+                cards: [
+                    { id: 'rc-1', new: 'yes' },
+                    { id: 'rc-2', new: 'yes' }
+                ]
+            } };
+            req.campaign = {
+                id: 'cam-1',
+                cards: [
+                    { id: 'rc-1', old: 'yes' },
+                    { id: 'rc-2', old: 'yes' }
+                ]
+            };
+            spyOn(requestUtils, 'qRequest').and.returnValue(q({
+                response: { statusCode: 200 },
+                body: { schema: 'yes' }
+            }));
+            spyOn(Model.prototype, 'validate').and.returnValue({ isValid: true });
+            ModelSpy = jasmine.createSpy('Model()').and.callFake(function(objName, schema) {
+                return new Model(objName, schema);
+            });
+
+            var config = updateModule.config;
+            require.cache[require.resolve('../../lib/model')] = { exports: ModelSpy };
+            delete require.cache[require.resolve('../../bin/ads-campaignUpdates')];
+            updateModule = require('../../bin/ads-campaignUpdates');
+            updateModule.config = config;
+        });
+        
+        afterEach(function() {
+            delete require.cache[require.resolve('../../bin/ads-campaignUpdates')];
+            delete require.cache[require.resolve('../../lib/model')];
+        });
+        
+        it('should get the card schema and validate all cards', function(done) {
+            updateModule.validateCards(req, nextSpy, doneSpy).catch(errorSpy).finally(function() {
+                expect(nextSpy).toHaveBeenCalled();
+                expect(doneSpy).not.toHaveBeenCalled();
+                expect(errorSpy).not.toHaveBeenCalled();
+                expect(requestUtils.qRequest).toHaveBeenCalledWith('get', {
+                    url: 'https://test.com/api/content/cards/schema',
+                    headers: { cookie: 'chocolate' }
+                });
+                expect(ModelSpy).toHaveBeenCalledWith('cards', { schema: 'yes' });
+                expect(Model.prototype.validate.calls.count()).toBe(2);
+                expect(Model.prototype.validate).toHaveBeenCalledWith('edit', { id: 'rc-1', new: 'yes' }, { id: 'rc-1', old: 'yes' }, req.user);
+                expect(Model.prototype.validate).toHaveBeenCalledWith('edit', { id: 'rc-2', new: 'yes' }, { id: 'rc-2', old: 'yes' }, req.user);
+                expect(mockLog.error).not.toHaveBeenCalled();
+            }).done(done, done.fail);
+        });
+        
+        it('should be able to handle new cards', function(done) {
+            req.body.data.cards.push({ title: 'my new card' });
+            updateModule.validateCards(req, nextSpy, doneSpy).catch(errorSpy).finally(function() {
+                expect(nextSpy).toHaveBeenCalled();
+                expect(doneSpy).not.toHaveBeenCalled();
+                expect(errorSpy).not.toHaveBeenCalled();
+                expect(ModelSpy).toHaveBeenCalledWith('cards', { schema: 'yes' });
+                expect(Model.prototype.validate.calls.count()).toBe(3);
+                expect(Model.prototype.validate).toHaveBeenCalledWith('edit', { id: 'rc-1', new: 'yes' }, { id: 'rc-1', old: 'yes' }, req.user);
+                expect(Model.prototype.validate).toHaveBeenCalledWith('edit', { id: 'rc-2', new: 'yes' }, { id: 'rc-2', old: 'yes' }, req.user);
+                expect(Model.prototype.validate).toHaveBeenCalledWith('create', { title: 'my new card' }, undefined, req.user);
+                expect(mockLog.error).not.toHaveBeenCalled();
+            }).done(done, done.fail);
+        });
+        
+        it('should call done if one of the cards is invalid', function(done) {
+            Model.prototype.validate.and.returnValue({ isValid: false, reason: 'this card stinks' });
+            updateModule.validateCards(req, nextSpy, doneSpy).catch(errorSpy).finally(function() {
+                expect(nextSpy).not.toHaveBeenCalled();
+                expect(doneSpy).toHaveBeenCalledWith({ code: 400, body: 'cards[0] is invalid: this card stinks' });
+                expect(errorSpy).not.toHaveBeenCalled();
+                expect(Model.prototype.validate.calls.count()).toBe(1);
+                expect(Model.prototype.validate).toHaveBeenCalledWith('edit', { id: 'rc-1', new: 'yes' }, { id: 'rc-1', old: 'yes' }, req.user);
+                expect(mockLog.error).not.toHaveBeenCalled();
+            }).done(done, done.fail);
+        });
+        
+        it('should call done if the get schema endpoint returns a 4xx response', function(done) {
+            requestUtils.qRequest.and.returnValue(q({ response: { statusCode: 403 }, body: 'Cannot create/edit cards' }));
+            updateModule.validateCards(req, nextSpy, doneSpy).catch(errorSpy).finally(function() {
+                expect(nextSpy).not.toHaveBeenCalled();
+                expect(doneSpy).toHaveBeenCalledWith({ code: 403, body: 'Cannot create/edit cards' });
+                expect(errorSpy).not.toHaveBeenCalled();
+                expect(Model.prototype.validate).not.toHaveBeenCalled();
+                expect(mockLog.error).not.toHaveBeenCalled();
+            }).done(done, done.fail);
+        });
+        
+        it('should reject if the request for the schema fails', function(done) {
+            requestUtils.qRequest.and.returnValue(q.reject('I GOT A PROBLEM'));
+            updateModule.validateCards(req, nextSpy, doneSpy).catch(errorSpy).finally(function() {
+                expect(nextSpy).not.toHaveBeenCalled();
+                expect(doneSpy).not.toHaveBeenCalled();
+                expect(errorSpy).toHaveBeenCalledWith('Error fetching card schema');
+                expect(Model.prototype.validate).not.toHaveBeenCalled();
+                expect(mockLog.error).toHaveBeenCalled();
+            }).done(done, done.fail);
         });
     });
     

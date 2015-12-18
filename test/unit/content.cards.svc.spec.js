@@ -201,9 +201,9 @@ describe('content-cards (UT)', function() {
                 });
             });
         
-            ['reportingId', 'adtechName', 'startDate', 'endDate'].forEach(function(field) {
+            ['reportingId', 'startDate', 'endDate'].forEach(function(field) {
                 describe('subfield ' + field, function() {
-                    it('should fail if the field is not a number', function() {
+                    it('should fail if the field is not a string', function() {
                         newObj.campaign[field] = 1234;
                         expect(svc.model.validate('create', newObj, origObj, requester))
                             .toEqual({ isValid: false, reason: 'campaign.' + field + ' must be in format: string' });
@@ -241,18 +241,6 @@ describe('content-cards (UT)', function() {
                         .toEqual({ isValid: false, reason: 'campaign.minViewTime must be in format: number' });
                 });
             });
-
-            ['bannerId', 'bannerNumber', 'adtechId'].forEach(function(field) {
-                describe('subfield ' + field, function() {
-                    it('should not allow anyone to set the field', function() {
-                        requester.fieldValidation.cards.campaign[field] = { __allowed: true };
-                        newObj.campaign[field] = 666666;
-                        expect(svc.model.validate('create', newObj, origObj, requester))
-                            .toEqual({ isValid: true, reason: undefined });
-                        expect(newObj.campaign[field]).not.toBeDefined();
-                    });
-                });
-            });
         });
         
         describe('when handling data', function() {
@@ -266,7 +254,7 @@ describe('content-cards (UT)', function() {
                 expect(svc.model.validate('create', newObj, origObj, requester))
                     .toEqual({ isValid: true, reason: undefined });
                 expect(newObj.data).toEqual({
-                    skip: 30,
+                    skip: 5,
                     controls: true,
                     autoplay: true,
                     autoadvance: false,
@@ -279,7 +267,7 @@ describe('content-cards (UT)', function() {
                     newObj.data.skip = 666;
                     expect(svc.model.validate('create', newObj, origObj, requester))
                         .toEqual({ isValid: true, reason: undefined });
-                    expect(newObj.data.skip).toBe(30);
+                    expect(newObj.data.skip).toBe(5);
                 });
                 
                 it('should be able to allow some requesters to set the field', function() {
@@ -300,7 +288,7 @@ describe('content-cards (UT)', function() {
                     newObj.data.skip = null;
                     expect(svc.model.validate('create', newObj, origObj, requester))
                         .toEqual({ isValid: true, reason: undefined });
-                    expect(newObj.data.skip).toBe(30);
+                    expect(newObj.data.skip).toBe(5);
                 });
             });
             

@@ -1,5 +1,9 @@
 # User Service Changelog
 
+### 3.0.0: Fri Dec 18 10:57:31 EST 2015
+* [BREAKING CHANGE]: Do not create customers on user confirmation: [#697](https://github.com/cinema6/cwrx/pull/697)
+* [BREAKING CHANGE]: Do not store `advertiser` ids on users: [#697](https://github.com/cinema6/cwrx/pull/697)
+
 ### 2.2.1: Wed Dec  2 14:05:09 EST 2015
 * [FIX]: Do not put the user into `'error'` state if confirmation fails: [#668](https://github.com/cinema6/cwrx/issues/668)
 * Extra deployment steps: None

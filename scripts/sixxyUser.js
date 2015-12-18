@@ -3,17 +3,15 @@ var q           = require('q'),
     program     = require('commander'),
     mongoUtils  = require('../lib/mongoUtils');
 
-
 program
     .version('0.0.1')
     .option('--dbHost [HOST]', 'Host of mongo instance', '33.33.33.100')
     .option('--dbPort [PORT]', 'Port of mongo instance', parseInt, 27017)
     .option('--dbUser [DBUSER]', 'Name of mongo user to use', 'e2eTests')
     .option('--dbPass [DBPASS]', 'Password of mongo user to use', 'password')
-    .option('-o, --org [ORG]', 'Id of test user\'s org', 'o-test')
+    .option('--id [ID]', 'Id of sixxy user', 'u-sixxy')
+    .option('-o, --org [ORG]', 'Id of sixxy user\'s org', 'o-test')
     .parse(process.argv);
-
-program.id = 'u-sixxy';
 
 var db, userColl;
 
@@ -23,30 +21,29 @@ mongoUtils.connect(program.dbHost, program.dbPort, 'c6Db', program.dbUser, progr
 .then(function(database) {
     db = database;
     userColl = db.collection('users');
-
-    return q.npost(userColl, 'findOne', [{ $or: [{id: program.id}, {email: 'sixxy'}] }])
-    .then(function(policy) {
-        var newUser = {
-            id: program.id,
-            org: 'o-test',
-            created: new Date(),
-            lastUpdated: new Date(),
-            status: 'active',
-            permissions: {
-                orgs: { create: 'all' },
-                customers: { create: 'all' },
-                advertisers: { create: 'all' }
+    
+    var user = {
+        id: program.id,
+        org: program.org,
+        created: new Date(),
+        lastUpdated: new Date(),
+        status: 'active',
+        permissions: {
+            orgs: { create: 'all' },
+            advertisers: { create: 'all' }
+        },
+        fieldValidation: {
+            advertisers: {
+                org: { __allowed: true }
             }
-        };
+        }
+    };
 
-        return q.npost(userColl, 'findAndModify', [{ id: program.id}, {id: 1}, mongoUtils.escapeKeys(newUser),
-                                                   { w: 1, journal: true, new: true, upsert: true }]);
-    })
-    .then(function() {
-        console.log('Successfully created/updated user', program.id);
-    });
+    return q.npost(userColl, 'findAndModify', [{ id: program.id}, {id: 1}, mongoUtils.escapeKeys(user),
+                                               { w: 1, journal: true, new: true, upsert: true }]);
 })
 .then(function() {
+    console.log('Successfully created/updated user', program.id);
     db && db.close();
     process.exit(0);
 })

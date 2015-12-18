@@ -3,13 +3,11 @@
     'use strict';
     var __ut__      = (global.jasmine !== undefined) ? true : false;
     
-    var q               = require('q'),
-        aws             = require('aws-sdk'),
+    var aws             = require('aws-sdk'),
         path            = require('path'),
         express         = require('express'),
         bodyParser      = require('body-parser'),
         sessionLib      = require('express-session'),
-        adtech          = require('adtech'),
         authUtils       = require('../lib/authUtils'),
         service         = require('../lib/service'),
         expressUtils    = require('../lib/expressUtils'),
@@ -17,11 +15,9 @@
         journal         = require('../lib/journal'),
         JobManager      = require('../lib/jobManager'),
         advertModule    = require('./ads-advertisers'),
-        custModule      = require('./ads-customers'),
         updateModule    = require('./ads-campaignUpdates'),
         campModule      = require('./ads-campaigns'),
         siteModule      = require('./ads-sites'),
-        groupModule     = require('./ads-groups'),
         
         state   = {},
         ads = {}; // for exporting functions to unit tests
@@ -32,25 +28,12 @@
         caches : { //TODO: may want to rename this now...
             run     : path.normalize('/usr/local/share/cwrx/' + state.name + '/caches/run/'),
         },
-        adtechCreds: {
-            keyPath: path.join(process.env.HOME, '.ssh/adtech.key'),
-            certPath: path.join(process.env.HOME, '.ssh/adtech.crt')
-        },
         emails: {
             awsRegion: 'us-east-1',
             sender: 'no-reply@cinema6.com',
             supportAddress: 'c6e2eTester@gmail.com',
             reviewLink: 'http://localhost:9000/#/apps/selfie/campaigns/manage/:campId/admin',
             dashboardLink: 'http://localhost:9000/#/apps/selfie/campaigns'
-        },
-        campaigns: {
-            statusDelay: 1000,      // How long to delay between polls for campaigns' statuses
-            statusAttempts: 60,     // How many times to try polling for campaigns' statuses
-            campaignTypeId: 26954,  // id for Open Campaign type; differs across networks
-            dateDelays: {
-                start: 24*60*60*1000,   // new campaigns default to starting now + this (ms)
-                end: 366*24*60*60*1000  // new campaigns default to ending now + this (ms)
-            }
         },
         api: {
             root: 'http://localhost',   // for proxying requests
@@ -66,10 +49,6 @@
             paymentMethods: {
                 endpoint: '/api/payments/methods/'
             }
-        },
-        minireelGroups: {
-            advertiserId: null,     // C6 advertiser id; must be overriden in a config file
-            customerId: null        // C6 customer id; must be overriden in a config file
         },
         sessions: {
             key: 'c6Auth',
@@ -125,10 +104,8 @@
         var app          = express(),
             jobManager   = new JobManager(state.cache, state.config.jobTimeouts),
             advertSvc    = advertModule.setupSvc(state.dbs.c6Db.collection('advertisers')),
-            custSvc      = custModule.setupSvc(state.dbs.c6Db),
             campSvc      = campModule.setupSvc(state.dbs.c6Db, state.config),
             updateSvc    = updateModule.setupSvc(state.dbs.c6Db, campSvc, state.config),
-            groupSvc     = groupModule.setupSvc(state.dbs.c6Db, state.config),
             siteSvc      = siteModule.setupSvc(state.dbs.c6Db.collection('sites')),
             auditJournal = new journal.AuditJournal(state.dbs.c6Journal.collection('audit'),
                                                     state.config.appVersion, state.config.appName);
@@ -201,14 +178,12 @@
         });
         
         advertModule.setupEndpoints(app, advertSvc, sessWrap, audit, jobManager);
-        custModule.setupEndpoints(app, custSvc, sessWrap, audit, jobManager);
         
         // Update module endpoints MUST be added before campaign endpoints!
         updateModule.setupEndpoints(app, updateSvc, sessWrap, audit, jobManager);
 
         campModule.setupEndpoints(app, campSvc, sessWrap, audit, jobManager);
         siteModule.setupEndpoints(app, siteSvc, sessWrap, audit, jobManager);
-        groupModule.setupEndpoints(app, groupSvc, sessWrap, audit, jobManager);
         
         app.use(function(err, req, res, next) {
             if (err) {
@@ -237,17 +212,6 @@
         .then(service.prepareServer)
         .then(service.daemonize)
         .then(service.cluster)
-        .then(function(state) { // NOTE: adtech.createClient() blocks for ~2-3s!
-            var log = logger.getLog();
-            log.info('Creating adtech client');
-            return adtech.createClient(
-                state.config.adtechCreds.keyPath,
-                state.config.adtechCreds.certPath
-            ).then(function() {
-                log.info('Finished creating adtech client');
-                return q(state);
-            });
-        })
         .then(service.initMongo)
         .then(service.initSessionStore)
         .then(service.initPubSubChannels)

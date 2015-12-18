@@ -101,9 +101,6 @@
             orgs: {
                 endpoint: '/api/account/orgs/'
             },
-            customers: {
-                endpoint: '/api/account/customers/'
-            },
             advertisers: {
                 endpoint: '/api/account/advertisers/'
             }

@@ -62,7 +62,6 @@
     }
 
     updateModule.setupSvc = function(db, campSvc, config) {
-        updateModule.config.campaigns = config.campaigns;
         updateModule.config.emails = config.emails;
         updateModule.config.api = config.api;
         Object.keys(updateModule.config.api)
@@ -94,6 +93,7 @@
         svc.use('create', updateModule.enforceLock);
         svc.use('create', validateData);
         svc.use('create', extraValidation);
+        svc.use('create', updateModule.validateCards);
         svc.use('create', updateModule.validatePaymentMethod);
         svc.use('create', handleInitialSubmit);
         svc.use('create', updateModule.notifySupport);
@@ -104,6 +104,7 @@
         svc.use('edit', updateModule.requireReason);
         svc.use('edit', validateData);
         svc.use('edit', extraValidation);
+        svc.use('edit', updateModule.validateCards);
         svc.use('edit', updateModule.validatePaymentMethod);
         svc.use('edit', unlockCampaign);
         svc.use('edit', applyUpdate);
@@ -145,16 +146,19 @@
     };
 
 
-    // Middleware to fetch the campaign and attach it as req.campaign.
+    // Middleware to fetch the decorated campaign and attach it as req.campaign.
     updateModule.fetchCamp = function(campSvc, req, next, done) {
         var log = logger.getLog(),
             campId = req.params.campId;
             
         log.trace('[%1] Fetching campaign %2', req.uuid, String(campId));
-        return campSvc.getObjs({ id: String(campId) }, req, false)
+        return requestUtils.qRequest('get', {
+            url: urlUtils.resolve(updateModule.config.api.campaigns.baseUrl, campId),
+            headers: { cookie: req.headers.cookie }
+        })
         .then(function(resp) {
-            if (resp.code !== 200) {
-                return done(resp);
+            if (resp.response.statusCode !== 200) {
+                return done({ code: resp.response.statusCode, body: resp.body });
             }
 
             req.campaign = resp.body;
@@ -208,11 +212,6 @@
         }
         objUtils.extend(mergedData, req.campaign, true);
         
-        // ensure cards only set on request if user defined them for update
-        mergedData.cards = req.body.data.cards || (origData && origData.cards) || undefined;
-
-        // TODO: decide how to validate cards in campaign!!
-        
         req.body.data = mergedData;
         delete req.body.data.rejectionReason;
 
@@ -227,13 +226,11 @@
     
     // Additional validation for cards array + pricing not covered by campaign model
     updateModule.extraValidation = function(model, req, next, done) {
-        var log = logger.getLog(),
-            delays = updateModule.config.campaigns.dateDelays;
+        var log = logger.getLog();
         
         var validResps = [
             campaignUtils.ensureUniqueIds(req.body.data),
-            campaignUtils.ensureUniqueNames(req.body.data),
-            campaignUtils.validateAllDates(req.body.data, req.campaign, req.user, delays,req.uuid),
+            campaignUtils.validateAllDates(req.body.data, req.campaign, req.user, req.uuid),
             campaignUtils.validatePricing(req.body.data, req.campaign, req.user, model, true),
         ];
         
@@ -245,6 +242,62 @@
         }
         
         return next();
+    };
+    
+    /* Fetch the card schema + use it to validate the req.body.data.cards array.
+     * NOTE: This will not set data.moat or data.duration on the cards. These properties should be
+     * set properly on the PUT to the card in applyUpdate() */
+    updateModule.validateCards = function(req, next, done) {
+        var log = logger.getLog();
+        
+        if (!req.body.data.cards || req.body.data.cards.length === 0) {
+            return q(next());
+        }
+        
+        // get non-personalized schema, as we will construct a model that personalizes it here
+        return requestUtils.qRequest('get', {
+            url: urlUtils.resolve(updateModule.config.api.cards.baseUrl, 'schema'),
+            headers: { cookie: req.headers.cookie }
+        })
+        .then(function(resp) {
+            if (resp.response.statusCode !== 200) {
+                log.info('[%1] Could not get card schema for %2, bailing: %3, %4',
+                         req.uuid, req.user.id, resp.response.statusCode, util.inspect(resp.body));
+                return done({ code: resp.response.statusCode, body: resp.body });
+            }
+            
+            var cardModel = new Model('cards', resp.body);
+            
+            function findExisting(newCard) {
+                return (req.campaign.cards || []).filter(function(oldCard) {
+                    return oldCard.id === newCard.id;
+                })[0];
+            }
+            
+            for (var i = 0; i < req.body.data.cards.length; i++) {
+                var origCard = findExisting(req.body.data.cards[i]);
+                
+                var validation = cardModel.validate(
+                    !!origCard ? 'edit' : 'create',
+                    req.body.data.cards[i],
+                    origCard,
+                    req.user
+                );
+                if (!validation.isValid) {
+                    log.info('[%1] Card %2 in update data is invalid', req.uuid, i);
+                    return done({
+                        code: 400,
+                        body: 'cards[' + i + '] is invalid: ' + validation.reason
+                    });
+                }
+            }
+            
+            return next();
+        })
+        .catch(function(error) {
+            log.error('[%1] Error fetching card schema: %2', req.uuid, util.inspect(error));
+            return q.reject('Error fetching card schema');
+        });
     };
     
     updateModule.validatePaymentMethod = function(req, next, done) {
@@ -313,6 +366,7 @@
         
         return mongoUtils.editObject(svc._db.collection('campaigns'), updateObj, req.campaign.id)
         .then(function() {
+            log.trace('[%1] Edited %2 with pending status', req.uuid, req.campaign.id);
             next();
         });
     };

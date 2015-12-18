@@ -12,7 +12,6 @@
   "license": "BSD",
   "private": true,
   "dependencies": {
-    "adtech": "git+ssh://git@github.com:cinema6/adtech",
     "aws-sdk": "^2.0.0-rc12",
     "bcrypt": "~0.7.7",
     "body-parser": "~1.12.4",

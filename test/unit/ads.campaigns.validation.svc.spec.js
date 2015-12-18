@@ -27,7 +27,7 @@ describe('campaign validation', function() {
             api: { root: 'http://test.com', cards: { endpoint: '/cards/' }, experiences: { endpoint: '/experiences/' } }
         });
         
-        newObj = {};
+        newObj = { advertiserId: 'a-new' };
         origObj = {};
         requester = { fieldValidation: { campaigns: {} } };
     });
@@ -83,36 +83,38 @@ describe('campaign validation', function() {
         });
     });
     
-    // advertiser + customer
-    ['advertiserId', 'customerId'].forEach(function(field) {
-        describe('when handling ' + field, function() {
-            it('should trim the field if set', function() {
-                newObj[field] = 'someAccount';
-                expect(svc.model.validate('create', newObj, origObj, requester))
-                    .toEqual({ isValid: true, reason: undefined });
-                expect(newObj[field]).not.toBeDefined();
-            });
-            
-            it('should allow some requesters to initially set but not change the field', function() {
-                requester.fieldValidation.campaigns[field] = { __allowed: true };
-                newObj[field] = 'someAccount';
-                expect(svc.model.validate('create', newObj, origObj, requester))
-                    .toEqual({ isValid: true, reason: undefined });
-                expect(newObj[field]).toEqual('someAccount');
-                
-                newObj[field] = 'someAccount';
-                origObj[field] = 'oldAccount';
-                expect(svc.model.validate('edit', newObj, origObj, requester))
-                    .toEqual({ isValid: true, reason: undefined });
-                expect(newObj[field]).toEqual('oldAccount');
-            });
-            
-            it('should fail if the field is not a string', function() {
-                requester.fieldValidation.campaigns[field] = { __allowed: true };
-                newObj[field] = 123;
-                expect(svc.model.validate('create', newObj, origObj, requester))
-                    .toEqual({ isValid: false, reason: field + ' must be in format: string' });
-            });
+    describe('when handling advertiserId', function() {
+        it('should fail if the field is not a string', function() {
+            newObj.advertiserId = 123;
+            expect(svc.model.validate('create', newObj, origObj, requester))
+                .toEqual({ isValid: false, reason: 'advertiserId must be in format: string' });
+        });
+        
+        it('should allow the field to be set on create', function() {
+            expect(svc.model.validate('create', newObj, origObj, requester))
+                .toEqual({ isValid: true, reason: undefined });
+            expect(newObj.advertiserId).toEqual('a-new');
+        });
+
+        it('should fail if the field is not defined', function() {
+            delete newObj.advertiserId;
+            expect(svc.model.validate('create', newObj, origObj, requester))
+                .toEqual({ isValid: false, reason: 'Missing required field: advertiserId' });
+        });
+        
+        it('should pass if the field was defined on the original object', function() {
+            delete newObj.advertiserId;
+            origObj.advertiserId = 'a-old';
+            expect(svc.model.validate('edit', newObj, origObj, requester))
+                .toEqual({ isValid: true, reason: undefined });
+            expect(newObj.advertiserId).toEqual('a-old');
+        });
+
+        it('should allow the field to be changed', function() {
+            origObj.advertiserId = 'a-old';
+            expect(svc.model.validate('edit', newObj, origObj, requester))
+                .toEqual({ isValid: true, reason: undefined });
+            expect(newObj.advertiserId).toEqual('a-new');
         });
     });
 

@@ -7,8 +7,6 @@ var request         = require('request'),
     mailparser      = require('mailparser'),
     events          = require('events'),
     util            = require('util'),
-    adtech          = require('adtech'),
-    kCamp           = adtech.constants.ICampaign,
     requestUtils    = require('../../lib/requestUtils'),
     mongoUtils      = require('../../lib/mongoUtils'),
     objUtils        = require('../../lib/objUtils'),
@@ -16,21 +14,7 @@ var request         = require('request'),
     awsAuth         = process.env.awsAuth || path.join(process.env.HOME,'.aws.json'),
     
     testUtils = {
-        _dbCache    : {},
-        keyMap      : { // mapping of keywords used here to known ids
-            'cat-1'     : '3290253',
-            'cat-2'     : '3290252',
-            'cat-3'     : '3290257',
-            sports      : '1002744',
-            sport       : '1001864',
-            food        : '1003562',
-            bacon       : '1024286',
-            'e2e-rc-1'  : '3206688',
-            'e2e-rc-4'  : '3206827',
-            'e2e-rc-5'  : '3206830',
-            'e2e-rc-6'  : '3206828',
-            '*'         : '1061767'
-        }
+        _dbCache    : {}
     };
 
 
@@ -132,73 +116,6 @@ testUtils.resetCollection = function(collection,data,userCfg){
             console.log(error);
             return q.reject(error);
         }).thenResolve();
-};
-
-///////////////////////////// Adtech Helper Methods /////////////////////////////
-
-testUtils._sizeTypeMap = {
-    card            : 277,  // 2x2
-    miniReel        : 509,  // 2x1
-    contentMiniReel : 16    // 1x1
-};
-
-// Try to format adtech errors into something that doesn't blow up our console
-testUtils.handleAdtechError = function(error) {
-    try {
-        var err = {
-            faultcode: error.root.Envelope.Body.Fault.faultcode,
-            faultstring: error.root.Envelope.Body.Fault.faultstring,
-            detail: Object.keys(error.root.Envelope.Body.Fault.detail)[0]
-        };
-        return q.reject('Adtech failure: ' + JSON.stringify(err, null, 4));
-    } catch(e) {
-        return q.reject(error);
-    }
-};
-
-// Retrieve active banners for a campaign from Adtech's API. Assumes bannerAdmin was created previously
-testUtils.getCampaignBanners = function(campId) {
-    var aove = new adtech.AOVE();
-    aove.addExpression(new adtech.AOVE.LongExpression('campaignId', parseInt(campId)));
-    aove.addExpression(new adtech.AOVE.BooleanExpression('deleted', false));
-    return adtech.bannerAdmin.getBannerList(null, null, aove).catch(testUtils.handleAdtechError);
-};
-
-// check that banners exist for each id in list, and they have the correct name + sizeTypeId
-testUtils.compareBanners = function(banners, list, type) {
-    expect(banners.length).toBe(list.length);
-    list.forEach(function(id) {
-        var banner = banners.filter(function(bann) { return bann.extId === id; })[0];
-        expect(banner).toBeDefined('banner for ' + id);
-        expect(banner.name).toBe(type + ' ' + id);
-        expect(banner.sizeTypeId).toBe(testUtils._sizeTypeMap[type]);
-    });
-};
-
-// Helper method to check that a campaign for a sponsored card was setup correctly
-testUtils.checkCardCampaign = function(camp, parentCamp, card, catKeys, advert, cust) {
-    expect(camp).toBeDefined();
-    if (!camp) return;
-
-    expect(camp.extId).toBe(card.id);
-    expect(camp.exclusive).toBe(true);
-    expect(camp.exclusiveType).toBe(kCamp.EXCLUSIVE_TYPE_END_DATE);
-    expect(camp.name).toBe(card.campaign.adtechName + ' (' + parentCamp.id + ')');
-    if (card.campaign.startDate) {
-        expect(camp.dateRangeList[0].startDate.toUTCString()).toBe(new Date(card.campaign.startDate).toUTCString());
-    } else {
-        expect(camp.dateRangeList[0].startDate).toEqual(jasmine.any(Date));
-    }
-    if (card.campaign.endDate) {
-        expect(camp.dateRangeList[0].endDate.toUTCString()).toBe(new Date(card.campaign.endDate).toUTCString());
-    } else {
-        expect(camp.dateRangeList[0].endDate).toEqual(jasmine.any(Date));
-    }
-    expect(camp.priorityLevelOneKeywordIdList).toEqual([jasmine.any(String)]);
-    expect(camp.priorityLevelThreeKeywordIdList.sort()).toEqual(catKeys.sort());
-    expect(camp.priority).toBe(3);
-    expect(camp.advertiserId).toBe(advert.adtechId);
-    expect(camp.customerId).toBe(cust.adtechId);
 };
 
 ///////////////////////////// Miscellaneous Helper Methods /////////////////////////////
