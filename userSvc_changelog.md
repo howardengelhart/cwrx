@@ -1,5 +1,6 @@
 # User Service Changelog
 
+### 3.0.0: Fri Dec 18 10:57:31 EST 2015
 * [BREAKING CHANGE]: Do not create customers on user confirmation: [#697](https://github.com/cinema6/cwrx/pull/697)
 * [BREAKING CHANGE]: Do not store `advertiser` ids on users: [#697](https://github.com/cinema6/cwrx/pull/697)
 
