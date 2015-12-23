@@ -28,6 +28,7 @@ describe('player service', function() {
             simple: false,
             followRedirect: false,
             headers: {
+                'Origin': 'https://imasdk.googleapis.com',
                 'User-Agent': 'Mozilla/5.0 (Windows NT 6.1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/41.0.2228.0 Safari/537.36'
             }
         });
@@ -58,8 +59,9 @@ describe('player service', function() {
                 css: $('style[data-href$="' + type + '.css"]').text(),
                 js: $('script[data-src$="' + type + '.js"]').text(),
                 experience: JSON.parse($('script[data-src="experience"]').text() || null),
+                options: JSON.parse($('script[data-src="options"]').text() || null),
                 seemsValid: function() {
-                    return this.css.length >= 1000 && this.js.length >= 1000 && this.experience.data.deck.length > 0;
+                    return this.css.length >= 1000 && this.js.length >= 1000 && this.experience.data.deck.length > 0 && this.options && this.options.type === type;
                 }
             };
         }
@@ -123,6 +125,23 @@ describe('player service', function() {
 
                     return card;
                 }));
+            });
+
+            it('should inline the options', function() {
+                var options = JSON.parse($('script[data-src="options"]').text());
+
+                expect(options).toEqual({
+                    type: 'lightbox',
+                    uuid: jasmine.any(String),
+                    origin: 'https://imasdk.googleapis.com',
+                    desktop: true,
+                    secure: false,
+                    experience: experience.id,
+                    context: 'standalone',
+                    container: 'standalone',
+                    mobileType: 'mobile',
+                    standalone: true
+                });
             });
 
             it('should inline the branding', function() {
@@ -571,6 +590,10 @@ describe('player service', function() {
                     expect(parsed.js.length).toBeGreaterThan(2000);
                     expect(parsed.css.length).toBeGreaterThan(1000);
                     expect(parsed.experience).toBeNull();
+                    expect(parsed.options).toEqual(jasmine.objectContaining({
+                        type: 'lightbox',
+                        uuid: jasmine.any(String)
+                    }));
                     expect($('base').attr('href')).toBe('http://localhost/apps/mini-reel-player/v1.0.0-rc2-0-ga4912c3/');
                 });
 
