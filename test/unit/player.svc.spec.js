@@ -1011,6 +1011,10 @@ describe('player service', function() {
                             });
                         });
 
+                        it('should add the options as a resource', function() {
+                            expect(document.addResource).toHaveBeenCalledWith('options', 'application/json', options);
+                        });
+
                         it('should add the experience as a resource', function() {
                             expect(document.addResource).toHaveBeenCalledWith('experience', 'application/json', experience);
                         });
@@ -1127,6 +1131,7 @@ describe('player service', function() {
                                     player.__loadExperience__.calls.reset();
                                     player.__loadCard__.calls.reset();
                                     player.__getPlayer__.calls.reset();
+                                    document.addResource.calls.reset();
 
                                     player.__getPlayer__.and.returnValue(q(document));
 
@@ -1143,6 +1148,10 @@ describe('player service', function() {
 
                                 it('should call __getPlayer__()', function() {
                                     expect(player.__getPlayer__).toHaveBeenCalledWith(options.type, options.secure, options.uuid);
+                                });
+
+                                it('should add the options as a resource', function() {
+                                    expect(document.addResource).toHaveBeenCalledWith('options', 'application/json', options);
                                 });
 
                                 it('should fulfill with the document as a String', function() {
@@ -1275,6 +1284,10 @@ describe('player service', function() {
                                     brandings.forEach(function(branding) {
                                         expect(document.addCSS).toHaveBeenCalledWith(branding.src, branding.styles);
                                     });
+                                });
+
+                                it('should add the options as a resource', function() {
+                                    expect(document.addResource).toHaveBeenCalledWith('options', 'application/json', options);
                                 });
 
                                 it('should add the experience as a resource', function() {
@@ -1440,6 +1453,10 @@ describe('player service', function() {
 
                         it('should add the experience as a resource', function() {
                             expect(document.addResource).toHaveBeenCalledWith('experience', 'application/json', experience);
+                        });
+
+                        it('should add the options as a resource', function() {
+                            expect(document.addResource).toHaveBeenCalledWith('options', 'application/json', options);
                         });
 
                         it('should fulfill with a String of HTML', function() {

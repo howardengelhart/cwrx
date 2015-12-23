@@ -649,6 +649,13 @@ Player.prototype.get = function get(/*options*/) {
 
     log.trace('[%1] Getting player with options (%2.)', uuid, inspect(options));
 
+    function getPlayer() {
+        return self.__getPlayer__(type, secure, uuid).then(function inlineOptions(document) {
+            log.trace('[%1] Adding options (%2) to player HTML.', uuid, inspect(options));
+            return document.addResource('options', 'application/json', options);
+        });
+    }
+
     function setupExperience(experience) {
         var campaign = experience.data.campaign;
 
@@ -704,7 +711,7 @@ Player.prototype.get = function get(/*options*/) {
 
     if (!(experience || card || campaign)) {
         if (embed) {
-            return this.__getPlayer__(type, secure, uuid)
+            return getPlayer()
                 .then(loadBranding(branding))
                 .then(stringify);
         }
@@ -721,7 +728,7 @@ Player.prototype.get = function get(/*options*/) {
     }
 
     return q.all([
-        this.__getPlayer__(type, secure, uuid),
+        getPlayer(),
         experience ? this.__loadExperience__(experience, options, origin, uuid) :
             this.__loadCard__(options, origin, uuid)
     ]).spread(function processExperience(document, experience) {
