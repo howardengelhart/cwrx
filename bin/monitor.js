@@ -33,12 +33,12 @@
         pidFile : 'monitor.pid',
         pidDir  : './',
         port    : 3333,
-        checkHttpTimeout : 2000, //TODO: adjust these, will also involve adjusting ELB health check
-        requestTimeout  : 3000,
+        checkHttpTimeout : 2000,
+        requestTimeout  : 8000,
         monitorInc : './monitor.*.json',
-        retry: { //TODO: cookbook
+        retry: {
             enabled: true,
-            retryDelay: 2000
+            retryDelay: 3000
         },
         cacheDiscovery: {
             awsRegion   : 'us-east-1',      // needed to initiate AWS API clients
@@ -176,7 +176,6 @@
                 return serviceConfig;
             })
             .catch(function(err){
-                //TODO: need to test this
                 if (!retried && serviceConfig.retry && serviceConfig.retry.enabled === true) {
                     log.warn('Failed once checking %1: %2', serviceConfig.name, util.inspect(err));
                     retried = true;

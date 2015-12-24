@@ -10,7 +10,7 @@ var q               = require('q'),
     
 describe('monitor (E2E)', function(){
     beforeEach(function() {
-        jasmine.DEFAULT_TIMEOUT_INTERVAL = 5000;
+        jasmine.DEFAULT_TIMEOUT_INTERVAL = 10000;
     });
 
     describe('GET /api/status', function() {
@@ -72,7 +72,8 @@ describe('monitor (E2E)', function(){
             createMonitorProfile('maint', {
                 checkProcess : {
                     pidPath : '/opt/sixxy/run/maint.pid'
-                }
+                },
+                retry: { enabled: false }
             })
             .then(restartService)
             .then(getStatus)
@@ -90,7 +91,8 @@ describe('monitor (E2E)', function(){
             createMonitorProfile('maint', {
                 checkHttp : {
                     path : '/maint/meta'
-                }
+                },
+                retry: { enabled: false }
             })
             .then(restartService)
             .then(getStatus)
@@ -111,7 +113,8 @@ describe('monitor (E2E)', function(){
                 },
                 checkHttp : {
                     path : '/maint/meta'
-                }
+                },
+                retry: { enabled: false }
             })
             .then(restartService)
             .then(getStatus)
@@ -132,12 +135,14 @@ describe('monitor (E2E)', function(){
                 },
                 checkHttp : {
                     path : '/maint/meta'
-                }
+                },
+                retry: { enabled: false }
             })
             .then(createMonitorProfile('phony', {
                 checkProcess : {
                     pidPath : '/opt/sixxy/run/phony.pid'
-                }
+                },
+                retry: { enabled: false }
             }))
             .then(restartService)
             .then(getStatus)
@@ -158,12 +163,14 @@ describe('monitor (E2E)', function(){
                 },
                 checkHttp : {
                     path : '/maint/meta'
-                }
+                },
+                retry: { enabled: false }
             })
             .then(createMonitorProfile('phony', {
                 checkHttp : {
                     path : '/phoney/path'
-                }
+                },
+                retry: { enabled: false }
             }))
             .then(restartService)
             .then(getStatus)
@@ -184,12 +191,14 @@ describe('monitor (E2E)', function(){
                 },
                 checkHttp : {
                     path : '/maint/meta'
-                }
+                },
+                retry: { enabled: false }
             })
             .then(createMonitorProfile('monitor', {
                 checkProcess : {
                     pidPath : '/opt/sixxy/run/monitor.pid'
-                }
+                },
+                retry: { enabled: false }
             }))
             .then(restartService)
             .then(getStatus)
@@ -202,8 +211,36 @@ describe('monitor (E2E)', function(){
             })
             .done(done);
         },10000);
+        
+        it('returns 200 if a service fails initially but then succeeds', function(done) {
+            createMonitorProfile('maint', {
+                checkProcess: {
+                    pidPath: '/opt/sixxy/run/maint.pid'
+                },
+                retry: { enabled: true }
+            })
+            .then(restartService)
+            .then(function() {
+                // This request will fail, but the maint service will successfully restart itself
+                return requestUtils.qRequest('post', {
+                    url : makeUrl('/maint/service/restart'),
+                    json : { service : 'maint', checkUrl: makeUrl('/maint/meta') }
+                })
+                .catch(function() {});
+            })
+            .then(function() {
+                return getStatus().then(function(resp) {
+                    expect(resp.response.statusCode).toEqual(200);
+                    expect(resp.body).toEqual({ maint : '200' });
+                });
+            })
+            .catch(function(err){
+                expect(err).not.toBeDefined();
+            })
+            .done(done);
+        });
     });
-    
+
     describe('GET /api/monitor/cacheServers', function() {
         it('should get a list of cache servers', function(done) {
             requestUtils.qRequest('get', { url: makeUrl('/api/monitor/cacheServers') }).then(function(resp) {
