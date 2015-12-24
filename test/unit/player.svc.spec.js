@@ -153,6 +153,8 @@ describe('player service', function() {
                     }
 
                     beforeEach(function(done) {
+                        jasmine.clock().mockDate();
+
                         success = jasmine.createSpy('success()');
                         failure = jasmine.createSpy('failure()');
 
@@ -395,6 +397,87 @@ describe('player service', function() {
 
                         it('should call player.resetCodeCache()', function() {
                             expect(player.resetCodeCache).toHaveBeenCalled();
+                        });
+                    });
+
+                    describe('route: GET /api/players/meta', function() {
+                        it('should exist', function() {
+                            expect(expressApp.get).toHaveBeenCalledWith('/api/players/meta', jasmine.any(Function));
+                        });
+
+                        describe('when invoked', function() {
+                            var state;
+                            var middleware;
+                            var req, res;
+                            var getVersionDeferred;
+
+                            beforeEach(function(done) {
+                                state = service.daemonize.calls.mostRecent().args[0];
+
+                                state.config.appVersion = 'player-1.0.0';
+
+                                req = {
+                                    params: {},
+                                    query: {},
+                                    uuid: '8w94yr4389',
+                                    get: function() {},
+                                    secure: true
+                                };
+                                res = {
+                                    send: jasmine.createSpy('response.send()'),
+                                    redirect: jasmine.createSpy('response.redirect()')
+                                };
+
+                                middleware = expressRoutes.get['/api/players/meta'][0][expressRoutes.get['/api/players/meta'][0].length - 1];
+
+                                player.getVersion.calls.reset();
+                                getVersionDeferred = q.defer();
+                                player.getVersion.and.returnValue(getVersionDeferred.promise);
+
+                                middleware(req, res);
+                                process.nextTick(done);
+                            });
+
+                            it('should get the player\'s version', function() {
+                                expect(player.getVersion).toHaveBeenCalledWith();
+                            });
+
+                            describe('when the version is fetched', function() {
+                                var playerVersion;
+
+                                beforeEach(function(done) {
+                                    playerVersion = 'v1.0.0-rc3';
+                                    getVersionDeferred.fulfill(playerVersion);
+                                    process.nextTick(done);
+                                });
+
+                                it('should send a response with metadata', function() {
+                                    expect(res.send).toHaveBeenCalledWith(200, {
+                                        serviceVersion: state.config.appVersion,
+                                        playerVersion: playerVersion,
+                                        started: new Date().toISOString(),
+                                        status: 'OK'
+                                    });
+                                });
+                            });
+
+                            describe('if something goes wrong', function() {
+                                var error;
+
+                                beforeEach(function(done) {
+                                    error = new TypeError('You suck at typing.');
+                                    getVersionDeferred.reject(error);
+                                    process.nextTick(done);
+                                });
+
+                                it('should log an error', function() {
+                                    expect(log.error).toHaveBeenCalled();
+                                });
+
+                                it('should send a [500]', function() {
+                                    expect(res.send).toHaveBeenCalledWith(500, require('util').inspect(error));
+                                });
+                            });
                         });
                     });
 

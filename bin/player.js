@@ -522,10 +522,19 @@ Player.startService = function startService() {
         app.use(logRequest('trace'));
 
         app.get('/api/players/meta', function(req, res) {
-            res.send(200, {
-                version: state.config.appVersion,
-                started : started.toISOString(),
-                status : 'OK'
+            return player.getVersion().then(function sendResponse(playerVersion) {
+                return res.send(200, {
+                    playerVersion: playerVersion,
+                    serviceVersion: state.config.appVersion,
+                    started : started.toISOString(),
+                    status : 'OK'
+                });
+            }).catch(function sendError(error) {
+                var message = inspect(error);
+
+                log.error('[%1] Failed to get service metadata: %2', req.uuid, message);
+
+                return res.send(500, message);
             });
         });
 
