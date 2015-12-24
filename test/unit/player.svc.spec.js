@@ -101,8 +101,16 @@ describe('player service', function() {
         fnCaches = [];
         require.cache[require.resolve('../../lib/functionCache')].exports = jasmine.createSpy('FunctionCache()').and.callFake(function(config) {
             var cache = new FunctionCache(config);
+            var add = cache.add;
 
-            spyOn(cache, 'add').and.callThrough();
+            spyOn(cache, 'add').and.callFake(function() {
+                var realFn = add.apply(this, arguments);
+                var fn = jasmine.createSpy('cachedFn()').and.callFake(realFn);
+
+                fn.clear = realFn.clear;
+
+                return fn;
+            });
 
             return fnCaches[fnCaches.push(cache) - 1];
         });
@@ -128,43 +136,6 @@ describe('player service', function() {
     it('should exist', function() {
         expect(Player).toEqual(jasmine.any(Function));
         expect(Player.name).toBe('Player');
-    });
-
-    it('should create a never-expiring FunctionCache', function() {
-        expect(MockFunctionCache).toHaveBeenCalledWith(jasmine.objectContaining({
-            freshTTL: Infinity,
-            maxTTL: Infinity,
-            gcInterval: Infinity
-        }));
-    });
-
-    describe('the function used to clone Documents in the Static Cache', function() {
-        var cloneDocument;
-        var success, failure;
-        var promise, document;
-        var result;
-
-        beforeEach(function(done) {
-            cloneDocument = fnCaches[0].extractor;
-            success = jasmine.createSpy('success()');
-            failure = jasmine.createSpy('failure()');
-
-            document = new HTMLDocument(playerHTML);
-            promise = q(document);
-
-            spyOn(document, 'clone').and.callThrough();
-            result = cloneDocument(promise);
-
-            result.then(success, failure).finally(done);
-        });
-
-        it('should return a new Promise', function() {
-            expect(result).not.toBe(promise);
-        });
-
-        it('should fulfill with a clone of the HTMLDocument', function() {
-            expect(success.calls.mostRecent().args[0]).toBe(document.clone.calls.mostRecent().returnValue);
-        });
     });
 
     describe('static:', function() {
@@ -808,6 +779,48 @@ describe('player service', function() {
             player = new Player(config);
         });
 
+        it('should populate the version cache', function() {
+            expect(player.getVersion).toHaveBeenCalledWith();
+        });
+
+        it('should create a never-expiring FunctionCache for the player', function() {
+            expect(MockFunctionCache).toHaveBeenCalledWith({
+                freshTTL: Infinity,
+                maxTTL: Infinity,
+                gcInterval: Infinity,
+                extractor: jasmine.any(Function)
+            });
+        });
+
+        describe('the function used to clone Documents in the player Cache', function() {
+            var cloneDocument;
+            var success, failure;
+            var promise, document;
+            var result;
+
+            beforeEach(function(done) {
+                cloneDocument = fnCaches[0].extractor;
+                success = jasmine.createSpy('success()');
+                failure = jasmine.createSpy('failure()');
+
+                document = new HTMLDocument(playerHTML);
+                promise = q(document);
+
+                spyOn(document, 'clone').and.callThrough();
+                result = cloneDocument(promise);
+
+                result.then(success, failure).finally(done);
+            });
+
+            it('should return a new Promise', function() {
+                expect(result).not.toBe(promise);
+            });
+
+            it('should fulfill with a clone of the HTMLDocument', function() {
+                expect(success.calls.mostRecent().args[0]).toBe(document.clone.calls.mostRecent().returnValue);
+            });
+        });
+
         it('should create a FunctionCache for experiences', function() {
             expect(MockFunctionCache).toHaveBeenCalledWith({
                 freshTTL: config.api.experience.cacheTTLs.fresh,
@@ -820,6 +833,14 @@ describe('player service', function() {
             expect(MockFunctionCache).toHaveBeenCalledWith({
                 freshTTL: config.api.branding.cacheTTLs.fresh,
                 maxTTL: config.api.branding.cacheTTLs.max
+            });
+        });
+
+        it('should create a FunctionCache for the version', function() {
+            expect(MockFunctionCache).toHaveBeenCalledWith({
+                freshTTL: Infinity,
+                maxTTL: Infinity,
+                gcInterval: Infinity
             });
         });
 
@@ -861,15 +882,96 @@ describe('player service', function() {
             });
 
             describe('methods:', function() {
+                describe('getVersion()', function() {
+                    var success, failure;
+                    var $;
+                    var result;
+
+                    beforeEach(function(done) {
+                        success = jasmine.createSpy('success()');
+                        failure = jasmine.createSpy('failure()');
+
+                        $ = cheerio.load(playerHTML);
+
+                        result = player.getVersion();
+                        result.then(success, failure);
+
+                        process.nextTick(done);
+                    });
+
+                    it('should be cached', function() {
+                        expect(fnCaches[3].add.calls.all().map(function(call) { return call.returnValue; })).toContain(player.getVersion);
+                        fnCaches[3].add.calls.all().forEach(function(call) {
+                            if (call.returnValue === player.__getBranding__) {
+                                expect(call.args).toEqual([jasmine.any(Function)]);
+                            }
+                        });
+                    });
+
+                    it('should return a Promise', function() {
+                        expect(result).toEqual(jasmine.any(Promise));
+                    });
+
+                    it('should make a request for the player', function() {
+                        expect(request.get).toHaveBeenCalledWith('http://localhost/apps/mini-reel-player/index.html', { gzip: true });
+                    });
+
+                    describe('when the HTML is fetched', function() {
+                        describe('with an RC', function() {
+                            beforeEach(function(done) {
+                                $('base').attr('href', 'v2.3.3-rc2-0-ge17e655/');
+
+                                requestDeferreds[request.get.calls.mostRecent().args[0]].resolve($.html());
+                                result.then(done, done.fail);
+                            });
+
+                            it('should fulfill with the version (parsed from the <base> tag', function() {
+                                expect(success).toHaveBeenCalledWith('v2.3.3-rc2');
+                            });
+                        });
+
+                        describe('without an RC', function() {
+                            beforeEach(function(done) {
+                                $('base').attr('href', 'v2.3.4-0-gb84bd38/');
+
+                                requestDeferreds[request.get.calls.mostRecent().args[0]].resolve($.html());
+                                result.then(done, done.fail);
+                            });
+
+                            it('should fulfill with the version (parsed from the <base> tag', function() {
+                                expect(success).toHaveBeenCalledWith('v2.3.4');
+                            });
+                        });
+
+                        describe('without a version', function() {
+                            beforeEach(function(done) {
+                                $('base').attr('href', '');
+
+                                requestDeferreds[request.get.calls.mostRecent().args[0]].resolve($.html());
+                                result.then(done, done.fail);
+                            });
+
+                            it('should fulfill with null', function() {
+                                expect(success).toHaveBeenCalledWith(null);
+                            });
+                        });
+                    });
+                });
+
                 describe('resetCodeCache()', function() {
                     beforeEach(function() {
                         spyOn(player.__getPlayer__, 'clear').and.callThrough();
+                        spyOn(player.getVersion, 'clear').and.callThrough();
 
                         player.resetCodeCache();
                     });
 
                     it('should call clear() on the __getPlayer__() method', function() {
                         expect(player.__getPlayer__.clear).toHaveBeenCalled();
+                    });
+
+                    it('should call clear() on the getVersion() method', function() {
+                        expect(player.getVersion.clear).toHaveBeenCalled();
                     });
                 });
 
@@ -932,7 +1034,7 @@ describe('player service', function() {
                         spyOn(player, '__loadExperience__').and.returnValue(loadExperienceDeferred.promise);
                         spyOn(player, '__loadCard__').and.returnValue(loadCardDeferred.promise);
 
-                        spyOn(player, '__getPlayer__').and.returnValue(q(document));
+                        player.__getPlayer__.and.returnValue(q(document));
 
                         player.get(options).then(success, failure);
                         q().then(done);
@@ -959,7 +1061,7 @@ describe('player service', function() {
                                 { src: 'theme.css', styles: 'body { padding: 10px; }' },
                                 { src: 'theme--hover.css', styles: 'body { margin: 20px; }' }
                             ];
-                            spyOn(player, '__getBranding__').and.returnValue(q(brandings));
+                            player.__getBranding__.and.returnValue(q(brandings));
 
                             spyOn(document, 'addCSS').and.callThrough();
                             spyOn(MockAdLoader, 'addTrackingPixels').and.callThrough();
@@ -1029,7 +1131,7 @@ describe('player service', function() {
                             success.calls.reset();
                             failure.calls.reset();
 
-                            spyOn(player, '__getBranding__').and.returnValue(q([]));
+                            player.__getBranding__.and.returnValue(q([]));
                             player.__loadExperience__.and.returnValue(q(experience));
 
                             options.countdown = undefined;
@@ -1050,7 +1152,7 @@ describe('player service', function() {
                                 success.calls.reset();
                                 failure.calls.reset();
 
-                                spyOn(player, '__getBranding__').and.returnValue(q([]));
+                                player.__getBranding__.and.returnValue(q([]));
                                 player.__loadExperience__.and.returnValue(q(experience));
 
                                 options.prebuffer = value;
@@ -1173,7 +1275,7 @@ describe('player service', function() {
                                             { src: 'theme.css', styles: 'body { padding: 10px; }' },
                                             { src: 'theme--hover.css', styles: 'body { margin: 20px; }' }
                                         ];
-                                        spyOn(player, '__getBranding__').and.returnValue(q(brandings));
+                                        player.__getBranding__.and.returnValue(q(brandings));
 
                                         options.branding = 'rcplatform';
 
@@ -1238,7 +1340,7 @@ describe('player service', function() {
                                         { src: 'theme.css', styles: 'body { padding: 10px; }' },
                                         { src: 'theme--hover.css', styles: 'body { margin: 20px; }' }
                                     ];
-                                    spyOn(player, '__getBranding__').and.returnValue(q(brandings));
+                                    player.__getBranding__.and.returnValue(q(brandings));
 
                                     spyOn(document, 'addCSS').and.callThrough();
                                     spyOn(MockAdLoader, 'addTrackingPixels').and.callThrough();
@@ -1303,7 +1405,7 @@ describe('player service', function() {
 
                     describe('if called without an origin', function() {
                         beforeEach(function(done) {
-                            spyOn(player, '__getBranding__').and.returnValue(q([]));
+                            player.__getBranding__.and.returnValue(q([]));
                             player.__loadExperience__.calls.reset();
                             loadExperienceDeferred.fulfill(experience);
                             options.origin = undefined;
@@ -1318,7 +1420,7 @@ describe('player service', function() {
 
                     describe('if the experience has no launchUrls', function() {
                         beforeEach(function(done) {
-                            spyOn(player, '__getBranding__').and.returnValue(q([]));
+                            player.__getBranding__.and.returnValue(q([]));
                             player.__loadExperience__.and.returnValue(q(experience));
                             delete experience.data.campaign.launchUrls;
 
@@ -1334,7 +1436,7 @@ describe('player service', function() {
                         beforeEach(function(done) {
                             success.calls.reset();
                             failure.calls.reset();
-                            spyOn(player, '__getBranding__').and.returnValue(q([]));
+                            player.__getBranding__.and.returnValue(q([]));
                             player.__loadExperience__.and.callFake(function() {
                                 experience.data.deck.length = 0;
 
@@ -1356,7 +1458,7 @@ describe('player service', function() {
 
                     describe('if called with no launchUrls', function() {
                         beforeEach(function(done) {
-                            spyOn(player, '__getBranding__').and.returnValue(q([]));
+                            player.__getBranding__.and.returnValue(q([]));
                             player.__loadExperience__.and.returnValue(q(experience));
                             options.launchUrls = null;
 
@@ -1378,7 +1480,7 @@ describe('player service', function() {
                                 success.calls.reset();
                                 failure.calls.reset();
                                 experience.data.deck.length = 1;
-                                spyOn(player, '__getBranding__').and.returnValue(q([]));
+                                player.__getBranding__.and.returnValue(q([]));
                                 player.__loadExperience__.and.returnValue(q(experience));
 
                                 player.get(options).then(success, failure).finally(done);
@@ -1394,7 +1496,7 @@ describe('player service', function() {
                                 success.calls.reset();
                                 failure.calls.reset();
                                 experience.data.deck.length = 2;
-                                spyOn(player, '__getBranding__').and.returnValue(q([]));
+                                player.__getBranding__.and.returnValue(q([]));
                                 player.__loadExperience__.and.returnValue(q(experience));
 
                                 player.get(options).then(success, failure).finally(done);
@@ -1416,7 +1518,7 @@ describe('player service', function() {
                             beforeEach(function(done) {
                                 success.calls.reset();
                                 failure.calls.reset();
-                                spyOn(player, '__getBranding__').and.returnValue(q([]));
+                                player.__getBranding__.and.returnValue(q([]));
                                 player.__loadExperience__.and.returnValue(q(experience));
 
                                 options.context = context;
@@ -1438,7 +1540,7 @@ describe('player service', function() {
                         beforeEach(function(done) {
                             success.calls.reset();
                             failure.calls.reset();
-                            spyOn(player, '__getBranding__').and.returnValue(q([]));
+                            player.__getBranding__.and.returnValue(q([]));
                             player.__loadExperience__.and.returnValue(q(experience));
                             player.__getBranding__.calls.reset();
                             player.__loadExperience__.calls.reset();
@@ -1557,7 +1659,7 @@ describe('player service', function() {
                         uuid = params.uuid;
 
                         getExperienceDeferred = q.defer();
-                        spyOn(player, '__getExperience__').and.returnValue(getExperienceDeferred.promise);
+                        player.__getExperience__.and.returnValue(getExperienceDeferred.promise);
 
                         success = jasmine.createSpy('success()');
                         failure = jasmine.createSpy('failure()');
@@ -1890,7 +1992,7 @@ describe('player service', function() {
                             }
                         };
                         getExperienceDeferred = q.defer();
-                        spyOn(player, '__getExperience__').and.returnValue(getExperienceDeferred.promise);
+                        player.__getExperience__.and.returnValue(getExperienceDeferred.promise);
 
                         player.__loadExperience__(id, params, origin, uuid).then(success, failure);
                     });
@@ -2043,6 +2145,8 @@ describe('player service', function() {
                         branding = 'cinema6';
                         type = 'full-np';
                         uuid = 'ru8493ry438r';
+
+                        request.get.calls.reset();
 
                         base = resolveURL(config.api.root, config.api.branding.endpoint);
 

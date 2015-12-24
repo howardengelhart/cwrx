@@ -33,16 +33,6 @@ var logRequest = require('../lib/expressUtils').logRequest;
 
 var push = Array.prototype.push;
 
-var staticCache = new FunctionCache({
-    freshTTL: Infinity,
-    maxTTL: Infinity,
-    gcInterval: Infinity,
-
-    extractor: function cloneDocument(promise) {
-        return promise.then(function(document) { return document.clone(); });
-    }
-});
-
 var CONTEXTS = {
     STANDALONE: 'standalone',
     MRAID: 'mraid',
@@ -74,6 +64,15 @@ ServiceError.prototype.toString = function toString() {
 
 function Player(config) {
     var log = logger.getLog();
+    var playerCache = new FunctionCache({
+        freshTTL: Infinity,
+        maxTTL: Infinity,
+        gcInterval: Infinity,
+
+        extractor: function cloneDocument(promise) {
+            return promise.then(function(document) { return document.clone(); });
+        }
+    });
     var contentCache = new FunctionCache({
         freshTTL: config.api.experience.cacheTTLs.fresh,
         maxTTL: config.api.experience.cacheTTLs.max,
@@ -82,6 +81,11 @@ function Player(config) {
     var brandingCache = new FunctionCache({
         freshTTL: config.api.branding.cacheTTLs.fresh,
         maxTTL: config.api.branding.cacheTTLs.max
+    });
+    var versionCache = new FunctionCache({
+        freshTTL: Infinity,
+        maxTTL: Infinity,
+        gcInterval: Infinity
     });
 
     this.config = config;
@@ -101,12 +105,17 @@ function Player(config) {
 
     this.adLoadTimeReporter.autoflush(config.cloudwatch.sendInterval);
 
+    // Memoize Player.prototype.getVersion() method.
+    this.getVersion = versionCache.add(this.getVersion.bind(this));
     // Memoize Player.prototype.__getPlayer__() method.
-    this.__getPlayer__ = staticCache.add(this.__getPlayer__.bind(this), -1);
+    this.__getPlayer__ = playerCache.add(this.__getPlayer__.bind(this), -1);
     // Memoize Player.prototype.__getExperience__() method.
     this.__getExperience__ = contentCache.add(this.__getExperience__.bind(this), -1);
     // Memoize Player.prototype.__getBranding__() method.
     this.__getBranding__ = brandingCache.add(this.__getBranding__.bind(this), -1);
+
+    //Cache the initial player version.
+    this.getVersion();
 }
 
 /***************************************************************************************************
@@ -626,6 +635,17 @@ Player.startService = function startService() {
         });
 };
 
+Player.prototype.getVersion = function getVersion() {
+    var url = resolveURL(this.config.api.root, this.config.api.player.endpoint);
+
+    return q(request.get(url, { gzip: true })).then(function getVersion(html) {
+        var $ = cheerio.load(html);
+        var value = $('head base').attr('href');
+
+        return (value.match(/v[\d.]+(-rc\d+)?/) || [null])[0];
+    });
+};
+
 Player.prototype.get = function get(/*options*/) {
     var options = extend(arguments[0], this.config.defaults);
 
@@ -750,7 +770,8 @@ Player.prototype.get = function get(/*options*/) {
 };
 
 Player.prototype.resetCodeCache = function resetCodeCache() {
-    return this.__getPlayer__.clear();
+    this.__getPlayer__.clear();
+    this.getVersion.clear();
 };
 
 module.exports = Player;
