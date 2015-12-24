@@ -1,6 +1,8 @@
 # Player Service Changelog
 
 * Include provided options in response body: [#712](https://github.com/cinema6/cwrx/pull/712)
+* Report player (front-end) version in the meta endpoint response:
+  [#713](https://github.com/cinema6/cwrx/pull/713)
 
 ### 2.0.1: Fri Dec 18 13:08:40 EST 2015
 * [FIX]: Stop calling the content service for random cards if there are

@@ -33,16 +33,6 @@ var logRequest = require('../lib/expressUtils').logRequest;
 
 var push = Array.prototype.push;
 
-var staticCache = new FunctionCache({
-    freshTTL: Infinity,
-    maxTTL: Infinity,
-    gcInterval: Infinity,
-
-    extractor: function cloneDocument(promise) {
-        return promise.then(function(document) { return document.clone(); });
-    }
-});
-
 var CONTEXTS = {
     STANDALONE: 'standalone',
     MRAID: 'mraid',
@@ -74,6 +64,15 @@ ServiceError.prototype.toString = function toString() {
 
 function Player(config) {
     var log = logger.getLog();
+    var playerCache = new FunctionCache({
+        freshTTL: Infinity,
+        maxTTL: Infinity,
+        gcInterval: Infinity,
+
+        extractor: function cloneDocument(promise) {
+            return promise.then(function(document) { return document.clone(); });
+        }
+    });
     var contentCache = new FunctionCache({
         freshTTL: config.api.experience.cacheTTLs.fresh,
         maxTTL: config.api.experience.cacheTTLs.max,
@@ -82,6 +81,11 @@ function Player(config) {
     var brandingCache = new FunctionCache({
         freshTTL: config.api.branding.cacheTTLs.fresh,
         maxTTL: config.api.branding.cacheTTLs.max
+    });
+    var versionCache = new FunctionCache({
+        freshTTL: Infinity,
+        maxTTL: Infinity,
+        gcInterval: Infinity
     });
 
     this.config = config;
@@ -101,12 +105,17 @@ function Player(config) {
 
     this.adLoadTimeReporter.autoflush(config.cloudwatch.sendInterval);
 
+    // Memoize Player.prototype.getVersion() method.
+    this.getVersion = versionCache.add(this.getVersion.bind(this));
     // Memoize Player.prototype.__getPlayer__() method.
-    this.__getPlayer__ = staticCache.add(this.__getPlayer__.bind(this), -1);
+    this.__getPlayer__ = playerCache.add(this.__getPlayer__.bind(this), -1);
     // Memoize Player.prototype.__getExperience__() method.
     this.__getExperience__ = contentCache.add(this.__getExperience__.bind(this), -1);
     // Memoize Player.prototype.__getBranding__() method.
     this.__getBranding__ = brandingCache.add(this.__getBranding__.bind(this), -1);
+
+    //Cache the initial player version.
+    this.getVersion();
 }
 
 /***************************************************************************************************
@@ -513,10 +522,19 @@ Player.startService = function startService() {
         app.use(logRequest('trace'));
 
         app.get('/api/players/meta', function(req, res) {
-            res.send(200, {
-                version: state.config.appVersion,
-                started : started.toISOString(),
-                status : 'OK'
+            return player.getVersion().then(function sendResponse(playerVersion) {
+                return res.send(200, {
+                    playerVersion: playerVersion,
+                    serviceVersion: state.config.appVersion,
+                    started : started.toISOString(),
+                    status : 'OK'
+                });
+            }).catch(function sendError(error) {
+                var message = inspect(error);
+
+                log.error('[%1] Failed to get service metadata: %2', req.uuid, message);
+
+                return res.send(500, message);
             });
         });
 
@@ -624,6 +642,17 @@ Player.startService = function startService() {
 
             return route(state);
         });
+};
+
+Player.prototype.getVersion = function getVersion() {
+    var url = resolveURL(this.config.api.root, this.config.api.player.endpoint);
+
+    return q(request.get(url, { gzip: true })).then(function getVersion(html) {
+        var $ = cheerio.load(html);
+        var value = $('head base').attr('href');
+
+        return (value.match(/v[\d.]+(-rc\d+)?/) || [null])[0];
+    });
 };
 
 Player.prototype.get = function get(/*options*/) {
@@ -750,7 +779,8 @@ Player.prototype.get = function get(/*options*/) {
 };
 
 Player.prototype.resetCodeCache = function resetCodeCache() {
-    return this.__getPlayer__.clear();
+    this.__getPlayer__.clear();
+    this.getVersion.clear();
 };
 
 module.exports = Player;

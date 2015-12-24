@@ -45,6 +45,36 @@ describe('player service', function() {
         resetCollection('experiences', [systemExperience]).then(done, done.fail);
     });
 
+    describe('[GET] /api/players/meta', function() {
+        var response;
+        var body;
+
+        function getResponse() {
+            response = arguments[0];
+
+            try {
+                body = JSON.parse(response.body.toString());
+            } catch(e) {
+                body = response.body.toString();
+            }
+        }
+
+        beforeEach(function(done) {
+            config.playerUrl.pathname = '/api/players/meta';
+
+            request.get({ url: formatURL(config.playerUrl) }).then(getResponse).then(done, done.fail);
+        });
+
+        it('should return some metadata', function() {
+            expect(body).toEqual({
+                serviceVersion: jasmine.any(String),
+                playerVersion: 'v1.0.0-rc2',
+                started: jasmine.any(String),
+                status: 'OK'
+            });
+        });
+    });
+
     describe('[GET] /api/public/players/:type', function() {
         var response;
         var $;
