@@ -1,5 +1,11 @@
 # Monitor Service Changelog
 
+### 1.1.2: Thu Dec 24 14:01:59 EST 2015
+* Add delayed retry if checking a service fails: []()
+* Extra deployment steps:
+    * Lengthen ELB health check request timeout
+    * Deploy version 1.0.0 of monitor cookbook
+
 ### 1.1.1: Wed Sep 16 17:09:59 EDT 2015
 * [FIX]: Stop logging warning when a client disconnects from cacheCfg publisher: [#475](https://github.com/cinema6/cwrx/pull/475)
 * Extra deployment steps: None

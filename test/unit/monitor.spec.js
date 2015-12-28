@@ -91,6 +91,7 @@ describe('monitor',function(){
                 expect(params.checkHttp.response.statusCode).toEqual(200);
                 expect(params.checkHttp.response.data.key1).toEqual('value1');
                 expect(params.checkHttp.response.data.key2).toEqual('value2');
+                expect(mockLog.warn).not.toHaveBeenCalled();
             })
             .done(done);
 
@@ -118,6 +119,7 @@ describe('monitor',function(){
                 expect(rejectSpy).toHaveBeenCalled();
                 expect(rejectSpy.calls.mostRecent().args[0].httpCode).toEqual(502);
                 expect(rejectSpy.calls.mostRecent().args[0].message).toEqual('This is an error.');
+                expect(mockLog.warn).toHaveBeenCalled();
             })
             .done(done);
 
@@ -141,6 +143,7 @@ describe('monitor',function(){
                 expect(rejectSpy).toHaveBeenCalled();
                 expect(rejectSpy.calls.mostRecent().args[0].httpCode).toEqual(500);
                 expect(rejectSpy.calls.mostRecent().args[0].message).toEqual('This is an error.');
+                expect(mockLog.warn).toHaveBeenCalled();
             })
             .done(done);
 
@@ -198,6 +201,7 @@ describe('monitor',function(){
                 expect(rejectSpy).toHaveBeenCalled();
                 expect(rejectSpy.calls.mostRecent().args[0].message)
                     .toEqual('Process unavailable.');
+                expect(mockLog.warn).toHaveBeenCalled();
             })
             .done(done);
         });
@@ -211,6 +215,7 @@ describe('monitor',function(){
                 expect(rejectSpy).toHaveBeenCalled();
                 expect(rejectSpy.calls.mostRecent().args[0].message)
                     .toEqual('Process unavailable.');
+                expect(mockLog.warn).toHaveBeenCalled();
             })
             .done(done);
         });
@@ -241,6 +246,7 @@ describe('monitor',function(){
             .finally(function(){
                 expect(resolveSpy).toHaveBeenCalledWith(params);
                 expect(rejectSpy).not.toHaveBeenCalled();
+                expect(mockLog.warn).not.toHaveBeenCalled();
             })
             .done(done);
         });
@@ -354,7 +360,63 @@ describe('monitor',function(){
             })
             .done(done);
         });
+        
+        describe('if configured to retry checks', function() {
+            var params;
+            beforeEach(function() {
+                params = {
+                    checkHttp: {
+                        path: '/api/path'
+                    },
+                    checkProcess: {
+                        pidPath: '/pid/path'
+                    },
+                    retry: {
+                        enabled: true,
+                        retryDelay: 2000
+                    }
+                };
+                app.checkProcess.and.returnValue(q(params));
+                app.checkHttp.and.returnValue(q(params));
+            });
 
+            it('should resolve if a check passes the second time', function(done) {
+                var failures = 0;
+                app.checkProcess.and.callFake(function() {
+                    if (failures === 0) {
+                        failures++;
+                        return q.reject({ message: 'No process', httpCode: 503 });
+                    }
+                    else return q(params);
+                });
+                
+                var promise = app.checkService(params).then(resolveSpy, rejectSpy);
+                process.nextTick(function() { jasmine.clock().tick(2001); });
+                
+                promise.finally(function() {
+                    expect(resolveSpy).toHaveBeenCalledWith(params);
+                    expect(rejectSpy).not.toHaveBeenCalled();
+                    expect(app.checkProcess.calls.count()).toBe(2);
+                    expect(app.checkHttp.calls.count()).toBe(1);
+                    expect(mockLog.warn).toHaveBeenCalled();
+                }).done(done);
+            });
+            
+            it('should reject if a check fails both times', function(done) {
+                app.checkHttp.and.returnValue(q.reject({ message: 'No reply', httpCode: 404 }));
+                
+                var promise = app.checkService(params).then(resolveSpy, rejectSpy);
+                process.nextTick(function() { jasmine.clock().tick(2001); });
+                
+                promise.finally(function() {
+                    expect(resolveSpy).not.toHaveBeenCalled();
+                    expect(rejectSpy).toHaveBeenCalledWith({ message: 'No reply', httpCode: 404, service: params });
+                    expect(app.checkProcess.calls.count()).toBe(2);
+                    expect(app.checkHttp.calls.count()).toBe(2);
+                    expect(mockLog.warn).toHaveBeenCalled();
+                }).done(done);
+            });
+        });
     });
     /* checkService -- end */
     
@@ -764,6 +826,36 @@ describe('monitor',function(){
                 expect(state.services[0].checkHttp.timeout).toEqual(200);
             })
             .done(done);
+        });
+        
+        describe('if configuration for retry exists', function(done) {
+            beforeEach(function() {
+                state.config.retry = { enabled: true, retryDelay: 2000 };
+                state.services = [
+                    { name: 'serviceA', checkProcess: { pidPath: 'pidA' } },
+                    { name: 'serviceB', checkProcess: { pidPath: 'pidB' } }
+                ];
+            });
+            
+            it('should copy the retry config to each service\'s config', function(done) {
+                app.verifyConfiguration(state).then(resolveSpy,rejectSpy).finally(function(){
+                    expect(resolveSpy).toHaveBeenCalled();
+                    expect(rejectSpy).not.toHaveBeenCalled();
+                    expect(state.services[0]).toEqual({ name: 'serviceA', checkProcess: { pidPath: 'pidA' }, retry: { enabled: true, retryDelay: 2000 } });
+                    expect(state.services[1]).toEqual({ name: 'serviceB', checkProcess: { pidPath: 'pidB' }, retry: { enabled: true, retryDelay: 2000 } });
+                }).done(done);
+            });
+            
+            it('should not overwrite service-level retry config', function(done) {
+                state.services[0].retry = { enabled: false };
+                state.services[1].retry = { retryDelay: 4000 };
+                app.verifyConfiguration(state).then(resolveSpy,rejectSpy).finally(function(){
+                    expect(resolveSpy).toHaveBeenCalled();
+                    expect(rejectSpy).not.toHaveBeenCalled();
+                    expect(state.services[0]).toEqual({ name: 'serviceA', checkProcess: { pidPath: 'pidA' }, retry: { enabled: false, retryDelay: 2000 } });
+                    expect(state.services[1]).toEqual({ name: 'serviceB', checkProcess: { pidPath: 'pidB' }, retry: { enabled: true, retryDelay: 4000 } });
+                }).done(done);
+            });
         });
     });
     /* verifyConfiguration -- end */

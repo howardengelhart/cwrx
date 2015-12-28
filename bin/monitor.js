@@ -13,6 +13,7 @@
         bodyParser      = require('body-parser'),
         expressUtils    = require('../lib/expressUtils'),
         requestUtils    = require('../lib/requestUtils'),
+        objUtils        = require('../lib/objUtils'),
         service         = require('../lib/service'),
         logger          = require('../lib/logger'),
         __ut__          = (global.jasmine !== undefined) ? true : false,
@@ -33,8 +34,12 @@
         pidDir  : './',
         port    : 3333,
         checkHttpTimeout : 2000,
-        requestTimeout  : 3000,
+        requestTimeout  : 8000,
         monitorInc : './monitor.*.json',
+        retry: {
+            enabled: true,
+            retryDelay: 3000
+        },
         cacheDiscovery: {
             awsRegion   : 'us-east-1',      // needed to initiate AWS API clients
             groupName   : null,             // name of ASG to check
@@ -56,7 +61,7 @@
         log.trace('checkProcess - check pidPath %1 for %2',
                 params.checkProcess.pidPath, params.name);
         if (!fs.existsSync(params.checkProcess.pidPath)){
-            log.error('Unable to locate pidPath %1 for %2',
+            log.warn('Unable to locate pidPath %1 for %2',
                     params.checkProcess.pidPath, params.name);
             var err = new Error('Process unavailable.');
             err.httpCode = 503;
@@ -107,7 +112,7 @@
             res.on('end',function(){
                 log.trace('checkHttp - %1 responds: %2', params.name, res.statusCode);
                 if ((res.statusCode < 200) || (res.statusCode >= 300)){
-                    log.error('checkHttp - %1 received: %2', params.name, res.statusCode);
+                    log.warn('checkHttp - %1 received: %2', params.name, res.statusCode);
                     var err = new Error(data);
                     err.httpCode = 502;
                     deferred.reject(err);
@@ -127,7 +132,7 @@
         });
 
         req.on('error',function(e){
-            log.error('checkHttp - %1 error: %2', params.name, e.message);
+            log.warn('checkHttp - %1 error: %2', params.name, e.message);
             e.httpCode = 500;
             deferred.reject(e);
         });
@@ -138,41 +143,60 @@
     };
 
     app.checkService = function(serviceConfig){
-        serviceConfig.checks = 0;
-        return q(serviceConfig)
-        .then(function(params){
-            if (params.checkProcess){
-                params.checks++;
-                return app.checkProcess(params);
-            }
-            return params;
-        })
-        .then(function(params){
-            if (params.checkHttp){
-                params.checks++;
-                if (params.checkHttp.timeout) {
-                    return app.checkHttp(params).timeout(params.checkHttp.timeout,'ETIMEOUT');
+        var log = logger.getLog(),
+            retried = false;
+
+        function checkService() {
+            serviceConfig.checks = 0;
+
+            return q(serviceConfig)
+            .then(function(params){
+                if (params.checkProcess){
+                    params.checks++;
+                    return app.checkProcess(params);
                 }
-                return app.checkHttp(params);
-            }
-            return params;
-        })
-        .then(function(params){
-            if (params.checks === 0){
-                var err = new Error('No checks performed.');
-                err.httpCode = 500;
+                return params;
+            })
+            .then(function(params){
+                if (params.checkHttp){
+                    params.checks++;
+                    if (params.checkHttp.timeout) {
+                        return app.checkHttp(params).timeout(params.checkHttp.timeout,'ETIMEOUT');
+                    }
+                    return app.checkHttp(params);
+                }
+                return params;
+            })
+            .then(function(params){
+                if (params.checks === 0){
+                    var err = new Error('No checks performed.');
+                    err.httpCode = 500;
+                    return q.reject(err);
+                }
+                return serviceConfig;
+            })
+            .catch(function(err){
+                if (!retried && serviceConfig.retry && serviceConfig.retry.enabled === true) {
+                    log.warn('Failed once checking %1: %2', serviceConfig.name, util.inspect(err));
+                    retried = true;
+                    var deferred = q.defer();
+
+                    setTimeout(function() {
+                        checkService().then(deferred.resolve, deferred.reject);
+                    }, serviceConfig.retry.retryDelay);
+                    return deferred.promise;
+                }
+                
+                if (err.message === 'ETIMEOUT'){
+                    err.httpCode = 504;
+                    err.message = 'Request timed out.';
+                }
+                err.service = serviceConfig;
                 return q.reject(err);
-            }
-            return serviceConfig;
-        })
-        .catch(function(err){
-            if (err.message === 'ETIMEOUT'){
-                err.httpCode = 504;
-                err.message = 'Request timed out.';
-            }
-            err.service = serviceConfig;
-            return q.reject(err);
-        });
+            });
+        }
+        
+        return checkService();
     };
 
     app.checkServices = function(services){
@@ -292,6 +316,9 @@
                 service.checkHttp.timeout =
                     (service.checkHttp.timeout || state.config.checkHttpTimeout);
             }
+
+            service.retry = service.retry || {};
+            objUtils.extend(service.retry, state.config.retry);
 
             return true;
         })) {
