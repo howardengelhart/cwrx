@@ -1,7 +1,7 @@
 # Monitor Service Changelog
 
 ### 1.1.2: Thu Dec 24 14:01:59 EST 2015
-* Add delayed retry if checking a service fails: []()
+* Add delayed retry if checking a service fails: [#535](https://github.com/cinema6/cwrx/issues/535)
 * Extra deployment steps:
     * Lengthen ELB health check request timeout
     * Deploy version 1.0.0 of monitor cookbook
