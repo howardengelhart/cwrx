@@ -138,12 +138,11 @@
             return q(next());
         }
         
-        var cursor = svc._db.collection('experiences').find(
+        return q(svc._db.collection('experiences').find(
             { id: { $in: req.body.applications }, 'status.0.status': { $ne: Status.Deleted } },
             { fields: { id: 1 } }
-        );
-        
-        return q.npost(cursor, 'toArray').then(function(fetched) {
+        ).toArray())
+        .then(function(fetched) {
             if (fetched.length === req.body.applications.length) {
                 return next();
             }
@@ -169,8 +168,8 @@
             query = { policies: req.origObj.name, status: { $ne: Status.Deleted } };
         
         return q.all([
-            q.npost(svc._db.collection('roles'), 'count', [query]),
-            q.npost(svc._db.collection('users'), 'count', [query])
+            q(svc._db.collection('roles').count(query)),
+            q(svc._db.collection('users').count(query)),
         ]).spread(function(roleCount, userCount) {
             if (roleCount + userCount > 0) {
                 log.info('[%1] Policy %2 still used by %3 roles and %4 users',

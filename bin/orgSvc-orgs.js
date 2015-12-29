@@ -112,7 +112,7 @@
         var log = logger.getLog(),
             query = { org: req.params.id, status: { $ne: Status.Deleted } };
 
-        return q.npost(svc._db.collection('users'), 'count', [query])
+        return q(svc._db.collection('users').count(query))
         .then(function(count) {
             if (count > 0) {
                 log.info('[%1] Can\'t delete org %2 since it still has %3 active users',
@@ -137,7 +137,7 @@
                 status: { $nin: [Status.Deleted, Status.Expired, Status.Canceled] }
             };
             
-        return q.npost(orgSvc._db.collection('campaigns'), 'count', [query])
+        return q(orgSvc._db.collection('campaigns').count(query))
         .then(function(campCount) {
             if (campCount > 0) {
                 log.info('[%1] Org %2 still has %3 unfinished campaigns',

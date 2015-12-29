@@ -198,7 +198,7 @@
             return q([]);
         }
 
-        return q.npost(self._coll.find({ id: { '$in': electionIds } }), 'toArray')
+        return q(self._coll.find({ id: { '$in': electionIds } }).toArray())
         .then(function(items) {
             return q.allSettled(items.map(function(item) {
                 var election = self._cache[item.id],
@@ -250,10 +250,14 @@
                 }
                 
                 log.info('Saving %1 updates to election %2',Object.keys(voteCounts).length,item.id);
-                var args = [{'id':item.id},null,{'$inc':voteCounts},{new:true,w:0,journal:true}];
-
-                return q.npost(self._coll, 'findAndModify', args).then(function(results) {
-                    return finishSync(results[0]);
+                
+                return q(self._coll.findOneAndUpdate(
+                    { id: item.id },
+                    { $inc: voteCounts },
+                    { returnOriginal: false, w: 0, journal: true }
+                ))
+                .then(function(result) {
+                    return finishSync(result.value);
                 })
                 .catch(function(error) {
                     log.error('Error syncing election %1: %2', item.id, util.inspect(error));
@@ -420,15 +424,10 @@
         if (user.org) {
             obj.org = user.org;
         }
-        return q.npost(elections, 'insert', [mongoUtils.escapeKeys(obj), {w: 1, journal: true}])
-        .then(function() {
-            delete obj._id;
-            log.info('[%1] User %2 successfully created election %3', req.uuid, user.id, obj.id);
-            return q({code: 201, body: mongoUtils.unescapeKeys(obj)});
-        }).catch(function(error) {
-            log.error('[%1] Error creating election %2 for user %3: %4',
-                      req.uuid, obj.id, user.id, error);
-            return q.reject(error);
+        return mongoUtils.createObject(elections, obj)
+        .then(function(elec) {
+            delete elec._id;
+            return { code: 201, body: mongoUtils.unescapeKeys(elec) };
         });
     };
     
@@ -443,7 +442,7 @@
         }
         
         log.info('[%1] User %2 is attempting to update election %3',req.uuid,user.id,id);
-        q.npost(elections, 'findOne', [{id: id}])
+        mongoUtils.findObject(elections, { id: id })
         .then(function(orig) {
             if (!orig) {
                 log.info('[%1] Election %2 does not exist; not creating it', req.uuid, id);
@@ -477,15 +476,19 @@
                     });
                 }
             }
-
-            var opts = {w: 1, journal: true, new: true};
-            return q.npost(elections, 'findAndModify', [{id: id}, {id: 1}, {$set: updates}, opts])
-            .then(function(results) {
-                var updated = results[0];
+            
+            return q(elections.findOneAndUpdate(
+                { id: id },
+                { $set: updates },
+                { w: 1, journal: true, returnOriginal: false, sort: { id: 1 } }
+            ))
+            .then(function(result) {
+                var updated = result.value;
                 delete updated._id;
                 log.info('[%1] User %2 successfully updated election %3',
                          req.uuid, user.id, updated.id);
-                deferred.resolve({code: 200, body: mongoUtils.unescapeKeys(updated)});
+
+                deferred.resolve({ code: 200, body: mongoUtils.unescapeKeys(updated) });
             });
         }).catch(function(error) {
             log.error('[%1] Error updating election %2 for user %3: %4',
@@ -502,7 +505,7 @@
             deferred = q.defer(),
             now;
         log.info('[%1] User %2 is attempting to delete election %3', req.uuid, user.id, id);
-        q.npost(elections, 'findOne', [{id: id}])
+        mongoUtils.findObject(elections, { id: id })
         .then(function(orig) {
             now = new Date();
             if (!orig) {
@@ -520,11 +523,10 @@
                 log.info('[%1] Election %2 has already been deleted', req.uuid, id);
                 return deferred.resolve({code: 204});
             }
-            var updates = { $set: { lastUpdated:now, status:Status.Deleted } };
-            return q.npost(elections, 'update', [{id: id}, updates, {w:1, journal:true}])
+            var updates = { status:Status.Deleted };
+            return mongoUtils.editObject(elections, updates, id)
             .then(function() {
-                log.info('[%1] User %2 successfully deleted election %3', req.uuid, user.id, id);
-                deferred.resolve({code: 204});
+                deferred.resolve({ code: 204 });
             });
         }).catch(function(error) {
             log.error('[%1] Error deleting election %2 for user %3: %4',

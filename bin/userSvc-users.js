@@ -170,7 +170,8 @@
         var log = logger.getLog(),
             id = req.params.id,
             token = req.body.token;
-        return q.npost(svc._coll, 'findOne', [{ id: String(id) }])
+
+        return mongoUtils.findObject(svc._coll, { id: String(id) })
             .then(function(result) {
                 if(!result) {
                     log.info('[%1] User %2 was not found', req.uuid, id);
@@ -460,12 +461,11 @@
             return q(next());
         }
 
-        var cursor = svc._db.collection('roles').find(
+        return q(svc._db.collection('roles').find(
             { name: { $in: req.body.roles }, status: { $ne: Status.Deleted } },
             { fields: { name: 1 } }
-        );
-
-        return q.npost(cursor, 'toArray').then(function(fetched) {
+        ).toArray())
+        .then(function(fetched) {
             if (fetched.length === req.body.roles.length) {
                 return next();
             }
@@ -493,12 +493,11 @@
             return q(next());
         }
 
-        var cursor = svc._db.collection('policies').find(
+        return q(svc._db.collection('policies').find(
             { name: { $in: req.body.policies }, status: { $ne: Status.Deleted } },
             { fields: { name: 1 } }
-        );
-
-        return q.npost(cursor, 'toArray').then(function(fetched) {
+        ).toArray())
+        .then(function(fetched) {
             if (fetched.length === req.body.policies.length) {
                 return next();
             }
@@ -660,9 +659,11 @@
                 req.uuid, requester.id, id
             );
 
-            return q.npost(sessions, 'remove', [{ 'session.user': id }, { w: 1, journal: true }])
-                .then(function succeed(count) {
+            return q(sessions.deleteMany({ 'session.user': id }, { w: 1, journal: true }))
+                .then(function succeed(result) {
+                    var count = result.deletedCount;
                     log.info('[%1] Successfully deleted %2 session docs', req.uuid, count);
+
                     if(id === req.session.user) {
                         log.info('[%1] Admin %2 is deleting their own login sessions.',
                             req.uuid, id);
@@ -770,7 +771,7 @@
         }
         return svc.customMethod(req, 'confirmUser', function confirm() {
             var id = req.user.id,
-                opts = { w: 1, journal: true, new: true },
+                opts = { w: 1, journal: true, returnOriginal: false, sort: { id: 1 } },
                 updates = {
                     $set: {
                         lastUpdated: new Date(),
@@ -779,37 +780,38 @@
                     },
                     $unset: { activationToken: 1 }
                 };
-            return q.npost(svc._coll, 'findAndModify', [{id: id}, {id: 1}, updates, opts])
-                .then(function(results) {
-                    var userAccount = results[0];
-                    delete req.user;
-                    return q.all([
-                        q.npost(req.session, 'regenerate'),
-                        authUtils.decorateUser(svc.transformMongoDoc(userAccount))
-                    ]);
-                })
-                .then(function(results) {
-                    var decorated = results[1];
-                    journal.writeAuditEntry(req, decorated.id);
-                    req.session.user = decorated.id;
-                    req.session.cookie.maxAge = maxAge;
-                    log.info('[%1] User %2 has been successfully confirmed', req.uuid,
-                        decorated.id);
-                    return { code: 200, body: decorated };
-                })
-                .catch(function(error) {
-                    log.error('[%1] Error updating user %2: %3', req.uuid, id, error);
-                    return q.reject(error);
-                });
+            return q(svc._coll.findOneAndUpdate({ id: id }, updates, opts))
+            .then(function(result) {
+                var userAccount = result.value;
+                delete req.user;
+                return q.all([
+                    q.npost(req.session, 'regenerate'),
+                    authUtils.decorateUser(svc.transformMongoDoc(userAccount))
+                ]);
+            })
+            .then(function(results) {
+                var decorated = results[1];
+                journal.writeAuditEntry(req, decorated.id);
+                req.session.user = decorated.id;
+                req.session.cookie.maxAge = maxAge;
+                log.info('[%1] User %2 has been successfully confirmed', req.uuid,
+                    decorated.id);
+                return { code: 200, body: decorated };
+            })
+            .catch(function(error) {
+                log.error('[%1] Error updating user %2: %3', req.uuid, id, error);
+                return q.reject(error);
+            });
         });
     };
 
     userModule.resendActivation = function(svc, req) {
         var log = logger.getLog(),
             id = req.session.user;
-        return q.npost(svc._coll, 'findOne', [{id: id}])
+
+        return mongoUtils.findObject(svc._coll, { id: id })
             .then(function(user) {
-                if(!user.activationToken) {
+                if(!user || !user.activationToken) {
                     log.warn('[%1] There is no activation token to resend on user %2', req.uuid,
                         id);
                     return { code: 403, body: 'No activation token to resend' };

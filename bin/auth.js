@@ -100,7 +100,7 @@
         req.body.email = req.body.email.toLowerCase();
 
         log.info('[%1] Starting login for user %2', req.uuid, req.body.email);
-        q.npost(users, 'findOne', [{email: req.body.email}])
+        mongoUtils.findObject(users, { email: req.body.email })
         .then(function(account) {
             if (!account) {
                 log.info('[%1] Failed login for user %2: unknown email', req.uuid, req.body.email);
@@ -227,7 +227,7 @@
         
         log.info('[%1] User %2 forgot their password, sending reset code', req.uuid, reqEmail);
         
-        return q.npost(users, 'findOne', [{email: reqEmail}])
+        return mongoUtils.findObject(users, { email: reqEmail })
         .then(function(account) {
             if (!account) {
                 log.info('[%1] No user with email %2 exists', req.uuid, reqEmail);
@@ -248,15 +248,12 @@
             })
             .then(function(hashed) {
                 var updates = {
-                    $set: {
-                        lastUpdated: now,
-                        resetToken: {
-                            token: hashed,
-                            expires: new Date(now.valueOf() + config.resetTokenTTL)
-                        }
+                    resetToken: {
+                        token: hashed,
+                        expires: new Date(now.valueOf() + config.resetTokenTTL)
                     }
                 };
-                return q.npost(users, 'update', [{email:reqEmail}, updates, {w:1, journal:true}]);
+                return mongoUtils.editObject(users, updates, account.id);
             })
             .then(function() {
                 log.info('[%1] Saved reset token for %2 to database', req.uuid, reqEmail);
@@ -291,7 +288,7 @@
         
         log.info('[%1] User %2 attempting to reset their password', req.uuid, id);
         
-        return q.npost(users, 'findOne', [{id: id}])
+        return mongoUtils.findObject(users, { id: id })
         .then(function(account) {
             if (!account) {
                 log.info('[%1] No user with id %2 exists', req.uuid, id);
@@ -324,15 +321,15 @@
                 
                 return q.npost(bcrypt, 'hash', [newPassword, bcrypt.genSaltSync()])
                 .then(function(hashed) {
-                    var opts = { w: 1, journal: true, new: true },
+                    var opts = { w: 1, journal: true, returnOriginal: false, sort: { id: 1 } },
                         updates = {
                             $set: { password: hashed, lastUpdated: now },
                             $unset: { resetToken: 1 }
                         };
-                    return q.npost(users, 'findAndModify', [{id: id}, {id: 1}, updates, opts]);
+                    return q(users.findOneAndUpdate({ id: id }, updates, opts));
                 })
-                .then(function(results) {
-                    updatedAccount = results[0];
+                .then(function(result) {
+                    updatedAccount = result.value;
                     log.info('[%1] User %2 successfully reset their password', req.uuid, id);
                     
                     email.passwordChanged(
@@ -345,11 +342,11 @@
                     }).catch(function(error) {
                         log.error('[%1] Error sending msg to %2: %3',req.uuid,account.email,error);
                     });
-                    return q.npost(sessions, 'remove',
-                        [{ 'session.user': id }, { w: 1, journal: true }]);
+                    return q(sessions.deleteMany({ 'session.user': id }, { w: 1, journal: true }));
                 })
-                .then(function(count) {
-                    log.info('[%1] Successfully deleted %2 session docs', req.uuid, count);
+                .then(function(result) {
+                    log.info('[%1] Successfully deleted %2 session docs',
+                             req.uuid, result.deletedCount);
                     return q.npost(req.session, 'regenerate');
                 })
                 .then(function() {
@@ -498,7 +495,7 @@
                     log.warn('[%1] Bad Request: %2', req.uuid, err && err.message || err);
                     res.send(err.status, err.message || 'Bad Request');
                 } else {
-                    log.error('[%1] Internal Error: %2', req.uuid, err && err.message || err);
+                    log.error('[%1] Internal Error: %2', req.uuid, err && err.stack || err);
                     res.send(err.status || 500, err.message || 'Internal error');
                 }
             } else {
