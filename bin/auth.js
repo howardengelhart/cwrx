@@ -10,7 +10,6 @@
         aws             = require('aws-sdk'),
         express         = require('express'),
         bodyParser      = require('body-parser'),
-        sessionLib      = require('express-session'),
         expressUtils    = require('../lib/expressUtils'),
         logger          = require('../lib/logger'),
         mongoUtils      = require('../lib/mongoUtils'),
@@ -381,51 +380,13 @@
         
         aws.config.region = state.config.emails.region;
 
-        var sessionOpts = {
-            key: state.config.sessions.key,
-            resave: false,
-            secret: state.secrets.cookieParser || '',
-            cookie: {
-                httpOnly: true,
-                secure: state.config.sessions.secure,
-                maxAge: state.config.sessions.minAge
-            },
-            store: state.sessionStore
-        };
-        
-        var sessions = sessionLib(sessionOpts);
-
         app.set('trust proxy', 1);
         app.set('json spaces', 2);
 
-        // Because we may recreate the session middleware, we need to wrap it in the route handlers
-        function sessionsWrapper(req, res, next) {
-            sessions(req, res, next);
-        }
-        
-        state.dbStatus.c6Db.on('reconnected', function() {
-            users = state.dbs.c6Db.collection('users');
-            authUtils._db = state.dbs.c6Db;
-            log.info('Recreated collections from restarted c6Db');
-        });
-        
-        state.dbStatus.sessions.on('reconnected', function() {
-            sessionOpts.store = state.sessionStore;
-            sessions = sessionLib(sessionOpts);
-            log.info('Recreated session store from restarted db');
-        });
-        
-        state.dbStatus.c6Journal.on('reconnected', function() {
-            auditJournal.resetColl(state.dbs.c6Journal.collection('audit'));
-            log.info('Reset journals\' collection from restarted db');
-        });
-
-
         app.use(expressUtils.basicMiddleware());
-
         app.use(bodyParser.json());
 
-        app.post('/api/auth/login', sessionsWrapper, function(req, res) {
+        app.post('/api/auth/login', state.sessions, function(req, res) {
             auth.login(req, users, state.config, auditJournal, state.cache)
             .then(function(resp) {
                 res.send(resp.code, resp.body);
@@ -436,7 +397,7 @@
             });
         });
 
-        app.post('/api/auth/logout', sessionsWrapper, function(req, res) {
+        app.post('/api/auth/logout', state.sessions, function(req, res) {
             auth.logout(req, auditJournal).then(function(resp) {
                 res.send(resp.code, resp.body);
             }).catch(function(/*error*/) {
@@ -449,7 +410,7 @@
         var authGetUser = authUtils.middlewarify({}, null, [Status.Active, Status.New]),
             audit = auditJournal.middleware.bind(auditJournal);
 
-        app.get('/api/auth/status', sessionsWrapper, authGetUser, audit, function(req, res) {
+        app.get('/api/auth/status', state.sessions, authGetUser, audit, function(req, res) {
             res.send(200, req.user); // errors handled entirely by authGetUser
         });
         
@@ -464,7 +425,7 @@
             });
         });
         
-        app.post('/api/auth/password/reset', sessionsWrapper, function(req, res) {
+        app.post('/api/auth/password/reset', state.sessions, function(req, res) {
             auth.resetPassword(req, users, state.config, auditJournal,
                                state.sessionStore.db.collection('sessions'))
             .then(function(resp) {
@@ -517,7 +478,7 @@
         .then(service.daemonize)
         .then(service.cluster)
         .then(service.initMongo)
-        .then(service.initSessionStore)
+        .then(service.initSessions)
         .then(service.initPubSubChannels)
         .then(service.initCache)
         .then(auth.main)

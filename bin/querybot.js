@@ -7,7 +7,6 @@ var q               = require('q'),
     url             = require('url'),
     express         = require('express'),
     bodyParser      = require('body-parser'),
-    sessionLib      = require('express-session'),
     pg              = require('pg.js'),
     inherits        = require('util').inherits,
     expressUtils    = require('../lib/expressUtils'),
@@ -363,38 +362,8 @@ lib.main = function(state) {
     
     authUtils._db = state.dbs.c6Db;
 
-    var sessionOpts = {
-        key: state.config.sessions.key,
-        resave: false,
-        secret: state.secrets.cookieParser || '',
-        cookie: {
-            httpOnly: true,
-            secure: state.config.sessions.secure,
-            maxAge: state.config.sessions.minAge
-        },
-        store: state.sessionStore
-    };
-    
-    var sessions = sessionLib(sessionOpts);
-
     app.set('trust proxy', 1);
     app.set('json spaces', 2);
-    
-    // Because we may recreate the session middleware, we need to wrap it in the route handlers
-    function sessWrap(req, res, next) {
-        sessions(req, res, next);
-    }
-
-    state.dbStatus.c6Db.on('reconnected', function() {
-        authUtils._db = state.dbs.c6Db;
-        log.info('Recreated collections from restarted c6Db');
-    });
-    
-    state.dbStatus.sessions.on('reconnected', function() {
-        sessionOpts.store = state.sessionStore;
-        sessions = sessionLib(sessionOpts);
-        log.info('Recreated session store from restarted db');
-    });
 
     app.use(expressUtils.basicMiddleware());
 
@@ -417,10 +386,12 @@ lib.main = function(state) {
         res.header('cache-control', 'max-age=' + state.config.requestMaxAge);
         next();
     });
+    
+    var sessions = state.sessions;
 
     
     var authAnalCamp = authUtils.middlewarify({campaigns: 'read'});
-    app.get('/api/analytics/campaigns/:id', sessWrap, authAnalCamp, function(req, res, next) {
+    app.get('/api/analytics/campaigns/:id', sessions, authAnalCamp, function(req, res, next) {
         lib.getCampaignSummaryAnalytics(req)
         .then(function(){
             if (req.campaignSummaryAnalytics.length === 0) {
@@ -446,7 +417,7 @@ lib.main = function(state) {
         });
     });
     
-    app.get('/api/analytics/campaigns/', sessWrap, authAnalCamp, function(req, res, next) {
+    app.get('/api/analytics/campaigns/', sessions, authAnalCamp, function(req, res, next) {
         lib.getCampaignSummaryAnalytics(req)
         .then(function(){
             log.info('[%1] - returning data for %2 campaigns',
@@ -496,7 +467,7 @@ if (!__ut__){
     .then(service.daemonize)
     .then(service.cluster)
     .then(service.initMongo)
-    .then(service.initSessionStore)
+    .then(service.initSessions)
     .then(service.initPubSubChannels)
     .then(service.initCache)
     .then(lib.pgInit)

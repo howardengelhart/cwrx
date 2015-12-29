@@ -241,7 +241,7 @@ mongoUtils.connect(program.dbHost, program.dbPort, 'c6Db', program.dbUser, progr
 
     return q(userColl.findOneAndUpdate(
         { id: program.id },
-        mongoUtils.escapeKeys(user),
+        mongoUtils.escapeKeys(newUser),
         { w: 1, journal: true, returnOriginal: false, upsert: true, sort: { id: 1 } }
     ));
 })

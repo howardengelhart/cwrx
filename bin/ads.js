@@ -7,7 +7,6 @@
         path            = require('path'),
         express         = require('express'),
         bodyParser      = require('body-parser'),
-        sessionLib      = require('express-session'),
         authUtils       = require('../lib/authUtils'),
         service         = require('../lib/service'),
         expressUtils    = require('../lib/expressUtils'),
@@ -114,48 +113,12 @@
         // Nodemailer will automatically get SES creds, but need to set region here
         aws.config.region = state.config.emails.awsRegion;
 
-        var sessionOpts = {
-            key: state.config.sessions.key,
-            resave: false,
-            secret: state.secrets.cookieParser || '',
-            cookie: {
-                httpOnly: true,
-                secure: state.config.sessions.secure,
-                maxAge: state.config.sessions.minAge
-            },
-            store: state.sessionStore
-        };
-        
-        var sessions = sessionLib(sessionOpts);
-
         app.set('trust proxy', 1);
         app.set('json spaces', 2);
         
-        // Because we may recreate the session middleware, we need to wrap it in the route handlers
-        function sessWrap(req, res, next) {
-            sessions(req, res, next);
-        }
         var audit = auditJournal.middleware.bind(auditJournal);
 
-        state.dbStatus.c6Db.on('reconnected', function() {
-            authUtils._db = state.dbs.c6Db;
-            log.info('Recreated collections from restarted c6Db');
-        });
-        
-        state.dbStatus.sessions.on('reconnected', function() {
-            sessionOpts.store = state.sessionStore;
-            sessions = sessionLib(sessionOpts);
-            log.info('Recreated session store from restarted db');
-        });
-
-        state.dbStatus.c6Journal.on('reconnected', function() {
-            auditJournal.resetColl(state.dbs.c6Journal.collection('audit'));
-            log.info('Reset journal\'s collection from restarted db');
-        });
-
-
         app.use(expressUtils.basicMiddleware());
-
         app.use(bodyParser.json());
 
         app.get('/api/adjobs/:id', function(req, res) {
@@ -177,13 +140,13 @@
             res.send(200, state.config.appVersion);
         });
         
-        advertModule.setupEndpoints(app, advertSvc, sessWrap, audit, jobManager);
+        advertModule.setupEndpoints(app, advertSvc, state.sessions, audit, jobManager);
         
         // Update module endpoints MUST be added before campaign endpoints!
-        updateModule.setupEndpoints(app, updateSvc, sessWrap, audit, jobManager);
+        updateModule.setupEndpoints(app, updateSvc, state.sessions, audit, jobManager);
 
-        campModule.setupEndpoints(app, campSvc, sessWrap, audit, jobManager);
-        siteModule.setupEndpoints(app, siteSvc, sessWrap, audit, jobManager);
+        campModule.setupEndpoints(app, campSvc, state.sessions, audit, jobManager);
+        siteModule.setupEndpoints(app, siteSvc, state.sessions, audit, jobManager);
         
         app.use(function(err, req, res, next) {
             if (err) {
@@ -213,7 +176,7 @@
         .then(service.daemonize)
         .then(service.cluster)
         .then(service.initMongo)
-        .then(service.initSessionStore)
+        .then(service.initSessions)
         .then(service.initPubSubChannels)
         .then(service.initCache)
         .then(ads.main)

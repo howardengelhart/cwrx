@@ -6,7 +6,6 @@
     var path            = require('path'),
         express         = require('express'),
         bodyParser      = require('body-parser'),
-        sessionLib      = require('express-session'),
         braintree       = require('braintree'),
         expressUtils    = require('../lib/expressUtils'),
         logger          = require('../lib/logger'),
@@ -92,48 +91,11 @@
         authUtils._db = state.dbs.c6Db;
         
         payModule.extendSvc(orgSvc, gateway);
-        
-        var sessionOpts = {
-            key: state.config.sessions.key,
-            resave: false,
-            secret: state.secrets.cookieParser || '',
-            cookie: {
-                httpOnly: true,
-                secure: state.config.sessions.secure,
-                maxAge: state.config.sessions.minAge
-            },
-            store: state.sessionStore
-        };
-        
-        var sessions = sessionLib(sessionOpts);
 
         app.set('trust proxy', 1);
         app.set('json spaces', 2);
 
-        // Because we may recreate the session middleware, we need to wrap it in the route handlers
-        function sessWrap(req, res, next) {
-            sessions(req, res, next);
-        }
         var audit = auditJournal.middleware.bind(auditJournal);
-
-        state.dbStatus.c6Db.on('reconnected', function() {
-            orgSvc._coll = state.dbs.c6Db.collection('orgs');
-            orgSvc._db = state.dbs.c6Db;
-            authUtils._db = state.dbs.c6Db;
-            log.info('Recreated collections from restarted c6Db');
-        });
-        
-        state.dbStatus.sessions.on('reconnected', function() {
-            sessionOpts.store = state.sessionStore;
-            sessions = sessionLib(sessionOpts);
-            log.info('Recreated session store from restarted db');
-        });
-
-        state.dbStatus.c6Journal.on('reconnected', function() {
-            auditJournal.resetColl(state.dbs.c6Journal.collection('audit'));
-            log.info('Reset journal\'s collection from restarted db');
-        });
-
 
         app.use(expressUtils.basicMiddleware());
 
@@ -158,8 +120,8 @@
 
         app.use(bodyParser.json());
 
-        payModule.setupEndpoints(app, orgSvc, gateway, sessWrap, audit, jobManager);
-        orgModule.setupEndpoints(app, orgSvc, sessWrap, audit, jobManager);
+        payModule.setupEndpoints(app, orgSvc, gateway, state.sessions, audit, jobManager);
+        orgModule.setupEndpoints(app, orgSvc, state.sessions, audit, jobManager);
 
         app.use(function(err, req, res, next) {
             if (err) {
@@ -190,7 +152,7 @@
         .then(service.daemonize)
         .then(service.cluster)
         .then(service.initMongo)
-        .then(service.initSessionStore)
+        .then(service.initSessions)
         .then(service.initPubSubChannels)
         .then(service.initCache)
         .then(main)

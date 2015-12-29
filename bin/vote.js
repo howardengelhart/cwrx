@@ -7,7 +7,6 @@
         util            = require('util'),
         express         = require('express'),
         bodyParser      = require('body-parser'),
-        sessionLib      = require('express-session'),
         expressUtils    = require('../lib/expressUtils'),
         service         = require('../lib/service'),
         uuid            = require('../lib/uuid'),
@@ -560,51 +559,11 @@
             });
         };
         
-        var sessionOpts = {
-            key: state.config.sessions.key,
-            resave: false,
-            secret: state.secrets.cookieParser || '',
-            cookie: {
-                httpOnly: true,
-                secure: state.config.sessions.secure,
-                maxAge: state.config.sessions.minAge
-            },
-            store: state.sessionStore
-        };
-        
-        var sessions = sessionLib(sessionOpts);
-
         webServer.set('trust proxy', 1);
         webServer.set('json spaces', 2);
 
-        // Because we may recreate the session middleware, we need to wrap it in the route handlers
-        function sessWrap(req, res, next) {
-            sessions(req, res, next);
-        }
-        var audit = auditJournal.middleware.bind(auditJournal);
-
-        state.dbStatus.c6Db.on('reconnected', function() {
-            authUtils._db = state.dbs.c6Db;
-            log.info('Recreated collections from restarted c6Db');
-        });
-
-        state.dbStatus.voteDb.on('reconnected', function() {
-            elections = state.dbs.voteDb.collection('elections');
-            elDb._coll = elections;
-            log.info('Recreated collections from restarted voteDb');
-        });
-        
-        state.dbStatus.sessions.on('reconnected', function() {
-            sessionOpts.store = state.sessionStore;
-            sessions = sessionLib(sessionOpts);
-            log.info('Recreated session store from restarted db');
-        });
-
-        state.dbStatus.c6Journal.on('reconnected', function() {
-            auditJournal.resetColl(state.dbs.c6Journal.collection('audit'));
-            log.info('Reset journal\'s collection from restarted db');
-        });
-
+        var audit = auditJournal.middleware.bind(auditJournal),
+            sessions = state.sessions;
 
         webServer.use(expressUtils.basicMiddleware());
 
@@ -669,7 +628,7 @@
         });
 
         var authGetElec = authUtils.middlewarify({elections: 'read'});
-        webServer.get('/api/election/:electionId', sessWrap, authGetElec, audit, function(req,res){
+        webServer.get('/api/election/:electionId', sessions, authGetElec, audit, function(req,res) {
             if (!req.params || !req.params.electionId ) {
                 res.send(400, 'You must provide the electionId in the request url.\n');
                 return;
@@ -697,7 +656,7 @@
         });
 
         var authPostElec = authUtils.middlewarify({elections: 'create'});
-        webServer.post('/api/election', sessWrap, authPostElec, audit, function(req, res) {
+        webServer.post('/api/election', sessions, authPostElec, audit, function(req, res) {
             app.createElection(req, elections)
             .then(function(resp) {
                 res.send(resp.code, resp.body);
@@ -710,7 +669,7 @@
         });
         
         var authPutElec = authUtils.middlewarify({elections: 'edit'});
-        webServer.put('/api/election/:id', sessWrap, authPutElec, audit, function(req, res) {
+        webServer.put('/api/election/:id', sessions, authPutElec, audit, function(req, res) {
             app.updateElection(req, elections)
             .then(function(resp) {
                 res.send(resp.code, resp.body);
@@ -723,7 +682,7 @@
         });
         
         var authDelElec = authUtils.middlewarify({elections: 'delete'});
-        webServer.delete('/api/election/:id', sessWrap, authDelElec, audit, function(req, res) {
+        webServer.delete('/api/election/:id', sessions, authDelElec, audit, function(req, res) {
             app.deleteElection(req, elections)
             .then(function(resp) {
                 res.send(resp.code, resp.body);
@@ -783,7 +742,7 @@
         .then(service.daemonize)
         .then(service.cluster)
         .then(service.initMongo)
-        .then(service.initSessionStore)
+        .then(service.initSessions)
         .then(app.main)
         .catch( function(err){
             var log = logger.getLog();
