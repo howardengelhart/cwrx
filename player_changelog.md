@@ -1,5 +1,6 @@
 # Player Service Changelog
 
+### 2.1.0: Tue Dec 29 11:26:35 EST 2015
 * Include provided options in response body: [#712](https://github.com/cinema6/cwrx/pull/712)
 * Report player (front-end) version in the meta endpoint response:
   [#713](https://github.com/cinema6/cwrx/pull/713)
