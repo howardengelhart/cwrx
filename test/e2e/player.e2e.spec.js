@@ -170,7 +170,9 @@ describe('player service', function() {
                     context: 'standalone',
                     container: 'standalone',
                     mobileType: 'mobile',
-                    standalone: true
+                    standalone: true,
+                    interstitial: false,
+                    autoLaunch: true
                 });
             });
 
