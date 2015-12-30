@@ -165,8 +165,8 @@
                 status: { $nin: [Status.Deleted, Status.Expired, Status.Canceled] }
             };
             
-        return q.npost(orgSvc._db.collection('campaigns'), 'count', [query])
-        .then(function(campCount) {
+        return q(orgSvc._db.collection('campaigns').count(query))
+        .then(function(campCount    ) {
             if (campCount > 0) {
                 log.info('[%1] Payment Method %2 still used by %3 campaigns',
                          req.uuid, req.params.token, campCount);
@@ -265,8 +265,7 @@
     // Decorate payments with campaign names by querying mongo for campaigns
     payModule.decoratePayments = function(payments, orgSvc, req) {
         var log = logger.getLog(),
-            campIds = [],
-            cursor;
+            campIds = [];
             
         payments.forEach(function(payment) {
             if (payment.campaignId) {
@@ -279,12 +278,11 @@
         }
             
         // Note this query bypasses perm checks, and can get deleted campaigns
-        cursor = orgSvc._db.collection('campaigns').find(
+        return q(orgSvc._db.collection('campaigns').find(
             { id: { $in: campIds } },
             { id: 1, name: 1 }
-        );
-        
-        return q.npost(cursor, 'toArray').then(function(campaigns) {
+        ).toArray())
+        .then(function(campaigns) {
             var mapping = campaigns.reduce(function(map, camp) {
                 map[camp.id] = camp.name;
                 return map;

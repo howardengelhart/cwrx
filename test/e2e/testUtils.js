@@ -61,8 +61,7 @@ testUtils.mongoFind = function(collection, query, sort, limit, skip, userCfg) {
         .then(function(database){
             db      = database;
             coll    = db.collection(collection);
-            var cursor = coll.find(query, {sort: sort, limit: limit, skip: skip});
-            return q.npost(cursor, 'toArray');
+            return q(coll.find(query, {sort: sort, limit: limit, skip: skip}).toArray());
         });
 };
 
@@ -88,13 +87,7 @@ testUtils.resetCollection = function(collection,data,userCfg){
         .then(function(database){
             db      = database;
             coll    = db.collection(collection);
-            return q.npost(db, 'collectionNames', [collection]);
-        })
-        .then(function(names){
-            if (names.length === 0 ) {
-                return q();
-            }
-            return q.npost(coll, 'remove');
+            return q(coll.deleteMany({}, { w: 1 , journal: true }));
         })
         .then(function(){
             if (!data) {
@@ -110,7 +103,7 @@ testUtils.resetCollection = function(collection,data,userCfg){
                 return q();
             }
 
-            return q.npost(coll,'insert',[data, { w: 1, journal: true }]);
+            return q(coll.insertMany(data, { w: 1, journal: true }));
         }).catch(function(error) {
             console.log('\nFailed resetting ' + collection + ' with data ' + JSON.stringify(data, null, 4));
             console.log(error);

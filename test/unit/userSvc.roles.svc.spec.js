@@ -193,7 +193,7 @@ describe('userSvc-roles (UT)', function() {
             mockColl.find.and.callFake(function() {
                 return {
                     toArray: function(cb) {
-                        cb(null, policies);
+                        return q(policies);
                     }
                 };
             });
@@ -244,7 +244,7 @@ describe('userSvc-roles (UT)', function() {
         });
         
         it('should reject if mongo fails', function(done) {
-            mockColl.find.and.returnValue({ toArray: function(cb) { cb('I GOT A PROBLEM'); } });
+            mockColl.find.and.returnValue({ toArray: function() { return q.reject('I GOT A PROBLEM'); } });
             roleModule.validatePolicies(svc, req, nextSpy, doneSpy).catch(errorSpy);
             process.nextTick(function() {
                 expect(nextSpy).not.toHaveBeenCalled();
@@ -288,9 +288,7 @@ describe('userSvc-roles (UT)', function() {
         var svc;
         beforeEach(function() {
             svc = roleModule.setupSvc(mockDb);
-            mockColl.count = jasmine.createSpy('coll.count()').and.callFake(function(query, cb) {
-                cb(null, 0);
-            });
+            mockColl.count = jasmine.createSpy('cursor.count').and.returnValue(q(0));
             req.origObj = { id: 'r-1', name: 'role1' };
         });
         
@@ -301,14 +299,14 @@ describe('userSvc-roles (UT)', function() {
                 expect(doneSpy).not.toHaveBeenCalled();
                 expect(errorSpy).not.toHaveBeenCalled();
                 expect(mockDb.collection).toHaveBeenCalledWith('users');
-                expect(mockColl.count).toHaveBeenCalledWith({roles: 'role1', status: { $ne: Status.Deleted } }, jasmine.any(Function));
+                expect(mockColl.count).toHaveBeenCalledWith({roles: 'role1', status: { $ne: Status.Deleted } });
                 expect(mockLog.error).not.toHaveBeenCalled();
                 done();
             });
         });
         
         it('should call done with a 400 if there are users with the role', function(done) {
-            mockColl.count.and.callFake(function(query, cb) { cb(null, 3); });
+            mockColl.count.and.returnValue(q(3));
             roleModule.checkRoleInUse(svc, req, nextSpy, doneSpy).catch(errorSpy);
             process.nextTick(function() {
                 expect(nextSpy).not.toHaveBeenCalled();
@@ -320,7 +318,7 @@ describe('userSvc-roles (UT)', function() {
         });
         
         it('should reject if mongo fails', function(done) {
-            mockColl.count.and.callFake(function(query, cb) { cb('I GOT A PROBLEM'); });
+            mockColl.count.and.returnValue(q.reject('I GOT A PROBLEM'));
             roleModule.checkRoleInUse(svc, req, nextSpy, doneSpy).catch(errorSpy);
             process.nextTick(function() {
                 expect(nextSpy).not.toHaveBeenCalled();

@@ -875,9 +875,7 @@ describe('ads-campaignUpdates (UT)', function() {
         var svc, mockColl;
         beforeEach(function() {
             mockColl = {
-                findAndModify: jasmine.createSpy('coll.findAndModify').and.callFake(function(query, sort, updates, opts, cb) {
-                    cb();
-                })
+                findOneAndUpdate: jasmine.createSpy('coll.findOneAndUpdate').and.returnValue(q())
             };
             mockDb.collection.and.returnValue(mockColl);
             req.body = { id: 'ur-1', campaign: 'cam-1', data: {} };
@@ -891,13 +889,13 @@ describe('ads-campaignUpdates (UT)', function() {
                 expect(doneSpy).not.toHaveBeenCalled();
                 expect(errorSpy).not.toHaveBeenCalled();
                 expect(mockDb.collection).toHaveBeenCalledWith('campaigns');
-                expect(mockColl.findAndModify).toHaveBeenCalledWith(
-                    { id: 'cam-1' }, { id: 1 },
+                expect(mockColl.findOneAndUpdate).toHaveBeenCalledWith(
+                    { id: 'cam-1' },
                     {
                         $set: { lastUpdated: jasmine.any(Date), updateRequest: 'ur-1' },
                         $unset: { rejectionReason: 1 },
                     },
-                    { w: 1, journal: true, new: true }, jasmine.any(Function)
+                    { w: 1, j: true, returnOriginal: false, sort: { id: 1 } }
                 );
                 expect(mockLog.error).not.toHaveBeenCalled();
                 done();
@@ -905,7 +903,7 @@ describe('ads-campaignUpdates (UT)', function() {
         });
         
         it('should reject if editing the campaign fails', function(done) {
-            mockColl.findAndModify.and.callFake(function(query, sort, updates, opts, cb) { cb('I GOT A PROBLEM'); });
+            mockColl.findOneAndUpdate.and.returnValue(q.reject('I GOT A PROBLEM'));
             updateModule.lockCampaign(svc, req, nextSpy, doneSpy).catch(errorSpy).finally(function() {
                 expect(nextSpy).not.toHaveBeenCalled();
                 expect(doneSpy).not.toHaveBeenCalled();
@@ -968,9 +966,7 @@ describe('ads-campaignUpdates (UT)', function() {
         var svc, mockColl;
         beforeEach(function() {
             mockColl = {
-                findAndModify: jasmine.createSpy('coll.findAndModify').and.callFake(function(query, sort, updates, opts, cb) {
-                    cb();
-                })
+                findOneAndUpdate: jasmine.createSpy('coll.findOneAndUpdate').and.returnValue(q())
             };
             mockDb.collection.and.returnValue(mockColl);
             req.body = { id: 'ur-1', campaign: 'cam-1', data: {}, status: Status.Approved };
@@ -988,13 +984,13 @@ describe('ads-campaignUpdates (UT)', function() {
                 expect(doneSpy).not.toHaveBeenCalled();
                 expect(errorSpy).not.toHaveBeenCalled();
                 expect(mockDb.collection).toHaveBeenCalledWith('campaigns');
-                expect(mockColl.findAndModify).toHaveBeenCalledWith(
-                    { id: 'cam-1' }, { id: 1 },
+                expect(mockColl.findOneAndUpdate).toHaveBeenCalledWith(
+                    { id: 'cam-1' },
                     {
                         $set: { lastUpdated: jasmine.any(Date) },
                         $unset: { updateRequest: 1 },
                     },
-                    { w: 1, journal: true, new: true }, jasmine.any(Function)
+                    { w: 1, j: true, returnOriginal: false, sort: { id: 1 } }
                 );
                 expect(mockLog.error).not.toHaveBeenCalled();
                 done();
@@ -1008,36 +1004,33 @@ describe('ads-campaignUpdates (UT)', function() {
             });
     
             it('should also save the rejectionReason on the campaign', function(done) {
-                updateModule.unlockCampaign(svc, req, nextSpy, doneSpy).catch(errorSpy);
-                process.nextTick(function() {
+                updateModule.unlockCampaign(svc, req, nextSpy, doneSpy).catch(errorSpy).finally(function() {
                     expect(nextSpy).toHaveBeenCalled();
                     expect(doneSpy).not.toHaveBeenCalled();
                     expect(errorSpy).not.toHaveBeenCalled();
                     expect(mockDb.collection).toHaveBeenCalledWith('campaigns');
-                    expect(mockColl.findAndModify).toHaveBeenCalledWith(
-                        { id: 'cam-1' }, { id: 1 },
+                    expect(mockColl.findOneAndUpdate).toHaveBeenCalledWith(
+                        { id: 'cam-1' },
                         {
                             $set: { lastUpdated: jasmine.any(Date), rejectionReason: 'worst campaign ever' },
                             $unset: { updateRequest: 1 },
                         },
-                        { w: 1, journal: true, new: true }, jasmine.any(Function)
+                        { w: 1, j: true, returnOriginal: false, sort: { id: 1 } }
                     );
-                    done();
-                });
+                }).done(done);
             });
             
             it('should switch the status back to draft if the update was an initial approval request', function(done) {
                 req.campaign.status = Status.Pending;
                 req.campaign.statusHistory[0].status = Status.Pending;
                 req.body.data.status = Status.Active;
-                updateModule.unlockCampaign(svc, req, nextSpy, doneSpy).catch(errorSpy);
-                process.nextTick(function() {
+                updateModule.unlockCampaign(svc, req, nextSpy, doneSpy).catch(errorSpy).finally(function() {
                     expect(nextSpy).toHaveBeenCalled();
                     expect(doneSpy).not.toHaveBeenCalled();
                     expect(errorSpy).not.toHaveBeenCalled();
                     expect(mockDb.collection).toHaveBeenCalledWith('campaigns');
-                    expect(mockColl.findAndModify).toHaveBeenCalledWith(
-                        { id: 'cam-1' }, { id: 1 },
+                    expect(mockColl.findOneAndUpdate).toHaveBeenCalledWith(
+                        { id: 'cam-1' },
                         {
                             $set: {
                                 lastUpdated: jasmine.any(Date),
@@ -1050,10 +1043,9 @@ describe('ads-campaignUpdates (UT)', function() {
                             },
                             $unset: { updateRequest: 1 },
                         },
-                        { w: 1, journal: true, new: true }, jasmine.any(Function)
+                        { w: 1, j: true, returnOriginal: false, sort: { id: 1 } }
                     );
-                    done();
-                });
+                }).done(done);
             });
         });
 
@@ -1063,13 +1055,13 @@ describe('ads-campaignUpdates (UT)', function() {
                 expect(nextSpy).toHaveBeenCalled();
                 expect(doneSpy).not.toHaveBeenCalled();
                 expect(errorSpy).not.toHaveBeenCalled();
-                expect(mockColl.findAndModify).not.toHaveBeenCalled();
+                expect(mockColl.findOneAndUpdate).not.toHaveBeenCalled();
                 done();
             });
         });
         
         it('should reject if editing the campaign fails', function(done) {
-            mockColl.findAndModify.and.callFake(function(query, sort, updates, opts, cb) { cb('I GOT A PROBLEM'); });
+            mockColl.findOneAndUpdate.and.returnValue(q.reject('I GOT A PROBLEM'));
             updateModule.unlockCampaign(svc, req, nextSpy, doneSpy).catch(errorSpy).finally(function() {
                 expect(nextSpy).not.toHaveBeenCalled();
                 expect(doneSpy).not.toHaveBeenCalled();
@@ -1188,12 +1180,13 @@ describe('ads-campaignUpdates (UT)', function() {
     });
 
     describe('notifyOwner', function() {
-        var svc, mockColl;
+        var svc, mockColl, mockCursor;
         beforeEach(function() {
+            mockCursor = {
+                next: jasmine.createSpy('cursor.next()').and.returnValue(q({ id: 'u-2', email: 'owner@c6.com' }))
+            };
             mockColl = {
-                findOne: jasmine.createSpy('coll.findOne').and.callFake(function(query, opts, cb) {
-                    cb(null, { id: 'u-2', email: 'owner@c6.com' });
-                })
+                find: jasmine.createSpy('coll.find()').and.returnValue(mockCursor)
             };
             mockDb.collection.and.returnValue(mockColl);
             req.body = { id: 'ur-1', campaign: 'cam-1', data: { foo: 'bar' }, status: Status.Approved };
@@ -1209,7 +1202,7 @@ describe('ads-campaignUpdates (UT)', function() {
                 expect(nextSpy).toHaveBeenCalled();
                 expect(doneSpy).not.toHaveBeenCalled();
                 expect(errorSpy).not.toHaveBeenCalled();
-                expect(mockColl.findOne).toHaveBeenCalledWith({ id: 'u-2' }, { fields: { id: 1, email: 1 } }, jasmine.any(Function));
+                expect(mockColl.find).toHaveBeenCalledWith({ id: 'u-2' }, { fields: { id: 1, email: 1 }, limit: 1 });
                 expect(email.updateApproved).toHaveBeenCalledWith(
                     'no-reply@c6.com',
                     'owner@c6.com',
@@ -1230,7 +1223,7 @@ describe('ads-campaignUpdates (UT)', function() {
                 expect(nextSpy).toHaveBeenCalled();
                 expect(doneSpy).not.toHaveBeenCalled();
                 expect(errorSpy).not.toHaveBeenCalled();
-                expect(mockColl.findOne).toHaveBeenCalled();
+                expect(mockColl.find).toHaveBeenCalled();
                 expect(email.updateRejected).toHaveBeenCalledWith(
                     'no-reply@c6.com',
                     'owner@c6.com',
@@ -1283,7 +1276,7 @@ describe('ads-campaignUpdates (UT)', function() {
                 expect(nextSpy).toHaveBeenCalled();
                 expect(doneSpy).not.toHaveBeenCalled();
                 expect(errorSpy).not.toHaveBeenCalled();
-                expect(mockColl.findOne).not.toHaveBeenCalled();
+                expect(mockColl.find).not.toHaveBeenCalled();
                 expect(email.updateApproved).not.toHaveBeenCalled();
                 expect(email.updateRejected).not.toHaveBeenCalled();
                 expect(mockLog.warn).not.toHaveBeenCalled();
@@ -1292,12 +1285,12 @@ describe('ads-campaignUpdates (UT)', function() {
         });
         
         it('should warn and continue if the user is not found', function(done) {
-            mockColl.findOne.and.callFake(function(query, opts, cb) { cb(); });
+            mockCursor.next.and.returnValue(q());
             updateModule.notifyOwner(svc, req, nextSpy, doneSpy).catch(errorSpy).finally(function() {
                 expect(nextSpy).toHaveBeenCalled();
                 expect(doneSpy).not.toHaveBeenCalled();
                 expect(errorSpy).not.toHaveBeenCalled();
-                expect(mockColl.findOne).toHaveBeenCalled();
+                expect(mockColl.find).toHaveBeenCalled();
                 expect(email.updateApproved).not.toHaveBeenCalled();
                 expect(email.updateRejected).not.toHaveBeenCalled();
                 expect(mockLog.warn).toHaveBeenCalled();
@@ -1307,12 +1300,12 @@ describe('ads-campaignUpdates (UT)', function() {
 
         
         it('should warn and continue if looking up the user fails', function(done) {
-            mockColl.findOne.and.callFake(function(query, opts, cb) { cb('I GOT A PROBLEM'); });
+            mockCursor.next.and.returnValue(q.reject('I GOT A PROBLEM'));
             updateModule.notifyOwner(svc, req, nextSpy, doneSpy).catch(errorSpy).finally(function() {
                 expect(nextSpy).toHaveBeenCalled();
                 expect(doneSpy).not.toHaveBeenCalled();
                 expect(errorSpy).not.toHaveBeenCalled();
-                expect(mockColl.findOne).toHaveBeenCalled();
+                expect(mockColl.find).toHaveBeenCalled();
                 expect(email.updateApproved).not.toHaveBeenCalled();
                 expect(email.updateRejected).not.toHaveBeenCalled();
                 expect(mockLog.warn).toHaveBeenCalled();
@@ -1326,7 +1319,7 @@ describe('ads-campaignUpdates (UT)', function() {
                 expect(nextSpy).toHaveBeenCalled();
                 expect(doneSpy).not.toHaveBeenCalled();
                 expect(errorSpy).not.toHaveBeenCalled();
-                expect(mockColl.findOne).toHaveBeenCalled();
+                expect(mockColl.find).toHaveBeenCalled();
                 expect(email.updateRejected).not.toHaveBeenCalled();
                 expect(mockLog.warn).toHaveBeenCalled();
                 done();

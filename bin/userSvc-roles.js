@@ -62,12 +62,11 @@
             return q(next());
         }
         
-        var cursor = svc._db.collection('policies').find(
+        return q(svc._db.collection('policies').find(
             { name: { $in: req.body.policies }, status: { $ne: Status.Deleted } },
             { fields: { name: 1 } }
-        );
-        
-        return q.npost(cursor, 'toArray').then(function(fetched) {
+        ).toArray())
+        .then(function(fetched) {
             if (fetched.length === req.body.policies.length) {
                 return next();
             }
@@ -103,7 +102,7 @@
         var log = logger.getLog(),
             query = { roles: req.origObj.name, status: { $ne: Status.Deleted } };
         
-        return q.npost(svc._db.collection('users'), 'count', [query])
+        return q(svc._db.collection('users').count(query))
         .then(function(userCount) {
             if (userCount > 0) {
                 log.info('[%1] Role %2 still used by %3 users',

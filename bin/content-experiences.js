@@ -47,7 +47,7 @@
         var log = logger.getLog(),
             privateFields = ['user', 'org'],
             newExp = {};
-
+        
         for (var key in experience) {
             if (key === 'data') {
                 if (!(experience.data instanceof Array)) {
@@ -443,7 +443,7 @@
 
         cursor = experiences.find(permQuery, opts);
 
-        return (multiGet ? q.npost(cursor, 'count') : q())
+        return (multiGet ? q(cursor.count()) : q())
         .then(function(count) {
             if (count !== undefined) {
                 var start = count !== 0 ? skip + 1 : 0,
@@ -453,7 +453,7 @@
                     'content-range': 'items ' + start + '-' + end + '/' + count
                 };
             }
-            return q.npost(cursor, 'toArray');
+            return q(cursor.toArray());
         })
         .then(function(results) {
             var exps = results.map(function(exp) {
@@ -522,15 +522,9 @@
         obj.data = [ { user: user.email, userId: user.id, date: now,
                        data: obj.data, versionId: versionId } ];
 
-
-        return q.npost(experiences, 'insert', [mongoUtils.escapeKeys(obj), {w: 1, journal: true}])
-        .then(function() {
-            log.info('[%1] User %2 successfully created experience %3', req.uuid, user.id, obj.id);
-            return q({ code: 201, body: expModule.formatOutput(obj) });
-        }).catch(function(error) {
-            log.error('[%1] Error creating experience %2 for user %3: %4',
-                      req.uuid, obj.id, user.id, error);
-            return q.reject(error);
+        return mongoUtils.createObject(experiences, obj)
+        .then(function(exp) {
+            return q({ code: 201, body: expModule.formatOutput(exp) });
         });
     };
 
@@ -590,7 +584,7 @@
         }
 
         log.info('[%1] User %2 is attempting to update experience %3',req.uuid,user.id,id);
-        return q.npost(experiences, 'findOne', [{id: id}])
+        return mongoUtils.findObject(experiences, { id: id })
         .then(function(orig) {
             if (!orig) {
                 log.info('[%1] Experience %2 does not exist; not creating it', req.uuid, id);
@@ -624,13 +618,9 @@
             }
 
             updates = expModule.formatUpdates(req, orig, updates, user);
-
-            return q.npost(experiences, 'findAndModify',
-                           [{id: id}, {id: 1}, {$set: updates}, {w: 1, journal: true, new: true}])
-            .then(function(results) {
-                var updated = results[0];
-                log.info('[%1] User %2 successfully updated experience %3',
-                         req.uuid, user.id, updated.id);
+            
+            return mongoUtils.editObject(experiences, updates, id)
+            .then(function(updated) {
                 return q({ code: 200, body: expModule.formatOutput(updated) });
             });
         })
@@ -648,7 +638,7 @@
 
         log.info('[%1] User %2 is attempting to delete experience %3', req.uuid, user.id, id);
 
-        return q.npost(experiences, 'findOne', [{id: id}])
+        return mongoUtils.findObject(experiences, { id: id })
         .then(function(orig) {
             if (!orig) {
                 log.info('[%1] Experience %2 does not exist', req.uuid, id);
@@ -670,10 +660,9 @@
             var updates = { status: Status.Deleted };
             expModule.formatUpdates(req, orig, updates, user);
 
-            return q.npost(experiences, 'update', [{id: id}, {$set: updates}, {w:1, journal:true}])
-            .then(function() {
-                log.info('[%1] User %2 successfully deleted experience %3', req.uuid, user.id, id);
-                return q({code: 204});
+            return mongoUtils.editObject(experiences, updates, id)
+            .then(function(/*updated*/) {
+                return q({ code: 204 });
             });
         }).catch(function(error) {
             log.error('[%1] Error deleting experience %2 for user %3: %4',

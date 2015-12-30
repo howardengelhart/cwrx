@@ -7,7 +7,6 @@
         util            = require('util'),
         express         = require('express'),
         bodyParser      = require('body-parser'),
-        sessionLib      = require('express-session'),
         expressUtils    = require('../lib/expressUtils'),
         service         = require('../lib/service'),
         uuid            = require('../lib/uuid'),
@@ -198,7 +197,7 @@
             return q([]);
         }
 
-        return q.npost(self._coll.find({ id: { '$in': electionIds } }), 'toArray')
+        return q(self._coll.find({ id: { '$in': electionIds } }).toArray())
         .then(function(items) {
             return q.allSettled(items.map(function(item) {
                 var election = self._cache[item.id],
@@ -250,10 +249,14 @@
                 }
                 
                 log.info('Saving %1 updates to election %2',Object.keys(voteCounts).length,item.id);
-                var args = [{'id':item.id},null,{'$inc':voteCounts},{new:true,w:0,journal:true}];
-
-                return q.npost(self._coll, 'findAndModify', args).then(function(results) {
-                    return finishSync(results[0]);
+                
+                return q(self._coll.findOneAndUpdate(
+                    { id: item.id },
+                    { $inc: voteCounts },
+                    { returnOriginal: false, w: 0, j: true }
+                ))
+                .then(function(result) {
+                    return finishSync(result.value);
                 })
                 .catch(function(error) {
                     log.error('Error syncing election %1: %2', item.id, util.inspect(error));
@@ -420,15 +423,10 @@
         if (user.org) {
             obj.org = user.org;
         }
-        return q.npost(elections, 'insert', [mongoUtils.escapeKeys(obj), {w: 1, journal: true}])
-        .then(function() {
-            delete obj._id;
-            log.info('[%1] User %2 successfully created election %3', req.uuid, user.id, obj.id);
-            return q({code: 201, body: mongoUtils.unescapeKeys(obj)});
-        }).catch(function(error) {
-            log.error('[%1] Error creating election %2 for user %3: %4',
-                      req.uuid, obj.id, user.id, error);
-            return q.reject(error);
+        return mongoUtils.createObject(elections, obj)
+        .then(function(elec) {
+            delete elec._id;
+            return { code: 201, body: mongoUtils.unescapeKeys(elec) };
         });
     };
     
@@ -443,7 +441,7 @@
         }
         
         log.info('[%1] User %2 is attempting to update election %3',req.uuid,user.id,id);
-        q.npost(elections, 'findOne', [{id: id}])
+        mongoUtils.findObject(elections, { id: id })
         .then(function(orig) {
             if (!orig) {
                 log.info('[%1] Election %2 does not exist; not creating it', req.uuid, id);
@@ -477,15 +475,19 @@
                     });
                 }
             }
-
-            var opts = {w: 1, journal: true, new: true};
-            return q.npost(elections, 'findAndModify', [{id: id}, {id: 1}, {$set: updates}, opts])
-            .then(function(results) {
-                var updated = results[0];
+            
+            return q(elections.findOneAndUpdate(
+                { id: id },
+                { $set: updates },
+                { w: 1, j: true, returnOriginal: false, sort: { id: 1 } }
+            ))
+            .then(function(result) {
+                var updated = result.value;
                 delete updated._id;
                 log.info('[%1] User %2 successfully updated election %3',
                          req.uuid, user.id, updated.id);
-                deferred.resolve({code: 200, body: mongoUtils.unescapeKeys(updated)});
+
+                deferred.resolve({ code: 200, body: mongoUtils.unescapeKeys(updated) });
             });
         }).catch(function(error) {
             log.error('[%1] Error updating election %2 for user %3: %4',
@@ -502,7 +504,7 @@
             deferred = q.defer(),
             now;
         log.info('[%1] User %2 is attempting to delete election %3', req.uuid, user.id, id);
-        q.npost(elections, 'findOne', [{id: id}])
+        mongoUtils.findObject(elections, { id: id })
         .then(function(orig) {
             now = new Date();
             if (!orig) {
@@ -520,11 +522,10 @@
                 log.info('[%1] Election %2 has already been deleted', req.uuid, id);
                 return deferred.resolve({code: 204});
             }
-            var updates = { $set: { lastUpdated:now, status:Status.Deleted } };
-            return q.npost(elections, 'update', [{id: id}, updates, {w:1, journal:true}])
+            var updates = { status:Status.Deleted };
+            return mongoUtils.editObject(elections, updates, id)
             .then(function() {
-                log.info('[%1] User %2 successfully deleted election %3', req.uuid, user.id, id);
-                deferred.resolve({code: 204});
+                deferred.resolve({ code: 204 });
             });
         }).catch(function(error) {
             log.error('[%1] Error deleting election %2 for user %3: %4',
@@ -558,51 +559,11 @@
             });
         };
         
-        var sessionOpts = {
-            key: state.config.sessions.key,
-            resave: false,
-            secret: state.secrets.cookieParser || '',
-            cookie: {
-                httpOnly: true,
-                secure: state.config.sessions.secure,
-                maxAge: state.config.sessions.minAge
-            },
-            store: state.sessionStore
-        };
-        
-        var sessions = sessionLib(sessionOpts);
-
         webServer.set('trust proxy', 1);
         webServer.set('json spaces', 2);
 
-        // Because we may recreate the session middleware, we need to wrap it in the route handlers
-        function sessWrap(req, res, next) {
-            sessions(req, res, next);
-        }
-        var audit = auditJournal.middleware.bind(auditJournal);
-
-        state.dbStatus.c6Db.on('reconnected', function() {
-            authUtils._db = state.dbs.c6Db;
-            log.info('Recreated collections from restarted c6Db');
-        });
-
-        state.dbStatus.voteDb.on('reconnected', function() {
-            elections = state.dbs.voteDb.collection('elections');
-            elDb._coll = elections;
-            log.info('Recreated collections from restarted voteDb');
-        });
-        
-        state.dbStatus.sessions.on('reconnected', function() {
-            sessionOpts.store = state.sessionStore;
-            sessions = sessionLib(sessionOpts);
-            log.info('Recreated session store from restarted db');
-        });
-
-        state.dbStatus.c6Journal.on('reconnected', function() {
-            auditJournal.resetColl(state.dbs.c6Journal.collection('audit'));
-            log.info('Reset journal\'s collection from restarted db');
-        });
-
+        var audit = auditJournal.middleware.bind(auditJournal),
+            sessions = state.sessions;
 
         webServer.use(expressUtils.basicMiddleware());
 
@@ -667,7 +628,7 @@
         });
 
         var authGetElec = authUtils.middlewarify({elections: 'read'});
-        webServer.get('/api/election/:electionId', sessWrap, authGetElec, audit, function(req,res){
+        webServer.get('/api/election/:electionId', sessions, authGetElec, audit, function(req,res) {
             if (!req.params || !req.params.electionId ) {
                 res.send(400, 'You must provide the electionId in the request url.\n');
                 return;
@@ -695,7 +656,7 @@
         });
 
         var authPostElec = authUtils.middlewarify({elections: 'create'});
-        webServer.post('/api/election', sessWrap, authPostElec, audit, function(req, res) {
+        webServer.post('/api/election', sessions, authPostElec, audit, function(req, res) {
             app.createElection(req, elections)
             .then(function(resp) {
                 res.send(resp.code, resp.body);
@@ -708,7 +669,7 @@
         });
         
         var authPutElec = authUtils.middlewarify({elections: 'edit'});
-        webServer.put('/api/election/:id', sessWrap, authPutElec, audit, function(req, res) {
+        webServer.put('/api/election/:id', sessions, authPutElec, audit, function(req, res) {
             app.updateElection(req, elections)
             .then(function(resp) {
                 res.send(resp.code, resp.body);
@@ -721,7 +682,7 @@
         });
         
         var authDelElec = authUtils.middlewarify({elections: 'delete'});
-        webServer.delete('/api/election/:id', sessWrap, authDelElec, audit, function(req, res) {
+        webServer.delete('/api/election/:id', sessions, authDelElec, audit, function(req, res) {
             app.deleteElection(req, elections)
             .then(function(resp) {
                 res.send(resp.code, resp.body);
@@ -781,7 +742,7 @@
         .then(service.daemonize)
         .then(service.cluster)
         .then(service.initMongo)
-        .then(service.initSessionStore)
+        .then(service.initSessions)
         .then(app.main)
         .catch( function(err){
             var log = logger.getLog();

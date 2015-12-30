@@ -182,68 +182,71 @@ mongoUtils.connect(program.dbHost, program.dbPort, 'c6Db', program.dbUser, progr
     db = database;
     userColl = db.collection('users');
     
-    return q.npost(userColl, 'findOne', [{ $or: [{id: program.id}, {email: program.email}] }])
-    .then(function(existing) {
-        console.log('Creating/updating user', program.id, 'with email', program.email, 'and password "password"');
-        
-        var userPerms = program.perms === 'all' ? allEntities : program.perms.split(',').filter(function(objName) {
-            return allEntities.some(function(perm) { return perm === objName; });
-        });
-        
-        console.log('New user will have full admin priviledges over:', userPerms.join(','));
-        
-        var policy = {
-            id: 'p-testAdmin',
-            name: 'testFullAdmin',
-            created: new Date(),
-            lastUpdated: new Date(),
-            status: 'active',
-            permissions: {},
-            fieldValidation: {},
-            entitlements: {}
-        };
-        
-        userPerms.forEach(function(key) {
-            policy.permissions[key] = { read: 'all', create: 'all', edit: 'all', delete: 'all' };
-        });
-        
-        setupUserSvcFieldVal(policy);
-        setupOrgSvcFieldVal(policy);
-        setupCampaignSvcFieldVal(policy);
+    console.log('Creating/updating user', program.id, 'with email', program.email, 'and password "password"');
+    
+    var userPerms = program.perms === 'all' ? allEntities : program.perms.split(',').filter(function(objName) {
+        return allEntities.some(function(perm) { return perm === objName; });
+    });
+    
+    console.log('New user will have full admin priviledges over:', userPerms.join(','));
+    
+    var policy = {
+        id: 'p-testAdmin',
+        name: 'testFullAdmin',
+        created: new Date(),
+        lastUpdated: new Date(),
+        status: 'active',
+        permissions: {},
+        fieldValidation: {},
+        entitlements: {}
+    };
+    
+    userPerms.forEach(function(key) {
+        policy.permissions[key] = { read: 'all', create: 'all', edit: 'all', delete: 'all' };
+    });
+    
+    setupUserSvcFieldVal(policy);
+    setupOrgSvcFieldVal(policy);
+    setupCampaignSvcFieldVal(policy);
 
-        return q.npost(db.collection('policies'), 'findAndModify', [{ id: 'p-testAdmin'}, {id: 1}, policy,
-                                                                    { w: 1, journal: true, new: true, upsert: true }]);
-    }).then(function(policy) {
-        console.log('Created/updated policy p-testAdmin');
-        
-        var newUser = {
-            id: program.id,
-            org: 'o-test',
-            created: new Date(),
-            lastUpdated: new Date(),
-            email: program.email,
-            password: hashPass,
-            status: 'active',
-            policies: ['testFullAdmin'],
-	        applications : ['e-selfie', 'e-studio'],
-            config: {
-                minireelinator : {
-                    minireelDefaults : {
-                        splash : {
-                            ratio : '6-5',
-                            theme : 'img-only'
-                        }
+    return q(db.collection('policies').findOneAndUpdate(
+        { id: 'p-testAdmin' },
+        policy,
+        { w: 1, journal: true, returnOriginal: false, upsert: true, sort: { id: 1 } }
+    ));
+}).then(function(policy) {
+    console.log('Created/updated policy p-testAdmin');
+    
+    var newUser = {
+        id: program.id,
+        org: 'o-test',
+        created: new Date(),
+        lastUpdated: new Date(),
+        email: program.email,
+        password: hashPass,
+        status: 'active',
+        policies: ['testFullAdmin'],
+        applications : ['e-selfie', 'e-studio'],
+        config: {
+            minireelinator : {
+                minireelDefaults : {
+                    splash : {
+                        ratio : '6-5',
+                        theme : 'img-only'
                     }
                 }
             }
-        };
-        
-        return q.npost(userColl, 'findAndModify', [{ id: program.id}, {id: 1}, mongoUtils.escapeKeys(newUser),
-                                                   { w: 1, journal: true, new: true, upsert: true }]);
-    })
-    .then(function() {
-        console.log('Successfully created/updated user', program.id);
-    });
+        }
+    };
+
+    return q(userColl.findOneAndUpdate(
+        { id: program.id },
+        mongoUtils.escapeKeys(newUser),
+        { w: 1, journal: true, returnOriginal: false, upsert: true, sort: { id: 1 } }
+    ));
+})
+.then(function() {
+    console.log('Successfully created/updated user', program.id);
 })
 .then(function() {
     db && db.close();

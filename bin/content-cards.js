@@ -9,6 +9,7 @@
         logger          = require('../lib/logger'),
         CrudSvc         = require('../lib/crudSvc'),
         authUtils       = require('../lib/authUtils'),
+        mongoUtils      = require('../lib/mongoUtils'),
         Status          = require('../lib/enums').Status,
 
         cardModule = { config: {} };
@@ -125,9 +126,10 @@
             
         log.trace('[%1] Fetching campaign %2', req.uuid, String(campId));
         
-        return q.npost(svc._db.collection('campaigns'), 'findOne', [
+        return mongoUtils.findObject(
+            svc._db.collection('campaigns'),
             { id: String(campId), status: { $ne: Status.Deleted } }
-        ])
+        )
         .then(function(camp) {
             if (camp) {
                 req.campaign = camp;

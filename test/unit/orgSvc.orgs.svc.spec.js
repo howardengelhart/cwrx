@@ -318,7 +318,7 @@ describe('orgSvc-orgs (UT)', function() {
             req.params = { id: 'o-2' };
             
             mockColl = {
-                count: jasmine.createSpy('cursor.count').and.callFake(function(query, cb) { cb(null, 3); })
+                count: jasmine.createSpy('cursor.count').and.returnValue(q(3))
             };
             mockDb.collection.and.returnValue(mockColl);
 
@@ -332,14 +332,14 @@ describe('orgSvc-orgs (UT)', function() {
                 expect(doneSpy).toHaveBeenCalledWith({ code: 400, body: 'Org still has active users' });
                 expect(errorSpy).not.toHaveBeenCalled();
                 expect(mockDb.collection).toHaveBeenCalledWith('users');
-                expect(mockColl.count).toHaveBeenCalledWith({ org: 'o-2', status: { $ne: Status.Deleted } }, jasmine.any(Function));
+                expect(mockColl.count).toHaveBeenCalledWith({ org: 'o-2', status: { $ne: Status.Deleted } });
                 expect(mockLog.error).not.toHaveBeenCalled();
                 done();
             });
         });
         
         it('should call next if the org has no active users', function(done) {
-            mockColl.count.and.callFake(function(query, cb) { cb(null, 0); });
+            mockColl.count.and.returnValue(q(0));
         
             orgModule.activeUserCheck(orgSvc, req, nextSpy, doneSpy).catch(errorSpy);
             process.nextTick(function() {
@@ -352,7 +352,7 @@ describe('orgSvc-orgs (UT)', function() {
         });
 
         it('should reject if mongo has an error', function(done) {
-            mockColl.count.and.callFake(function(query, cb) { cb('I GOT A PROBLEM'); });
+            mockColl.count.and.returnValue(q.reject('I GOT A PROBLEM'));
         
             orgModule.activeUserCheck(orgSvc, req, nextSpy, doneSpy).catch(errorSpy);
             process.nextTick(function() {
@@ -371,7 +371,7 @@ describe('orgSvc-orgs (UT)', function() {
             req.params = { id: 'o-2' };
             
             mockColl = {
-                count: jasmine.createSpy('cursor.count').and.callFake(function(query, cb) { cb(null, 3); })
+                count: jasmine.createSpy('cursor.count').and.returnValue(q(3))
             };
             mockDb.collection.and.returnValue(mockColl);
 
@@ -388,14 +388,14 @@ describe('orgSvc-orgs (UT)', function() {
                 expect(mockColl.count).toHaveBeenCalledWith({
                     org: 'o-2',
                     status: { $nin: [Status.Deleted, Status.Expired, Status.Canceled] }
-                }, jasmine.any(Function));
+                });
                 expect(mockLog.error).not.toHaveBeenCalled();
                 done();
             });
         });
         
         it('should call next if the org has no unfinished campaigns', function(done) {
-            mockColl.count.and.callFake(function(query, cb) { cb(null, 0); });
+            mockColl.count.and.returnValue(q(0));
         
             orgModule.runningCampaignCheck(orgSvc, req, nextSpy, doneSpy).catch(errorSpy);
             process.nextTick(function() {
@@ -408,7 +408,7 @@ describe('orgSvc-orgs (UT)', function() {
         });
 
         it('should reject if mongo has an error', function(done) {
-            mockColl.count.and.callFake(function(query, cb) { cb('I GOT A PROBLEM'); });
+            mockColl.count.and.returnValue(q.reject('I GOT A PROBLEM'));
         
             orgModule.runningCampaignCheck(orgSvc, req, nextSpy, doneSpy).catch(errorSpy);
             process.nextTick(function() {

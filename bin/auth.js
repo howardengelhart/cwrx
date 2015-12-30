@@ -10,7 +10,6 @@
         aws             = require('aws-sdk'),
         express         = require('express'),
         bodyParser      = require('body-parser'),
-        sessionLib      = require('express-session'),
         expressUtils    = require('../lib/expressUtils'),
         logger          = require('../lib/logger'),
         mongoUtils      = require('../lib/mongoUtils'),
@@ -100,7 +99,7 @@
         req.body.email = req.body.email.toLowerCase();
 
         log.info('[%1] Starting login for user %2', req.uuid, req.body.email);
-        q.npost(users, 'findOne', [{email: req.body.email}])
+        mongoUtils.findObject(users, { email: req.body.email })
         .then(function(account) {
             if (!account) {
                 log.info('[%1] Failed login for user %2: unknown email', req.uuid, req.body.email);
@@ -227,7 +226,7 @@
         
         log.info('[%1] User %2 forgot their password, sending reset code', req.uuid, reqEmail);
         
-        return q.npost(users, 'findOne', [{email: reqEmail}])
+        return mongoUtils.findObject(users, { email: reqEmail })
         .then(function(account) {
             if (!account) {
                 log.info('[%1] No user with email %2 exists', req.uuid, reqEmail);
@@ -248,15 +247,12 @@
             })
             .then(function(hashed) {
                 var updates = {
-                    $set: {
-                        lastUpdated: now,
-                        resetToken: {
-                            token: hashed,
-                            expires: new Date(now.valueOf() + config.resetTokenTTL)
-                        }
+                    resetToken: {
+                        token: hashed,
+                        expires: new Date(now.valueOf() + config.resetTokenTTL)
                     }
                 };
-                return q.npost(users, 'update', [{email:reqEmail}, updates, {w:1, journal:true}]);
+                return mongoUtils.editObject(users, updates, account.id);
             })
             .then(function() {
                 log.info('[%1] Saved reset token for %2 to database', req.uuid, reqEmail);
@@ -291,7 +287,7 @@
         
         log.info('[%1] User %2 attempting to reset their password', req.uuid, id);
         
-        return q.npost(users, 'findOne', [{id: id}])
+        return mongoUtils.findObject(users, { id: id })
         .then(function(account) {
             if (!account) {
                 log.info('[%1] No user with id %2 exists', req.uuid, id);
@@ -324,15 +320,15 @@
                 
                 return q.npost(bcrypt, 'hash', [newPassword, bcrypt.genSaltSync()])
                 .then(function(hashed) {
-                    var opts = { w: 1, journal: true, new: true },
+                    var opts = { w: 1, j: true, returnOriginal: false, sort: { id: 1 } },
                         updates = {
                             $set: { password: hashed, lastUpdated: now },
                             $unset: { resetToken: 1 }
                         };
-                    return q.npost(users, 'findAndModify', [{id: id}, {id: 1}, updates, opts]);
+                    return q(users.findOneAndUpdate({ id: id }, updates, opts));
                 })
-                .then(function(results) {
-                    updatedAccount = results[0];
+                .then(function(result) {
+                    updatedAccount = result.value;
                     log.info('[%1] User %2 successfully reset their password', req.uuid, id);
                     
                     email.passwordChanged(
@@ -345,11 +341,11 @@
                     }).catch(function(error) {
                         log.error('[%1] Error sending msg to %2: %3',req.uuid,account.email,error);
                     });
-                    return q.npost(sessions, 'remove',
-                        [{ 'session.user': id }, { w: 1, journal: true }]);
+                    return q(sessions.deleteMany({ 'session.user': id }, { w: 1, j: true }));
                 })
-                .then(function(count) {
-                    log.info('[%1] Successfully deleted %2 session docs', req.uuid, count);
+                .then(function(result) {
+                    log.info('[%1] Successfully deleted %2 session docs',
+                             req.uuid, result.deletedCount);
                     return q.npost(req.session, 'regenerate');
                 })
                 .then(function() {
@@ -384,51 +380,13 @@
         
         aws.config.region = state.config.emails.region;
 
-        var sessionOpts = {
-            key: state.config.sessions.key,
-            resave: false,
-            secret: state.secrets.cookieParser || '',
-            cookie: {
-                httpOnly: true,
-                secure: state.config.sessions.secure,
-                maxAge: state.config.sessions.minAge
-            },
-            store: state.sessionStore
-        };
-        
-        var sessions = sessionLib(sessionOpts);
-
         app.set('trust proxy', 1);
         app.set('json spaces', 2);
 
-        // Because we may recreate the session middleware, we need to wrap it in the route handlers
-        function sessionsWrapper(req, res, next) {
-            sessions(req, res, next);
-        }
-        
-        state.dbStatus.c6Db.on('reconnected', function() {
-            users = state.dbs.c6Db.collection('users');
-            authUtils._db = state.dbs.c6Db;
-            log.info('Recreated collections from restarted c6Db');
-        });
-        
-        state.dbStatus.sessions.on('reconnected', function() {
-            sessionOpts.store = state.sessionStore;
-            sessions = sessionLib(sessionOpts);
-            log.info('Recreated session store from restarted db');
-        });
-        
-        state.dbStatus.c6Journal.on('reconnected', function() {
-            auditJournal.resetColl(state.dbs.c6Journal.collection('audit'));
-            log.info('Reset journals\' collection from restarted db');
-        });
-
-
         app.use(expressUtils.basicMiddleware());
-
         app.use(bodyParser.json());
 
-        app.post('/api/auth/login', sessionsWrapper, function(req, res) {
+        app.post('/api/auth/login', state.sessions, function(req, res) {
             auth.login(req, users, state.config, auditJournal, state.cache)
             .then(function(resp) {
                 res.send(resp.code, resp.body);
@@ -439,7 +397,7 @@
             });
         });
 
-        app.post('/api/auth/logout', sessionsWrapper, function(req, res) {
+        app.post('/api/auth/logout', state.sessions, function(req, res) {
             auth.logout(req, auditJournal).then(function(resp) {
                 res.send(resp.code, resp.body);
             }).catch(function(/*error*/) {
@@ -452,7 +410,7 @@
         var authGetUser = authUtils.middlewarify({}, null, [Status.Active, Status.New]),
             audit = auditJournal.middleware.bind(auditJournal);
 
-        app.get('/api/auth/status', sessionsWrapper, authGetUser, audit, function(req, res) {
+        app.get('/api/auth/status', state.sessions, authGetUser, audit, function(req, res) {
             res.send(200, req.user); // errors handled entirely by authGetUser
         });
         
@@ -467,7 +425,7 @@
             });
         });
         
-        app.post('/api/auth/password/reset', sessionsWrapper, function(req, res) {
+        app.post('/api/auth/password/reset', state.sessions, function(req, res) {
             auth.resetPassword(req, users, state.config, auditJournal,
                                state.sessionStore.db.collection('sessions'))
             .then(function(resp) {
@@ -498,7 +456,7 @@
                     log.warn('[%1] Bad Request: %2', req.uuid, err && err.message || err);
                     res.send(err.status, err.message || 'Bad Request');
                 } else {
-                    log.error('[%1] Internal Error: %2', req.uuid, err && err.message || err);
+                    log.error('[%1] Internal Error: %2', req.uuid, err && err.stack || err);
                     res.send(err.status || 500, err.message || 'Internal error');
                 }
             } else {
@@ -520,7 +478,7 @@
         .then(service.daemonize)
         .then(service.cluster)
         .then(service.initMongo)
-        .then(service.initSessionStore)
+        .then(service.initSessions)
         .then(service.initPubSubChannels)
         .then(service.initCache)
         .then(auth.main)

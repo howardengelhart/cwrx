@@ -7,7 +7,6 @@
         q               = require('q'),
         express         = require('express'),
         bodyParser      = require('body-parser'),
-        sessionLib      = require('express-session'),
         expressUtils    = require('../lib/expressUtils'),
         requestUtils    = require('../lib/requestUtils'),
         logger          = require('../lib/logger'),
@@ -297,53 +296,17 @@
             auditJournal = new journal.AuditJournal(state.dbs.c6Journal.collection('audit'),
                                                     state.config.appVersion, state.config.appName);
         authUtils._db = state.dbs.c6Db;
-        
-        var sessionOpts = {
-            key: state.config.sessions.key,
-            resave: false,
-            secret: state.secrets.cookieParser || '',
-            cookie: {
-                httpOnly: true,
-                secure: state.config.sessions.secure,
-                maxAge: state.config.sessions.minAge
-            },
-            store: state.sessionStore
-        };
-        
-        var sessions = sessionLib(sessionOpts);
 
         app.set('trust proxy', 1);
         app.set('json spaces', 2);
 
-        // Because we may recreate the session middleware, we need to wrap it in the route handlers
-        function sessWrap(req, res, next) {
-            sessions(req, res, next);
-        }
         var audit = auditJournal.middleware.bind(auditJournal);
 
-        state.dbStatus.c6Db.on('reconnected', function() {
-            authUtils._db = state.dbs.c6Db;
-            log.info('Recreated collections from restarted c6Db');
-        });
-
-        state.dbStatus.sessions.on('reconnected', function() {
-            sessionOpts.store = state.sessionStore;
-            sessions = sessionLib(sessionOpts);
-            log.info('Recreated session store from restarted db');
-        });
-
-        state.dbStatus.c6Journal.on('reconnected', function() {
-            auditJournal.resetColl(state.dbs.c6Journal.collection('audit'));
-            log.info('Reset journal\'s collection from restarted db');
-        });
-
-
         app.use(expressUtils.basicMiddleware());
-
         app.use(bodyParser.json());
 
         var authSearch = authUtils.middlewarify({});
-        app.get('/api/search/videos', sessWrap, authSearch, audit, function(req,res){
+        app.get('/api/search/videos', state.sessions, authSearch, audit, function(req, res) {
             search.findVideos(req, state.config, state.secrets)
             .then(function(resp) {
                 res.send(resp.code, resp.body);
@@ -396,7 +359,7 @@
         .then(service.daemonize)
         .then(service.cluster)
         .then(service.initMongo)
-        .then(service.initSessionStore)
+        .then(service.initSessions)
         .then(search.main)
         .catch(function(err) {
             var log = logger.getLog();

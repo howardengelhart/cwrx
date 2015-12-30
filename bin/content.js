@@ -6,7 +6,6 @@
     var path            = require('path'),
         express         = require('express'),
         bodyParser      = require('body-parser'),
-        sessionLib      = require('express-session'),
         expressUtils    = require('../lib/expressUtils'),
         logger          = require('../lib/logger'),
         journal         = require('../lib/journal'),
@@ -151,53 +150,8 @@
         cardSvc = cardModule.setupSvc(state.dbs.c6Db, state.config, caches, metagetta);
         catSvc = catModule.setupSvc(collections.categories);
 
-        var sessionOpts = {
-            key: state.config.sessions.key,
-            resave: false,
-            secret: state.secrets.cookieParser || '',
-            cookie: {
-                httpOnly: true,
-                secure: state.config.sessions.secure,
-                maxAge: state.config.sessions.minAge
-            },
-            store: state.sessionStore
-        };
-        
-        var sessions = sessionLib(sessionOpts);
-
         app.set('trust proxy', 1);
         app.set('json spaces', 2);
-
-        // Because we may recreate the session middleware, we need to wrap it in the route handlers
-        function sessWrap(req, res, next) {
-            sessions(req, res, next);
-        }
-
-        state.dbStatus.c6Db.on('reconnected', function() {
-            collKeys.forEach(function(key) {
-                collections[key] = state.dbs.c6Db.collection(key);
-            });
-            cacheKeys.forEach(function(key) {
-                caches[key]._coll = collections[key];
-            });
-            
-            cardSvc._coll = collections.cards;
-            catSvc._coll = collections.categories;
-            authUtils._db = state.dbs.c6Db;
-            log.info('Recreated collections from restarted c6Db');
-        });
-
-        state.dbStatus.sessions.on('reconnected', function() {
-            sessionOpts.store = state.sessionStore;
-            sessions = sessionLib(sessionOpts);
-            log.info('Recreated session store from restarted db');
-        });
-
-        state.dbStatus.c6Journal.on('reconnected', function() {
-            auditJournal.resetColl(state.dbs.c6Journal.collection('audit'));
-            log.info('Reset journal\'s collection from restarted db');
-        });
-        
 
         app.use(expressUtils.basicMiddleware());
         
@@ -234,13 +188,13 @@
 
         // adds endpoints for managing experiences
         expModule.setupEndpoints(app, collections.experiences, caches, cardSvc, state.config,
-                                 sessWrap, audit, jobManager);
+                                 state.sessions, audit, jobManager);
         
         // adds endpoints for managing cards
-        cardModule.setupEndpoints(app, cardSvc, sessWrap, audit, state.config, jobManager);
+        cardModule.setupEndpoints(app, cardSvc, state.sessions,audit,state.config,jobManager);
         
         // adds endpoints for managing categories
-        catModule.setupEndpoints(app, catSvc, sessWrap, audit, jobManager);
+        catModule.setupEndpoints(app, catSvc, state.sessions, audit, jobManager);
 
         app.use(function(err, req, res, next) {
             if (err) {
@@ -270,7 +224,7 @@
         .then(service.daemonize)
         .then(service.cluster)
         .then(service.initMongo)
-        .then(service.initSessionStore)
+        .then(service.initSessions)
         .then(service.initPubSubChannels)
         .then(service.initCache)
         .then(service.ensureIndices)

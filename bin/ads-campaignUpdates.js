@@ -393,7 +393,7 @@
     updateModule.lockCampaign = function(svc, req, next/*, done*/) {
         var log = logger.getLog(),
             coll = svc._db.collection('campaigns'),
-            opts = { w: 1, journal: true, new: true },
+            opts = { w: 1, j: true, returnOriginal: false, sort: { id: 1 } },
             updateObj = {
                 $set: { lastUpdated: new Date(), updateRequest: req.body.id },
                 $unset: { rejectionReason: 1 }
@@ -402,8 +402,8 @@
         log.info('[%1] Setting updateRequest to %2 for campaign %3 for user %4',
                  req.uuid, req.body.id, req.campaign.id, req.user.id);
 
-        return q.npost(coll, 'findAndModify', [{id: req.campaign.id}, {id: 1}, updateObj, opts])
-        .then(function() {
+        return q(coll.findOneAndUpdate({ id: req.campaign.id }, updateObj, opts))
+        .then(function(/*updated*/) {
             next();
         })
         .catch(function(error) {
@@ -451,7 +451,7 @@
         log.info('[%1] Unlocking campaign %2', req.uuid, req.campaign.id);
 
         var coll = svc._db.collection('campaigns'),
-            opts = { w: 1, journal: true, new: true },
+            opts = { w: 1, j: true, returnOriginal: false, sort: { id: 1 } },
             updateObj = {
                 $set: { lastUpdated: new Date() },
                 $unset: { updateRequest: 1 }
@@ -475,8 +475,8 @@
             }
         }
 
-        return q.npost(coll, 'findAndModify', [{id: req.campaign.id}, {id: 1}, updateObj, opts])
-        .then(function() {
+        return q(coll.findOneAndUpdate({ id: req.campaign.id }, updateObj, opts))
+        .then(function(/*updated*/) {
             next();
         })
         .catch(function(err) {
@@ -542,10 +542,10 @@
             return q(next());
         }
 
-        return q.npost(userColl, 'findOne', [
+        return q(userColl.find(
             { id: req.campaign.user },
-            { fields: { id: 1, email: 1 } }
-        ])
+            { fields: { id: 1, email: 1 }, limit: 1 }
+        ).next())
         .then(function(user) {
             if (!user) {
                 log.warn('[%1] Campaign %2 has nonexistent owner %3, not notifying anyone',

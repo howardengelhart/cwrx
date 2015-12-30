@@ -332,8 +332,7 @@ describe('vote (UT)',function(){
             beforeEach(function() {
                 req.body = { ballot: { fake: { yes: 0, no: 0 } } };
                 req.user = {id: 'u-1234', org: 'o-1234'};
-                elections.insert = jasmine.createSpy('elections.insert')
-                    .and.callFake(function(obj, opts, cb) { cb(); });
+                spyOn(mongoUtils, 'createObject').and.callFake(function(coll, obj) { return q(obj); });
                 spyOn(uuid, 'createUuid').and.returnValue('1234');
                 spyOn(app.createValidator, 'validate').and.returnValue(true);
             });
@@ -343,7 +342,7 @@ describe('vote (UT)',function(){
                 app.createElection(req, elections).then(function(resp) {
                     expect(resp).toBeDefined();
                     expect(resp.code).toBe(400);
-                    expect(elections.insert).not.toHaveBeenCalled();
+                    expect(mongoUtils.createObject).not.toHaveBeenCalled();
                     done();
                 }).catch(function(error) {
                     expect(error.toString()).not.toBeDefined();
@@ -363,10 +362,7 @@ describe('vote (UT)',function(){
                     expect(resp.body.org).toBe('o-1234');
                     expect(resp.body.status).toBe(Status.Active);
                     expect(app.createValidator.validate).toHaveBeenCalledWith(req.body, {}, req.user);
-                    expect(elections.insert).toHaveBeenCalled();
-                    expect(elections.insert.calls.all()[0].args[0]).toEqual(resp.body);
-                    expect(elections.insert.calls.all()[0].args[1]).toEqual({w: 1, journal: true});
-                    expect(mongoUtils.escapeKeys).toHaveBeenCalled();
+                    expect(mongoUtils.createObject).toHaveBeenCalledWith(elections, resp.body);
                     expect(mongoUtils.unescapeKeys).toHaveBeenCalled();
                     done();
                 }).catch(function(error) {
@@ -381,7 +377,7 @@ describe('vote (UT)',function(){
                     expect(resp).toBeDefined();
                     expect(resp.code).toBe(400);
                     expect(app.createValidator.validate).toHaveBeenCalled();
-                    expect(elections.insert).not.toHaveBeenCalled();
+                    expect(mongoUtils.createObject).not.toHaveBeenCalled();
                     done();
                 }).catch(function(error) {
                     expect(error.toString()).not.toBeDefined();
@@ -400,7 +396,7 @@ describe('vote (UT)',function(){
                         expect(result.body).toBe('Must provide non-empty ballot');
                     });
                     expect(app.createValidator.validate).not.toHaveBeenCalled();
-                    expect(elections.insert).not.toHaveBeenCalled();
+                    expect(mongoUtils.createObject).not.toHaveBeenCalled();
                     done();
                 }).catch(function(error) {
                     expect(error.toString()).not.toBeDefined();
@@ -409,14 +405,13 @@ describe('vote (UT)',function(){
             });
             
             it('should fail with an error if inserting the record fails', function(done) {
-                elections.insert.and.callFake(function(obj, opts, cb) { cb('Error!'); });
+                mongoUtils.createObject.and.returnValue(q.reject('Error!'));
                 app.createElection(req, elections).then(function(resp) {
                     expect(resp).not.toBeDefined();
                     done();
                 }).catch(function(error) {
                     expect(error).toBe('Error!');
-                    expect(mockLog.error).toHaveBeenCalled();
-                    expect(elections.insert).toHaveBeenCalled();
+                    expect(mongoUtils.createObject).toHaveBeenCalled();
                     done();
                 });
             });
@@ -430,12 +425,8 @@ describe('vote (UT)',function(){
                 req.body = {tag: 'fake2'};
                 oldElec = {id:'el-1234',tag:'fake1',user:'u-1234',created:start,lastUpdated:start};
                 req.user = {id: 'u-1234'};
-                elections.findOne = jasmine.createSpy('elections.findOne')
-                    .and.callFake(function(query, cb) { cb(null, oldElec); });
-                elections.findAndModify = jasmine.createSpy('elections.findAndModify').and.callFake(
-                    function(query, sort, obj, opts, cb) {
-                        cb(null, [{ id: 'el-1234', updated: true }]);
-                    });
+                spyOn(mongoUtils, 'findObject').and.returnValue(q(oldElec));
+                elections.findOneAndUpdate = jasmine.createSpy('elections.findOneAndUpdate').and.returnValue({ value: { id: 'el-1234', updated: true } });
                 spyOn(app, 'checkScope').and.returnValue(true);
                 spyOn(app.updateValidator, 'validate').and.returnValue(true);
             });
@@ -445,7 +436,7 @@ describe('vote (UT)',function(){
                 app.updateElection(req, elections).then(function(resp) {
                     expect(resp).toBeDefined();
                     expect(resp.code).toBe(400);
-                    expect(elections.findOne).not.toHaveBeenCalled();
+                    expect(mongoUtils.findObject).not.toHaveBeenCalled();
                     done();
                 }).catch(function(error) {
                     expect(error.toString()).not.toBeDefined();
@@ -457,18 +448,16 @@ describe('vote (UT)',function(){
                 app.updateElection(req, elections).then(function(resp) {
                     expect(resp.code).toBe(200);
                     expect(resp.body).toEqual({id: 'el-1234', updated: true});
-                    expect(elections.findOne).toHaveBeenCalled();
-                    expect(elections.findOne.calls.all()[0].args[0]).toEqual({id: 'el-1234'});
+                    expect(mongoUtils.findObject).toHaveBeenCalledWith(elections, {id: 'el-1234'});
                     expect(app.updateValidator.validate).toHaveBeenCalledWith(req.body, oldElec, req.user);
-                    expect(elections.findAndModify).toHaveBeenCalled();
-                    expect(elections.findAndModify.calls.all()[0].args[0]).toEqual({id: 'el-1234'});
-                    expect(elections.findAndModify.calls.all()[0].args[1]).toEqual({id: 1});
-                    var updates = elections.findAndModify.calls.all()[0].args[2];
-                    expect(Object.keys(updates)).toEqual(['$set']);
-                    expect(updates.$set.tag).toBe('fake2');
-                    expect(updates.$set.lastUpdated instanceof Date).toBeTruthy('lastUpdated is Date');
-                    expect(elections.findAndModify.calls.all()[0].args[3])
-                        .toEqual({w: 1, journal: true, new: true});
+                    expect(elections.findOneAndUpdate).toHaveBeenCalledWith(
+                        { id: 'el-1234' },
+                        { $set: {
+                            tag: 'fake2',
+                            lastUpdated: jasmine.any(Date)
+                        } },
+                        { w: 1, j: true, returnOriginal: false, sort: { id: 1 } }
+                    );
                     expect(mongoUtils.escapeKeys).toHaveBeenCalled();
                     expect(mongoUtils.unescapeKeys).toHaveBeenCalled();
                     done();
@@ -484,7 +473,7 @@ describe('vote (UT)',function(){
                     expect(resp.code).toBe(400);
                     expect(resp.body).toBe('Invalid request body');
                     expect(app.updateValidator.validate).toHaveBeenCalled();
-                    expect(elections.findAndModify).not.toHaveBeenCalled();
+                    expect(elections.findOneAndUpdate).not.toHaveBeenCalled();
                     done();
                 }).catch(function(error) {
                     expect(error.toString()).not.toBeDefined();
@@ -499,11 +488,17 @@ describe('vote (UT)',function(){
                 app.updateElection(req, elections).then(function(resp) {
                     expect(resp.code).toBe(200);
                     expect(resp.body).toEqual({id: 'el-1234', updated: true});
-                    expect(elections.findOne).toHaveBeenCalled();
+                    expect(mongoUtils.findObject).toHaveBeenCalled();
                     expect(app.updateValidator.validate).toHaveBeenCalledWith(req.body, oldElec, req.user);
-                    expect(elections.findAndModify).toHaveBeenCalled();
-                    expect(elections.findAndModify.calls.all()[0].args[2]).toEqual(
-                        {'$set': {tag: 'fake2', lastUpdated: jasmine.any(Date), 'ballot.b4': [10,20]}});
+                    expect(elections.findOneAndUpdate).toHaveBeenCalledWith(
+                        { id: 'el-1234' },
+                        { $set: {
+                            tag: 'fake2',
+                            lastUpdated: jasmine.any(Date),
+                            'ballot.b4': [10, 20]
+                        } },
+                        { w: 1, j: true, returnOriginal: false, sort: { id: 1 } }
+                    );
                     expect(mongoUtils.escapeKeys).toHaveBeenCalled();
                     expect(mongoUtils.unescapeKeys).toHaveBeenCalled();
                     done();
@@ -518,8 +513,8 @@ describe('vote (UT)',function(){
                 app.updateElection(req, elections).then(function(resp) {
                     expect(resp.code).toBe(403);
                     expect(resp.body).toBe("Not authorized to edit this election");
-                    expect(elections.findOne).toHaveBeenCalled();
-                    expect(elections.findAndModify).not.toHaveBeenCalled();
+                    expect(mongoUtils.findObject).toHaveBeenCalled();
+                    expect(elections.findOneAndUpdate).not.toHaveBeenCalled();
                     expect(app.checkScope).toHaveBeenCalledWith(req.user, oldElec, 'edit');
                     done();
                 }).catch(function(error) {
@@ -529,12 +524,12 @@ describe('vote (UT)',function(){
             });
             
             it('should not create an election if it does not already exist', function(done) {
-                elections.findOne.and.callFake(function(query, cb) { cb(); });
+                mongoUtils.findObject.and.returnValue(q());
                 app.updateElection(req, elections).then(function(resp) {
                     expect(resp.code).toBe(404);
                     expect(resp.body).toBe('That election does not exist');
-                    expect(elections.findOne).toHaveBeenCalled();
-                    expect(elections.findAndModify).not.toHaveBeenCalled();
+                    expect(mongoUtils.findObject).toHaveBeenCalled();
+                    expect(elections.findOneAndUpdate).not.toHaveBeenCalled();
                     done();
                 }).catch(function(error) {
                     expect(error.toString()).not.toBeDefined();
@@ -543,26 +538,26 @@ describe('vote (UT)',function(){
             });
             
             it('should fail with an error if modifying the record fails', function(done) {
-                elections.findAndModify.and.callFake(function(query, sort, obj, opts, cb) { cb('Error!'); });
+                elections.findOneAndUpdate.and.returnValue(q.reject('Error!'));
                 app.updateElection(req, elections).then(function(resp) {
                     expect(resp).not.toBeDefined();
                     done();
                 }).catch(function(error) {
                     expect(error).toBe('Error!');
-                    expect(elections.findAndModify).toHaveBeenCalled();
+                    expect(elections.findOneAndUpdate).toHaveBeenCalled();
                     done();
                 });
             });
             
             it('should fail with an error if looking up the record fails', function(done) {
-                elections.findOne.and.callFake(function(query, cb) { cb('Error!'); });
+                mongoUtils.findObject.and.returnValue(q.reject('Error!'));
                 app.updateElection(req, elections).then(function(resp) {
                     expect(resp).not.toBeDefined();
                     done();
                 }).catch(function(error) {
                     expect(error).toBe('Error!');
-                    expect(elections.findOne).toHaveBeenCalled();
-                    expect(elections.findAndModify).not.toHaveBeenCalled();
+                    expect(mongoUtils.findObject).toHaveBeenCalled();
+                    expect(elections.findOneAndUpdate).not.toHaveBeenCalled();
                     done();
                 });
             });
@@ -575,10 +570,8 @@ describe('vote (UT)',function(){
                 req.params = {id: 'el-1234'};
                 oldElec = {id:'el-1234', status: Status.Active, user:'u-1234', lastUpdated:start};
                 req.user = {id: 'u-1234'};
-                elections.findOne = jasmine.createSpy('elections.findOne')
-                    .and.callFake(function(query, cb) { cb(null, oldElec); });
-                elections.update = jasmine.createSpy('elections.update')
-                    .and.callFake(function(query, obj, opts, cb) { cb(null, 1); });
+                spyOn(mongoUtils, 'findObject').and.returnValue(q(oldElec));
+                spyOn(mongoUtils, 'editObject').and.returnValue(q());
                 spyOn(app, 'checkScope').and.returnValue(true);
             });
             
@@ -587,16 +580,9 @@ describe('vote (UT)',function(){
                     expect(resp).toBeDefined();
                     expect(resp.code).toBe(204);
                     expect(resp.body).not.toBeDefined();
-                    expect(elections.findOne).toHaveBeenCalled();
-                    expect(elections.findOne.calls.all()[0].args[0]).toEqual({id: 'el-1234'});
+                    expect(mongoUtils.findObject).toHaveBeenCalledWith(elections, { id: 'el-1234' });
                     expect(app.checkScope).toHaveBeenCalledWith(req.user, oldElec, 'delete');
-                    expect(elections.update).toHaveBeenCalled();
-                    expect(elections.update.calls.all()[0].args[0]).toEqual({id: 'el-1234'});
-                    var setProps = elections.update.calls.all()[0].args[1];
-                    expect(setProps.$set.status).toBe(Status.Deleted);
-                    expect(setProps.$set.lastUpdated instanceof Date).toBeTruthy('lastUpdated is a Date');
-                    expect(setProps.$set.lastUpdated).toBeGreaterThan(start);
-                    expect(elections.update.calls.all()[0].args[2]).toEqual({w: 1, journal: true});
+                    expect(mongoUtils.editObject).toHaveBeenCalledWith(elections, { status: Status.Deleted }, 'el-1234');
                     done();
                 }).catch(function(error) {
                     expect(error.toString()).not.toBeDefined();
@@ -605,13 +591,13 @@ describe('vote (UT)',function(){
             });
             
             it('should not do anything if the election does not exist', function(done) {
-                elections.findOne.and.callFake(function(query, cb) { cb(); });
+                mongoUtils.findObject.and.returnValue(q());
                 app.deleteElection(req, elections).then(function(resp) {
                     expect(resp).toBeDefined();
                     expect(resp.code).toBe(204);
                     expect(resp.body).not.toBeDefined();
-                    expect(elections.findOne).toHaveBeenCalled();
-                    expect(elections.update).not.toHaveBeenCalled();
+                    expect(mongoUtils.findObject).toHaveBeenCalled();
+                    expect(mongoUtils.editObject).not.toHaveBeenCalled();
                     done();
                 }).catch(function(error) {
                     expect(error.toString()).not.toBeDefined();
@@ -625,8 +611,8 @@ describe('vote (UT)',function(){
                     expect(resp).toBeDefined();
                     expect(resp.code).toBe(204);
                     expect(resp.body).not.toBeDefined();
-                    expect(elections.findOne).toHaveBeenCalled();
-                    expect(elections.update).not.toHaveBeenCalled();
+                    expect(mongoUtils.findObject).toHaveBeenCalled();
+                    expect(mongoUtils.editObject).not.toHaveBeenCalled();
                     done();
                 }).catch(function(error) {
                     expect(error.toString()).not.toBeDefined();
@@ -640,9 +626,9 @@ describe('vote (UT)',function(){
                     expect(resp).toBeDefined();
                     expect(resp.code).toBe(403);
                     expect(resp.body).toBe("Not authorized to delete this election");
-                    expect(elections.findOne).toHaveBeenCalled();
+                    expect(mongoUtils.findObject).toHaveBeenCalled();
                     expect(app.checkScope).toHaveBeenCalledWith(req.user, oldElec, 'delete');
-                    expect(elections.update).not.toHaveBeenCalled();
+                    expect(mongoUtils.editObject).not.toHaveBeenCalled();
                     done();
                 }).catch(function(error) {
                     expect(error.toString()).not.toBeDefined();
@@ -651,26 +637,26 @@ describe('vote (UT)',function(){
             });
             
             it('should fail with an error if modifying the record fails', function(done) {
-                elections.update.and.callFake(function(query, obj, opts, cb) { cb('Error!'); });
+                mongoUtils.editObject.and.returnValue(q.reject('Error!'));
                 app.deleteElection(req, elections).then(function(resp) {
                     expect(resp).not.toBeDefined();
                     done();
                 }).catch(function(error) {
                     expect(error.toString()).toBe('Error!');
-                    expect(elections.update).toHaveBeenCalled();
+                    expect(mongoUtils.editObject).toHaveBeenCalled();
                     done();
                 });
             });
             
             it('should fail with an error if looking up the record fails', function(done) {
-                elections.findOne.and.callFake(function(query, cb) { cb('Error!'); });
+                mongoUtils.findObject.and.returnValue(q.reject('Error!'));
                 app.deleteElection(req, elections).then(function(resp) {
                     expect(resp).not.toBeDefined();
                     done();
                 }).catch(function(error) {
                     expect(error.toString()).toBe('Error!');
-                    expect(elections.findOne).toHaveBeenCalled();
-                    expect(elections.update).not.toHaveBeenCalled();
+                    expect(mongoUtils.findObject).toHaveBeenCalled();
+                    expect(mongoUtils.editObject).not.toHaveBeenCalled();
                     done();
                 });
             });

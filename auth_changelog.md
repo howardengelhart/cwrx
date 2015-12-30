@@ -1,5 +1,7 @@
 # Auth Service Changelog
 
+* Upgrade mongo driver to 2.x, fixing reconnect issues: [#717](https://github.com/cinema6/cwrx/pull/717)
+
 ### 1.5.3: Tue Nov 24 17:00:03 EST 2015
 * [FIX]: Do not fail successful login if cache is down: [#661](https://github.com/cinema6/cwrx/issues/661)
 * Extra deployment steps: None

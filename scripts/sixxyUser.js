@@ -39,8 +39,11 @@ mongoUtils.connect(program.dbHost, program.dbPort, 'c6Db', program.dbUser, progr
         }
     };
 
-    return q.npost(userColl, 'findAndModify', [{ id: program.id}, {id: 1}, mongoUtils.escapeKeys(user),
-                                               { w: 1, journal: true, new: true, upsert: true }]);
+    return q(userColl.findOneAndUpdate(
+        { id: program.id },
+        mongoUtils.escapeKeys(user),
+        { w: 1, journal: true, returnOriginal: false, upsert: true, sort: { id: 1 } }
+    ));
 })
 .then(function() {
     console.log('Successfully created/updated user', program.id);
