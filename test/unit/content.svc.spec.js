@@ -222,12 +222,8 @@ describe('content (UT)', function() {
             };
             query = {type: 'minireel'};
             fakeCursor = {
-                toArray: jasmine.createSpy('cursor.toArray').and.callFake(function(cb) {
-                    cb(null, [{id: 'e1'}]);
-                }),
-                count: jasmine.createSpy('cursor.count').and.callFake(function(cb) {
-                    cb(null, 50);
-                })
+                toArray: jasmine.createSpy('cursor.toArray').and.returnValue(q([{ id: 'e1' }])),
+                count: jasmine.createSpy('cursor.count').and.returnValue(q(50))
             };
             expColl = { find: jasmine.createSpy('expColl.find').and.returnValue(fakeCursor) };
             spyOn(expModule, 'userPermQuery').and.returnValue('userPermQuery');
@@ -469,7 +465,7 @@ describe('content (UT)', function() {
         });
         
         it('should return a 404 if requesting a single experience returned nothing', function(done) {
-            fakeCursor.toArray.and.callFake(function(cb) { cb(null, []); });
+            fakeCursor.toArray.and.returnValue(q([]));
             expModule.getExperiences(query, req, expColl, false).then(function(resp) {
                 expect(resp).toEqual({ code: 404, body: 'Experience not found' });
                 expect(fakeCursor.toArray).toHaveBeenCalled();
@@ -480,8 +476,8 @@ describe('content (UT)', function() {
         });
 
         it('should return a 200 and empty array if requesting multiple experiences returned nothing', function(done) {
-            fakeCursor.toArray.and.callFake(function(cb) { cb(null, []); });
-            fakeCursor.count.and.callFake(function(cb) { cb(null, 0); });
+            fakeCursor.toArray.and.returnValue(q([]));
+            fakeCursor.count.and.returnValue(q(0));
             expModule.getExperiences(query, req, expColl, true).then(function(resp) {
                 expect(resp).toEqual({ code: 200, body: [],
                                        headers: { 'content-range': 'items 0-0/0' } });
@@ -494,8 +490,8 @@ describe('content (UT)', function() {
         });
 
         it('should fail if cursor.toArray has an error', function(done) {
-            fakeCursor.toArray.and.callFake(function(cb) { cb('Find Error!'); });
-            fakeCursor.count.and.callFake(function(cb) { cb('Count Error!'); });
+            fakeCursor.toArray.and.returnValue(q.reject('Find Error!'));
+            fakeCursor.count.and.returnValue(q.reject('Count Error!'));
             expModule.getExperiences(query, req, expColl, false).then(function(resp) {
                 expect(resp).not.toBeDefined();
             }).catch(function(error) {
@@ -508,8 +504,8 @@ describe('content (UT)', function() {
         });
 
         it('should fail if cursor.count has an error and multiExp is true', function(done) {
-            fakeCursor.toArray.and.callFake(function(cb) { cb('Find Error!'); });
-            fakeCursor.count.and.callFake(function(cb) { cb('Count Error!'); });
+            fakeCursor.toArray.and.returnValue(q.reject('Find Error!'));
+            fakeCursor.count.and.returnValue(q.reject('Count Error!'));
             expModule.getExperiences(query, req, expColl, true).then(function(resp) {
                 expect(resp).not.toBeDefined();
             }).catch(function(error) {
@@ -524,11 +520,10 @@ describe('content (UT)', function() {
 
     describe('createExperience', function() {
         beforeEach(function() {
-            req.body = { tag: 'fakeExp', data: { foo: 'bar' }, user: 'u-1', org: 'o-1',
+            req.body = { data: { foo: 'bar' }, user: 'u-1', org: 'o-1',
                          status: Status.Active, access: Access.Private };
             req.user = {id: 'u-1234', org: 'o-1234', email: 'otter'};
-            experiences.insert = jasmine.createSpy('experiences.insert')
-                .and.callFake(function(obj, opts, cb) { cb(); });
+            spyOn(mongoUtils, 'createObject').and.callFake(function(coll, obj) { return q(obj); });
             spyOn(uuid, 'createUuid').and.returnValue('1234');
             spyOn(expModule.createValidator, 'validate').and.returnValue(true);
             spyOn(uuid, 'hashText').and.returnValue('fakeVersion');
@@ -540,7 +535,7 @@ describe('content (UT)', function() {
             expModule.createExperience(req, experiences).then(function(resp) {
                 expect(resp).toBeDefined();
                 expect(resp.code).toBe(400);
-                expect(experiences.insert).not.toHaveBeenCalled();
+                expect(mongoUtils.createObject).not.toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
             }).done(done);
@@ -551,7 +546,6 @@ describe('content (UT)', function() {
                 expect(resp).toBeDefined();
                 expect(resp.code).toBe(201);
                 expect(resp.body.id).toBe('e-1234');
-                expect(resp.body.tag).toBe('fakeExp');
                 expect(resp.body.versionId).toBe('fakeVers');
                 expect(resp.body.created instanceof Date).toBeTruthy('created is a Date');
                 expect(resp.body.lastUpdated instanceof Date).toBeTruthy('lastUpdated is a Date');
@@ -561,12 +555,10 @@ describe('content (UT)', function() {
                 expect(resp.body.status).toBe(Status.Active);
                 expect(resp.body.access).toBe(Access.Private);
                 expect(expModule.createValidator.validate).toHaveBeenCalledWith(req.body, {}, req.user);
-                expect(experiences.insert).toHaveBeenCalled();
-                expect(experiences.insert.calls.all()[0].args[0].data[0]).toEqual({user:'otter',userId:'u-1234',
-                    date:jasmine.any(Date),versionId:'fakeVers',data:{foo:'bar'}});
-                expect(experiences.insert.calls.all()[0].args[1]).toEqual({w: 1, journal: true});
+                expect(mongoUtils.createObject).toHaveBeenCalledWith(experiences, req.body);
+                expect(mongoUtils.createObject.calls.argsFor(0)[1].data).toEqual([{user:'otter',userId:'u-1234',
+                    date:jasmine.any(Date),versionId:'fakeVers',data:{foo:'bar'}}]);
                 expect(expModule.formatOutput).toHaveBeenCalled();
-                expect(mongoUtils.escapeKeys).toHaveBeenCalled();
                 expect(expModule.checkScope).not.toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
@@ -578,15 +570,13 @@ describe('content (UT)', function() {
             expModule.createExperience(req, experiences).then(function(resp) {
                 expect(resp.code).toBe(201);
                 expect(resp.body.id).toBe('e-1234');
-                expect(resp.body.tag).toBe('fakeExp');
                 expect(resp.body.data).toEqual({});
                 expect(resp.body.versionId).toBe('fakeVers');
                 expect(resp.body.user).toBe('u-1234');
                 expect(resp.body.org).toBe('o-1234');
                 expect(resp.body.status).toBe(Status.Pending);
                 expect(resp.body.access).toBe(Access.Public);
-                expect(experiences.insert.calls.all()[0].args[0].data[0]).toEqual({user:'otter',userId:'u-1234',
-                    date:jasmine.any(Date),versionId:'fakeVers',data:{}});
+                expect(mongoUtils.createObject).toHaveBeenCalledWith(experiences, req.body);
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
             }).done(done);
@@ -598,20 +588,18 @@ describe('content (UT)', function() {
                 expect(resp).toBeDefined();
                 expect(resp.code).toBe(400);
                 expect(expModule.createValidator.validate).toHaveBeenCalled();
-                expect(experiences.insert).not.toHaveBeenCalled();
+                expect(mongoUtils.createObject).not.toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
             }).done(done);
         });
 
         it('should fail with an error if inserting the record fails', function(done) {
-            experiences.insert.and.callFake(function(obj, opts, cb) { cb('Error!'); });
+            mongoUtils.createObject.and.returnValue(q.reject('Error!'));
             expModule.createExperience(req, experiences).then(function(resp) {
                 expect(resp).not.toBeDefined();
             }).catch(function(error) {
                 expect(error).toBe('Error!');
-                expect(mockLog.error).toHaveBeenCalled();
-                expect(experiences.insert).toHaveBeenCalled();
             }).done(done);
         });
     });
@@ -626,12 +614,10 @@ describe('content (UT)', function() {
                       data: [ { user: 'otter', date: start, data: { foo: 'bar' } } ],
                       status: [ { user: 'otter', date: start, status: Status.Pending } ] };
             req.user = {id: 'u-1234', email: 'otter'};
-            experiences.findOne = jasmine.createSpy('experiences.findOne')
-                .and.callFake(function(query, cb) { cb(null, oldExp); });
-            experiences.findAndModify = jasmine.createSpy('experiences.findAndModify').and.callFake(
-                function(query, sort, obj, opts, cb) {
-                    cb(null, [{ id: 'e-1234', data: obj.$set.data }]);
-                });
+            spyOn(mongoUtils, 'findObject').and.returnValue(q(oldExp));
+            spyOn(mongoUtils, 'editObject').and.callFake(function(coll, obj, id) {
+                return q({ id: 'e-1234', data: obj.data });
+            });
             spyOn(objUtils, 'compareObjects').and.callThrough();
             spyOn(expModule, 'formatUpdates').and.callThrough();
             spyOn(expModule, 'checkScope').and.returnValue(true);
@@ -644,7 +630,8 @@ describe('content (UT)', function() {
             expModule.updateExperience(req, experiences).then(function(resp) {
                 expect(resp).toBeDefined();
                 expect(resp.code).toBe(400);
-                expect(experiences.findOne).not.toHaveBeenCalled();
+                expect(mongoUtils.findObject).not.toHaveBeenCalled();
+                expect(mongoUtils.editObject).not.toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
             }).done(done);
@@ -654,25 +641,21 @@ describe('content (UT)', function() {
             expModule.updateExperience(req, experiences).then(function(resp) {
                 expect(resp.code).toBe(200);
                 expect(resp.body).toEqual({id: 'e-1234', data: {foo:'baz'}, versionId: 'fakeVers'});
-                expect(experiences.findOne).toHaveBeenCalled();
-                expect(experiences.findOne.calls.all()[0].args[0]).toEqual({id: 'e-1234'});
+                expect(mongoUtils.findObject).toHaveBeenCalledWith(experiences, { id: 'e-1234' });
                 expect(expModule.updateValidator.validate).toHaveBeenCalledWith(req.body, oldExp, req.user);
                 expect(expModule.formatUpdates).toHaveBeenCalledWith(req, oldExp, req.body, req.user);
-                expect(experiences.findAndModify).toHaveBeenCalled();
-                expect(experiences.findAndModify.calls.all()[0].args[0]).toEqual({id: 'e-1234'});
-                expect(experiences.findAndModify.calls.all()[0].args[1]).toEqual({id: 1});
-                var updates = experiences.findAndModify.calls.all()[0].args[2];
-                expect(Object.keys(updates)).toEqual(['$set']);
-                expect(updates.$set.tag).toBe('newTag');
-                expect(updates.$set.data[0].user).toBe('otter');
-                expect(updates.$set.data[0].date instanceof Date).toBeTruthy('data.date is a Date');
-                expect(updates.$set.data[0].data).toEqual({foo: 'baz'});
-                expect(updates.$set.data[0].versionId).toBe('fakeVers');
-                expect(updates.$set.lastUpdated instanceof Date).toBeTruthy('lastUpdated is Date');
-                expect(experiences.findAndModify.calls.all()[0].args[3])
-                    .toEqual({w: 1, journal: true, new: true});
+                expect(mongoUtils.editObject).toHaveBeenCalledWith(experiences, {
+                    tag: 'newTag',
+                    data: [{
+                        user: 'otter',
+                        userId: 'u-1234',
+                        date: jasmine.any(Date),
+                        data: { foo: 'baz' },
+                        versionId: 'fakeVers'
+                    }],
+                    lastUpdated: jasmine.any(Date)
+                }, 'e-1234');
                 expect(expModule.formatOutput).toHaveBeenCalled();
-                expect(mongoUtils.escapeKeys).toHaveBeenCalled();
                 expect(expModule.checkScope).toHaveBeenCalledWith(req.user, oldExp, 'experiences', 'edit');
                 expect(expModule.checkScope).not.toHaveBeenCalledWith(req.user, oldExp, 'experiences', 'editAdConfig');
             }).catch(function(error) {
@@ -687,13 +670,13 @@ describe('content (UT)', function() {
             expModule.updateExperience(req, experiences).then(function(resp) {
                 expect(resp.code).toBe(200);
                 expect(resp.body).toEqual({id: 'e-1234', data: {foo:'baz'}, versionId: 'fakeVers'});
-                expect(experiences.findOne).toHaveBeenCalled();
-                expect(experiences.findAndModify).toHaveBeenCalled();
-                var updates = experiences.findAndModify.calls.all()[0].args[2];
-                expect(updates.$set.tag).toBe('newTag');
-                expect(updates.$set.title).not.toBeDefined();
-                expect(updates.$set.versionId).not.toBeDefined();
-                expect(updates.$set.lastStatusChange).not.toBeDefined();
+                expect(mongoUtils.findObject).toHaveBeenCalled();
+                expect(mongoUtils.editObject).toHaveBeenCalled();
+                var updates = mongoUtils.editObject.calls.argsFor(0)[1];
+                expect(updates.tag).toBe('newTag');
+                expect(updates.title).not.toBeDefined();
+                expect(updates.versionId).not.toBeDefined();
+                expect(updates.lastStatusChange).not.toBeDefined();
                 expect(expModule.formatOutput).toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
@@ -706,7 +689,7 @@ describe('content (UT)', function() {
                 expect(resp.code).toBe(400);
                 expect(resp.body).toBe('Invalid request body');
                 expect(expModule.updateValidator.validate).toHaveBeenCalled();
-                expect(experiences.findAndModify).not.toHaveBeenCalled();
+                expect(mongoUtils.editObject).not.toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
             }).done(done);
@@ -717,8 +700,8 @@ describe('content (UT)', function() {
             expModule.updateExperience(req, experiences).then(function(resp) {
                 expect(resp.code).toBe(403);
                 expect(resp.body).toBe('Not authorized to edit this experience');
-                expect(experiences.findOne).toHaveBeenCalled();
-                expect(experiences.findAndModify).not.toHaveBeenCalled();
+                expect(mongoUtils.findObject).toHaveBeenCalled();
+                expect(mongoUtils.editObject).not.toHaveBeenCalled();
                 expect(expModule.checkScope).toHaveBeenCalledWith(req.user, oldExp, 'experiences', 'edit');
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
@@ -726,12 +709,12 @@ describe('content (UT)', function() {
         });
 
         it('should not create an experience if it does not already exist', function(done) {
-            experiences.findOne.and.callFake(function(query, cb) { cb(); });
+            mongoUtils.findObject.and.returnValue(q());
             expModule.updateExperience(req, experiences).then(function(resp) {
                 expect(resp.code).toBe(404);
                 expect(resp.body).toBe('That experience does not exist');
-                expect(experiences.findOne).toHaveBeenCalled();
-                expect(experiences.findAndModify).not.toHaveBeenCalled();
+                expect(mongoUtils.findObject).toHaveBeenCalled();
+                expect(mongoUtils.editObject).not.toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
             }).done(done);
@@ -742,31 +725,31 @@ describe('content (UT)', function() {
             expModule.updateExperience(req, experiences).then(function(resp) {
                 expect(resp.code).toBe(404);
                 expect(resp.body).toBe('That experience does not exist');
-                expect(experiences.findOne).toHaveBeenCalled();
-                expect(experiences.findAndModify).not.toHaveBeenCalled();
+                expect(mongoUtils.findObject).toHaveBeenCalled();
+                expect(mongoUtils.editObject).not.toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
             }).done(done);
         });
 
         it('should fail with an error if modifying the record fails', function(done) {
-            experiences.findAndModify.and.callFake(function(query, sort, obj, opts, cb) { cb('Error!'); });
+            mongoUtils.editObject.and.returnValue(q.reject('Error!'));
             expModule.updateExperience(req, experiences).then(function(resp) {
                 expect(resp).not.toBeDefined();
             }).catch(function(error) {
                 expect(error).toBe('Error!');
-                expect(experiences.findAndModify).toHaveBeenCalled();
+                expect(mongoUtils.editObject).toHaveBeenCalled();
             }).done(done);
         });
 
         it('should fail with an error if looking up the record fails', function(done) {
-            experiences.findOne.and.callFake(function(query, cb) { cb('Error!'); });
+            mongoUtils.findObject.and.returnValue(q.reject('Error!'));
             expModule.updateExperience(req, experiences).then(function(resp) {
                 expect(resp).not.toBeDefined();
             }).catch(function(error) {
                 expect(error).toBe('Error!');
-                expect(experiences.findOne).toHaveBeenCalled();
-                expect(experiences.findAndModify).not.toHaveBeenCalled();
+                expect(mongoUtils.findObject).toHaveBeenCalled();
+                expect(mongoUtils.editObject).not.toHaveBeenCalled();
             }).done(done);
         });
     });
@@ -779,10 +762,8 @@ describe('content (UT)', function() {
             oldExp = {id:'e-1234', status: [{user:'otter', date:start, status:Status.Active}],
                       user:'u-1234', lastUpdated:start};
             req.user = {id: 'u-1234', email: 'johnny'};
-            experiences.findOne = jasmine.createSpy('experiences.findOne')
-                .and.callFake(function(query, cb) { cb(null, oldExp); });
-            experiences.update = jasmine.createSpy('experiences.update')
-                .and.callFake(function(query, obj, opts, cb) { cb(null, 1); });
+            spyOn(mongoUtils, 'findObject').and.callFake(function() { return q(oldExp); });
+            spyOn(mongoUtils, 'editObject').and.returnValue(q());
             spyOn(uuid, 'hashText').and.returnValue('fakeHash');
             spyOn(expModule, 'formatUpdates').and.callThrough();
             spyOn(expModule, 'checkScope').and.returnValue(true);
@@ -793,34 +774,28 @@ describe('content (UT)', function() {
                 expect(resp).toBeDefined();
                 expect(resp.code).toBe(204);
                 expect(resp.body).not.toBeDefined();
-                expect(experiences.findOne).toHaveBeenCalled();
-                expect(experiences.findOne.calls.all()[0].args[0]).toEqual({id: 'e-1234'});
-                expect(expModule.checkScope).toHaveBeenCalledWith(req.user, oldExp, 'experiences', 'delete');
-                expect(experiences.update).toHaveBeenCalled();
-                expect(experiences.update.calls.all()[0].args[0]).toEqual({id: 'e-1234'});
-                var setProps = experiences.update.calls.all()[0].args[1].$set;
-                expect(setProps.status instanceof Array).toBe(true);
-                expect(setProps.status.length).toBe(2);
-                expect(setProps.status[0].status).toBe(Status.Deleted);
-                expect(setProps.status[0].user).toBe('johnny');
-                expect(setProps.status[0].date).toBeGreaterThan(setProps.status[1].date);
-                expect(setProps.lastUpdated instanceof Date).toBeTruthy('lastUpdated is a Date');
-                expect(setProps.lastUpdated).toBeGreaterThan(start);
-                expect(experiences.update.calls.all()[0].args[2]).toEqual({w: 1, journal: true});
-                expect(mongoUtils.escapeKeys).toHaveBeenCalled();
+                expect(mongoUtils.findObject).toHaveBeenCalledWith(experiences, { id: 'e-1234' });
+                expect(mongoUtils.editObject).toHaveBeenCalledWith(experiences, {
+                    lastUpdated: jasmine.any(Date),
+                    status: [
+                        { user: 'johnny', userId: 'u-1234', date: jasmine.any(Date), status: Status.Deleted },
+                        { user: 'otter', date: start, status: Status.Active }
+                    ]
+                }, 'e-1234');
+                expect(mockLog.error).not.toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
             }).done(done);
         });
 
         it('should not do anything if the experience does not exist', function(done) {
-            experiences.findOne.and.callFake(function(query, cb) { cb(); });
+            mongoUtils.findObject.and.returnValue(q());
             expModule.deleteExperience(req, experiences).then(function(resp) {
                 expect(resp).toBeDefined();
                 expect(resp.code).toBe(204);
                 expect(resp.body).not.toBeDefined();
-                expect(experiences.findOne).toHaveBeenCalled();
-                expect(experiences.update).not.toHaveBeenCalled();
+                expect(mongoUtils.findObject).toHaveBeenCalled();
+                expect(mongoUtils.editObject).not.toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
             }).done(done);
@@ -832,8 +807,8 @@ describe('content (UT)', function() {
                 expect(resp).toBeDefined();
                 expect(resp.code).toBe(204);
                 expect(resp.body).not.toBeDefined();
-                expect(experiences.findOne).toHaveBeenCalled();
-                expect(experiences.update).not.toHaveBeenCalled();
+                expect(mongoUtils.findObject).toHaveBeenCalled();
+                expect(mongoUtils.editObject).not.toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
             }).done(done);
@@ -845,32 +820,32 @@ describe('content (UT)', function() {
                 expect(resp).toBeDefined();
                 expect(resp.code).toBe(403);
                 expect(resp.body).toBe('Not authorized to delete this experience');
-                expect(experiences.findOne).toHaveBeenCalled();
+                expect(mongoUtils.findObject).toHaveBeenCalled();
                 expect(expModule.checkScope).toHaveBeenCalledWith(req.user, oldExp, 'experiences', 'delete');
-                expect(experiences.update).not.toHaveBeenCalled();
+                expect(mongoUtils.editObject).not.toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
             }).done(done);
         });
 
         it('should fail with an error if modifying the record fails', function(done) {
-            experiences.update.and.callFake(function(query, obj, opts, cb) { cb('Error!'); });
+            mongoUtils.editObject.and.returnValue(q.reject('Error!'));
             expModule.deleteExperience(req, experiences).then(function(resp) {
                 expect(resp).not.toBeDefined();
             }).catch(function(error) {
                 expect(error.toString()).toBe('Error!');
-                expect(experiences.update).toHaveBeenCalled();
+                expect(mongoUtils.editObject).toHaveBeenCalled();
             }).done(done);
         });
 
         it('should fail with an error if looking up the record fails', function(done) {
-            experiences.findOne.and.callFake(function(query, cb) { cb('Error!'); });
+            mongoUtils.findObject.and.returnValue(q.reject('Error!'));
             expModule.deleteExperience(req, experiences).then(function(resp) {
                 expect(resp).not.toBeDefined();
             }).catch(function(error) {
                 expect(error.toString()).toBe('Error!');
-                expect(experiences.findOne).toHaveBeenCalled();
-                expect(experiences.update).not.toHaveBeenCalled();
+                expect(mongoUtils.findObject).toHaveBeenCalled();
+                expect(mongoUtils.editObject).not.toHaveBeenCalled();
             }).done(done);
         });
     });  // end -- describe deleteExperience

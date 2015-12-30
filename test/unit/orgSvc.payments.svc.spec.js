@@ -477,7 +477,7 @@ describe('orgSvc-payments (UT)', function() {
             req.params = { token: 'asdf1234' };
         
             mockColl = {
-                count: jasmine.createSpy('cursor.count').and.callFake(function(query, cb) { cb(null, 3); })
+                count: jasmine.createSpy('cursor.count').and.returnValue(q(3))
             };
             mockDb.collection.and.returnValue(mockColl);
         });
@@ -492,14 +492,14 @@ describe('orgSvc-payments (UT)', function() {
                 expect(mockColl.count).toHaveBeenCalledWith({
                     paymentMethod: 'asdf1234',
                     status: { $nin: [Status.Deleted, Status.Expired, Status.Canceled] },
-                }, jasmine.any(Function));
+                });
                 expect(mockLog.error).not.toHaveBeenCalled();
                 done();
             });
         });
         
         it('should call next if there are no campaigns using the payment method', function(done) {
-            mockColl.count.and.callFake(function(query, cb) { cb(null, 0); });
+            mockColl.count.and.returnValue(q(0));
         
             payModule.checkMethodInUse(orgSvc, req, nextSpy, doneSpy).catch(errorSpy);
             process.nextTick(function() {
@@ -511,7 +511,7 @@ describe('orgSvc-payments (UT)', function() {
         });
 
         it('should reject if mongo has an error', function(done) {
-            mockColl.count.and.callFake(function(query, cb) { cb('I GOT A PROBLEM'); });
+            mockColl.count.and.returnValue(q.reject('I GOT A PROBLEM'));
         
             payModule.checkMethodInUse(orgSvc, req, nextSpy, doneSpy).catch(errorSpy);
             process.nextTick(function() {
@@ -814,7 +814,7 @@ describe('orgSvc-payments (UT)', function() {
                 { id: 'cam-3', name: 'campaign 3' }
             ];
             mockCursor = {
-                toArray: jasmine.createSpy('cursor.toArray()').and.callFake(function(cb) { cb(null, camps); })
+                toArray: jasmine.createSpy('cursor.toArray()').and.callFake(function() { return q(camps); })
             };
             mockColl = {
                 find: jasmine.createSpy('coll.find()').and.returnValue(mockCursor)
@@ -867,7 +867,7 @@ describe('orgSvc-payments (UT)', function() {
         });
         
         it('should log an error but not reject if mongo fails', function(done) {
-            mockCursor.toArray.and.callFake(function(cb) { cb('I GOT A PROBLEM'); });
+            mockCursor.toArray.and.returnValue(q.reject('I GOT A PROBLEM'));
             payModule.decoratePayments(payments, orgSvc, req).then(function(decorated) {
                 expect(decorated).toEqual([
                     { id: 'p1', amount: '10', campaignId: 'cam-1' },

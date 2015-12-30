@@ -447,8 +447,8 @@ describe('userSvc-policies (UT)', function() {
             apps = [{ id: 'e-app1' }, { id: 'e-app2' }, { id: 'e-app3' }];
             mockColl.find.and.callFake(function() {
                 return {
-                    toArray: function(cb) {
-                        cb(null, apps);
+                    toArray: function() {
+                        return q(apps);
                     }
                 };
             });
@@ -499,7 +499,7 @@ describe('userSvc-policies (UT)', function() {
         });
         
         it('should reject if mongo fails', function(done) {
-            mockColl.find.and.returnValue({ toArray: function(cb) { cb('I GOT A PROBLEM'); } });
+            mockColl.find.and.returnValue({ toArray: function() { return q.reject('I GOT A PROBLEM'); } });
             polModule.validateApplications(svc, req, nextSpy, doneSpy).catch(errorSpy);
             process.nextTick(function() {
                 expect(nextSpy).not.toHaveBeenCalled();
@@ -516,14 +516,10 @@ describe('userSvc-policies (UT)', function() {
         var roleColl, userColl, svc;
         beforeEach(function() {
             roleColl = {
-                count: jasmine.createSpy('roles.count()').and.callFake(function(query, cb) {
-                    cb(null, 0);
-                })
+                count: jasmine.createSpy('roles.count').and.returnValue(q(0))
             };
             userColl = {
-                count: jasmine.createSpy('users.count()').and.callFake(function(query, cb) {
-                    cb(null, 0);
-                })
+                count: jasmine.createSpy('users.count').and.returnValue(q(0))
             };
             mockDb.collection.and.callFake(function(collName) {
                 if (collName === 'roles') return roleColl;
@@ -542,17 +538,15 @@ describe('userSvc-policies (UT)', function() {
                 expect(errorSpy).not.toHaveBeenCalled();
                 expect(mockDb.collection).toHaveBeenCalledWith('roles');
                 expect(mockDb.collection).toHaveBeenCalledWith('users');
-                expect(roleColl.count).toHaveBeenCalledWith({ policies: 'pol1', status: { $ne: Status.Deleted } },
-                    jasmine.any(Function));
-                expect(userColl.count).toHaveBeenCalledWith({ policies: 'pol1', status: { $ne: Status.Deleted } },
-                    jasmine.any(Function));
+                expect(roleColl.count).toHaveBeenCalledWith({ policies: 'pol1', status: { $ne: Status.Deleted } });
+                expect(userColl.count).toHaveBeenCalledWith({ policies: 'pol1', status: { $ne: Status.Deleted } });
                 expect(mockLog.error).not.toHaveBeenCalled();
                 done();
             });
         });
         
         it('should call done with a 400 if roles use the policy', function(done) {
-            roleColl.count.and.callFake(function(query, cb) { cb(null, 1); });
+            roleColl.count.and.returnValue(q(3));
             polModule.checkPolicyInUse(svc, req, nextSpy, doneSpy).catch(errorSpy);
             process.nextTick(function() {
                 expect(nextSpy).not.toHaveBeenCalled();
@@ -565,8 +559,8 @@ describe('userSvc-policies (UT)', function() {
             });
         });
 
-        it('should call done with a 400 if roles use the policy', function(done) {
-            userColl.count.and.callFake(function(query, cb) { cb(null, 5); });
+        it('should call done with a 400 if users use the policy', function(done) {
+            userColl.count.and.returnValue(q(1));
             polModule.checkPolicyInUse(svc, req, nextSpy, doneSpy).catch(errorSpy);
             process.nextTick(function() {
                 expect(nextSpy).not.toHaveBeenCalled();
@@ -580,7 +574,7 @@ describe('userSvc-policies (UT)', function() {
         });
         
         it('should reject if users.count() fails', function(done) {
-            userColl.count.and.callFake(function(query, cb) { cb('users got problems'); });
+            userColl.count.and.returnValue(q.reject('users got problems'));
             polModule.checkPolicyInUse(svc, req, nextSpy, doneSpy).catch(errorSpy);
             process.nextTick(function() {
                 expect(nextSpy).not.toHaveBeenCalled();
@@ -594,7 +588,7 @@ describe('userSvc-policies (UT)', function() {
         });
 
         it('should reject if roles.count() fails', function(done) {
-            roleColl.count.and.callFake(function(query, cb) { cb('roles got problems'); });
+            roleColl.count.and.returnValue(q.reject('roles got problems'));
             polModule.checkPolicyInUse(svc, req, nextSpy, doneSpy).catch(errorSpy);
             process.nextTick(function() {
                 expect(nextSpy).not.toHaveBeenCalled();

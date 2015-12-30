@@ -24,9 +24,7 @@ describe('authUtils', function() {
         };
         
         mockColl = {
-            findOne: jasmine.createSpy('coll.findOne').and.callFake(function(query, cb) {
-                cb(null, mockUser);
-            })
+            find: jasmine.createSpy('coll.find()')
         };
         mockDb = {
             collection: jasmine.createSpy('db.collection()').and.returnValue(mockColl)
@@ -38,6 +36,7 @@ describe('authUtils', function() {
         authUtils._db = mockDb;
         spyOn(mongoUtils, 'safeUser').and.callThrough();
         spyOn(mongoUtils, 'unescapeKeys').and.callThrough();
+        spyOn(mongoUtils, 'findObject').and.callFake(function() { return q(mockUser) });
         anyFunc = jasmine.any(Function);
 
         mockLog = {
@@ -59,12 +58,12 @@ describe('authUtils', function() {
             });
         });
 
-        it('should call coll.findOne to find a user', function(done) {
+        it('should call mongoUtils.findObject to find a user', function(done) {
             authUtils.getUser('u-1234').then(function(user) {
                 delete mockUser.password;
                 expect(user).toEqual({ decorated: 'yes' });
                 expect(mockDb.collection).toHaveBeenCalledWith('users');
-                expect(mockColl.findOne).toHaveBeenCalledWith({id: 'u-1234'}, anyFunc);
+                expect(mongoUtils.findObject).toHaveBeenCalledWith(mockColl, {id: 'u-1234'});
                 expect(mongoUtils.safeUser).toHaveBeenCalledWith(mockUser);
                 expect(authUtils.decorateUser).toHaveBeenCalledWith({ id: 'u-1234',
                     status: Status.Active, email: 'johnnyTestmonkey', roles: ['base'] });
@@ -74,7 +73,7 @@ describe('authUtils', function() {
         });
         
         it('should resolve with nothing if no results are found', function(done) {
-            mockColl.findOne.and.callFake(function(query, cb) { cb(); });
+            mongoUtils.findObject.and.returnValue(q());
             authUtils.getUser('u-1234').then(function(user) {
                 expect(user).not.toBeDefined();
                 expect(mongoUtils.safeUser).toHaveBeenCalledWith(undefined);
@@ -84,12 +83,12 @@ describe('authUtils', function() {
         });
         
         it('should pass on errors from mongo', function(done) {
-            mockColl.findOne.and.callFake(function(query, cb) { cb('I GOT A PROBLEM'); });
+            mongoUtils.findObject.and.returnValue(q.reject('I GOT A PROBLEM'));
             authUtils.getUser('u-1234').then(function(user) {
                 expect(user).not.toBeDefined();
             }).catch(function(error) {
                 expect(error).toBe(JSON.stringify({error: 'Error looking up user', detail: 'I GOT A PROBLEM'}));
-                expect(mockColl.findOne).toHaveBeenCalledWith({id: 'u-1234'}, anyFunc);
+                expect(mongoUtils.findObject).toHaveBeenCalledWith(mockColl, {id: 'u-1234'});
                 expect(authUtils.decorateUser).not.toHaveBeenCalled();
             }).done(done);
         });
@@ -100,7 +99,7 @@ describe('authUtils', function() {
                 expect(user).not.toBeDefined();
             }).catch(function(error) {
                 expect(error).toBe(JSON.stringify({error: 'Error looking up user', detail: 'no decorating skills'}));
-                expect(mockColl.findOne).toHaveBeenCalledWith({id: 'u-1234'}, anyFunc);
+                expect(mongoUtils.findObject).toHaveBeenCalledWith(mockColl, {id: 'u-1234'});
                 expect(authUtils.decorateUser).toHaveBeenCalled();
             }).done(done);
         });
@@ -127,16 +126,12 @@ describe('authUtils', function() {
             ];
             roleColl = {
                 find: jasmine.createSpy('roles.find()').and.callFake(function(query) {
-                    return { toArray: function(cb) {
-                        cb(null, mockRoles);
-                    } };
+                    return { toArray: function() { return q(mockRoles); } };
                 })
             };
             polColl = {
                 find: jasmine.createSpy('policies.find()').and.callFake(function(query) {
-                    return { toArray: function(cb) {
-                        cb(null, mockPolicies);
-                    } };
+                    return { toArray: function() { return q(mockPolicies); } };
                 })
             };
             mockDb.collection.and.callFake(function(collName) {
@@ -258,7 +253,7 @@ describe('authUtils', function() {
         });
         
         it('should fail if roles.find() fails', function(done) {
-            roleColl.find.and.returnValue({ toArray: function(cb) { cb('I GOT A PROBLEM') } });
+            roleColl.find.and.returnValue({ toArray: function() { return q.reject('I GOT A PROBLEM'); } });
             authUtils.decorateUser(mockUser).then(function(user) {
                 expect(user).not.toBeDefined();
             }).catch(function(error) {
@@ -273,7 +268,7 @@ describe('authUtils', function() {
         });
 
         it('should fail if policies.find() fails', function(done) {
-            polColl.find.and.returnValue({ toArray: function(cb) { cb('I GOT A PROBLEM') } });
+            polColl.find.and.returnValue({ toArray: function() { return q.reject('I GOT A PROBLEM'); } });
             authUtils.decorateUser(mockUser).then(function(user) {
                 expect(user).not.toBeDefined();
             }).catch(function(error) {
@@ -970,7 +965,7 @@ describe('authUtils', function() {
                     expect(res.send).toHaveBeenCalledWith(500, 'Error checking authorization of user');
                     expect(next).not.toHaveBeenCalled();
                     expect(mockLog.error).toHaveBeenCalled();
-                    expect(mockColl.findOne).not.toHaveBeenCalled();
+                    expect(mongoUtils.findObject).not.toHaveBeenCalled();
                     expect(req.user).not.toBeDefined();
                     done();
                 });
@@ -987,7 +982,7 @@ describe('authUtils', function() {
                     expect(res.send.calls.all()[1].args).toEqual([400, 'Must provide email and password']);
                     expect(next).not.toHaveBeenCalled();
                     expect(mockLog.error).not.toHaveBeenCalled();
-                    expect(mockColl.findOne).not.toHaveBeenCalled();
+                    expect(mongoUtils.findObject).not.toHaveBeenCalled();
                     expect(req.user).not.toBeDefined();
                     done();
                 });
@@ -1004,7 +999,7 @@ describe('authUtils', function() {
                     expect(res.send.calls.all()[1].args).toEqual([400, 'Must provide email and password']);
                     expect(next).not.toHaveBeenCalled();
                     expect(mockLog.error).not.toHaveBeenCalled();
-                    expect(mockColl.findOne).not.toHaveBeenCalled();
+                    expect(mongoUtils.findObject).not.toHaveBeenCalled();
                     expect(req.user).not.toBeDefined();
                     done();
                 });
@@ -1017,7 +1012,7 @@ describe('authUtils', function() {
                     expect(next).toHaveBeenCalledWith();
                     expect(mockLog.error).not.toHaveBeenCalled();
                     expect(mockDb.collection).toHaveBeenCalledWith('users');
-                    expect(mockColl.findOne).toHaveBeenCalledWith({email: 'otter'}, anyFunc);
+                    expect(mongoUtils.findObject).toHaveBeenCalledWith(mockColl, {email: 'otter'});
                     expect(bcrypt.compare).toHaveBeenCalledWith('thisisapassword', 'password', anyFunc);
                     expect(mongoUtils.safeUser).toHaveBeenCalledWith(mockUser);
                     expect(authUtils.decorateUser).toHaveBeenCalledWith({ id: 'u-1234',
@@ -1034,7 +1029,7 @@ describe('authUtils', function() {
                     expect(res.send).not.toHaveBeenCalled();
                     expect(next).toHaveBeenCalledWith();
                     expect(mockLog.error).not.toHaveBeenCalled();
-                    expect(mockColl.findOne).toHaveBeenCalledWith({email: 'otter'}, anyFunc);
+                    expect(mongoUtils.findObject).toHaveBeenCalledWith(mockColl, {email: 'otter'});
                     expect(bcrypt.compare).toHaveBeenCalled();
                     expect(mongoUtils.safeUser).toHaveBeenCalledWith(mockUser);
                     expect(authUtils.decorateUser).toHaveBeenCalled();
@@ -1044,15 +1039,13 @@ describe('authUtils', function() {
             });
             
             it('should fail with a 401 if the user does not exist', function(done) {
-                mockColl.findOne.and.callFake(function(query, cb) {
-                    cb(null, null);
-                });
+                mongoUtils.findObject.and.returnValue(q());
                 midWare(req, res, next);
                 process.nextTick(function() {
                     expect(res.send).toHaveBeenCalledWith(401, 'Invalid email or password');
                     expect(next).not.toHaveBeenCalled();
                     expect(mockLog.error).not.toHaveBeenCalled();
-                    expect(mockColl.findOne).toHaveBeenCalled();
+                    expect(mongoUtils.findObject).toHaveBeenCalled();
                     expect(bcrypt.compare).not.toHaveBeenCalled();
                     expect(authUtils.decorateUser).not.toHaveBeenCalled();
                     expect(req.user).not.toBeDefined();
@@ -1067,7 +1060,7 @@ describe('authUtils', function() {
                     expect(res.send).toHaveBeenCalledWith(403, 'Account not active');
                     expect(next).not.toHaveBeenCalled();
                     expect(mockLog.error).not.toHaveBeenCalled();
-                    expect(mockColl.findOne).toHaveBeenCalled();
+                    expect(mongoUtils.findObject).toHaveBeenCalled();
                     expect(bcrypt.compare).not.toHaveBeenCalled();
                     expect(authUtils.decorateUser).not.toHaveBeenCalled();
                     expect(req.user).not.toBeDefined();
@@ -1084,7 +1077,7 @@ describe('authUtils', function() {
                     expect(res.send).toHaveBeenCalledWith(401, 'Invalid email or password');
                     expect(next).not.toHaveBeenCalled();
                     expect(mockLog.error).not.toHaveBeenCalled();
-                    expect(mockColl.findOne).toHaveBeenCalled();
+                    expect(mongoUtils.findObject).toHaveBeenCalled();
                     expect(bcrypt.compare).toHaveBeenCalled();
                     expect(authUtils.decorateUser).not.toHaveBeenCalled();
                     expect(req.user).not.toBeDefined();
@@ -1101,7 +1094,7 @@ describe('authUtils', function() {
                     expect(res.send).toHaveBeenCalledWith(500, 'Error checking authorization of user');
                     expect(next).not.toHaveBeenCalled();
                     expect(mockLog.error).toHaveBeenCalled();
-                    expect(mockColl.findOne).toHaveBeenCalled();
+                    expect(mongoUtils.findObject).toHaveBeenCalled();
                     expect(bcrypt.compare).toHaveBeenCalled();
                     expect(authUtils.decorateUser).not.toHaveBeenCalled();
                     expect(req.user).not.toBeDefined();
@@ -1109,16 +1102,14 @@ describe('authUtils', function() {
                 });
             });
             
-            it('should reject with an error if users.findOne fails', function(done) {
-                mockColl.findOne.and.callFake(function(query, cb) {
-                    cb('I GOT A PROBLEM');
-                });
+            it('should reject with an error if mongoUtils.findObject fails', function(done) {
+                mongoUtils.findObject.and.returnValue(q.reject('I GOT A PROBLEM'));
                 midWare(req, res, next);
                 process.nextTick(function() {
                     expect(res.send).toHaveBeenCalledWith(500, 'Error checking authorization of user');
                     expect(next).not.toHaveBeenCalled();
                     expect(mockLog.error).toHaveBeenCalled();
-                    expect(mockColl.findOne).toHaveBeenCalled();
+                    expect(mongoUtils.findObject).toHaveBeenCalled();
                     expect(bcrypt.compare).not.toHaveBeenCalled();
                     expect(authUtils.decorateUser).not.toHaveBeenCalled();
                     expect(req.user).not.toBeDefined();
@@ -1133,7 +1124,7 @@ describe('authUtils', function() {
                     expect(res.send).toHaveBeenCalledWith(500, 'Error checking authorization of user');
                     expect(next).not.toHaveBeenCalled();
                     expect(mockLog.error).toHaveBeenCalled();
-                    expect(mockColl.findOne).toHaveBeenCalled();
+                    expect(mongoUtils.findObject).toHaveBeenCalled();
                     expect(bcrypt.compare).toHaveBeenCalled();
                     expect(authUtils.decorateUser).toHaveBeenCalled();
                     expect(req.user).not.toBeDefined();

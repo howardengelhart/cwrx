@@ -24,8 +24,8 @@ describe('journal lib: ', function() {
 
         mockColl = {
             collectionName: 'mockCollection',
-            isCapped: jasmine.createSpy('coll.isCapped').and.callFake(function(cb) { cb(null, true); }),
-            insert: jasmine.createSpy('coll.insert').and.callFake(function(obj, opts, cb) { cb(); })
+            isCapped: jasmine.createSpy('coll.isCapped').and.returnValue(q(true)),
+            insertOne: jasmine.createSpy('coll.insertOne').and.returnValue(q())
         };
 
         spyOn(mongoUtils, 'escapeKeys').and.callThrough();
@@ -83,7 +83,7 @@ describe('journal lib: ', function() {
             });
             
             it('should log a warning if the collection is not capped', function(done) {
-                mockColl.isCapped.and.callFake(function(cb) { cb(null, false); });
+                mockColl.isCapped.and.returnValue(q(false));
                 var journ = new journal.Journal(mockColl, 'v1', 'ut');
                 process.nextTick(function() {
                     expect(journ._coll).toBe(mockColl);
@@ -95,7 +95,7 @@ describe('journal lib: ', function() {
             });
             
             it('should log a warning if it can\'t check if the collection is capped', function(done) {
-                mockColl.isCapped.and.callFake(function(cb) { cb('I GOT A PROBLEM', true); });
+                mockColl.isCapped.and.returnValue(q.reject('I GOT A PROBLEM'));
                 var journ = new journal.Journal(mockColl, 'v1', 'ut');
                 process.nextTick(function() {
                     expect(journ._coll).toBe(mockColl);
@@ -114,7 +114,7 @@ describe('journal lib: ', function() {
                 newColl = {
                     collectionName: 'newCollection',
                     isCapped: mockColl.isCapped,
-                    insert: mockColl.insert
+                    insert: mockColl.insertOne
                 };
             });
 
@@ -131,7 +131,7 @@ describe('journal lib: ', function() {
             });
             
             it('should log a warning if the collection is not capped', function(done) {
-                mockColl.isCapped.and.callFake(function(cb) { cb(null, false); });
+                mockColl.isCapped.and.returnValue(q(false));
                 journ.resetColl(newColl);
                 process.nextTick(function() {
                     expect(journ._coll).toBe(newColl);
@@ -142,7 +142,7 @@ describe('journal lib: ', function() {
             });
             
             it('should log a warning if it can\'t check if the collection is capped', function(done) {
-                mockColl.isCapped.and.callFake(function(cb) { cb('I GOT A PROBLEM', true); });
+                mockColl.isCapped.and.returnValue(q.reject('I GOT A PROBLEM'));
                 journ.resetColl(newColl);
                 process.nextTick(function() {
                     expect(journ._coll).toBe(newColl);
@@ -163,12 +163,12 @@ describe('journal lib: ', function() {
             
             it('should write an entry to the journal', function(done) {
                 journ.write('u-1', req, {foo: 'bar'}).then(function() {
-                    expect(mockColl.insert).toHaveBeenCalled();
-                    expect(mockColl.insert.calls.all()[0].args[0]).toEqual({
+                    expect(mockColl.insertOne).toHaveBeenCalled();
+                    expect(mockColl.insertOne.calls.all()[0].args[0]).toEqual({
                         user: 'u-1', created: jasmine.any(Date), host: 'fakeHost', pid: process.pid,
                         uuid: '1234', sessionID: 's1', service: 'ut', version: 'v1', origin: 'c6.com', data: {foo: 'bar'}
                     });
-                    expect(mockColl.insert.calls.all()[0].args[1]).toEqual({w: 1, journal: true});
+                    expect(mockColl.insertOne.calls.all()[0].args[1]).toEqual({w: 1, journal: true});
                 }).catch(function(error) {
                     expect(error.toString()).not.toBeDefined();
                 }).done(done);
@@ -177,7 +177,7 @@ describe('journal lib: ', function() {
             it('should not set the origin header if not defined', function(done) {
                 req.headers = {};
                 journ.write('u-1', req, {foo: 'bar'}).then(function() {
-                    expect(mockColl.insert.calls.all()[0].args[0].origin).toBe(undefined);
+                    expect(mockColl.insertOne.calls.all()[0].args[0].origin).toBe(undefined);
                 }).catch(function(error) {
                     expect(error.toString()).not.toBeDefined();
                 }).done(done);
@@ -186,7 +186,7 @@ describe('journal lib: ', function() {
             it('should prevent spoofing the origin with an object', function(done) {
                 req.headers.origin = { $set: { key: 'malicious' } };
                 journ.write('u-1', req, {foo: 'bar'}).then(function() {
-                    expect(mockColl.insert.calls.all()[0].args[0].origin).toBe('[object Object]');
+                    expect(mockColl.insertOne.calls.all()[0].args[0].origin).toBe('[object Object]');
                 }).catch(function(error) {
                     expect(error.toString()).not.toBeDefined();
                 }).done(done);
@@ -195,7 +195,7 @@ describe('journal lib: ', function() {
             it('should use the referer header if the origin is not defined', function(done) {
                 req.headers = { referer: 'not.c6.com' };
                 journ.write('u-1', req, {foo: 'bar'}).then(function() {
-                    expect(mockColl.insert.calls.all()[0].args[0].origin).toBe('not.c6.com');
+                    expect(mockColl.insertOne.calls.all()[0].args[0].origin).toBe('not.c6.com');
                 }).catch(function(error) {
                     expect(error.toString()).not.toBeDefined();
                 }).done(done);
@@ -204,19 +204,19 @@ describe('journal lib: ', function() {
             it('should prefer the origin header if both are defined', function(done) {
                 req.headers = { referer: 'not.c6.com', origin: 'c6.com' };
                 journ.write('u-1', req, {foo: 'bar'}).then(function() {
-                    expect(mockColl.insert.calls.all()[0].args[0].origin).toBe('c6.com');
+                    expect(mockColl.insertOne.calls.all()[0].args[0].origin).toBe('c6.com');
                 }).catch(function(error) {
                     expect(error.toString()).not.toBeDefined();
                 }).done(done);
             });
             
             it('should reject if it fails to write to the journal', function(done) {
-                mockColl.insert.and.callFake(function(obj, opts, cb) { cb('I GOT A PROBLEM'); });
+                mockColl.insertOne.and.returnValue(q.reject('I GOT A PROBLEM'));
                 journ.write('u-1', req, {foo: 'bar'}).then(function() {
                     expect('resolved').not.toBe('resolved');
                 }).catch(function(error) {
                     expect(error).toBe('I GOT A PROBLEM');
-                    expect(mockColl.insert).toHaveBeenCalled();
+                    expect(mockColl.insertOne).toHaveBeenCalled();
                     expect(mockLog.warn).toHaveBeenCalled();
                 }).done(done);
             });

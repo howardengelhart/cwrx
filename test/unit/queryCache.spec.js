@@ -61,9 +61,7 @@ describe('QueryCache', function() {
             cache = new QueryCache(1, 2, fakeColl);
             spyOn(uuid, 'hashText').and.returnValue('fakeHash');
             fakeCursor = {
-                toArray: jasmine.createSpy('cursor.toArray').and.callFake(function(cb) {
-                    cb(null, [{id: 'e-1234'}])
-                })
+                toArray: jasmine.createSpy('cursor.toArray()').and.returnValue(q([{ id: 'e-1234' }]))
             };
             fakeColl.find.and.returnValue(fakeCursor);
             jasmine.clock().mockDate();
@@ -108,9 +106,7 @@ describe('QueryCache', function() {
             var start = new Date(new Date() - (cache.freshTTL + 1));
             deferred.keeperCreateTime = start;
             deferred.resolve([{id: 'e-1234'}]);
-            fakeCursor.toArray.and.callFake(function(cb) {
-                cb(null, [{id: 'e-4567'}])
-            });
+            fakeCursor.toArray.and.returnValue(q([{ id: 'e-4567' }]));
             cache.getPromise(query, opts.sort, opts.limit, opts.skip)
             .then(function(exps) {
                 expect(exps).toEqual([{id: 'e-1234'}]);
@@ -136,9 +132,7 @@ describe('QueryCache', function() {
             var start = new Date(new Date() - (cache.freshTTL + 1));
             deferred.keeperCreateTime = start;
             deferred.resolve([{id: 'e-1234'}]);
-            fakeCursor.toArray.and.callFake(function(cb) {
-                cb(null, [{id: 'e-4567'}])
-            });
+            fakeCursor.toArray.and.returnValue(q([{ id: 'e-4567' }]));
             q.all([cache.getPromise(query, opts.sort, opts.limit, opts.skip),
                    cache.getPromise(query, opts.sort, opts.limit, opts.skip)])
             .spread(function(exps1, exps2) {
@@ -162,9 +156,7 @@ describe('QueryCache', function() {
             var start = new Date(new Date() - (cache.maxTTL + 1));
             deferred.keeperCreateTime = start;
             deferred.resolve([{id: 'e-1234'}]);
-            fakeCursor.toArray.and.callFake(function(cb) {
-                cb(null, [{id: 'e-4567'}])
-            });
+            fakeCursor.toArray.and.returnValue(q([{ id: 'e-4567' }]));
             cache.getPromise(query, opts.sort, opts.limit, opts.skip)
             .then(function(exps) {
                 expect(exps).toEqual([{id: 'e-4567'}]);
@@ -180,7 +172,7 @@ describe('QueryCache', function() {
         
         it('should pass along errors from mongo', function(done) {
             spyOn(cache._keeper, 'remove');
-            fakeCursor.toArray.and.callFake(function(cb) { cb('Error!'); });
+            fakeCursor.toArray.and.returnValue(q.reject('Error!'));
             cache.getPromise(query, opts.sort, opts.limit, opts.skip)
             .then(function(exps) {
                 expect(exps).not.toBeDefined();

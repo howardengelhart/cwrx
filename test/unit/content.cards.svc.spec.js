@@ -1,6 +1,6 @@
 var flush = true;
 describe('content-cards (UT)', function() {
-    var urlUtils, q, cardModule, CrudSvc, Status, Model, objUtils, logger, mockLog,
+    var urlUtils, q, cardModule, CrudSvc, Status, Model, objUtils, mongoUtils, logger, mockLog,
         mockDb, req, nextSpy, doneSpy, errorSpy;
 
     beforeEach(function() {
@@ -12,6 +12,7 @@ describe('content-cards (UT)', function() {
         CrudSvc         = require('../../lib/crudSvc');
         Model           = require('../../lib/model');
         objUtils        = require('../../lib/objUtils');
+        mongoUtils      = require('../../lib/mongoUtils');
         logger          = require('../../lib/logger');
         Status          = require('../../lib/enums').Status;
 
@@ -363,11 +364,8 @@ describe('content-cards (UT)', function() {
         beforeEach(function() {
             req.body = { id: 'rc-1', campaignId: 'cam-1', campaign: {} };
             req.method = 'PUT';
-            mockColl = {
-                findOne: jasmine.createSpy('coll.findOne').and.callFake(function(query, cb) {
-                    cb(null, { campaign: 'yes' });
-                })
-            };
+            mockColl = 'fakeColl';
+            spyOn(mongoUtils, 'findObject').and.returnValue(q({ campaign: 'yes' }));
             mockDb.collection.and.returnValue(mockColl);
             svc = { _db: mockDb };
         });
@@ -378,6 +376,8 @@ describe('content-cards (UT)', function() {
                 expect(doneSpy).not.toHaveBeenCalled();
                 expect(errorSpy).not.toHaveBeenCalled();
                 expect(req.campaign).toEqual({ campaign: 'yes' });
+                expect(mockDb.collection).toHaveBeenCalledWith('campaigns');
+                expect(mongoUtils.findObject).toHaveBeenCalledWith('fakeColl', { id: 'cam-1', status: { $ne: Status.Deleted } });
                 expect(mockLog.warn).not.toHaveBeenCalled();
                 expect(mockLog.error).not.toHaveBeenCalled();
             }).done(done);
@@ -385,7 +385,7 @@ describe('content-cards (UT)', function() {
         
         describe('if no campaign is found', function() {
             beforeEach(function() {
-                mockColl.findOne.and.callFake(function(query, cb) { cb(); });
+                mongoUtils.findObject.and.returnValue(q());
             });
             
             it('should log a warning if the request is a put or delete', function(done) {
@@ -420,7 +420,7 @@ describe('content-cards (UT)', function() {
         });
         
         it('should reject if mongo fails', function(done) {
-            mockColl.findOne.and.callFake(function(query, cb) { cb('I GOT A PROBLEM'); });
+            mongoUtils.findObject.and.returnValue(q.reject('I GOT A PROBLEM'));
             cardModule.fetchCamp(svc, req, nextSpy, doneSpy).catch(errorSpy).finally(function() {
                 expect(nextSpy).not.toHaveBeenCalled();
                 expect(doneSpy).not.toHaveBeenCalled();

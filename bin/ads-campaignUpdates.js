@@ -403,7 +403,7 @@
                  req.uuid, req.body.id, req.campaign.id, req.user.id);
 
         return q(coll.findOneAndUpdate({ id: req.campaign.id }, updateObj, opts))
-        .then(function() {
+        .then(function(/*updated*/) {
             next();
         })
         .catch(function(error) {
@@ -476,7 +476,7 @@
         }
 
         return q(coll.findOneAndUpdate({ id: req.campaign.id }, updateObj, opts))
-        .then(function() {
+        .then(function(/*updated*/) {
             next();
         })
         .catch(function(err) {

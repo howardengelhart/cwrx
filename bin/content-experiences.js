@@ -47,7 +47,7 @@
         var log = logger.getLog(),
             privateFields = ['user', 'org'],
             newExp = {};
-
+        
         for (var key in experience) {
             if (key === 'data') {
                 if (!(experience.data instanceof Array)) {
@@ -661,7 +661,7 @@
             expModule.formatUpdates(req, orig, updates, user);
 
             return mongoUtils.editObject(experiences, updates, id)
-            .then(function() {
+            .then(function(/*updated*/) {
                 return q({ code: 204 });
             });
         }).catch(function(error) {

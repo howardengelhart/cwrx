@@ -439,13 +439,11 @@ describe('userSvc (UT)', function() {
     });
 
     describe('checkValidToken', function() {
-        var svc, req, nextSpy, doneSpy;
+        var svc, req, mockUser;
 
         beforeEach(function() {
             svc = {
-                _coll: {
-                    findOne: jasmine.createSpy('findOne()')
-                },
+                _coll: 'fakeColl',
                 transformMongoDoc: jasmine.createSpy('transformMongoDoc(doc)').and.callFake(function(doc) {
                     return doc;
                 })
@@ -454,16 +452,13 @@ describe('userSvc (UT)', function() {
                 params: { },
                 body: { }
             };
-            nextSpy = jasmine.createSpy('next()').and.returnValue(q());
-            doneSpy = jasmine.createSpy('done()').and.returnValue(q());
+            spyOn(mongoUtils, 'findObject').and.callFake(function() { return q(mockUser); });
             spyOn(bcrypt, 'compare');
         });
 
         describe('when the user does not exist', function() {
             beforeEach(function(done) {
-                svc._coll.findOne.and.callFake(function(query, cb) {
-                    cb(null, null);
-                });
+                mockUser = undefined;
                 req.params.id = 'non-existent-user-id';
                 userModule.checkValidToken(svc, req, nextSpy, doneSpy).done(done);
             });
@@ -476,9 +471,7 @@ describe('userSvc (UT)', function() {
 
         describe('when the user does not have a status of new', function() {
             beforeEach(function(done) {
-                svc._coll.findOne.and.callFake(function(query, cb) {
-                    cb(null, { status: 'active', activationToken: {} });
-                });
+                mockUser = { status: 'active', activationToken: {} };
                 userModule.checkValidToken(svc, req, nextSpy, doneSpy).done(done);
             });
 
@@ -490,9 +483,7 @@ describe('userSvc (UT)', function() {
 
         describe('when the user does not have an activation token', function() {
             beforeEach(function(done) {
-                svc._coll.findOne.and.callFake(function(query, cb) {
-                    cb(null, { status: 'new' });
-                });
+                mockUser = { status: 'new' };
                 userModule.checkValidToken(svc, req, nextSpy, doneSpy).done(done);
             });
 
@@ -504,14 +495,7 @@ describe('userSvc (UT)', function() {
 
         describe('when the activation token on the user has expired', function() {
             beforeEach(function(done) {
-                svc._coll.findOne.and.callFake(function(query, cb) {
-                    cb(null, {
-                        status: 'new',
-                        activationToken: {
-                            expires: String(new Date(0))
-                        }
-                    });
-                });
+                mockUser = { status: 'new', activationToken: { expires: String(new Date(0)) } };
                 userModule.checkValidToken(svc, req, nextSpy, doneSpy).done(done);
             });
 
@@ -523,15 +507,13 @@ describe('userSvc (UT)', function() {
 
         describe('when the provided token does not match the stored activation token', function() {
             beforeEach(function(done) {
-                svc._coll.findOne.and.callFake(function(query, cb) {
-                    cb(null, {
-                        status: 'new',
-                        activationToken: {
-                            expires: new Date(99999, 11, 25),
-                            token: 'salty token'
-                        }
-                    });
-                });
+                mockUser = { 
+                    status: 'new',
+                    activationToken: {
+                        expires: new Date(99999, 11, 25),
+                        token: 'salty token'
+                    }
+                };
                 req.body.token = 'invalid token';
                 bcrypt.compare.and.callFake(function(val1, val2, cb) {
                     return cb(null, false);
@@ -550,20 +532,14 @@ describe('userSvc (UT)', function() {
         });
 
         describe('when the provided token is valid and matches the stored activation token', function() {
-            var userDocument;
-
             beforeEach(function(done) {
-                userDocument = {
+                mockUser = {
                     status: 'new',
                     activationToken: {
                         expires: new Date(99999, 11, 25),
                         token: 'salty token'
                     }
                 };
-
-                svc._coll.findOne.and.callFake(function(query, cb) {
-                    cb(null, userDocument);
-                });
                 req.body.token = 'valid token';
                 bcrypt.compare.and.callFake(function(val1, val2, cb) {
                     cb(null, true);
@@ -582,8 +558,8 @@ describe('userSvc (UT)', function() {
             });
 
             it('should temporarily store the safe fetched user document on the request', function() {
-                expect(svc.transformMongoDoc).toHaveBeenCalledWith(userDocument);
-                expect(req.user).toEqual(userDocument);
+                expect(svc.transformMongoDoc).toHaveBeenCalledWith(mockUser);
+                expect(req.user).toEqual(mockUser);
             });
         });
     });
@@ -1415,8 +1391,8 @@ describe('userSvc (UT)', function() {
             ];
             roleColl = {
                 find: jasmine.createSpy('roles.find()').and.callFake(function() {
-                    return { toArray: function(cb) {
-                        cb(null, roles);
+                    return { toArray: function() {
+                        return q(roles);
                     } };
                 })
             };
@@ -1468,7 +1444,7 @@ describe('userSvc (UT)', function() {
         });
 
         it('should reject if mongo fails', function(done) {
-            roleColl.find.and.returnValue({ toArray: function(cb) { cb('I GOT A PROBLEM'); } });
+            roleColl.find.and.returnValue({ toArray: function() { return q.reject('I GOT A PROBLEM'); } });
             userModule.validateRoles(svc, req, nextSpy, doneSpy).catch(errorSpy);
             process.nextTick(function() {
                 expect(nextSpy).not.toHaveBeenCalled();
@@ -1482,18 +1458,18 @@ describe('userSvc (UT)', function() {
     });
 
     describe('validatePolicies(svc, req, next, done)', function() {
-        var polColl, roles, svc;
+        var polColl, pols, svc;
         beforeEach(function() {
             svc = userModule.setupSvc(mockDb, mockConfig);
-            roles = [
+            pols = [
                 { id: 'p-1', name: 'pol1' },
                 { id: 'p-2', name: 'pol2' },
                 { id: 'p-3', name: 'pol3' }
             ];
             polColl = {
                 find: jasmine.createSpy('policies.find()').and.callFake(function() {
-                    return { toArray: function(cb) {
-                        cb(null, roles);
+                    return { toArray: function() {
+                        return q(pols);
                     } };
                 })
             };
@@ -1545,7 +1521,7 @@ describe('userSvc (UT)', function() {
         });
 
         it('should reject if mongo fails', function(done) {
-            polColl.find.and.returnValue({ toArray: function(cb) { cb('I GOT A PROBLEM'); } });
+            polColl.find.and.returnValue({ toArray: function() { return q.reject('I GOT A PROBLEM'); } });
             userModule.validatePolicies(svc, req, nextSpy, doneSpy).catch(errorSpy);
             process.nextTick(function() {
                 expect(nextSpy).not.toHaveBeenCalled();
@@ -2212,9 +2188,7 @@ describe('userSvc (UT)', function() {
             svc = {
                 customMethod: jasmine.createSpy('svc.customMethod()').and.returnValue(customMethodDeferred.promise),
                 _coll: {
-                    findAndModify: jasmine.createSpy('findAndModify()').and.callFake(function(query1, query2, updates, opts, cb) {
-                        cb(null, [{id: 'u-12345'}]);
-                    })
+                    findOneAndUpdate: jasmine.createSpy('findOneAndUpdate()').and.returnValue(q({ value: { id: 'u-12345' } }))
                 },
                 transformMongoDoc: jasmine.createSpy('transformMongoDoc(doc)').and.returnValue('transformed user')
             };
@@ -2257,9 +2231,7 @@ describe('userSvc (UT)', function() {
         });
         
         it('should log an error if updating the user fails', function(done) {
-            svc._coll.findAndModify.and.callFake(function(query1, query2, updates, opts, cb) {
-                cb('error', null);
-            });
+            svc._coll.findOneAndUpdate.and.returnValue(q.reject('error'));
             var callback = svc.customMethod.calls.mostRecent().args[2];
             callback().then(function(resp) {
                 expect(resp).not.toBeDefined();
@@ -2282,17 +2254,20 @@ describe('userSvc (UT)', function() {
             });
 
             it('should update the user in the db', function() {
-                var updates = {
-                    $set: {
-                        lastUpdated: jasmine.any(Date),
-                        status: 'active',
-                        org: 'o-12345'
+                expect(svc._coll.findOneAndUpdate).toHaveBeenCalledWith(
+                    { id: 'u-12345' },
+                    {
+                        $set: {
+                            lastUpdated: jasmine.any(Date),
+                            status: 'active',
+                            org: 'o-12345'
+                        },
+                        $unset: {
+                            activationToken: 1
+                        }
                     },
-                    $unset: {
-                        activationToken: 1
-                    }
-                };
-                expect(svc._coll.findAndModify).toHaveBeenCalledWith({id: 'u-12345'}, {id: 1}, updates, {w: 1, journal: true, new: true}, jasmine.any(Function));
+                    { w: 1, journal: true, returnOriginal: false, sort: { id: 1 } }
+                );
             });
 
             it('should regenerate the session', function() {
@@ -2329,20 +2304,17 @@ describe('userSvc (UT)', function() {
         var mockUser, result;
 
         beforeEach(function() {
-            spyOn(mongoUtils, 'editObject').and.returnValue(q());
             mockUser = {
                 id: 'u-12345',
                 org: 'o-12345',
                 advertiser: 'a-12345',
                 email: 'some email'
             };
+            spyOn(mongoUtils, 'editObject').and.returnValue(q());
+            spyOn(mongoUtils, 'findObject').and.returnValue(q(mockUser));
             svc = {
                 customMethod: jasmine.createSpy('svc.customMethod()').and.returnValue(q()),
-                _coll: {
-                    findOne: jasmine.createSpy('findOne(query, cb)').and.callFake(function(query, cb) {
-                        return cb(null, mockUser);
-                    })
-                }
+                _coll: 'fakeColl'
             };
             req = {
                 body: { },
@@ -2354,7 +2326,7 @@ describe('userSvc (UT)', function() {
 
         it('should get the account of the user currently logged in', function(done) {
             userModule.resendActivation(svc, req).done(function() {
-                expect(svc._coll.findOne).toHaveBeenCalledWith({id: 'u-12345'}, jasmine.any(Function));
+                expect(mongoUtils.findObject).toHaveBeenCalledWith('fakeColl', {id: 'u-12345'});
                 done();
             });
         });
@@ -2452,9 +2424,7 @@ describe('userSvc (UT)', function() {
                 }
             };
             sessions = {
-                remove: jasmine.createSpy('sessions.remove()').and.callFake(function(arg1, arg2, cb) {
-                    cb(null, 1);
-                })
+                deleteMany: jasmine.createSpy('sessions.deleteMany()').and.returnValue(q({ deletedCount: 1 }))
             };
 
             result = userModule.forceLogoutUser(svc, req, sessions);
@@ -2477,10 +2447,9 @@ describe('userSvc (UT)', function() {
 
             it('should remove the user\'s sessions', function(done) {
                 callback().done(function() {
-                    expect(sessions.remove).toHaveBeenCalledWith(
+                    expect(sessions.deleteMany).toHaveBeenCalledWith(
                         { 'session.user': req.params.id },
-                        { w: 1, journal: true },
-                        jasmine.any(Function)
+                        { w: 1, journal: true }
                     );
                     done();
                 });
@@ -2492,9 +2461,7 @@ describe('userSvc (UT)', function() {
 
                 beforeEach(function(done) {
                     error = new Error('I suck.');
-                    sessions.remove.and.callFake(function(arg1, arg2, cb) {
-                        cb(error, null);
-                    });
+                    sessions.deleteMany.and.returnValue(q.reject(error));
                     callback().then(success, failure).done(done);
                 });
 
