@@ -1,5 +1,7 @@
 # Ads Service Changelog
 
+* Upgrade mongo driver to 2.x, fixing reconnect issues: [#717](https://github.com/cinema6/cwrx/pull/717)
+
 ### 4.0.0: Fri Dec 18 10:57:31 EST 2015
 * [BREAKING CHANGE]: Do not create Adtech campaigns: [#677](https://github.com/cinema6/cwrx/issues/677)
 * [BREAKING CHANGE]: Do not create Adtech advertisers: [#678](https://github.com/cinema6/cwrx/issues/678)

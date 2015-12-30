@@ -1,5 +1,7 @@
 # Vote Service Changelog
 
+* Upgrade mongo driver to 2.x, fixing reconnect issues: [#717](https://github.com/cinema6/cwrx/pull/717)
+
 ### 1.4.3: Thu Oct 15 13:24:56 EDT 2015
 * [FIX]: Stop logging cookie header: [#539](https://github.com/cinema6/cwrx/issues/539)
 * Extra deployment steps: None

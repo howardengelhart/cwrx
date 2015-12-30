@@ -1,5 +1,7 @@
 # QueryBot Service Changelog
 
+* Upgrade mongo driver to 2.x, fixing reconnect issues: [#717](https://github.com/cinema6/cwrx/pull/717)
+
 ### 1.1.0: Wed Dec  2 22:56:03 EST 2015
 * [FEATURE] : Updated query to handle new table/view structures of data (no more crosstab)
 * [FEATURE] : Added additional data for selfie campaign stats tab : [#664](https://github.com/cinema6/cwrx/issues/664)

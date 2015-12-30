@@ -1,5 +1,7 @@
 # Content Service Changelog
 
+* Upgrade mongo driver to 2.x, fixing reconnect issues: [#717](https://github.com/cinema6/cwrx/pull/717)
+
 ### 3.5.0: Wed Dec 16 18:28:59 EST 2015
 * [FEATURE]: Add public endpoint for retrieving multiple cards: [#673](https://github.com/cinema6/cwrx/issues/673)
 * Do not require `adtechId` to return card from public endpoint: [#672](https://github.com/cinema6/cwrx/issues/672)
