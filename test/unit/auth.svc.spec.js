@@ -781,7 +781,7 @@ describe('auth (UT)', function() {
                         $set : { password: 'hashPass', lastUpdated: jasmine.any(Date) },
                         $unset: { resetToken: 1 }
                     },
-                    { w: 1, journal: true, returnOriginal: false, sort: { id: 1 } }
+                    { w: 1, j: true, returnOriginal: false, sort: { id: 1 } }
                 );
                 expect(email.passwordChanged).toHaveBeenCalledWith('no-reply@cinema6.com', 'user@c6.com', 'support@cinema6.com');
                 expect(req.session.user).toBe('u-1');
@@ -790,7 +790,7 @@ describe('auth (UT)', function() {
                 expect(mongoUtils.safeUser).toHaveBeenCalledWith({id:'u-1',updated:true,password:'hashPass'});
                 expect(auditJournal.writeAuditEntry).toHaveBeenCalledWith(req, 'u-1');
                 expect(authUtils.decorateUser).toHaveBeenCalledWith({ id: 'u-1', updated: true });
-                expect(sessions.deleteMany).toHaveBeenCalledWith({ 'session.user': 'u-1' }, { w: 1, journal: true });
+                expect(sessions.deleteMany).toHaveBeenCalledWith({ 'session.user': 'u-1' }, { w: 1, j: true });
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
             }).done(done);

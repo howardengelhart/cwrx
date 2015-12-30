@@ -2266,7 +2266,7 @@ describe('userSvc (UT)', function() {
                             activationToken: 1
                         }
                     },
-                    { w: 1, journal: true, returnOriginal: false, sort: { id: 1 } }
+                    { w: 1, j: true, returnOriginal: false, sort: { id: 1 } }
                 );
             });
 
@@ -2449,7 +2449,7 @@ describe('userSvc (UT)', function() {
                 callback().done(function() {
                     expect(sessions.deleteMany).toHaveBeenCalledWith(
                         { 'session.user': req.params.id },
-                        { w: 1, journal: true }
+                        { w: 1, j: true }
                     );
                     done();
                 });

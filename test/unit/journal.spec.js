@@ -168,7 +168,7 @@ describe('journal lib: ', function() {
                         user: 'u-1', created: jasmine.any(Date), host: 'fakeHost', pid: process.pid,
                         uuid: '1234', sessionID: 's1', service: 'ut', version: 'v1', origin: 'c6.com', data: {foo: 'bar'}
                     });
-                    expect(mockColl.insertOne.calls.all()[0].args[1]).toEqual({w: 1, journal: true});
+                    expect(mockColl.insertOne.calls.all()[0].args[1]).toEqual({w: 1, j: true});
                 }).catch(function(error) {
                     expect(error.toString()).not.toBeDefined();
                 }).done(done);

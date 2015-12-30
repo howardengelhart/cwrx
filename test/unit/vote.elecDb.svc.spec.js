@@ -249,7 +249,7 @@ describe('vote.elecDb (UT)',function(){
                                     'ballot.item-2.smelly': 1
                                 }
                             },
-                            { w: 0, journal: true, returnOriginal: false }
+                            { w: 0, j: true, returnOriginal: false }
                         );
                     }).done(done);
             });
@@ -275,7 +275,7 @@ describe('vote.elecDb (UT)',function(){
                                     'ballot.item-2.smelly': 1
                                 }
                             },
-                            { w: 0, journal: true, returnOriginal: false }
+                            { w: 0, j: true, returnOriginal: false }
                         );
                     }).done(done);
             });
@@ -364,7 +364,7 @@ describe('vote.elecDb (UT)',function(){
                                     'ballot.b1.a': 1
                                 }
                             },
-                            { w: 0, journal: true, returnOriginal: false }
+                            { w: 0, j: true, returnOriginal: false }
                         );
                         expect(mockDb.findOneAndUpdate).toHaveBeenCalledWith(
                             { id:'el-2' },
@@ -373,7 +373,7 @@ describe('vote.elecDb (UT)',function(){
                                     'ballot.b2.d': 1
                                 }
                             },
-                            { w: 0, journal: true, returnOriginal: false }
+                            { w: 0, j: true, returnOriginal: false }
                         );
                     }).done(done);
             });
@@ -397,7 +397,7 @@ describe('vote.elecDb (UT)',function(){
                                     'ballot.item-1.1': 1
                                 }
                             },
-                            { w: 0, journal: true, returnOriginal: false }
+                            { w: 0, j: true, returnOriginal: false }
                         );
                     }).done(done);
             });

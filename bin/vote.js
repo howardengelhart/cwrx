@@ -253,7 +253,7 @@
                 return q(self._coll.findOneAndUpdate(
                     { id: item.id },
                     { $inc: voteCounts },
-                    { returnOriginal: false, w: 0, journal: true }
+                    { returnOriginal: false, w: 0, j: true }
                 ))
                 .then(function(result) {
                     return finishSync(result.value);
@@ -479,7 +479,7 @@
             return q(elections.findOneAndUpdate(
                 { id: id },
                 { $set: updates },
-                { w: 1, journal: true, returnOriginal: false, sort: { id: 1 } }
+                { w: 1, j: true, returnOriginal: false, sort: { id: 1 } }
             ))
             .then(function(result) {
                 var updated = result.value;

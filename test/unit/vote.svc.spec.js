@@ -456,7 +456,7 @@ describe('vote (UT)',function(){
                             tag: 'fake2',
                             lastUpdated: jasmine.any(Date)
                         } },
-                        { w: 1, journal: true, returnOriginal: false, sort: { id: 1 } }
+                        { w: 1, j: true, returnOriginal: false, sort: { id: 1 } }
                     );
                     expect(mongoUtils.escapeKeys).toHaveBeenCalled();
                     expect(mongoUtils.unescapeKeys).toHaveBeenCalled();
@@ -497,7 +497,7 @@ describe('vote (UT)',function(){
                             lastUpdated: jasmine.any(Date),
                             'ballot.b4': [10, 20]
                         } },
-                        { w: 1, journal: true, returnOriginal: false, sort: { id: 1 } }
+                        { w: 1, j: true, returnOriginal: false, sort: { id: 1 } }
                     );
                     expect(mongoUtils.escapeKeys).toHaveBeenCalled();
                     expect(mongoUtils.unescapeKeys).toHaveBeenCalled();

@@ -320,7 +320,7 @@
                 
                 return q.npost(bcrypt, 'hash', [newPassword, bcrypt.genSaltSync()])
                 .then(function(hashed) {
-                    var opts = { w: 1, journal: true, returnOriginal: false, sort: { id: 1 } },
+                    var opts = { w: 1, j: true, returnOriginal: false, sort: { id: 1 } },
                         updates = {
                             $set: { password: hashed, lastUpdated: now },
                             $unset: { resetToken: 1 }
@@ -341,7 +341,7 @@
                     }).catch(function(error) {
                         log.error('[%1] Error sending msg to %2: %3',req.uuid,account.email,error);
                     });
-                    return q(sessions.deleteMany({ 'session.user': id }, { w: 1, journal: true }));
+                    return q(sessions.deleteMany({ 'session.user': id }, { w: 1, j: true }));
                 })
                 .then(function(result) {
                     log.info('[%1] Successfully deleted %2 session docs',

@@ -393,7 +393,7 @@
     updateModule.lockCampaign = function(svc, req, next/*, done*/) {
         var log = logger.getLog(),
             coll = svc._db.collection('campaigns'),
-            opts = { w: 1, journal: true, returnOriginal: false, sort: { id: 1 } },
+            opts = { w: 1, j: true, returnOriginal: false, sort: { id: 1 } },
             updateObj = {
                 $set: { lastUpdated: new Date(), updateRequest: req.body.id },
                 $unset: { rejectionReason: 1 }
@@ -451,7 +451,7 @@
         log.info('[%1] Unlocking campaign %2', req.uuid, req.campaign.id);
 
         var coll = svc._db.collection('campaigns'),
-            opts = { w: 1, journal: true, returnOriginal: false, sort: { id: 1 } },
+            opts = { w: 1, j: true, returnOriginal: false, sort: { id: 1 } },
             updateObj = {
                 $set: { lastUpdated: new Date() },
                 $unset: { updateRequest: 1 }

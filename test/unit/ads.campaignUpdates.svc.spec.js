@@ -895,7 +895,7 @@ describe('ads-campaignUpdates (UT)', function() {
                         $set: { lastUpdated: jasmine.any(Date), updateRequest: 'ur-1' },
                         $unset: { rejectionReason: 1 },
                     },
-                    { w: 1, journal: true, returnOriginal: false, sort: { id: 1 } }
+                    { w: 1, j: true, returnOriginal: false, sort: { id: 1 } }
                 );
                 expect(mockLog.error).not.toHaveBeenCalled();
                 done();
@@ -990,7 +990,7 @@ describe('ads-campaignUpdates (UT)', function() {
                         $set: { lastUpdated: jasmine.any(Date) },
                         $unset: { updateRequest: 1 },
                     },
-                    { w: 1, journal: true, returnOriginal: false, sort: { id: 1 } }
+                    { w: 1, j: true, returnOriginal: false, sort: { id: 1 } }
                 );
                 expect(mockLog.error).not.toHaveBeenCalled();
                 done();
@@ -1015,7 +1015,7 @@ describe('ads-campaignUpdates (UT)', function() {
                             $set: { lastUpdated: jasmine.any(Date), rejectionReason: 'worst campaign ever' },
                             $unset: { updateRequest: 1 },
                         },
-                        { w: 1, journal: true, returnOriginal: false, sort: { id: 1 } }
+                        { w: 1, j: true, returnOriginal: false, sort: { id: 1 } }
                     );
                 }).done(done);
             });
@@ -1043,7 +1043,7 @@ describe('ads-campaignUpdates (UT)', function() {
                             },
                             $unset: { updateRequest: 1 },
                         },
-                        { w: 1, journal: true, returnOriginal: false, sort: { id: 1 } }
+                        { w: 1, j: true, returnOriginal: false, sort: { id: 1 } }
                     );
                 }).done(done);
             });

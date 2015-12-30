@@ -659,7 +659,7 @@
                 req.uuid, requester.id, id
             );
 
-            return q(sessions.deleteMany({ 'session.user': id }, { w: 1, journal: true }))
+            return q(sessions.deleteMany({ 'session.user': id }, { w: 1, j: true }))
                 .then(function succeed(result) {
                     var count = result.deletedCount;
                     log.info('[%1] Successfully deleted %2 session docs', req.uuid, count);
@@ -771,7 +771,7 @@
         }
         return svc.customMethod(req, 'confirmUser', function confirm() {
             var id = req.user.id,
-                opts = { w: 1, journal: true, returnOriginal: false, sort: { id: 1 } },
+                opts = { w: 1, j: true, returnOriginal: false, sort: { id: 1 } },
                 updates = {
                     $set: {
                         lastUpdated: new Date(),

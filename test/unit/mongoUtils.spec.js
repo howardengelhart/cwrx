@@ -321,7 +321,7 @@ describe('mongoUtils', function() {
             mongoUtils.createObject(mockColl, { orig: 'yes' }).then(function(resp) {
                 expect(resp).toEqual({ escaped: 'yes' });
                 expect(mongoUtils.escapeKeys).toHaveBeenCalledWith({ orig: 'yes' });
-                expect(mockColl.insertOne).toHaveBeenCalledWith({ escaped: 'yes' }, { w: 1, journal: true });
+                expect(mockColl.insertOne).toHaveBeenCalledWith({ escaped: 'yes' }, { w: 1, j: true });
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
             }).done(done);
@@ -344,7 +344,7 @@ describe('mongoUtils', function() {
             mongoUtils.createObject(mockColl, { orig: 'yes', _id: 'asdf' }).then(function(resp) {
                 expect(resp).toEqual({ escaped: 'yes' });
                 expect(mongoUtils.escapeKeys).toHaveBeenCalledWith({ orig: 'yes' });
-                expect(mockColl.insertOne).toHaveBeenCalledWith({ escaped: 'yes' }, { w: 1, journal: true });
+                expect(mockColl.insertOne).toHaveBeenCalledWith({ escaped: 'yes' }, { w: 1, j: true });
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
             }).done(done);
@@ -365,7 +365,7 @@ describe('mongoUtils', function() {
                 expect(resp).toEqual({ updated: 'yes' });
                 expect(mongoUtils.escapeKeys).toHaveBeenCalledWith({ foo: 'bar', lastUpdated: jasmine.any(Date) });
                 expect(mockColl.findOneAndUpdate).toHaveBeenCalledWith({ id: 'e-1' },
-                    { $set: { escaped: 'yes' } }, { w: 1, journal: true, returnOriginal: false, sort: { id: 1 } });
+                    { $set: { escaped: 'yes' } }, { w: 1, j: true, returnOriginal: false, sort: { id: 1 } });
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
             }).done(done);
@@ -389,7 +389,7 @@ describe('mongoUtils', function() {
                 expect(resp).toEqual({ updated: 'yes' });
                 expect(mongoUtils.escapeKeys).toHaveBeenCalledWith({ foo: 'bar', lastUpdated: jasmine.any(Date) });
                 expect(mockColl.findOneAndUpdate).toHaveBeenCalledWith({ id: 'e-1' },
-                    { $set: { escaped: 'yes' } }, { w: 1, journal: true, returnOriginal: false, sort: { id: 1 } });
+                    { $set: { escaped: 'yes' } }, { w: 1, j: true, returnOriginal: false, sort: { id: 1 } });
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
             }).done(done);
