@@ -42,26 +42,6 @@ describe('search (UT)', function() {
             expect(mockLog.warn).not.toHaveBeenCalled();
         });
 
-        it('should properly parse yahoo\'s strings of the format "PY#M#D#TH#M#S#"', function() {
-            var durs = [ {str: 'PTH1M1S11.23', val: 3671.23}, {str: 'PTH13M34S23', val: 48863},
-                         {str: 'PY1M12D2TH1M23S02', val: 62817782}, {str: 'PM3', val: 7776000},
-                         {str: 'PTM3', val: 180}, {str: 'PTH2.45', val: 8820} ];
-            durs.forEach(function(durObj) {
-                expect(search.parseDuration(durObj.str)).toBe(durObj.val);
-            });
-            expect(mockLog.warn).not.toHaveBeenCalled();
-        });
-
-        it('should properly parse rumble\'s strings of the format "#Y#M#DT#H#M#S"', function() {
-            var durs = [ {str: 'T1H1M11.23S', val: 3671.23}, {str: 'T13H34M23S', val: 48863},
-                         {str: '1Y12M2DT1H23M02S', val: 62817782}, {str: '3M', val: 7776000},
-                         {str: 'T3M', val: 180}, {str: 'PT2.45H', val: 8820} ];
-            durs.forEach(function(durObj) {
-                expect(search.parseDuration(durObj.str)).toBe(durObj.val);
-            });
-            expect(mockLog.warn).not.toHaveBeenCalled();
-        });
-
         it('should properly parse vimeo\'s strings of the format "# (hours|minutes|seconds)"', function() {
             var durs = [{str: '12 mins', val: 720}, {str: '02 mins', val: 120}, {str: '12 minutes', val: 720},
                         {str: '1 hour 2 minutes', val: 3720}, {str: '5 hours 21 mins', val: 19260},
@@ -147,59 +127,6 @@ describe('search (UT)', function() {
                 ]
             });
             expect(mockLog.warn).not.toHaveBeenCalled();
-        });
-
-        it('should correctly format AOL results', function() {
-            var items = [
-                { title: 'AOL Test', snippet: 'AOL Desc', link: 'http://on.aol.com/video/cat-51', displayLink: 'on.aol.com',
-                  pagemap: { videoobject: [{name: 'AOL Name'}], cse_thumbnail: [{width: 300, height: 168, src: 'http://img.com'}] } }
-            ];
-
-            expect(search.formatGoogleResults(stats, items)).toEqual({
-                meta: { skipped: 10, numResults: 20, totalResults: 50 },
-                items: [
-                    { title: 'AOL Test', link: 'http://on.aol.com/video/cat-51', siteLink: 'on.aol.com',
-                      description: 'AOL Desc', site: 'aol', hd: false, duration: undefined, videoid: 'cat-51',
-                      thumbnail: { width: 300, height: 168, src: 'http://img.com' } }
-                ]
-            });
-            expect(mockLog.warn).not.toHaveBeenCalled();
-        });
-
-        it('should correctly format yahoo results', function() {
-            var items = [
-                { title: 'YH Test', link: 'https://screen.yahoo.com/laser-cats.html', displayLink: 'screen.yahoo.com',
-                  pagemap: { videoobject: [{description: 'YH desc', duration: 'PTM1S13'}],
-                             cse_thumbnail: [{width: 300, height: 168, src: 'http://img.com'}] } }
-            ];
-
-            expect(search.formatGoogleResults(stats, items)).toEqual({
-                meta: {skipped: 10, numResults: 20, totalResults: 50},
-                items: [
-                    { title: 'YH Test', link: 'https://screen.yahoo.com/laser-cats.html', siteLink: 'screen.yahoo.com',
-                      description: 'YH desc', site: 'yahoo', hd: false, duration: 73, videoid: 'laser-cats',
-                      thumbnail: { width: 300, height: 168, src: 'http://img.com' } }
-                ]
-            });
-            expect(mockLog.warn).not.toHaveBeenCalled();
-        });
-
-        it('should correctly format rumble results', function() {
-          var items = [
-          { title: 'Rumble Test', link: 'https://rumble.com/kitty-cats.html', displayLink: 'rumble.com',
-          pagemap: { videoobject: [{description: 'Look at the cats.', duration: 'P1YT1M13S'}],
-          cse_thumbnail: [{width: 300, height: 168, src: 'http://img.com'}] } }
-          ];
-
-          expect(search.formatGoogleResults(stats, items)).toEqual({
-            meta: {skipped: 10, numResults: 20, totalResults: 50},
-            items: [
-            { title: 'Rumble Test', link: 'https://rumble.com/kitty-cats.html', siteLink: 'rumble.com',
-            description: 'Look at the cats.', site: 'rumble', hd: false, duration: 31536073, videoid: 'kitty-cats',
-            thumbnail: { width: 300, height: 168, src: 'http://img.com' } }
-            ]
-          });
-          expect(mockLog.warn).not.toHaveBeenCalled();
         });
         
         it('should log a warning if the site is an unexpected string', function() {
@@ -425,18 +352,6 @@ describe('search (UT)', function() {
                 expect(resp).toBe('fakeResp');
                 expect(search.findVideosWithGoogle).toHaveBeenCalledWith(req,
                     {query: 'foo', limit: 10, start: 21, sites: ['youtube.com', 'vimeo.com'], hd: 'true'},
-                    'fakeGoogleCfg', 'asdf1234');
-            }).catch(function(error) {
-                expect(error.toString()).not.toBeDefined();
-            }).done(done);
-        });
-
-        it('should handle aol and yahoo properly for the sites param', function(done) {
-            req.query.sites = 'yahoo,aol';
-            search.findVideos(req, config, secrets).then(function(resp) {
-                expect(resp).toBe('fakeResp');
-                expect(search.findVideosWithGoogle).toHaveBeenCalledWith(req,
-                    {query: 'foo', limit: 10, start: 21, sites: ['screen.yahoo.com', 'on.aol.com'], hd: 'true'},
                     'fakeGoogleCfg', 'asdf1234');
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();

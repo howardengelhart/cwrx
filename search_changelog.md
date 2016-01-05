@@ -1,5 +1,6 @@
 # Search Service Changelog
 
+* [REMOVAL]: Remove support for yahoo, rumble, and aol vidoes: [#669](https://github.com/cinema6/cwrx/issues/669)
 * Upgrade mongo driver to 2.x, fixing reconnect issues: [#717](https://github.com/cinema6/cwrx/pull/717)
 
 ### 1.3.8: Tue Nov 10 11:25:27 EST 2015

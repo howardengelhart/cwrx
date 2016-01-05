@@ -61,14 +61,13 @@
     // Parse a duration string and return the total number of seconds
     search.parseDuration = function(dur, link) {
         var log = logger.getLog(),
-            isYahoo = false,
             timeParts = [ // for parsing duration strings in ISO 8601 format; years thru seconds
-                { rgx: /(\d+\.?\d*)Y/,        yrgx: /Y(\d+\.?\d*)/,        factor: 365*24*60*60 },
-                { rgx: /P[^T]*?(\d+\.?\d*)M/, yrgx: /P[^T]*?M(\d+\.?\d*)/, factor: 30*24*60*60 },
-                { rgx: /(\d+\.?\d*)D/,        yrgx: /D(\d+\.?\d*)/,        factor: 24*60*60 },
-                { rgx: /(\d+\.?\d*)H/,        yrgx: /H(\d+\.?\d*)/,        factor: 60*60 },
-                { rgx: /T.*?(\d+\.?\d*)M/,    yrgx: /T.*?M(\d+\.?\d*)/,    factor: 60 },
-                { rgx: /(\d+\.?\d*)S/,        yrgx: /S(\d+\.?\d*)/,        factor: 1 },
+                { rgx: /(\d+\.?\d*)Y/,        factor: 365*24*60*60 },
+                { rgx: /P[^T]*?(\d+\.?\d*)M/, factor: 30*24*60*60 },
+                { rgx: /(\d+\.?\d*)D/,        factor: 24*60*60 },
+                { rgx: /(\d+\.?\d*)H/,        factor: 60*60 },
+                { rgx: /T.*?(\d+\.?\d*)M/,    factor: 60 },
+                { rgx: /(\d+\.?\d*)S/,        factor: 1 },
             ];
 
         if (!dur) {
@@ -88,22 +87,18 @@
                    Number( ( dur.match(/(\d+) seconds?/) || [0, 0] )[1] );
         }
 
-        // Yahoo incorrectly implements ISO 8601 duration format, so need different regexes
-        if (dur.match(/^P([Y,M,D]\d+\.?\d*)*T?([H,M,S]\d+\.?\d*)*$/)) {
-            isYahoo = true;
-        } else if (!dur.match(/^P?(\d+\.?\d*[Y,M,D])*T?(\d+\.?\d*[H,M,S])*$/)) {
+        if (!dur.match(/^P?(\d+\.?\d*[Y,M,D])*T?(\d+\.?\d*[H,M,S])*$/)) {
             log.warn('Video %1 has unknown duration format %2', link, dur);
             return undefined;
         }
 
-        // Ensure the duration format starts with P (rumble doesn't always do this)
+        // Ensure the duration format starts with P
         if(dur[0] !== 'P') {
             dur = 'P' + dur;
         }
 
         return timeParts.reduce(function(total, part) {
-            var regex = isYahoo ? part.yrgx : part.rgx;
-            return total += part.factor * Number( ( dur.match(regex) || [0, 0] )[1] );
+            return total += part.factor * Number( ( dur.match(part.rgx) || [0, 0] )[1] );
         }, 0);
     };
 
@@ -140,12 +135,6 @@
             };
             /*jshint camelcase: true */
 
-            if (formatted.site.match('aol')) { // Transform 'on.aol' to just 'aol'
-                formatted.site = 'aol';
-            } else if (formatted.site.match('yahoo')) { // Transform 'screen.yahoo' to just 'yahoo'
-                formatted.site = 'yahoo';
-            }
-
             switch (formatted.site) {
                 case 'youtube':
                     formatted.videoid = (item.link.match(/[^\=]+$/) || [])[0];
@@ -155,15 +144,6 @@
                     break;
                 case 'dailymotion':
                     formatted.videoid = (item.link.match(/[^\/_]+(?=_)/) || [])[0];
-                    break;
-                case 'aol':
-                    formatted.videoid = (item.link.match(/[^\/]+$/) || [])[0];
-                    break;
-                case 'yahoo':
-                    formatted.videoid = (item.link.match(/[^\/]+(?=(\.html))/) || [])[0];
-                    break;
-                case 'rumble':
-                    formatted.videoid = (item.link.match(/[^\/]+(?=(\.html))/) || [])[0];
                     break;
                 default:
                     log.warn('Unexpected site %1, cannot set videoid', formatted.site);
@@ -256,11 +236,6 @@
             start = Math.max(parseInt(req.query && req.query.skip) || 0, 0) + 1,
             sites = req.query && req.query.sites && req.query.sites.split(',').map(
                 function(site) {
-                    if (site === 'yahoo') {
-                        site = 'screen.' + site;
-                    } else if (site === 'aol') {
-                        site = 'on.' + site;
-                    }
                     return site + '.com';
                 }) || null,
             hd = req.query && req.query.hd || undefined,
