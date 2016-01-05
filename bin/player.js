@@ -88,7 +88,11 @@ function Player(config) {
         gcInterval: Infinity
     });
 
-    this.config = config;
+    this.config = extend({
+        app: {
+            builder: (config.app.config || null) && require(config.app.config)
+        }
+    }, config);
     this.adLoader = new AdLoader({
         envRoot: config.api.root,
         cardEndpoint: config.api.card.endpoint,
@@ -465,6 +469,9 @@ Player.startService = function startService() {
                         max: 5
                     }
                 }
+            },
+            app: {
+                version: 'master'
             },
             cloudwatch: {
                 namespace: 'C6/Player',

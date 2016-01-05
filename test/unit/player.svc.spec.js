@@ -258,6 +258,9 @@ describe('player service', function() {
                                         }
                                     }
                                 },
+                                app: {
+                                    version: 'master'
+                                },
                                 cloudwatch: {
                                     namespace: 'C6/Player',
                                     region: 'us-east-1',
@@ -839,6 +842,12 @@ describe('player service', function() {
                         }
                     }
                 },
+                app: {
+                    version: 'v2.4.1',
+                    staticURL: 'static/player/',
+                    entry: '/opt/sixxy/install/mini-reel-player/current/public/main.html',
+                    config: require.resolve('./helpers/build.json')
+                },
                 cloudwatch: {
                     namespace: 'C6/Player',
                     region: 'us-east-1',
@@ -930,8 +939,24 @@ describe('player service', function() {
         describe('@public', function() {
             describe('properties:', function() {
                 describe('config', function() {
-                    it('should be the provided config object', function() {
-                        expect(player.config).toBe(config);
+                    it('should equal the provided config object plus the builder config', function() {
+                        expect(player.config).toEqual(extend({
+                            app: {
+                                builder: require(config.app.config)
+                            }
+                        }, config));
+                    });
+
+                    describe('if there is no "config" path', function() {
+                        beforeEach(function() {
+                            delete config.app.config;
+
+                            player = new Player(config);
+                        });
+
+                        it('should make the builder null', function() {
+                            expect(player.config.app.builder).toBeNull();
+                        });
                     });
                 });
 
