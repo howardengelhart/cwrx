@@ -154,69 +154,6 @@ describe('search (E2E):', function() {
             }).done(done);
         });
 
-        it('should handle yahoo videos', function(done) {
-            options.qs.sites = 'yahoo';
-            requestUtils.qRequest('get', options).then(function(resp) {
-                expect(resp.response.statusCode).toBe(200);
-                expect(resp.body.meta).toBeDefined();
-                expect(resp.body.meta.skipped).toBe(0);
-                expect(resp.body.meta.numResults).toBe(10);
-                expect(resp.body.meta.totalResults >= 10).toBeTruthy();
-                expect(resp.body.items.length).toBe(10);
-                resp.body.items.forEach(function(item) {
-                    expect(item.site).toBe('yahoo');
-                    expect(item.siteLink).toBe('screen.yahoo.com');
-                    expect(item.link).toMatch('screen.yahoo.com');
-                    expect(item.description).toBeDefined();
-                    expect(item.duration).toBeDefined();
-                });
-            }).catch(function(error) {
-                expect(error).not.toBeDefined();
-            }).done(done);
-        });
-
-        it('should handle aol videos', function(done) {
-            options.qs.sites = 'aol';
-            requestUtils.qRequest('get', options).then(function(resp) {
-                expect(resp.response.statusCode).toBe(200);
-                expect(resp.body.meta).toBeDefined();
-                expect(resp.body.meta.skipped).toBe(0);
-                expect(resp.body.meta.numResults).toBe(10);
-                expect(resp.body.meta.totalResults >= 10).toBeTruthy();
-                expect(resp.body.items.length).toBe(10);
-                resp.body.items.forEach(function(item) {
-                    expect(item.site).toBe('aol');
-                    expect(item.siteLink).toMatch('on.aol.com');
-                    expect(item.link).toMatch('on.aol.com');
-                    expect(item.description).toBeDefined();
-                });
-            }).catch(function(error) {
-                expect(error).not.toBeDefined();
-            }).done(done);
-        });
-
-        it('should handle rumble videos', function(done) {
-          options.qs.sites = 'rumble';
-          requestUtils.qRequest('get', options).then(function(resp) {
-            expect(resp.response.statusCode).toBe(200);
-            expect(resp.body.meta).toBeDefined();
-            expect(resp.body.meta.skipped).toBe(0);
-            expect(resp.body.meta.numResults).toBe(10);
-            expect(resp.body.meta.totalResults >= 10).toBeTruthy();
-            expect(resp.body.items.length).toBe(10);
-            resp.body.items.forEach(function(item) {
-               expect(item.site).toBe('rumble');
-               expect(item.siteLink).toBe('rumble.com');
-               expect(item.link).toMatch('rumble.com');
-               expect(item.duration).toBeDefined();
-               expect(item.description).toBeDefined();
-               expect(item.videoid).toBeDefined();
-            });
-          }).catch(function(error) {
-            expect(error).not.toBeDefined();
-          }).done(done);
-        });
-
         it('should be able to paginate through results', function(done) {
             requestUtils.qRequest('get', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
