@@ -4,8 +4,6 @@ var q = require('q');
 var request = require('request-promise');
 var cheerio = require('cheerio');
 var HTMLDocument = require('../lib/htmlDocument');
-var rebaseCSS = HTMLDocument.rebaseCSS;
-var rebaseJS = HTMLDocument.rebaseJS;
 var resolveURL = require('url').resolve;
 var parseURL = require('url').parse;
 var formatURL = require('url').format;
@@ -30,6 +28,11 @@ var setUuid = require('../lib/expressUtils').setUuid;
 var setBasicHeaders = require('../lib/expressUtils').setBasicHeaders;
 var handleOptions = require('../lib/expressUtils').handleOptions;
 var logRequest = require('../lib/expressUtils').logRequest;
+var AppBuilder = require('rc-app-builder');
+var fs = require('fs-extra');
+var replaceStream = require('replacestream');
+var concatStream = require('concat-stream');
+var dirname = require('path').dirname;
 
 var push = Array.prototype.push;
 
@@ -315,105 +318,46 @@ Player.prototype.__getBranding__ = function __getBranding__(branding, type, hove
 
 /**
  * Given a player "mode," this method will fetch the player's HTML file, replace any ${mode} macros
- * with the give mode and fetch an inline any HTML or CSS resources referenced in the file, and
- * return a cheerio document.
+ * with the give mode and build the player using rc-app-builder.
  */
 Player.prototype.__getPlayer__ = function __getPlayer__(mode, secure, uuid) {
     var log = logger.getLog();
     var config = this.config;
-    var playerLocation = resolveURL(config.api.root, config.api.player.endpoint);
+    var staticURL = resolveURL(config.api.root, config.app.staticURL + config.app.version + '/');
+    var builder = new AppBuilder(extend({
+        baseDir: dirname(config.app.entry),
+        baseURL: (function() {
+            var location = parseURL(staticURL);
 
-    function getBaseValue(original) {
-        var location = parseURL(playerLocation);
+            return formatURL({
+                protocol: secure ? 'https:' : 'http:',
+                host: location.host,
+                pathname: location.pathname
+            });
+        }())
+    }, config.app.builder));
+    var entry = fs.createReadStream(config.app.entry).pipe(replaceStream(/\${mode}/g, mode));
+    var start = Date.now();
 
-        return resolveURL(formatURL({
-            protocol: secure ? 'https:' : 'http:',
-            host: location.host,
-            pathname: location.pathname
-        }), original);
-    }
-
-    var sameHostAsPlayer = (function() {
-        var playerHost = parseURL(playerLocation).host;
-
-        return function sameHostAsPlayer(resource) {
-            return parseURL(resource.url).host === playerHost;
-        };
-    }());
-
-    function fetchResource(resource) {
-        log.trace('[%1] Fetching sub-resource from "%2."', uuid, resource.url);
-
-        return q(request.get(resource.url, { gzip: true })).then(function(response) {
-            log.trace('[%1] Fetched "%2."', uuid, resource.url);
-
-            return { $node: resource.$node, text: response, url: resource.url };
-        });
-    }
-
-    if (this.config.validTypes.indexOf(mode) < 0) {
+    if (config.validTypes.indexOf(mode) < 0) {
         return q.reject(new ServiceError('Unknown player type: ' + mode, 404, 'info'));
     }
 
-    log.trace('[%1] Fetching player template from "%2."', uuid, playerLocation);
+    log.info('[%1] Building the %2 player.', uuid, mode);
 
-    return q(request.get(playerLocation, { gzip: true })).then(function parseHTML(response) {
-        log.trace('[%1] Fetched player template.', uuid);
-        return cheerio.load(response.replace(/\${mode}/g, mode));
-    }).then(function fetchSubResources($) {
-        var $base = $('base');
-        var baseURL = getBaseValue($base.attr('href'));
-        var jsResources = $('script[src]').get().map(function(script) {
-            var $script = $(script);
+    return new q.Promise(function(resolve, reject) {
+        builder.on('error', reject);
 
-            return { $node: $script, url: resolveURL(baseURL, $script.attr('src')) };
-        }).filter(sameHostAsPlayer);
-        var cssResources = $('link[rel=stylesheet]').get().map(function(link) {
-            var $link = $(link);
+        builder.build(entry).pipe(concatStream(function createHTMLDocument(data) {
+            log.info(
+                '[%1] Finished building the %2 player after %3ms.',
+                uuid, mode, Date.now() - start
+            );
 
-            return { $node: $link, url: resolveURL(baseURL, $link.attr('href')) };
-        }).filter(sameHostAsPlayer);
-        var baseConfig = { $node: $base, url: baseURL };
-
-        log.trace(
-            '[%1] Player has %2 CSS file(s) and %3 JS file(s) that can be inlined.',
-            uuid, cssResources.length, jsResources.length
-        );
-
-        return q.all([
-            q.all(jsResources.map(fetchResource)),
-            q.all(cssResources.map(fetchResource))
-        ]).spread(function(js, css) {
-            return [$, baseConfig, js, css];
-        });
-    }).spread(function createDocument($, base, scripts, stylesheets) {
-        scripts.forEach(function(script) {
-            var $inlineScript = $('<script></script>');
-            var url = script.url;
-            var text = script.text;
-
-            $inlineScript.attr('data-src', url);
-            $inlineScript.text(rebaseJS(text, url).replace(/<\/script>/g, '<\\/script>'));
-
-            script.$node.replaceWith($inlineScript);
-        });
-        stylesheets.forEach(function(stylesheet) {
-            var $inlineStyles = $('<style></style>');
-            var url = stylesheet.url;
-            var text = stylesheet.text;
-
-            $inlineStyles.attr('data-href', url);
-            $inlineStyles.text(rebaseCSS(text, url));
-
-            stylesheet.$node.replaceWith($inlineStyles);
-        });
-        base.$node.attr('href', base.url);
-
-        log.trace('[%1] Successfully inlined JS and CSS.', uuid);
-
-        return new HTMLDocument($.html());
+            resolve(new HTMLDocument(data.toString()));
+        }));
     }).catch(function logRejection(reason) {
-        log.error('[%1] Error getting %2 player template: %3.', uuid, mode, inspect(reason));
+        log.error('[%1] Error building the %2 player: %3.', uuid, mode, inspect(reason));
         throw reason;
     });
 };

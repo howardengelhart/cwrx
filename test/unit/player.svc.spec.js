@@ -18,17 +18,24 @@ describe('player service', function() {
     var AWS;
     var CloudWatchReporter;
     var HTMLDocument;
+    var fs;
+    var MockReadable;
+    var AppBuilder;
+    var streamToPromise;
 
     var requestDeferreds;
     var fnCaches;
     var MockFunctionCache;
     var MockAdLoader;
+    var MockAppBuilder;
     var playerHTML;
+    var builtPlayerHTML;
     var playerCSS;
     var playerJS;
     var log;
     var adLoader;
     var reporter;
+    var built;
 
     var setTimeout;
 
@@ -50,8 +57,12 @@ describe('player service', function() {
         clonePromise = require('../../lib/promise').clone;
         AWS = require('aws-sdk');
         HTMLDocument = require('../../lib/htmlDocument');
+        fs = require('fs-extra');
+        MockReadable = require('./helpers/MockReadable');
+        streamToPromise = require('stream-to-promise');
 
         playerHTML = require('fs').readFileSync(require.resolve('./helpers/player.html')).toString();
+        builtPlayerHTML = require('fs').readFileSync(require.resolve('./helpers/player--built.html')).toString();
         playerCSS = require('fs').readFileSync(require.resolve('./helpers/lightbox.css')).toString();
         playerJS = require('fs').readFileSync(require.resolve('./helpers/lightbox.js')).toString();
 
@@ -116,6 +127,20 @@ describe('player service', function() {
         });
 
         MockFunctionCache = require('../../lib/functionCache');
+
+        delete require.cache[require.resolve('rc-app-builder')];
+        AppBuilder = require('rc-app-builder');
+        require.cache[require.resolve('rc-app-builder')].exports = jasmine.createSpy('AppBuilder()').and.callFake(function(config) {
+            var builder = new AppBuilder(config);
+
+            spyOn(builder, 'build').and.callFake(function() {
+                return (built = new MockReadable(builtPlayerHTML));
+            });
+
+            return builder;
+        });
+
+        MockAppBuilder = require('rc-app-builder');
 
         log = {
             info: jasmine.createSpy('log.info()'),
@@ -2552,6 +2577,8 @@ describe('player service', function() {
                     var mode, secure, uuid;
                     var result;
 
+                    var entry, builder;
+
                     beforeEach(function() {
                         success = jasmine.createSpy('success()');
                         failure = jasmine.createSpy('failure()');
@@ -2559,8 +2586,13 @@ describe('player service', function() {
                         secure = false;
                         uuid = 'ehfurihf43iu';
 
+                        entry = new MockReadable(playerHTML);
+                        spyOn(fs, 'createReadStream').and.returnValue(entry);
+
                         result = player.__getPlayer__(mode, secure, uuid);
                         result.then(success, failure);
+
+                        builder = MockAppBuilder.calls.mostRecent().returnValue;
                     });
 
                     it('should be cached', function() {
@@ -2576,22 +2608,46 @@ describe('player service', function() {
                         expect(result).toEqual(jasmine.any(Promise));
                     });
 
-                    it('should make a request for the player', function() {
-                        expect(request.get).toHaveBeenCalledWith(resolveURL(config.api.root, config.api.player.endpoint), { gzip: true });
+                    it('should create a read stream for the entry', function() {
+                        expect(fs.createReadStream).toHaveBeenCalledWith(config.app.entry);
                     });
 
-                    describe('when the player fails to be fetched', function() {
-                        var reason;
+                    it('should create an AppBuilder', function() {
+                        expect(MockAppBuilder).toHaveBeenCalledWith(extend({
+                            baseDir: require('path').dirname(config.app.entry),
+                            baseURL: require('url').resolve(config.api.root, config.app.staticURL + config.app.version + '/')
+                        }, player.config.app.builder));
+                    });
 
+                    it('should pass a stream to AppBuilder.prototype.build() that has the ${mode} macro replaced', function(done) {
+                        expect(builder.build).toHaveBeenCalledWith(jasmine.any(Object));
+                        streamToPromise(builder.build.calls.mostRecent().args[0]).then(function(data) {
+                            expect(data.toString()).toBe(playerHTML.replace(/\${mode}/g, mode));
+                        }).then(done, done.fail);
+                    });
+
+                    describe('if there is no error', function() {
                         beforeEach(function(done) {
-                            reason = new Error('Could not download stuff.');
-                            requestDeferreds[resolveURL(config.api.root, config.api.player.endpoint)].reject(reason);
-
                             result.finally(done);
                         });
 
-                        it('should reject the promsise', function() {
-                            expect(failure).toHaveBeenCalledWith(reason);
+                        it('should fulfill with an HTML document representing the built player', function() {
+                            expect(success).toHaveBeenCalledWith(new HTMLDocument(builtPlayerHTML));
+                        });
+                    });
+
+                    describe('if there is an error', function() {
+                        var error;
+
+                        beforeEach(function(done) {
+                            error = new Error('I HAD A PROBLEM!');
+
+                            builder.emit('error', error);
+                            result.finally(done);
+                        });
+
+                        it('should reject with the error', function() {
+                            expect(failure).toHaveBeenCalledWith(error);
                         });
 
                         it('should log an error', function() {
@@ -2599,122 +2655,53 @@ describe('player service', function() {
                         });
                     });
 
-                    describe('when the player is fetched', function() {
-                        beforeEach(function(done) {
-                            q().then(function() {
-                                request.get.calls.reset();
-                                requestDeferreds[resolveURL(config.api.root, config.api.player.endpoint)].resolve(playerHTML);
-                            }).then(function() {
-                                return requestDeferreds[resolveURL(config.api.root, config.api.player.endpoint)].promise;
-                            }).then(function() {
-                                return new q.Promise(function(resolve) {
-                                    setTimeout(resolve, 0);
-                                });
-                            }).done(done);
-                        });
-
-                        it('should make requests for the local CSS/JS files', function() {
-                            expect(request.get).toHaveBeenCalledWith('http://localhost/apps/mini-reel-player/v0.25.0-0-g8b946d4/css/lightbox.css', { gzip: true });
-                            expect(request.get).toHaveBeenCalledWith('http://localhost/apps/mini-reel-player/v0.25.0-0-g8b946d4/lightbox.js', { gzip: true });
-                            expect(request.get.calls.count()).toBe(2);
-                        });
-
-                        describe('if a sub-resource fails to be fetched', function() {
-                            var reason;
-
-                            beforeEach(function(done) {
-                                reason = new Error('Could not download stuff.');
-                                requestDeferreds['http://localhost/apps/mini-reel-player/v0.25.0-0-g8b946d4/lightbox.js'].reject(reason);
-
-                                result.finally(done);
-                            });
-
-                            it('should reject the promsise', function() {
-                                expect(failure).toHaveBeenCalledWith(reason);
-                            });
-
-                            it('should log an error', function() {
-                                expect(log.error).toHaveBeenCalled();
-                            });
-                        });
-
-                        describe('and the sub-resources are fetched', function() {
-                            beforeEach(function(done) {
-                                requestDeferreds['http://localhost/apps/mini-reel-player/v0.25.0-0-g8b946d4/css/lightbox.css'].resolve(playerCSS);
-                                requestDeferreds['http://localhost/apps/mini-reel-player/v0.25.0-0-g8b946d4/lightbox.js'].resolve(playerJS);
-
-                                result.then(function() {}).then(done, done);
-                            });
-
-                            it('should fulfill with an HTMLDocument where the external resources are replaced with inline ones', function() {
-                                var $orig = cheerio.load(playerHTML);
-                                var $result = cheerio.load(success.calls.mostRecent().args[0].toString());
-
-                                expect(success).toHaveBeenCalledWith(jasmine.any(HTMLDocument));
-
-                                expect($result('*').length).toBe($orig('*').length);
-                                expect($result('script[src="${mode}.js"]').length).toBe(0);
-                                expect($result('script[src="lightbox.js"]').length).toBe(0);
-                                expect($result('link[href="css/${mode}.css"]').length).toBe(0);
-                                expect($result('link[href="css/lightbox.css"]').length).toBe(0);
-
-                                expect($result('script[data-src="http://localhost/apps/mini-reel-player/v0.25.0-0-g8b946d4/lightbox.js"]').text()).toBe(HTMLDocument.rebaseJS(playerJS, 'http://localhost/apps/mini-reel-player/v0.25.0-0-g8b946d4/lightbox.js').replace(/<\/script>/g, '<\\/script>'));
-                                expect($result('style[data-href="http://localhost/apps/mini-reel-player/v0.25.0-0-g8b946d4/css/lightbox.css"]').text()).toBe(HTMLDocument.rebaseCSS(playerCSS, 'http://localhost/apps/mini-reel-player/v0.25.0-0-g8b946d4/css/lightbox.css'));
-                                expect($result('base').attr('href')).toBe('http://localhost/apps/mini-reel-player/v0.25.0-0-g8b946d4/');
-                            });
-                        });
-                    });
-
                     describe('if secure is true', function() {
                         beforeEach(function(done) {
-                            request.get.calls.reset();
+                            MockAppBuilder.calls.reset();
                             player.__getPlayer__.clear();
                             success.calls.reset();
                             failure.calls.reset();
                             secure = true;
 
-                            jasmine.clock().uninstall();
-
                             player.__getPlayer__(mode, secure, uuid).then(success, failure).finally(done);
-                            q.delay(1).then(function() {
-                                requestDeferreds[resolveURL(config.api.root, config.api.player.endpoint)].resolve(playerHTML);
-                            }).delay(1).then(function() {
-                                requestDeferreds['https://localhost/apps/mini-reel-player/v0.25.0-0-g8b946d4/css/lightbox.css'].resolve(playerCSS);
-                                requestDeferreds['https://localhost/apps/mini-reel-player/v0.25.0-0-g8b946d4/lightbox.js'].resolve(playerJS);
-                            }).delay(1).catch(function(error) { console.error(error); });
                         });
 
-                        afterEach(function() {
-                            jasmine.clock().install();
-                        });
-
-                        it('should make the base tag secure', function() {
-                            var $result = cheerio.load(success.calls.mostRecent().args[0].toString());
-
-                            expect($result('base').attr('href')).toBe('https://localhost/apps/mini-reel-player/v0.25.0-0-g8b946d4/');
+                        it('should make the baseURL secure', function() {
+                            expect(MockAppBuilder).toHaveBeenCalledWith(jasmine.objectContaining({
+                                baseURL: 'https://localhost/static/player/v2.4.1/'
+                            }));
                         });
                     });
 
                     describe('if called with a valid player type', function() {
+                        var builders;
+
                         beforeEach(function(done) {
-                            request.get.calls.reset();
+                            MockAppBuilder.calls.reset();
                             player.__getPlayer__.clear();
                             config.validTypes.forEach(function(type) {
                                 player.__getPlayer__(type, undefined);
                             });
+                            builders = MockAppBuilder.calls.all().map(function(call) {
+                                return call.returnValue;
+                            });
                             q().then(done);
                         });
 
-                        it('should allow the request to happen', function() {
-                            expect(request.get.calls.count()).toBe(config.validTypes.length);
+                        it('should allow the build to happen', function() {
+                            expect(builders.length).toBeGreaterThan(0);
+                            builders.forEach(function(builder) {
+                                expect(builder.build).toHaveBeenCalled();
+                            });
                         });
                     });
 
                     describe('if passed an invalid type', function() {
                         var types;
+                        var builders;
 
                         beforeEach(function(done) {
-                            request.get.calls.reset();
+                            MockAppBuilder.calls.reset();
                             success.calls.reset();
                             failure.calls.reset();
 
@@ -2723,11 +2710,17 @@ describe('player service', function() {
                             types.forEach(function(type) {
                                 player.__getPlayer__(type, undefined).then(success, failure);
                             });
+                            builders = MockAppBuilder.calls.all().map(function(call) {
+                                return call.returnValue;
+                            });
                             q().then(function() {}).then(done);
                         });
 
-                        it('should not make any requests', function() {
-                            expect(request.get).not.toHaveBeenCalled();
+                        it('should not perform any builds', function() {
+                            expect(builders.length).toBeGreaterThan(0);
+                            builders.forEach(function(builder) {
+                                expect(builder.build).not.toHaveBeenCalled();
+                            });
                         });
 
                         it('should reject the promise', function() {
