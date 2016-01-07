@@ -22,6 +22,8 @@ describe('player service', function() {
     var systemExperience;
 
     beforeEach(function(done) {
+        jasmine.DEFAULT_TIMEOUT_INTERVAL = 30000;
+
         request = require('request-promise').defaults({
             jar: require('request-promise').jar(),
             resolveWithFullResponse: true,
@@ -68,7 +70,7 @@ describe('player service', function() {
         it('should return some metadata', function() {
             expect(body).toEqual({
                 serviceVersion: jasmine.any(String),
-                playerVersion: 'v1.0.0-rc2',
+                playerVersion: 'master',
                 started: jasmine.any(String),
                 status: 'OK'
             });
@@ -125,23 +127,22 @@ describe('player service', function() {
             it('should change the <base>', function() {
                 var $base = $('base');
 
-                expect($base.attr('href')).toBe('http://localhost/apps/mini-reel-player/v1.0.0-rc2-0-ga4912c3/');
+                expect($base.attr('href')).toBe('http://localhost/static/player/master/');
             });
 
             it('should inline the css', function() {
-                var $css = $('style[data-href="http://localhost/apps/mini-reel-player/v1.0.0-rc2-0-ga4912c3/css/lightbox.css"]');
+                var $css = $('style[data-href="./css/lightbox.css"]');
 
                 expect($css.length).toBe(1);
                 expect($css.text().length).toBeGreaterThan(1000);
-                expect($css.text()).toContain('url(http://localhost/apps/mini-reel-player/v1.0.0-rc2-0-ga4912c3/img/social-card-sprites.png)'); // Test CSS rebasing
+                expect($css.text()).toContain('url(./img/social-card-sprites.png)'); // Test CSS rebasing
             });
 
             it('should inline the JS', function() {
-                var $js = $('script[data-src="http://localhost/apps/mini-reel-player/v1.0.0-rc2-0-ga4912c3/lightbox.js"]');
+                var $js = $('script[data-src="../src/lightbox.js"]');
 
                 expect($js.length).toBe(1);
                 expect($js.text().length).toBeGreaterThan(5000);
-                expect($js.text()).toContain('//# sourceMappingURL=http://localhost/apps/mini-reel-player/v1.0.0-rc2-0-ga4912c3/lightbox.js.map'); // Test JS source map rebasing
             });
 
             it('should inline the experience', function() {
@@ -626,7 +627,7 @@ describe('player service', function() {
                         type: 'lightbox',
                         uuid: jasmine.any(String)
                     }));
-                    expect($('base').attr('href')).toBe('http://localhost/apps/mini-reel-player/v1.0.0-rc2-0-ga4912c3/');
+                    expect($('base').attr('href')).toBe('http://localhost/static/player/master/');
                 });
 
                 describe('and a branding', function() {
