@@ -2,7 +2,6 @@
 
 var q = require('q');
 var request = require('request-promise');
-var cheerio = require('cheerio');
 var HTMLDocument = require('../lib/htmlDocument');
 var resolveURL = require('url').resolve;
 var parseURL = require('url').parse;
@@ -596,14 +595,7 @@ Player.startService = function startService() {
 };
 
 Player.prototype.getVersion = function getVersion() {
-    var url = resolveURL(this.config.api.root, this.config.api.player.endpoint);
-
-    return q(request.get(url, { gzip: true })).then(function getVersion(html) {
-        var $ = cheerio.load(html);
-        var value = $('head base').attr('href');
-
-        return (value.match(/v[\d.]+(-rc\d+)?/) || [null])[0];
-    });
+    return q(this.config.app.version);
 };
 
 Player.prototype.get = function get(/*options*/) {

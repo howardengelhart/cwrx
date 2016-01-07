@@ -1045,49 +1045,8 @@ describe('player service', function() {
                         expect(result).toEqual(jasmine.any(Promise));
                     });
 
-                    it('should make a request for the player', function() {
-                        expect(request.get).toHaveBeenCalledWith('http://localhost/apps/mini-reel-player/index.html', { gzip: true });
-                    });
-
-                    describe('when the HTML is fetched', function() {
-                        describe('with an RC', function() {
-                            beforeEach(function(done) {
-                                $('base').attr('href', 'v2.3.3-rc2-0-ge17e655/');
-
-                                requestDeferreds[request.get.calls.mostRecent().args[0]].resolve($.html());
-                                result.then(done, done.fail);
-                            });
-
-                            it('should fulfill with the version (parsed from the <base> tag', function() {
-                                expect(success).toHaveBeenCalledWith('v2.3.3-rc2');
-                            });
-                        });
-
-                        describe('without an RC', function() {
-                            beforeEach(function(done) {
-                                $('base').attr('href', 'v2.3.4-0-gb84bd38/');
-
-                                requestDeferreds[request.get.calls.mostRecent().args[0]].resolve($.html());
-                                result.then(done, done.fail);
-                            });
-
-                            it('should fulfill with the version (parsed from the <base> tag', function() {
-                                expect(success).toHaveBeenCalledWith('v2.3.4');
-                            });
-                        });
-
-                        describe('without a version', function() {
-                            beforeEach(function(done) {
-                                $('base').attr('href', '');
-
-                                requestDeferreds[request.get.calls.mostRecent().args[0]].resolve($.html());
-                                result.then(done, done.fail);
-                            });
-
-                            it('should fulfill with null', function() {
-                                expect(success).toHaveBeenCalledWith(null);
-                            });
-                        });
+                    it('should fulfill with config.app.version', function() {
+                        expect(success).toHaveBeenCalledWith(player.config.app.version);
                     });
                 });
 
