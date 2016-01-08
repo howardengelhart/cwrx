@@ -1101,7 +1101,8 @@ describe('player service', function() {
                             standalone: true,
                             embed: false,
                             countdown: false,
-                            prebuffer: true
+                            prebuffer: true,
+                            debug: false
                         };
 
                         document = new HTMLDocument(playerHTML);
@@ -1133,7 +1134,7 @@ describe('player service', function() {
                     });
 
                     it('should get the player', function() {
-                        expect(player.__getPlayer__).toHaveBeenCalledWith(options.type, options.secure, options.uuid);
+                        expect(player.__getPlayer__).toHaveBeenCalledWith(options.type, options.secure, false, options.uuid);
                     });
 
                     it('should load the experience', function() {
@@ -1260,6 +1261,48 @@ describe('player service', function() {
                         });
                     });
 
+                    [undefined, false, 0, true, 1, 2].forEach(function(debug) {
+                        describe('if debug is ' + debug, function() {
+                            beforeEach(function(done) {
+                                success.calls.reset();
+                                failure.calls.reset();
+                                player.__getPlayer__.calls.reset();
+
+                                player.__getBranding__.and.returnValue(q([]));
+                                player.__loadExperience__.and.returnValue(q(experience));
+
+                                options.debug = debug;
+
+                                player.get(options).then(success, failure).finally(done);
+                            });
+
+                            it('should call Player.prototype.__getPlayer__() with debug set to false', function() {
+                                expect(player.__getPlayer__).toHaveBeenCalledWith(options.type, options.secure, false, options.uuid);
+                            });
+                        });
+                    });
+
+                    [3, 4, 5, 6].forEach(function(debug) {
+                        describe('if debug is ' + debug, function() {
+                            beforeEach(function(done) {
+                                success.calls.reset();
+                                failure.calls.reset();
+                                player.__getPlayer__.calls.reset();
+
+                                player.__getBranding__.and.returnValue(q([]));
+                                player.__loadExperience__.and.returnValue(q(experience));
+
+                                options.debug = debug;
+
+                                player.get(options).then(success, failure).finally(done);
+                            });
+
+                            it('should call Player.prototype.__getPlayer__() with debug set to true', function() {
+                                expect(player.__getPlayer__).toHaveBeenCalledWith(options.type, options.secure, true, options.uuid);
+                            });
+                        });
+                    });
+
                     describe('if called with a card', function() {
                         beforeEach(function(done) {
                             success.calls.reset();
@@ -1341,7 +1384,7 @@ describe('player service', function() {
                                 });
 
                                 it('should call __getPlayer__()', function() {
-                                    expect(player.__getPlayer__).toHaveBeenCalledWith(options.type, options.secure, options.uuid);
+                                    expect(player.__getPlayer__).toHaveBeenCalledWith(options.type, options.secure, false, options.uuid);
                                 });
 
                                 it('should add the options as a resource', function() {
@@ -1381,7 +1424,7 @@ describe('player service', function() {
                                     });
 
                                     it('should call __getPlayer__()', function() {
-                                        expect(player.__getPlayer__).toHaveBeenCalledWith(options.type, options.secure, options.uuid);
+                                        expect(player.__getPlayer__).toHaveBeenCalledWith(options.type, options.secure, false, options.uuid);
                                     });
 
                                     it('should loading brandings for the player', function() {
@@ -1412,7 +1455,7 @@ describe('player service', function() {
                             });
 
                             it('should get the player', function() {
-                                expect(player.__getPlayer__).toHaveBeenCalledWith(options.type, options.secure, options.uuid);
+                                expect(player.__getPlayer__).toHaveBeenCalledWith(options.type, options.secure, false, options.uuid);
                             });
 
                             it('should not load the experience', function() {
@@ -2531,9 +2574,9 @@ describe('player service', function() {
                     });
                 });
 
-                describe('__getPlayer__(mode, secure, uuid)', function() {
+                describe('__getPlayer__(mode, secure, debug, uuid)', function() {
                     var success, failure;
-                    var mode, secure, uuid;
+                    var mode, secure, debug, uuid;
                     var result;
 
                     var entry, builder;
@@ -2543,12 +2586,13 @@ describe('player service', function() {
                         failure = jasmine.createSpy('failure()');
                         mode = 'lightbox';
                         secure = false;
+                        debug = false;
                         uuid = 'ehfurihf43iu';
 
                         entry = new MockReadable(playerHTML);
                         spyOn(fs, 'createReadStream').and.returnValue(entry);
 
-                        result = player.__getPlayer__(mode, secure, uuid);
+                        result = player.__getPlayer__(mode, secure, debug, uuid);
                         result.then(success, failure);
 
                         builder = MockAppBuilder.calls.mostRecent().returnValue;
@@ -2573,6 +2617,7 @@ describe('player service', function() {
 
                     it('should create an AppBuilder', function() {
                         expect(MockAppBuilder).toHaveBeenCalledWith(extend({
+                            debug: debug,
                             baseDir: require('path').dirname(config.app.entry),
                             baseURL: require('url').resolve(config.api.root, config.app.staticURL + config.app.version + '/')
                         }, player.config.app.builder));
@@ -2622,12 +2667,30 @@ describe('player service', function() {
                             failure.calls.reset();
                             secure = true;
 
-                            player.__getPlayer__(mode, secure, uuid).then(success, failure).finally(done);
+                            player.__getPlayer__(mode, secure, debug, uuid).then(success, failure).finally(done);
                         });
 
                         it('should make the baseURL secure', function() {
                             expect(MockAppBuilder).toHaveBeenCalledWith(jasmine.objectContaining({
                                 baseURL: 'https://localhost/static/player/v2.4.1/'
+                            }));
+                        });
+                    });
+
+                    describe('if debug is true', function() {
+                        beforeEach(function(done) {
+                            MockAppBuilder.calls.reset();
+                            player.__getPlayer__.clear();
+                            success.calls.reset();
+                            failure.calls.reset();
+                            debug = true;
+
+                            player.__getPlayer__(mode, secure, debug, uuid).then(success, failure).finally(done);
+                        });
+
+                        it('should make debug true', function() {
+                            expect(MockAppBuilder).toHaveBeenCalledWith(jasmine.objectContaining({
+                                debug: true
                             }));
                         });
                     });
@@ -2639,7 +2702,7 @@ describe('player service', function() {
                             MockAppBuilder.calls.reset();
                             player.__getPlayer__.clear();
                             config.validTypes.forEach(function(type) {
-                                player.__getPlayer__(type, undefined);
+                                player.__getPlayer__(type, secure, debug, uuid);
                             });
                             builders = MockAppBuilder.calls.all().map(function(call) {
                                 return call.returnValue;
@@ -2667,7 +2730,7 @@ describe('player service', function() {
                             types = ['foo', 'bar', 'fulls', 'lightboxy'];
 
                             types.forEach(function(type) {
-                                player.__getPlayer__(type, undefined).then(success, failure);
+                                player.__getPlayer__(type, secure, debug, uuid).then(success, failure);
                             });
                             builders = MockAppBuilder.calls.all().map(function(call) {
                                 return call.returnValue;
