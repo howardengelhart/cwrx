@@ -1868,7 +1868,7 @@ describe('player service', function() {
                                 expect(player.adLoader.findCard).toHaveBeenCalledWith({
                                     campaign: params.campaign,
                                     categories: params.categories
-                                }, extend({ experience: experience.id }, player.__apiParams__('card', params)), uuid);
+                                }, extend({ experience: experience.id }, player.__apiParams__('card', params)), origin, uuid);
                             });
 
                             describe('and the card is fetched', function() {
@@ -2005,7 +2005,7 @@ describe('player service', function() {
                             it('should find the card', function() {
                                 expect(player.adLoader.getCard).toHaveBeenCalledWith(params.card, extend({
                                     experience: experience.id
-                                }, player.__apiParams__('card', params)), uuid);
+                                }, player.__apiParams__('card', params)), origin, uuid);
                             });
 
                             describe('and the card is fetched', function() {
@@ -2153,7 +2153,7 @@ describe('player service', function() {
                         });
 
                         it('should load ads for the experience', function() {
-                            expect(player.adLoader.loadAds).toHaveBeenCalledWith(experience, params.categories, params.campaign, uuid);
+                            expect(player.adLoader.loadAds).toHaveBeenCalledWith(experience, params.categories, params.campaign, origin, uuid);
                         });
 
                         describe('if loading the ads', function() {
@@ -2227,7 +2227,7 @@ describe('player service', function() {
                         });
 
                         it('should load ads for the experience', function() {
-                            expect(player.adLoader.loadAds).toHaveBeenCalledWith(experience, params.categories, params.campaign, uuid);
+                            expect(player.adLoader.loadAds).toHaveBeenCalledWith(experience, params.categories, params.campaign, origin, uuid);
                         });
 
                         it('should not removePlaceholders() from the experience', function() {

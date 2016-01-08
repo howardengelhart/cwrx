@@ -482,8 +482,8 @@ describe('AdLoader()', function() {
 
         describe('@private', function() {
             describe('methods:', function() {
-                describe('__getCard__(id, params, uuid)', function() {
-                    var id, params, uuid;
+                describe('__getCard__(id, params, origin, uuid)', function() {
+                    var id, params, origin, uuid;
                     var success, failure;
                     var result;
 
@@ -496,12 +496,13 @@ describe('AdLoader()', function() {
                             experience: 'e-a29116c67021f9',
                             pageUrl: 'http://www.cinema6.com/'
                         };
+                        origin = 'https://my-site.com/';
                         uuid = 'ry398r4y9';
 
                         success = jasmine.createSpy('success()');
                         failure = jasmine.createSpy('failure()');
 
-                        result = loader.__getCard__(id, params, uuid);
+                        result = loader.__getCard__(id, params, origin, uuid);
                         result.then(success, failure);
                         q().then(function() {}).then(done);
                     });
@@ -522,13 +523,14 @@ describe('AdLoader()', function() {
                     it('should make a request to the content service', function() {
                         expect(request.get).toHaveBeenCalledWith(resolveURL(resolveURL(loader.envRoot, loader.cardEndpoint), id), {
                             qs: params,
-                            json: true
+                            json: true,
+                            headers: { origin: origin }
                         });
                     });
                 });
 
-                describe('__findCards__(campaign, params, amount, uuid)', function() {
-                    var campaign, params, amount, uuid;
+                describe('__findCards__(campaign, params, amount, origin, uuid)', function() {
+                    var campaign, params, amount, origin, uuid;
                     var success, failure;
                     var result;
 
@@ -542,12 +544,13 @@ describe('AdLoader()', function() {
                             pageUrl: 'http://www.cinema6.com/'
                         };
                         amount = 3;
+                        origin = 'https://awesome-pub.com/';
                         uuid = '3ryuf3987yr';
 
                         success = jasmine.createSpy('success()');
                         failure = jasmine.createSpy('failure()');
 
-                        result = loader.__findCards__(campaign, params, amount, uuid);
+                        result = loader.__findCards__(campaign, params, amount, origin, uuid);
                         result.then(success, failure);
 
                         process.nextTick(done);
@@ -569,6 +572,7 @@ describe('AdLoader()', function() {
                                 random: true,
                                 limit: amount
                             },
+                            headers: { origin: origin },
                             json: true
                         });
                     });
@@ -628,8 +632,8 @@ describe('AdLoader()', function() {
             });
 
             describe('methods:', function() {
-                describe('fillPlaceholders(experience, categories, campaign, uuid)', function() {
-                    var experience, categories, campaign, uuid;
+                describe('fillPlaceholders(experience, categories, campaign, origin, uuid)', function() {
+                    var experience, categories, campaign, origin, uuid;
                     var success, failure;
                     var findCardsDeferred;
 
@@ -833,6 +837,7 @@ describe('AdLoader()', function() {
                         };
                         categories = ['food', 'gaming', 'tech', 'lifestyle', 'humor'];
                         campaign = 'cam-74cfe164c53fc9';
+                        origin = 'https://reelcontent.com/';
                         uuid = 'fj829rhf849';
 
                         success = jasmine.createSpy('success()');
@@ -841,7 +846,7 @@ describe('AdLoader()', function() {
                         findCardsDeferred = q.defer();
                         spyOn(loader, '__findCards__').and.returnValue(findCardsDeferred.promise);
 
-                        loader.fillPlaceholders(experience, categories, campaign, uuid).then(success, failure);
+                        loader.fillPlaceholders(experience, categories, campaign, origin, uuid).then(success, failure);
                     });
 
                     it('should find cards for each placeholder', function() {
@@ -852,7 +857,7 @@ describe('AdLoader()', function() {
                             pageUrl: experience.$params.pageUrl,
                             experience: experience.id,
                             preview: experience.$params.preview
-                        }, 3, uuid);
+                        }, 3, origin, uuid);
                     });
 
                     describe('if getting cards succeeds', function() {
@@ -909,7 +914,7 @@ describe('AdLoader()', function() {
                     });
                 });
 
-                describe('loadAds(experience, categories, campaignId, uuid)', function() {
+                describe('loadAds(experience, categories, campaignId, origin, uuid)', function() {
                     var experience, categories, campaignId, uuid;
                     var result;
                     var success, failure;
@@ -1260,20 +1265,21 @@ describe('AdLoader()', function() {
                         };
                         categories = ['food', 'tech', 'gaming', 'music', 'auto'];
                         campaignId = 'cam-19849e91e5e46b';
+                        origin = 'https://facebook.com/';
                         uuid = 'ufr8934yr849';
 
                         spyOn(loader, 'fillPlaceholders').and.callFake(function(experience) {
                             return q(experience);
                         });
 
-                        result = loader.loadAds(experience, categories, campaignId, uuid);
+                        result = loader.loadAds(experience, categories, campaignId, origin, uuid);
                         result.then(success, failure);
 
                         result.finally(done);
                     });
 
                     it('should fill the experience\'s placeholders', function() {
-                        expect(loader.fillPlaceholders).toHaveBeenCalledWith(experience, categories, campaignId, uuid);
+                        expect(loader.fillPlaceholders).toHaveBeenCalledWith(experience, categories, campaignId, origin, uuid);
                     });
 
                     it('should fulfill with the experience', function() {
@@ -1290,7 +1296,7 @@ describe('AdLoader()', function() {
                             success.calls.reset();
                             failure.calls.reset();
 
-                            loader.loadAds(experience, categories, campaignId, uuid).then(success, failure).finally(done);
+                            loader.loadAds(experience, categories, campaignId, origin, uuid).then(success, failure).finally(done);
                         });
 
                         it('should not fill the placeholders', function() {
@@ -1308,11 +1314,11 @@ describe('AdLoader()', function() {
                             success.calls.reset();
                             failure.calls.reset();
 
-                            loader.loadAds(experience, null, campaignId, uuid).then(success, failure).finally(done);
+                            loader.loadAds(experience, null, campaignId, origin, uuid).then(success, failure).finally(done);
                         });
 
                         it('should call fillPlaceholders() with the experience\'s categories', function() {
-                            expect(loader.fillPlaceholders).toHaveBeenCalledWith(experience, experience.categories, campaignId, uuid);
+                            expect(loader.fillPlaceholders).toHaveBeenCalledWith(experience, experience.categories, campaignId, origin, uuid);
                         });
 
                         describe('and the experience has no categories', function() {
@@ -1322,17 +1328,17 @@ describe('AdLoader()', function() {
                                 success.calls.reset();
                                 failure.calls.reset();
 
-                                loader.loadAds(experience, null, campaignId, uuid).then(success, failure).finally(done);
+                                loader.loadAds(experience, null, campaignId, origin, uuid).then(success, failure).finally(done);
                             });
 
                             it('should call fillPlaceholders() with an empty array', function() {
-                                expect(loader.fillPlaceholders).toHaveBeenCalledWith(experience, [], campaignId, uuid);
+                                expect(loader.fillPlaceholders).toHaveBeenCalledWith(experience, [], campaignId, origin, uuid);
                             });
                         });
                     });
                 });
 
-                describe('findCard(params, context, uuid)', function() {
+                describe('findCard(params, context, origin, uuid)', function() {
                     var params, context, uuid;
                     var findCardsDeferred;
                     var success, failure;
@@ -1350,6 +1356,7 @@ describe('AdLoader()', function() {
                             experience: 'e-58e475ab5f932b',
                             preview: true
                         };
+                        origin = 'https://digitaljournal.com/';
                         uuid = '894yr9hfu943';
 
                         findCardsDeferred = q.defer();
@@ -1359,11 +1366,11 @@ describe('AdLoader()', function() {
 
                         spyOn(loader, '__findCards__').and.returnValue(findCardsDeferred.promise);
 
-                        loader.findCard(params, context, uuid).then(success, failure);
+                        loader.findCard(params, context, origin, uuid).then(success, failure);
                     });
 
                     it('should find a single card', function() {
-                        expect(loader.__findCards__).toHaveBeenCalledWith(params.campaign, context, 1, uuid);
+                        expect(loader.__findCards__).toHaveBeenCalledWith(params.campaign, context, 1, origin, uuid);
                     });
 
                     describe('if no card is found', function() {
@@ -1399,8 +1406,8 @@ describe('AdLoader()', function() {
                     });
                 });
 
-                describe('getCard(id, params, uuid)', function() {
-                    var id, params, uuid;
+                describe('getCard(id, params, origin, uuid)', function() {
+                    var id, params, origin, uuid;
                     var getCardDeferred;
                     var success, failure;
 
@@ -1414,6 +1421,7 @@ describe('AdLoader()', function() {
                             experience: 'e-58e475ab5f932b',
                             preview: false
                         };
+                        origin = 'http://worldlifestyle.com/';
                         uuid = '8urhdf9348hf934';
 
                         success = jasmine.createSpy('success()');
@@ -1422,11 +1430,11 @@ describe('AdLoader()', function() {
                         getCardDeferred = q.defer();
                         spyOn(loader, '__getCard__').and.returnValue(getCardDeferred.promise);
 
-                        loader.getCard(id, params, uuid).then(success, failure);
+                        loader.getCard(id, params, origin, uuid).then(success, failure);
                     });
 
                     it('should get the card from the content service', function() {
-                        expect(loader.__getCard__).toHaveBeenCalledWith(id, params, uuid);
+                        expect(loader.__getCard__).toHaveBeenCalledWith(id, params, origin, uuid);
                     });
 
                     describe('when the card is fetched', function() {
@@ -1479,11 +1487,11 @@ describe('AdLoader()', function() {
 
                             params.preview = true;
 
-                            loader.getCard(id, params, uuid).then(success, failure).finally(done);
+                            loader.getCard(id, params, origin, uuid).then(success, failure).finally(done);
                         });
 
                         it('should get the card without caching', function() {
-                            expect(AdLoader.prototype.__getCard__).toHaveBeenCalledWith(id, params, uuid);
+                            expect(AdLoader.prototype.__getCard__).toHaveBeenCalledWith(id, params, origin, uuid);
                             expect(AdLoader.prototype.__getCard__.calls.mostRecent().object).toBe(loader);
                             expect(loader.__getCard__).not.toHaveBeenCalled();
                         });

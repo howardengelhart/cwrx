@@ -169,13 +169,13 @@ Player.prototype.__loadCard__ = function __loadCard__(params, origin, uuid) {
 
                 return (function() {
                     if (cardId) {
-                        return adLoader.getCard(cardId, cardParams, uuid);
+                        return adLoader.getCard(cardId, cardParams, origin, uuid);
                     }
 
                     return adLoader.findCard({
                         campaign: campaignId,
                         categories: categories
-                    }, cardParams, uuid).catch(function logError(reason) {
+                    }, cardParams, origin, uuid).catch(function logError(reason) {
                         log.error(
                             '[%1] Unexpected error finding a card: %2.',
                             uuid, inspect(reason.message)
@@ -228,7 +228,7 @@ Player.prototype.__loadExperience__ = function __loadExperience__(id, params, or
             return AdLoader.removePlaceholders(experience);
         }
 
-        return adLoader.loadAds(experience, categories, campaign, uuid)
+        return adLoader.loadAds(experience, categories, campaign, origin, uuid)
             .tap(function sendMetrics() {
                 adLoadTimeReporter.push(Date.now() - start);
             })
