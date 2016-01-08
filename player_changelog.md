@@ -3,6 +3,8 @@
 ### 2.1.1: Thu Jan  7 16:30:36 EST 2016
 * The player is now built dynamically at runtime: [#723](https://github.com/cinema6/cwrx/pull/723)
 * Add support for debug (unminifed) player builds: [#725](https://github.com/cinema6/cwrx/pull/725)
+* Make sure the host (request origin) is set by the content service in
+  card pixel URLs: [#726](https://github.com/cinema6/cwrx/pull/726)
 * **Extra Deployment Steps**: [#724](https://github.com/cinema6/cwrx/issues/724)
 
 ### 2.1.0: Tue Dec 29 11:26:35 EST 2015
