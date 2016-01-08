@@ -565,6 +565,34 @@ describe('player service', function() {
                     expect(card.data.prebuffer).toBe(true);
                 });
             });
+
+            [false, 0, true, 1, 2].forEach(function(debug) {
+                describe('and debug: ' + debug, function() {
+                    beforeEach(function(done) {
+                        config.playerUrl.query.debug = debug;
+
+                        request.get(getURL()).then(getResponse).then(done, done.fail);
+                    });
+
+                    it('should serve minified code', function() {
+                        expect((parseResponse('light').js.match(/\n/g).length)).toBeLessThan(50);
+                    });
+                });
+            });
+
+            [3, 4, 5, 6].forEach(function(debug) {
+                describe('and debug: ' + debug, function() {
+                    beforeEach(function(done) {
+                        config.playerUrl.query.debug = debug;
+
+                        request.get(getURL()).then(getResponse).then(done, done.fail);
+                    });
+
+                    it('should serve unminified code', function() {
+                        expect((parseResponse('light').js.match(/\n/g).length)).toBeGreaterThan(500);
+                    });
+                });
+            });
         });
 
         describe('with a campaign', function() {

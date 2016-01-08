@@ -319,11 +319,13 @@ Player.prototype.__getBranding__ = function __getBranding__(branding, type, hove
  * Given a player "mode," this method will fetch the player's HTML file, replace any ${mode} macros
  * with the give mode and build the player using rc-app-builder.
  */
-Player.prototype.__getPlayer__ = function __getPlayer__(mode, secure, uuid) {
+Player.prototype.__getPlayer__ = function __getPlayer__(mode, secure, debug, uuid) {
     var log = logger.getLog();
     var config = this.config;
     var staticURL = resolveURL(config.api.root, config.app.staticURL + config.app.version + '/');
     var builder = new AppBuilder(extend({
+        debug: debug,
+
         baseDir: dirname(config.app.entry),
         baseURL: (function() {
             var location = parseURL(staticURL);
@@ -618,11 +620,12 @@ Player.prototype.get = function get(/*options*/) {
     var branding = options.branding;
     var countdown = options.countdown;
     var prebuffer = !!options.prebuffer;
+    var debug = options.debug;
 
     log.trace('[%1] Getting player with options (%2.)', uuid, inspect(options));
 
     function getPlayer() {
-        return self.__getPlayer__(type, secure, uuid).then(function inlineOptions(document) {
+        return self.__getPlayer__(type, secure, debug > 2, uuid).then(function inlineOpt(document) {
             log.trace('[%1] Adding options (%2) to player HTML.', uuid, inspect(options));
             return document.addResource('options', 'application/json', options);
         });
