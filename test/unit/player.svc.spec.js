@@ -1801,30 +1801,86 @@ describe('player service', function() {
                     });
 
                     describe('with a card id and campaign', function() {
+                        var experience;
+                        var getCardDeferred;
+                        var result;
+
                         beforeEach(function(done) {
+                            getCardDeferred = q.defer();
+
                             success.calls.reset();
                             failure.calls.reset();
-                            spyOn(player.adLoader, 'getCard').and.returnValue(q.defer().promise);
+                            spyOn(player.adLoader, 'getCard').and.returnValue(getCardDeferred.promise);
                             spyOn(player.adLoader, 'findCard').and.returnValue(q.defer().promise);
                             player.__getExperience__.calls.reset();
 
                             params.card = 'rc-4a51653fcd65ac';
                             params.campaign = 'cam-dd8f7c06153451';
 
-                            player.__loadCard__(params, origin, uuid).then(success, failure).finally(done);
+                            experience = {
+                                id: config.api.experience.default,
+                                data: {
+                                    wildCardPlacement: '475839475',
+                                    title: null,
+                                    deck: []
+                                }
+                            };
+                            player.__getExperience__.and.returnValue(q(experience));
+
+                            result = player.__loadCard__(params, origin, uuid).then(success, failure);
+                            setTimeout(done, 1);
                         });
 
-                        it('should do nothing', function() {
-                            expect(player.__getExperience__).not.toHaveBeenCalled();
-                            expect(player.adLoader.findCard).not.toHaveBeenCalled();
-                            expect(player.adLoader.getCard).not.toHaveBeenCalled();
+                        it('should fetch the default experience', function() {
+                            expect(player.__getExperience__).toHaveBeenCalledWith(config.api.experience.default, player.__apiParams__('experience', params), origin, uuid);
                         });
 
-                        it('should reject the promise', function() {
-                            var error = failure.calls.mostRecent().args[0];
+                        it('should get the card', function() {
+                            expect(player.adLoader.getCard).toHaveBeenCalledWith(params.card, extend({
+                                experience: experience.id
+                            }, player.__apiParams__('card', params)), origin, uuid);
+                        });
 
-                            expect(error.message).toBe('Cannot specify campaign with card.');
-                            expect(error.status).toBe(400);
+                        describe('if the card\'s campaign', function() {
+                            var card;
+
+                            beforeEach(function() {
+                                card = {
+                                    id: params.card,
+                                    type: 'youtube',
+                                    data: {}
+                                };
+                            });
+
+                            describe('matches the specified campaign', function() {
+                                beforeEach(function(done) {
+                                    card.campaignId = params.campaign;
+                                    getCardDeferred.resolve(card);
+
+                                    result.finally(done);
+                                });
+
+                                it('should fulfill with the experience', function() {
+                                    expect(success).toHaveBeenCalledWith(experience);
+                                });
+                            });
+
+                            describe('does not match the specified campaign', function() {
+                                beforeEach(function(done) {
+                                    card.campaignId = 'cam-158d438def884c';
+                                    getCardDeferred.resolve(card);
+
+                                    result.finally(done);
+                                });
+
+                                it('should reject the promise', function() {
+                                    var error = failure.calls.mostRecent().args[0];
+
+                                    expect(failure).toHaveBeenCalledWith(jasmine.any(Error));
+                                    expect(error.message).toBe('Card\'s campaign {' + card.campaignId + '} does not match specified campaign {' + params.campaign + '}.');
+                                    expect(error.status).toBe(400);
+                                });
+                            });
                         });
                     });
 
@@ -1881,7 +1937,8 @@ describe('player service', function() {
                                         id: params.card,
                                         title: 'My Awesome Card!',
                                         data: {},
-                                        campaign: {}
+                                        campaign: {},
+                                        campaignId: params.campaign
                                     };
                                     findCardDeferred.fulfill(card);
 
@@ -2018,7 +2075,8 @@ describe('player service', function() {
                                         id: params.card,
                                         title: 'My Awesome Card!',
                                         data: {},
-                                        campaign: {}
+                                        campaign: {},
+                                        campaignId: 'cam-3855f65a9b64d0'
                                     };
                                     getCardDeferred.fulfill(card);
 
