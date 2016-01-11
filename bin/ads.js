@@ -17,6 +17,7 @@
         updateModule    = require('./ads-campaignUpdates'),
         campModule      = require('./ads-campaigns'),
         siteModule      = require('./ads-sites'),
+        conModule       = require('./ads-containers'),
         
         state   = {},
         ads = {}; // for exporting functions to unit tests
@@ -106,6 +107,7 @@
             campSvc      = campModule.setupSvc(state.dbs.c6Db, state.config),
             updateSvc    = updateModule.setupSvc(state.dbs.c6Db, campSvc, state.config),
             siteSvc      = siteModule.setupSvc(state.dbs.c6Db.collection('sites')),
+            conSvc       = conModule.setupSvc(state.dbs.c6Db.collection('containers')),
             auditJournal = new journal.AuditJournal(state.dbs.c6Journal.collection('audit'),
                                                     state.config.appVersion, state.config.appName);
         authUtils._db = state.dbs.c6Db;
@@ -147,6 +149,7 @@
 
         campModule.setupEndpoints(app, campSvc, state.sessions, audit, jobManager);
         siteModule.setupEndpoints(app, siteSvc, state.sessions, audit, jobManager);
+        conModule.setupEndpoints(app, conSvc, state.sessions, audit, jobManager);
         
         app.use(function(err, req, res, next) {
             if (err) {

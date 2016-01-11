@@ -79,14 +79,12 @@
                 'campaigns',
                 'cards',
                 'categories',
-                'customers',
+                'containers',
                 'elections',
                 'experiences',
-                'minireelGroups',
                 'orgs',
                 'policies',
                 'roles',
-                'sites',
                 'users'
             ]
         },
