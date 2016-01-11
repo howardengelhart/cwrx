@@ -148,12 +148,6 @@ Player.prototype.__loadCard__ = function __loadCard__(params, origin, uuid) {
     var categories = params.categories;
     var experienceId = this.config.api.experience.default;
 
-    if (cardId && campaignId) {
-        return q.reject(new ServiceError(
-            'Cannot specify campaign with card.', 400
-        ));
-    }
-
     return this.__getExperience__(experienceId, validParams, origin, uuid)
         .catch(function logError(reason) {
             log.error('[%1] Failed to fetch the default experience: %2.', uuid, inspect(reason));
@@ -191,6 +185,14 @@ Player.prototype.__loadCard__ = function __loadCard__(params, origin, uuid) {
                     adLoadTimeReporter.push(Date.now() - start);
                 }).catch(function createServiceError(reason) {
                     throw new ServiceError(reason.message, 404);
+                }).tap(function checkCampaignIdMatches(card) {
+                    if (campaignId && card.campaignId !== campaignId) {
+                        throw new ServiceError(
+                            'Card\'s campaign {' + card.campaignId + '} does not match ' +
+                                'specified campaign {' + campaignId + '}.',
+                            400
+                        );
+                    }
                 });
             }
 
