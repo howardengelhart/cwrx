@@ -867,6 +867,30 @@ describe('userSvc users (E2E):', function() {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
+        
+        it('should let a non-admin edit themselves with a modified user document', function(done) {
+            requestUtils.qRequest('get', { url: config.authUrl + '/status', jar: cookieJar })
+            .then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                var userDoc = resp.body;
+                userDoc.firstName = 'Jimmy';
+                userDoc.lastName = 'Testmonkey';
+                
+                options.url = config.usersUrl + '/' + userDoc.id;
+                options.json = userDoc;
+                options.jar = cookieJar;
+                
+                return requestUtils.qRequest('put', options);
+            }).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.body.firstName).toBe('Jimmy');
+                expect(resp.body.lastName).toBe('Testmonkey');
+                expect(resp.body.policies).toEqual(['manageOrgUsers']);
+                expect(resp.body.permissions).not.toBeDefined();
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
 
         it('should return a 404 if the user does not exist', function(done) {
             options.url = config.usersUrl + '/u-e2e-fake';

@@ -440,7 +440,7 @@ describe('Model', function() {
                 expect(newObj).toEqual({ paws: 3 });
             });
 
-            it('should fail if the value fals outside the limits', function() {
+            it('should fail if the value falls outside the limits', function() {
                 newObj.paws = 1;
                 expect(model.validate('create', newObj, origObj, requester)).toEqual({ isValid: false,
                     reason: 'paws must be greater than the min: 2' });
@@ -455,6 +455,13 @@ describe('Model', function() {
                 newObj.paws = null;
                 expect(model.validate('create', newObj, origObj, requester)).toEqual({ isValid: true, reason: undefined });
                 expect(newObj).toEqual({ paws: null });
+            });
+            
+            it('should pass if the value exceeds the limits but is unchanged from the origObj', function() {
+                newObj.paws = 1;
+                origObj.paws = 1;
+                expect(model.validate('create', newObj, origObj, requester)).toEqual({ isValid: true, reason: undefined });
+                expect(newObj).toEqual({ paws: 1 });
             });
         });
         
@@ -511,6 +518,17 @@ describe('Model', function() {
                 expect(model.validate('create', newObj, origObj, requester)).toEqual({ isValid: true, reason: undefined });
                 expect(newObj).toEqual({ snax: { bacon: 'yum yum' } });
             });
+            
+            it('should pass if subfields are invalid but the overall value is unchanged', function() {
+                newObj.snax = {
+                    bacon: 'yum', kibbles: 'maybe'
+                };
+                origObj.snax = {
+                    bacon: 'yum', kibbles: 'maybe'
+                };
+                expect(model.validate('create', newObj, origObj, requester)).toEqual({ isValid: true, reason: undefined });
+                expect(newObj).toEqual({ snax: { bacon: 'yum', kibbles: 'maybe' } });
+            });
         });
         
         describe('when handling array fields', function() {
@@ -536,6 +554,13 @@ describe('Model', function() {
                 newObj.doggieFriends = ['knut', 'scruffles', 'woofles'];
                 expect(model.validate('create', newObj, origObj, requester)).toEqual({ isValid: false,
                     reason: 'doggieFriends[2] is UNACCEPTABLE! acceptable values are: [knut,charlie,scruffles,puffles]' });
+            });
+            
+            it('should pass even if some entries are invalid but the overall value is unchanged', function() {
+                newObj.doggieFriends = ['knut', 'scruffles', 'woofles'];
+                origObj.doggieFriends = ['knut', 'scruffles', 'woofles'];
+                expect(model.validate('create', newObj, origObj, requester)).toEqual({ isValid: true, reason: undefined });
+                expect(newObj).toEqual({ doggieFriends: ['knut', 'scruffles', 'woofles'] });
             });
             
             it('should be able to recursively validate fields on object entries', function() {
