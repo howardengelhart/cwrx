@@ -530,7 +530,7 @@ describe('userSvc users (E2E):', function() {
                 { id: 'r-3', name: 'role3', status: 'active' }
             ];
             mockPols = [
-                { id: 'p-1', name: 'pol1', status: 'active', priority: 1 },
+                { id: 'p-1', name: 'pol1', status: 'active', priority: 1, entitlements: { adminCampaigns: true } },
                 { id: 'p-2', name: 'pol2', status: 'active', priority: 1 },
                 { id: 'p-3', name: 'pol3', status: 'active', priority: 1 }
             ];
@@ -593,6 +593,35 @@ describe('userSvc users (E2E):', function() {
             }).catch(function(error) {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
+        });
+
+        describe('if decorated=true', function() {
+            beforeEach(function() {
+                options.qs = { decorated: true };
+            });
+
+            it('should decorate the user with permissions', function(done) {
+                requestUtils.qRequest('post', options).then(function(resp) {
+                    expect(resp.response.statusCode).toBe(201);
+                    expect(resp.body.policies).toEqual(['pol1', 'pol2']);
+                    expect(resp.body.permissions).toEqual({});
+                    expect(resp.body.fieldValidation).toEqual({});
+                    expect(resp.body.entitlements).toEqual({ adminCampaigns: true });
+                    expect(resp.body.applications).toEqual([]);
+                }).catch(function(error) {
+                    expect(util.inspect(error)).not.toBeDefined();
+                }).done(done);
+            });
+
+            it('should not do anything for non-200 responses', function(done) {
+                delete options.json.email;
+                requestUtils.qRequest('post', options).then(function(resp) {
+                    expect(resp.response.statusCode).toBe(400);
+                    expect(resp.body).toEqual('Missing required field: email');
+                }).catch(function(error) {
+                    expect(util.inspect(error)).not.toBeDefined();
+                }).done(done);
+            });
         });
 
         it('should return a 400 error if the body is missing the email or password', function(done) {
@@ -737,7 +766,7 @@ describe('userSvc users (E2E):', function() {
             ];
             mockPols = [
                 { id: 'p-1', name: 'pol1', status: 'active', priority: 1 },
-                { id: 'p-2', name: 'pol2', status: 'active', priority: 1 },
+                { id: 'p-2', name: 'pol2', status: 'active', priority: 1, entitlements: { adminCampaigns: true } },
                 { id: 'p-3', name: 'pol3', status: 'active', priority: 1 }
             ];
             options = {
@@ -890,6 +919,35 @@ describe('userSvc users (E2E):', function() {
             }).catch(function(error) {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
+        });
+
+        describe('if decorated=true', function() {
+            beforeEach(function() {
+                options.qs = { decorated: true };
+            });
+
+            it('should decorate the user with permissions', function(done) {
+                requestUtils.qRequest('put', options).then(function(resp) {
+                    expect(resp.response.statusCode).toBe(200);
+                    expect(resp.body.policies).toEqual(['pol2', 'pol1']);
+                    expect(resp.body.permissions).toEqual({});
+                    expect(resp.body.fieldValidation).toEqual({});
+                    expect(resp.body.entitlements).toEqual({ adminCampaigns: true });
+                    expect(resp.body.applications).toEqual([]);
+                }).catch(function(error) {
+                    expect(util.inspect(error)).not.toBeDefined();
+                }).done(done);
+            });
+
+            it('should not do anything for non-200 responses', function(done) {
+                options.url = config.usersUrl + '/u-e2e-fake';
+                requestUtils.qRequest('put', options).then(function(resp) {
+                    expect(resp.response.statusCode).toBe(404);
+                    expect(resp.body).toEqual('That does not exist');
+                }).catch(function(error) {
+                    expect(util.inspect(error)).not.toBeDefined();
+                }).done(done);
+            });
         });
 
         it('should return a 404 if the user does not exist', function(done) {

@@ -944,7 +944,18 @@
 
         var authPostUser = authUtils.middlewarify({users: 'create'});
         router.post('/', sessions, authPostUser, audit, function(req, res) {
-            var promise = svc.createObj(req);
+            var promise = svc.createObj(req)
+            .then(function(resp) {
+                if ((req.query.decorated !== 'true' && req.query.decorated !== true) ||
+                    resp.body.id === undefined) {
+                    return resp;
+                }
+
+                return authUtils.decorateUser(resp.body).then(function(user) {
+                    resp.body = user;
+                    return resp;
+                });
+            });
             promise.finally(function() {
                 jobManager.endJob(req, res, promise.inspect())
                 .catch(function(error) {
@@ -955,7 +966,18 @@
 
         var authPutUser = authUtils.middlewarify({users: 'edit'});
         router.put('/:id', sessions, authPutUser, audit, function(req, res) {
-            var promise = svc.editObj(req);
+            var promise = svc.editObj(req)
+            .then(function(resp) {
+                if ((req.query.decorated !== 'true' && req.query.decorated !== true) ||
+                    resp.body.id === undefined) {
+                    return resp;
+                }
+
+                return authUtils.decorateUser(resp.body).then(function(user) {
+                    resp.body = user;
+                    return resp;
+                });
+            });
             promise.finally(function() {
                 jobManager.endJob(req, res, promise.inspect())
                 .catch(function(error) {
