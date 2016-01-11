@@ -486,15 +486,29 @@ describe('player service', function() {
             });
 
             describe('and a campaign', function() {
-                beforeEach(function(done) {
-                    config.playerUrl.query.campaign = 'cam-d136408398ec7f';
+                describe('that matches the card', function() {
+                    beforeEach(function(done) {
+                        config.playerUrl.query.campaign = cards[0].campaignId;
 
-                    request.get(getURL()).then(getResponse).then(done, done.fail);
+                        request.get(getURL()).then(getResponse).then(done, done.fail);
+                    });
+
+                    it('should succeed', function() {
+                        expect(parseResponse('light').seemsValid()).toBe(true);
+                    });
                 });
 
-                it('should [400]', function() {
-                    expect(response.statusCode).toBe(400);
-                    expect(response.body.toString()).toBe('Cannot specify campaign with card.');
+                describe('that does not match the card', function() {
+                    beforeEach(function(done) {
+                        config.playerUrl.query.campaign = 'cam-9feeb5f2aa3563';
+
+                        request.get(getURL()).then(getResponse).then(done, done.fail);
+                    });
+
+                    it('should [400]', function() {
+                        expect(response.statusCode).toBe(400);
+                        expect(response.body).toBe('Card\'s campaign {' + cards[0].campaignId + '} does not match specified campaign {' + config.playerUrl.query.campaign + '}.');
+                    });
                 });
             });
 
