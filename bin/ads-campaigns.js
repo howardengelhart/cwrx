@@ -182,6 +182,10 @@
         return svc;
     };
     
+    /* TODO: should we put hooks in here (and probably card svc) to check if existing placements are
+     * using campaign before it is deleted/canceled/expired? or is that beyond scope at this point?
+     */
+    
     // Replace entries in cards array with fetched C6 cards. Should be called just before response
     campModule.decorateWithCards = function(req, campResp) {
         var log = logger.getLog(),

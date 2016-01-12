@@ -14,6 +14,7 @@
             __required: true,
             __unchangeable: true
         },
+        //TODO: also label prop?
         defaultData: {
             __type: 'object',
             __default: {},
@@ -24,7 +25,8 @@
                 __locked: true
             },
             campaign: { //TODO: confirm this?
-                __allowed: false
+                __allowed: false,
+                __locked: true
             }
         }
     };
