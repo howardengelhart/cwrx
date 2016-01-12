@@ -1,8 +1,13 @@
 # Ads Service Changelog
 
+### 4.1.0: Tue Jan 12 11:52:59 EST 2016
+* [FEATURE]: Add `GET /api/campaigns/updates/` for getting updates from many campaigns: [#730](https://github.com/cinema6/cwrx/pull/730)
+* Extra deployment steps: None
+
 ### 4.0.1: Mon Jan 11 12:36:22 EST 2016
 * [FIX]: Cease recursive validation if a field is unchanged: [#728](https://github.com/cinema6/cwrx/pull/728)
 * Upgrade mongo driver to 2.x, fixing reconnect issues: [#717](https://github.com/cinema6/cwrx/pull/717)
+* Extra deployment steps: None
 
 ### 4.0.0: Fri Dec 18 10:57:31 EST 2015
 * [BREAKING CHANGE]: Do not create Adtech campaigns: [#677](https://github.com/cinema6/cwrx/issues/677)
