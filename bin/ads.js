@@ -115,7 +115,7 @@
             campSvc      = campModule.setupSvc(state.dbs.c6Db, state.config),
             updateSvc    = updateModule.setupSvc(state.dbs.c6Db, campSvc, state.config),
             siteSvc      = siteModule.setupSvc(state.dbs.c6Db.collection('sites')),
-            conSvc       = conModule.setupSvc(state.dbs.c6Db.collection('containers')),
+            conSvc       = conModule.setupSvc(state.dbs.c6Db),
             placeSvc     = placeModule.setupSvc(state.dbs.c6Db, state.config),
             auditJournal = new journal.AuditJournal(state.dbs.c6Journal.collection('audit'),
                                                     state.config.appVersion, state.config.appName);

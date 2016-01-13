@@ -83,6 +83,7 @@
                 'elections',
                 'experiences',
                 'orgs',
+                'placements',
                 'policies',
                 'roles',
                 'users'
