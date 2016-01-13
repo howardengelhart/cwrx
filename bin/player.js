@@ -369,6 +369,13 @@ Player.prototype.__getPlayer__ = function __getPlayer__(profile, conditional, uu
         return q.reject(new ServiceError('Unknown player type: ' + type, 404, 'info'));
     }
 
+    if (conditional) {
+        builder.config.browserify.transforms.unshift([require.resolve('conditionalify'), {
+            ecmaVersion: 6,
+            context: profile
+        }]);
+    }
+
     log.info('[%1] Building the %2 player.', uuid, type);
 
     return new q.Promise(function(resolve, reject) {

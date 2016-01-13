@@ -2905,7 +2905,16 @@ describe('player service', function() {
                             baseDir: require('path').dirname(config.app.entry),
                             baseURL: require('url').resolve(config.api.root, config.app.staticURL + config.app.version + '/')
                         });
+
                         expect(MockAppBuilder).toHaveBeenCalledWith(builder);
+                    });
+
+                    it('should use conditionalify', function() {
+                        expect(builder.config.browserify.transforms[0]).toEqual([require.resolve('conditionalify'), {
+                            ecmaVersion: 6,
+                            context: profile
+                        }]);
+                        expect(builder.config.browserify.transforms.slice(1)).toEqual(player.config.app.builder.browserify.transforms);
                     });
 
                     it('should pass a stream to AppBuilder.prototype.build() that has the ${mode} macro replaced', function(done) {
@@ -2977,6 +2986,23 @@ describe('player service', function() {
                             expect(MockAppBuilder).toHaveBeenCalledWith(jasmine.objectContaining({
                                 debug: true
                             }));
+                        });
+                    });
+
+                    describe('if conditional is false', function() {
+                        beforeEach(function(done) {
+                            MockAppBuilder.calls.reset();
+                            player.__getPlayer__.clear();
+                            success.calls.reset();
+                            failure.calls.reset();
+                            conditional = false;
+
+                            player.__getPlayer__(profile, conditional, uuid).then(success, failure).finally(done);
+                            builder = MockAppBuilder.calls.mostRecent().returnValue;
+                        });
+
+                        it('should not add the conditionalify transform', function() {
+                            expect(builder.config.browserify.transforms).toEqual(player.config.app.builder.browserify.transforms);
                         });
                     });
 
