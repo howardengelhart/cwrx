@@ -14,7 +14,7 @@ Vagrant.configure("2") do |config|
   # The url from where the 'config.vm.box' box will be fetched if it
   # doesn't already exist on the user's system.
   config.vm.box_url = "https://s3.amazonaws.com/c6.dev/VagrantBoxes/Berkshelf-CentOS-6.3-x86_64-minimal.box"
-
+  # config.vm.box_url = "https://s3.amazonaws.com/c6.dev/VagrantBoxes/Berkshelf-CentOS-6.3-x86_64-minimal--bigger.box"
   config.vm.network :private_network, ip: "33.33.33.10"
   config.vm.provider :virtualbox do |vb|
     vb.customize ["modifyvm", :id, "--natdnshostresolver1", "on"]
@@ -35,6 +35,11 @@ Vagrant.configure("2") do |config|
     chef.environments_path = "./chef/environments"
     chef.environment = "Development"
     chef.json = {
+        :c6env => {
+            :npm => {
+                :registry => 'http://deployer1.corp.cinema6.com:4873'
+            }
+        },
         :c6mongo => {
             :users => {
                 :ids => ["evan", "howard", "e2eTests", "content", "collateral", "auth", "userSvc", "orgSvc", "vote", "siteSvc", "search", "deepthought", "ads", "querybot"]

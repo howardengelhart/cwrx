@@ -447,6 +447,8 @@ describe('querybot (UT)', function() {
                     impressions : 100,
                     views : 0,
                     totalSpend : '0.0000',
+                    viewsToday  : 0,
+                    spendToday  : '0.0000',
                     linkClicks : {},
                     shareClicks : {}
                 }
@@ -463,6 +465,8 @@ describe('querybot (UT)', function() {
                     impressions : 100,
                     views : 100,
                     totalSpend : '25.2500',
+                    viewsToday  : 0,
+                    spendToday  : '0.0000',
                     linkClicks : {},
                     shareClicks : {}
                 }
@@ -479,6 +483,8 @@ describe('querybot (UT)', function() {
                     impressions : 100,
                     views : 0,
                     totalSpend : '0.0000',
+                    viewsToday  : 0,
+                    spendToday  : '0.0000',
                     linkClicks : {
                         facebook : 100
                     },
@@ -498,6 +504,8 @@ describe('querybot (UT)', function() {
                     impressions : 100,
                     views : 0,
                     totalSpend : '0.0000',
+                    viewsToday  : 0,
+                    spendToday  : '0.0000',
                     linkClicks : { },
                     shareClicks : {
                         nosebook : 100
@@ -516,6 +524,8 @@ describe('querybot (UT)', function() {
                     impressions : 100,
                     views : 0,
                     totalSpend : '0.0000',
+                    viewsToday  : 0,
+                    spendToday  : '0.0000',
                     linkClicks : { },
                     shareClicks : { }
                 }
@@ -532,6 +542,8 @@ describe('querybot (UT)', function() {
                     impressions : 0,
                     views : 0,
                     totalSpend : '0.0000',
+                    viewsToday  : 0,
+                    spendToday  : '0.0000',
                     linkClicks : { },
                     shareClicks : { }
                 }
@@ -552,7 +564,7 @@ describe('querybot (UT)', function() {
             lib.queryCampaignSummary(['abc','def']);
             expect(lib.pgQuery.calls.mostRecent().args[1]).toEqual([
                 ['abc','def'],
-                ['q1','q2','q3','q4','launch','load','play']
+                ['q1','q2','q3','q4','launch','load','play','impression']
             ]);
         });
     });

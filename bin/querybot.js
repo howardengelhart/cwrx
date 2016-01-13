@@ -233,6 +233,8 @@ lib.processCampaignSummaryRecord = function(record, obj) {
                 impressions : 0,
                 views       : 0,
                 totalSpend  : '0.0000',
+                viewsToday  : 0,
+                spendToday  : '0.0000',
                 linkClicks  : {},
                 shareClicks : {}
             }
@@ -245,6 +247,10 @@ lib.processCampaignSummaryRecord = function(record, obj) {
     if (record.eventType === 'completedView') {
         obj.summary.views       = eventCount;
         obj.summary.totalSpend   = record.eventCost;
+    } else
+    if (record.eventType === 'completedViewToday') {
+        obj.summary.viewsToday   = eventCount;
+        obj.summary.spendToday   = record.eventCost;
     } else  {
         m = record.eventType.match(/shareLink\.(.*)/);
         if (m) {
@@ -268,9 +274,19 @@ lib.queryCampaignSummary = function(campaignIds) {
         ' where campaign_id = ANY($1::text[]) ' +
         ' and NOT event_type = ANY($2::text[]) ' +
         ' group by campaign_id,event_type' +
-        ' order by campaign_id,event_type';
+//        ' order by campaign_id,event_type';
+        ' union' +
+        ' select campaign_id as "campaignId" ,event_type || \'Today\' as "eventType", ' +
+        ' sum(events) as "eventCount", sum(event_cost) as "eventCost" ' +
+        ' from rpt.campaign_summary_hourly_all ' +
+        ' where campaign_id = ANY($1::text[]) ' +
+        ' and event_type = \'completedView\' ' +
+        ' and rec_ts >= current_timestamp::date ' +
+        ' group by campaign_id,event_type ' +
+        ' order by 1,2 ';
 
-    return lib.pgQuery(statement,[campaignIds,['q1','q2','q3','q4','launch','load','play']])
+    return lib.pgQuery(statement,
+        [campaignIds,['q1','q2','q3','q4','launch','load','play','impression']])
         .then(function(result){
             var res ;
             result.rows.forEach(function(row){
