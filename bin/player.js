@@ -32,6 +32,7 @@ var fs = require('fs-extra');
 var replaceStream = require('replacestream');
 var concatStream = require('concat-stream');
 var dirname = require('path').dirname;
+var _ = require('lodash');
 
 var push = Array.prototype.push;
 
@@ -127,6 +128,22 @@ function Player(config) {
 /***************************************************************************************************
  * @private methods * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  **************************************************************************************************/
+
+Player.prototype.__getBuildProfile__ = function __getBuildProfile__(experience, options) {
+    return {
+        type: options.type,
+        context: options.context,
+
+        debug: options.debug > 2,
+        secure: options.secure,
+
+        isMiniReel: experience.data.deck.length > 1,
+        card: {
+            types: _.uniq(experience.data.deck.map(_.property('type'))),
+            modules: _.uniq(_.flatten(experience.data.deck.map(_.property('modules'))))
+        }
+    };
+};
 
 Player.prototype.__apiParams__ = function __apiParams__(type, params) {
     var validParams = this.config.api[type].validParams;

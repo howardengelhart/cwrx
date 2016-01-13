@@ -26,6 +26,7 @@
     "glob": "~3.2.9",
     "handlebars": "~1.3.0",
     "html-to-text": "0.1.0",
+    "lodash": "^4.0.0",
     "memcached": "2.1.0",
     "metagetta": "^0.3.0",
     "mongodb": "~2.0.53",

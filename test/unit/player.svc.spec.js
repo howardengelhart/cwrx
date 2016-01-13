@@ -1706,6 +1706,203 @@ describe('player service', function() {
 
         describe('@private', function() {
             describe('methods:', function() {
+                describe('__getBuildProfile__(experience, options)', function() {
+                    var experience, options;
+
+                    beforeEach(function() {
+                        experience = {
+                            id: 'e-00000000000000',
+                            data: {
+                                deck: []
+                            }
+                        };
+
+                        options = {
+                            context: 'mraid',
+                            type: 'desktop-card',
+                            secure: true
+                        };
+                    });
+
+                    describe('.isMiniReel', function() {
+                        describe('if the experience has one card', function() {
+                            beforeEach(function() {
+                                experience.data.deck = [
+                                    {
+                                        id: 'rc-148031b2bc3c61',
+                                        type: 'youtube',
+                                        modules: [],
+                                        data: {
+                                            videoid: 'hfu3i4hf'
+                                        }
+                                    }
+                                ];
+                            });
+
+                            it('should be false', function() {
+                                expect(player.__getBuildProfile__(experience, options).isMiniReel).toBe(false);
+                            });
+                        });
+
+                        describe('if the experience has more than one card', function() {
+                            beforeEach(function() {
+                                experience.data.deck = [
+                                    {
+                                        id: 'rc-148031b2bc3c61',
+                                        type: 'youtube',
+                                        modules: [],
+                                        data: {
+                                            videoid: 'hfu3i4hf'
+                                        }
+                                    },
+                                    {
+                                        id: 'rc-7454d33ced199d',
+                                        type: 'adUnit',
+                                        modules: [],
+                                        data: {
+                                            videoid: 'jfsdoifheiuw'
+                                        }
+                                    }
+                                ];
+                            });
+
+                            it('should be true', function() {
+                                expect(player.__getBuildProfile__(experience, options).isMiniReel).toBe(true);
+                            });
+                        });
+                    });
+
+                    describe('.type', function() {
+                        it('should be the type from the options', function() {
+                            expect(player.__getBuildProfile__(experience, options).type).toBe(options.type);
+                        });
+                    });
+
+                    describe('.context', function() {
+                        it('should be the context from the options', function() {
+                            expect(player.__getBuildProfile__(experience, options).context).toBe(options.context);
+                        });
+                    });
+
+                    describe('.card', function() {
+                        beforeEach(function() {
+                            experience.data.deck = [
+                                {
+                                    id: 'rc-148031b2bc3c61',
+                                    type: 'youtube',
+                                    modules: ['post'],
+                                    data: {
+                                        videoid: 'hfu3i4hf'
+                                    }
+                                },
+                                {
+                                    id: 'rc-7454d33ced199d',
+                                    type: 'adUnit',
+                                    modules: [],
+                                    data: {
+                                        videoid: 'jfsdoifheiuw'
+                                    }
+                                },
+                                {
+                                    id: 'rc-6572dd1dbecce3',
+                                    type: 'instagram',
+                                    modules: ['ballot', 'displayAd'],
+                                    data: {
+                                        videoid: 'jfsdoifheiuw'
+                                    }
+                                },
+                                {
+                                    id: 'rc-148031b2bc3c61',
+                                    type: 'youtube',
+                                    modules: [],
+                                    data: {
+                                        videoid: 'hfu3i4hf'
+                                    }
+                                },
+                                {
+                                    id: 'rc-8ffd5508fea20c',
+                                    type: 'image',
+                                    modules: ['displayAd', 'comments'],
+                                    data: {
+                                        videoid: 'hfu3i4hf'
+                                    }
+                                },
+                                {
+                                    id: 'rc-25a030a6c76a5a',
+                                    type: 'instagram',
+                                    modules: [],
+                                    data: {
+                                        videoid: 'jfsdoifheiuw'
+                                    }
+                                },
+                                {
+                                    id: 'rc-abb7fc0d3c8f0d',
+                                    type: 'recap',
+                                    modules: ['post'],
+                                    data: {
+                                        videoid: 'hfu3i4hf'
+                                    }
+                                }
+                            ];
+                        });
+
+                        describe('.types', function() {
+                            it('should be a list of all the card types without duplicates', function() {
+                                expect(player.__getBuildProfile__(experience, options).card.types).toEqual([
+                                    'youtube',
+                                    'adUnit',
+                                    'instagram',
+                                    'image',
+                                    'recap'
+                                ]);
+                            });
+                        });
+
+                        describe('.modules', function() {
+                            it('should be a list of all the modules without duplicates', function() {
+                                expect(player.__getBuildProfile__(experience, options).card.modules).toEqual([
+                                    'post',
+                                    'ballot',
+                                    'displayAd',
+                                    'comments'
+                                ]);
+                            });
+                        });
+                    });
+
+                    describe('.debug', function() {
+                        [undefined, null, false, 0, true, 1, 2].forEach(function(debug) {
+                            describe('if options.debug is ' + debug, function() {
+                                beforeEach(function() {
+                                    options.debug = debug;
+                                });
+
+                                it('should be false', function() {
+                                    expect(player.__getBuildProfile__(experience, options).debug).toBe(false);
+                                });
+                            });
+                        });
+
+                        [3, 4, 5, 6, 7, 8, 9].forEach(function(debug) {
+                            describe('if options.debug is ' + debug, function() {
+                                beforeEach(function() {
+                                    options.debug = debug;
+                                });
+
+                                it('should be true', function() {
+                                    expect(player.__getBuildProfile__(experience, options).debug).toBe(true);
+                                });
+                            });
+                        });
+                    });
+
+                    describe('secure', function() {
+                        it('should be options.secure', function() {
+                            expect(player.__getBuildProfile__(experience, options).secure).toBe(options.secure);
+                        });
+                    });
+                });
+
                 describe('__apiParams__(type, params)', function() {
                     var type, params;
                     var result;
