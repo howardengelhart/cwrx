@@ -45,8 +45,7 @@ describe('orgSvc-orgs (UT)', function() {
     describe('setupSvc', function() {
         var svc;
         beforeEach(function() {
-            [CrudSvc.prototype.preventGetAll, CrudSvc.prototype.validateUniqueProp,
-             orgModule.activeUserCheck].forEach(function(fn) {
+            [CrudSvc.prototype.validateUniqueProp, orgModule.activeUserCheck].forEach(function(fn) {
                 spyOn(fn, 'bind').and.returnValue(fn);
             });
 
