@@ -11,6 +11,7 @@ describe('AdLoader()', function() {
     var MockFunctionCache;
     var fnCache;
     var requestDeferreds;
+    var logger, log;
 
     beforeEach(function() {
         q = require('q');
@@ -20,6 +21,7 @@ describe('AdLoader()', function() {
         Promise = require('q').defer().promise.constructor;
         resolveURL = require('url').resolve;
         clonePromise = require('../../lib/promise').clone;
+        logger = require('../../lib/logger');
 
         jasmine.clock().install();
 
@@ -51,6 +53,14 @@ describe('AdLoader()', function() {
 
             return fnCache;
         });
+
+        log = {
+            info: jasmine.createSpy('log.info()'),
+            trace: jasmine.createSpy('log.trace()'),
+            warn: jasmine.createSpy('log.warn()'),
+            error: jasmine.createSpy('log.error()')
+        };
+        spyOn(logger, 'getLog').and.returnValue(log);
 
         AdLoader = require('../../lib/adLoader');
     });
@@ -499,12 +509,18 @@ describe('AdLoader()', function() {
                         origin = 'https://my-site.com/';
                         uuid = 'ry398r4y9';
 
+                        jasmine.clock().uninstall();
+
                         success = jasmine.createSpy('success()');
                         failure = jasmine.createSpy('failure()');
 
                         result = loader.__getCard__(id, params, origin, uuid);
                         result.then(success, failure);
-                        q().then(function() {}).then(done);
+                        process.nextTick(done);
+                    });
+
+                    afterEach(function() {
+                        jasmine.clock().install();
                     });
 
                     it('should be cached', function() {
@@ -527,6 +543,117 @@ describe('AdLoader()', function() {
                             headers: { origin: origin }
                         });
                     });
+
+                    describe('if the request succeeds', function() {
+                        var card;
+
+                        beforeEach(function(done) {
+                            card = {
+                                id: 'rc-2b68a445c20317',
+                                modules: [],
+                                type: 'adUnit',
+                                data: {}
+                            };
+
+                            requestDeferreds[request.get.calls.mostRecent().args[0]].resolve(card);
+                            setTimeout(done);
+                        });
+
+                        it('should fulfill with the card', function() {
+                            expect(success).toHaveBeenCalledWith(card);
+                        });
+
+                        it('should not log an error', function() {
+                            expect(log.error).not.toHaveBeenCalled();
+                        });
+                    });
+
+                    describe('if something else goes wrong in request', function() {
+                        var error;
+
+                        beforeEach(function(done) {
+                            error = new Error('Error: BLEH');
+                            error.name = 'RequestError';
+                            error.cause = new Error('BLEH');
+                            error.cause.code = 'EBLEH';
+
+                            requestDeferreds[request.get.calls.mostRecent().args[0]].reject(error);
+                            setTimeout(done);
+                        });
+
+                        it('should reject', function() {
+                            expect(failure).toHaveBeenCalledWith(error);
+                        });
+
+                        it('should log an error', function() {
+                            expect(log.error).toHaveBeenCalled();
+                        });
+                    });
+
+                    [400, 409, 404].forEach(function(status) {
+                        describe('if the upstream server responds with a ' + status, function() {
+                            var error;
+
+                            beforeEach(function(done) {
+                                error = new Error(status + ' - The page could not be loaded.');
+                                error.name = 'StatusCodeError';
+                                error.statusCode = status;
+
+                                requestDeferreds[request.get.calls.mostRecent().args[0]].reject(error);
+                                setTimeout(done);
+                            });
+
+                            it('should reject with the reason', function() {
+                                expect(failure).toHaveBeenCalledWith(error);
+                            });
+
+                            it('should not log an error', function() {
+                                expect(log.error).not.toHaveBeenCalled();
+                            });
+                        });
+                    });
+
+                    [500, 502, 510].forEach(function(status) {
+                        describe('if the upstream server responds with a ' + status, function() {
+                            var error;
+
+                            beforeEach(function(done) {
+                                error = new Error(status + ' - The page could not be loaded.');
+                                error.name = 'StatusCodeError';
+                                error.statusCode = status;
+
+                                requestDeferreds[request.get.calls.mostRecent().args[0]].reject(error);
+                                setTimeout(done);
+                            });
+
+                            it('should reject with the reason', function() {
+                                expect(failure).toHaveBeenCalledWith(error);
+                            });
+
+                            it('should log an error', function() {
+                                expect(log.error).toHaveBeenCalled();
+                            });
+                        });
+                    });
+
+                    describe('if there is some unknown error', function() {
+                        var error;
+
+                        beforeEach(function(done) {
+                            error = new SyntaxError('You can\'t type.');
+
+                            requestDeferreds[request.get.calls.mostRecent().args[0]].reject(error);
+                            setTimeout(done);
+                        });
+
+                        it('should reject', function() {
+                            expect(failure).toHaveBeenCalledWith(error);
+                        });
+
+                        it('should log an error', function() {
+                            expect(log.error).toHaveBeenCalled();
+                        });
+                    });
                 });
 
                 describe('__findCards__(campaign, params, amount, origin, uuid)', function() {
@@ -547,6 +674,8 @@ describe('AdLoader()', function() {
                         origin = 'https://awesome-pub.com/';
                         uuid = '3ryuf3987yr';
 
+                        jasmine.clock().uninstall();
+
                         success = jasmine.createSpy('success()');
                         failure = jasmine.createSpy('failure()');
 
@@ -554,6 +683,10 @@ describe('AdLoader()', function() {
                         result.then(success, failure);
 
                         process.nextTick(done);
+                    });
+
+                    afterEach(function() {
+                        jasmine.clock().install();
                     });
 
                     it('should return a Promise', function() {
@@ -574,6 +707,93 @@ describe('AdLoader()', function() {
                             },
                             headers: { origin: origin },
                             json: true
+                        });
+                    });
+
+                    describe('if something else goes wrong in request', function() {
+                        var error;
+
+                        beforeEach(function(done) {
+                            error = new Error('Error: BLEH');
+                            error.name = 'RequestError';
+                            error.cause = new Error('BLEH');
+                            error.cause.code = 'EBLEH';
+
+                            requestDeferreds[request.get.calls.mostRecent().args[0]].reject(error);
+                            setTimeout(done);
+                        });
+
+                        it('should reject', function() {
+                            expect(failure).toHaveBeenCalledWith(error);
+                        });
+
+                        it('should log an error', function() {
+                            expect(log.error).toHaveBeenCalled();
+                        });
+                    });
+
+                    [400, 409, 404].forEach(function(status) {
+                        describe('if the upstream server responds with a ' + status, function() {
+                            var error;
+
+                            beforeEach(function(done) {
+                                error = new Error(status + ' - The page could not be loaded.');
+                                error.name = 'StatusCodeError';
+                                error.statusCode = status;
+
+                                requestDeferreds[request.get.calls.mostRecent().args[0]].reject(error);
+                                setTimeout(done);
+                            });
+
+                            it('should reject with the reason', function() {
+                                expect(failure).toHaveBeenCalledWith(error);
+                            });
+
+                            it('should not log an error', function() {
+                                expect(log.error).not.toHaveBeenCalled();
+                            });
+                        });
+                    });
+
+                    [500, 502, 510].forEach(function(status) {
+                        describe('if the upstream server responds with a ' + status, function() {
+                            var error;
+
+                            beforeEach(function(done) {
+                                error = new Error(status + ' - The page could not be loaded.');
+                                error.name = 'StatusCodeError';
+                                error.statusCode = status;
+
+                                requestDeferreds[request.get.calls.mostRecent().args[0]].reject(error);
+                                setTimeout(done);
+                            });
+
+                            it('should reject with the reason', function() {
+                                expect(failure).toHaveBeenCalledWith(error);
+                            });
+
+                            it('should log an error', function() {
+                                expect(log.error).toHaveBeenCalled();
+                            });
+                        });
+                    });
+
+                    describe('if there is some unknown error', function() {
+                        var error;
+
+                        beforeEach(function(done) {
+                            error = new SyntaxError('You can\'t type.');
+
+                            requestDeferreds[request.get.calls.mostRecent().args[0]].reject(error);
+                            setTimeout(done);
+                        });
+
+                        it('should reject', function() {
+                            expect(failure).toHaveBeenCalledWith(error);
+                        });
+
+                        it('should log an error', function() {
+                            expect(log.error).toHaveBeenCalled();
                         });
                     });
 
