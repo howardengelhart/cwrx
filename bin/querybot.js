@@ -2,19 +2,22 @@
 
 var __ut__      = (global.jasmine !== undefined) ? true : false;
 
-var q               = require('q'),
-    path            = require('path'),
-    url             = require('url'),
-    express         = require('express'),
-    bodyParser      = require('body-parser'),
-    pg              = require('pg.js'),
-    inherits        = require('util').inherits,
-    expressUtils    = require('../lib/expressUtils'),
-    requestUtils    = require('../lib/requestUtils'),
-    dbpass          = require('../lib/dbpass'),
-    logger          = require('../lib/logger'),
-    authUtils       = require('../lib/authUtils'),
-    service         = require('../lib/service'),
+var q                 = require('q'),
+    path              = require('path'),
+    url               = require('url'),
+    express           = require('express'),
+    bodyParser        = require('body-parser'),
+    pg                = require('pg.js'),
+    inherits          = require('util').inherits,
+    expressUtils      = require('../lib/expressUtils'),
+    requestUtils      = require('../lib/requestUtils'),
+    cloudwatchMetrics = expressUtils.cloudwatchMetrics,
+//    CloudWatchReporter = require('../lib/cloudWatchReporter'),
+    dbpass            = require('../lib/dbpass'),
+    logger            = require('../lib/logger'),
+    authUtils         = require('../lib/authUtils'),
+    service           = require('../lib/service'),
+    inspect           = require('util').inspect,
     state   = {},
     lib     = {};
 
@@ -67,6 +70,12 @@ state.defaultConfig = {
     },
     api : {
         root: 'http://localhost/'
+    },
+    cloudwatch: {
+        namespace: 'C6/Querybot',
+        region: 'us-east-1',
+        sendInterval: (1 * 60 * 1000), // 1 min
+        environment : 'Development'
     },
     campaignCacheTTL : 120 * 1000,
     requestMaxAge : 300
@@ -452,8 +461,58 @@ lib.main = function(state) {
         return state;
     }
     log.info('Running as cluster worker, proceed with setting up web server.');
+    require('aws-sdk').config.update({ region: state.config.cloudwatch.region });
 
-    var app          = express();
+    var app = express(), cwCampaignSummarySingle, cwCampaignSummaryMulti;
+    cwCampaignSummarySingle = cloudwatchMetrics(
+        state.config.cloudwatch.namespace,
+        state.config.cloudwatch.sendInterval,
+        {
+            MetricName : 'Duration',
+            Dimensions : [
+                {
+                    Name : 'Environment',
+                    Value : state.config.cloudwatch.environment
+                },
+                {
+                    Name  : 'Function',
+                    Value : '/api/analytics/campaigns/:id'
+                }
+            ],
+            Unit: 'Milliseconds'
+        }
+    );
+    cwCampaignSummarySingle.reporter.removeAllListeners('flush');
+    cwCampaignSummarySingle.reporter.on('flush', function(data) {
+        log.info('Sending cwCampaignSummarySingle timing metrics to CloudWatch: %1',
+            inspect(data));
+    });
+
+    cwCampaignSummaryMulti = cloudwatchMetrics(
+        state.config.cloudwatch.namespace,
+        state.config.cloudwatch.sendInterval,
+        {
+            MetricName : 'Duration',
+            Dimensions : [
+                {
+                    Name : 'Environment',
+                    Value : state.config.cloudwatch.environment
+                },
+                {
+                    Name  : 'Function',
+                    Value : '/api/analytics/campaigns/'
+                }
+            ],
+            Unit: 'Milliseconds'
+        }
+    );
+
+    cwCampaignSummaryMulti.reporter.removeAllListeners('flush');
+    cwCampaignSummaryMulti.reporter.on('flush', function(data) {
+        log.info('Sending cwCampaignSummaryMulti timing metrics to CloudWatch: %1',
+            inspect(data));
+    });
+
     
     authUtils._db = state.dbs.c6Db;
 
@@ -486,7 +545,8 @@ lib.main = function(state) {
 
     
     var authAnalCamp = authUtils.middlewarify({campaigns: 'read'});
-    app.get('/api/analytics/campaigns/:id', sessions, authAnalCamp, function(req, res, next) {
+    app.get('/api/analytics/campaigns/:id', sessions, authAnalCamp, cwCampaignSummaryMulti,
+        function(req, res, next) {
         lib.getCampaignSummaryAnalytics(req)
         .then(function(){
             if (req.campaignSummaryAnalytics.length === 0) {
@@ -512,7 +572,8 @@ lib.main = function(state) {
         });
     });
     
-    app.get('/api/analytics/campaigns/', sessions, authAnalCamp, function(req, res, next) {
+    app.get('/api/analytics/campaigns/', sessions, authAnalCamp, cwCampaignSummarySingle,
+        function(req, res, next) {
         lib.getCampaignSummaryAnalytics(req)
         .then(function(){
             log.info('[%1] - returning data for %2 campaigns',
