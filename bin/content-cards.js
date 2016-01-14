@@ -23,7 +23,6 @@
         },
         campaign: {
             __default: {},
-            __required: true, //TODO: verify, test; anywhere else that needs this treatment?
             reportingId: {
                 __allowed: true,
                 __type: 'string'
@@ -44,7 +43,6 @@
         },
         data: {
             __default: {},
-            __required: true, //TODO: verify, test
             skip: {
                 __allowed: false,
                 __required: true,

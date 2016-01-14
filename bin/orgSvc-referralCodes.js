@@ -38,7 +38,6 @@
     
     // Generate req.body.code: concats epoch time in base 36 + increasing counter in base 36
     refModule.generateCode = function(req, next/*, done*/) {
-        //TODO: swap out with shortid module??
         var counterStr = refModule.counter.toString(36);
         if (counterStr.length === 1) {
             counterStr = '0' + counterStr;

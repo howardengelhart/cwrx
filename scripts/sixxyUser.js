@@ -35,6 +35,9 @@ mongoUtils.connect(program.dbHost, program.dbPort, 'c6Db', program.dbUser, progr
         fieldValidation: {
             advertisers: {
                 org: { __allowed: true }
+            },
+            orgs: {
+                referralCode: { __allowed: true }
             }
         }
     };

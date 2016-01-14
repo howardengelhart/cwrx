@@ -35,6 +35,10 @@
         braintreeCustomer: {
             __allowed: false,
             __type: 'string'
+        },
+        referralCode: {
+            __allowed: false,
+            __type: 'string'
         }
     };
 

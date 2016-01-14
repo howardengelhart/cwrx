@@ -441,16 +441,6 @@ describe('userSvc users (E2E):', function() {
             }).done(done);
         });
 
-        it('should prevent a non-admin user from getting all users', function(done) {
-            requestUtils.qRequest('get', options).then(function(resp) {
-                expect(resp.response.statusCode).toBe(403);
-                expect(resp.body).toEqual('Not authorized to read all users');
-                expect(resp.response.headers['content-range']).not.toBeDefined();
-            }).catch(function(error) {
-                expect(util.inspect(error)).not.toBeDefined();
-            }).done(done);
-        });
-
         it('should allow admins to get all users', function(done) {
             options.jar = adminJar;
             requestUtils.qRequest('get', options).then(function(resp) {
@@ -1605,6 +1595,32 @@ describe('userSvc users (E2E):', function() {
                 done();
             });
         });
+        
+        it('should save a referralCode if set', function(done) {
+            options.json.referralCode = 'asdf123456';
+
+            mailman.once(msgSubject, function(msg) {
+                expect(msg.from[0].address).toBe('no-reply@cinema6.com');
+                expect(msg.to[0].address).toBe('c6e2etester@gmail.com');
+                expect(msg.text).toMatch(urlRegex);
+                expect(msg.html).toMatch(urlRegex);
+                expect(new Date() - msg.date).toBeLessThan(30000); // message should be recent
+                done();
+            });
+        
+            requestUtils.qRequest('post', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(201);
+                expect(resp.body).toEqual(jasmine.objectContaining({
+                    id: jasmine.any(String),
+                    status: 'new',
+                    referralCode: 'asdf123456',
+                    external: true
+                }));
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+                done();
+            });
+        });
 
         it('should lowercase the new email', function(done) {
             mailman.once(msgSubject, function(msg) {
@@ -1894,6 +1910,7 @@ describe('userSvc users (E2E):', function() {
                 .then(function(results) {
                     var org = results[0];
                     expect(org.name).toBe('e2e-tests-company (u-12345)');
+                    expect(org.referralCode).not.toBeDefined();
                 })
                 .catch(function(error) {
                     expect(util.inspect(error)).not.toBeDefined();
@@ -1960,6 +1977,35 @@ describe('userSvc users (E2E):', function() {
                         expect(util.inspect(error)).not.toBeDefined();
                         done();
                     }); 
+                });
+            });
+            
+            describe('if the user has a referralCode', function() {
+                beforeEach(function(done) {
+                    mockNewUser.referralCode = 'asdf123456';
+                    testUtils.resetCollection('users', [mockNewUser, mockAdmin]).done(done);
+                });
+
+                it('should save the referralCode on the org', function(done) {
+                    mailman.once(msgSubject, function(msg) {
+                        done();
+                    });
+
+                    requestUtils.qRequest('post', options)
+                    .then(function(resp) {
+                        var orgId = resp.body.org;
+                        expect(orgId).toEqual(jasmine.any(String));
+                        return testUtils.mongoFind('orgs', {id: orgId});
+                    })
+                    .then(function(results) {
+                        var org = results[0];
+                        expect(org.name).toBe('e2e-tests-company (u-12345)');
+                        expect(org.referralCode).toBe('asdf123456');
+                    })
+                    .catch(function(error) {
+                        expect(util.inspect(error)).not.toBeDefined();
+                        done();
+                    });
                 });
             });
         });

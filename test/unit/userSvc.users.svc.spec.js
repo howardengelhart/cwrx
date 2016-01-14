@@ -111,7 +111,7 @@ describe('userSvc (UT)', function() {
         beforeEach(function() {
             var bind = Function.prototype.bind;
             boundFns = [];
-            [CrudSvc.prototype.preventGetAll, CrudSvc.prototype.validateUniqueProp, userModule.checkExistingWithNewEmail,
+            [CrudSvc.prototype.validateUniqueProp, userModule.checkExistingWithNewEmail,
              userModule.hashProp, userModule.validateRoles, userModule.validatePolicies, userModule.setupSignupUser,
              userModule.giveActivationToken, userModule.sendActivationEmail, userModule.checkValidToken,
              userModule.createLinkedEntities, userModule.sendConfirmationEmail].forEach(function(fn) {
@@ -143,11 +143,6 @@ describe('userSvc (UT)', function() {
             expect(result._userProp).toBe(false);
             expect(result.model).toEqual(jasmine.any(Model));
             expect(result.model.schema).toBe(userModule.userSchema);
-        });
-
-        it('should prevent getting all users', function() {
-            expect(result.preventGetAll.bind).toHaveBeenCalledWith(result);
-            expect(result._middleware.read).toContain(getBoundFn(result.preventGetAll, [result]));
         });
 
         it('should hash the user\'s passwords when creating', function() {
@@ -436,6 +431,49 @@ describe('userSvc (UT)', function() {
                 });
             });
         });
+
+        describe('when handling referralCode', function() {
+            it('should trim the field if set', function() {
+                newObj.referralCode = '123456';
+                expect(svc.model.validate('create', newObj, origObj, requester))
+                    .toEqual({ isValid: true, reason: undefined });
+                expect(newObj.referralCode).not.toBeDefined();
+            });
+            
+            it('should be able to allow some requesters to set the field', function() {
+                newObj.referralCode = '123456';
+                requester.fieldValidation.users.referralCode = { __allowed: true };
+
+                expect(svc.model.validate('create', newObj, origObj, requester))
+                    .toEqual({ isValid: true, reason: undefined });
+                expect(newObj.referralCode).toEqual('123456');
+            });
+            
+            it('should fail if the field is not a string', function() {
+                newObj.referralCode = 123456;
+                requester.fieldValidation.users.referralCode = { __allowed: true };
+
+                expect(svc.model.validate('create', newObj, origObj, requester))
+                    .toEqual({ isValid: false, reason: 'referralCode must be in format: string' });
+            });
+        });
+    });
+    
+    describe('createSignupModel', function() {
+        var svc;
+        beforeEach(function() {
+            svc = userModule.setupSvc(mockDb, mockConfig, mockCache);
+        });
+
+        it('should return a new model with an altered user schema', function() {
+            var newModel = userModule.createSignupModel(svc);
+            expect(newModel).toEqual(jasmine.any(Model));
+            expect(newModel.objName).toBe('users');
+            expect(newModel.schema.referralCode.__allowed).toBe(true);
+            expect(svc.model.schema.referralCode.__allowed).toBe(false);
+            newModel.schema.referralCode.__allowed = false;
+            expect(newModel.schema).toEqual(svc.model.schema);
+        });
     });
 
     describe('checkValidToken', function() {
@@ -667,6 +705,35 @@ describe('userSvc (UT)', function() {
             });
         });
         
+        describe('if the user has a referralCode', function() {
+            beforeEach(function() {
+                req.user.referralCode = 'asdf123456';
+            });
+
+            it('should save the code on the org', function(done) {
+                userModule.createLinkedEntities(mockConfig, mockCache, svc, req, nextSpy, doneSpy).catch(errorSpy)
+                .finally(function() {
+                    expect(nextSpy).toHaveBeenCalled();
+                    expect(doneSpy).not.toHaveBeenCalled();
+                    expect(errorSpy).not.toHaveBeenCalled();
+                    expect(req.user.org).toBe('orgs-id-123');
+
+                    expect(requestUtils.qRequest).toHaveBeenCalledWith('post', {
+                        url: 'http://localhost/api/account/orgs',
+                        json: {
+                            name: 'some company (u-12345)',
+                            referralCode: 'asdf123456'
+                        },
+                        headers: { cookie: 'sixxy cookie' }
+                    });
+
+                    expect(mongoUtils.editObject).not.toHaveBeenCalled();
+                    expect(mockLog.error).not.toHaveBeenCalled();
+                    expect(CacheMutex.prototype.release).toHaveBeenCalled();
+                }).done(done);
+            });
+        });
+        
         ['4xx response', 'rejection'].forEach(function(failType) {
             function failRequestFor(entity, method, opts) {
                 return function(method, opts) {
@@ -763,81 +830,6 @@ describe('userSvc (UT)', function() {
                 });
             });
         });
-
-
-/*       
-        ['org', 'advertiser'].forEach(function(entity) {
-            var otherEntity = entity === 'org' ? 'advertiser' : 'org';
-            function pluralize(name) {
-                return name + 's';
-            }
-            
-            describe('if the user already has an ' + entity, function() {
-                beforeEach(function() {
-                    req.user[entity] = 'existing-id';
-                });
-
-                it('should not attempt to create another ' + entity, function(done) {
-
-                });
-            });
-            
-            ['4xx response', 'rejection'].forEach(function(failType) {
-                describe('if creating an ' + entity + ' fails with a ' + failType, function() {
-                    beforeEach(function() {
-                        requestUtils.qRequest.and.callFake(function(method, opts) {
-                            var object = opts.url.match(/orgs|advertisers/)[0];
-                            if (object === pluralize(entity)) {
-                                if (/reject/.test(failType)) {
-                                    return q.reject('I GOT A PROBLEM');
-                                } else {
-                                    return q({
-                                        response: { statusCode: 400 },
-                                        body: 'I can\'t let you do that, sixxy'
-                                    });
-                                }
-                            } else {
-                                return q({
-                                    response: { statusCode: 201 },
-                                    body: { id: object + '-id-123' }
-                                });
-                            }
-                        });
-                    });
-                    
-                    it('should save the user with any created objects\' ids', function(done) {
-                        userModule.createLinkedEntities(mockConfig, mockCache, svc, req, nextSpy, doneSpy).catch(errorSpy)
-                        .finally(function() {
-                            expect(nextSpy).not.toHaveBeenCalled();
-                            expect(doneSpy).not.toHaveBeenCalled();
-                            expect(errorSpy).toHaveBeenCalledWith('Failed creating linked entities');
-                            expect(req.user[entity]).not.toBeDefined();
-
-                            if (entity === 'org') {
-                                expect(requestUtils.qRequest.calls.count()).toBe(1);
-                            } else {
-                                expect(requestUtils.qRequest.calls.count()).toBe(2);
-                            }
-                            expect(mongoUtils.editObject).toHaveBeenCalledWith('fakeColl', {
-                                org         : entity === 'org' ? undefined : 'orgs-id-123',
-                                advertiser  : undefined
-                            }, 'u-12345');
-                            
-                            expect(mockLog.error).toHaveBeenCalled();
-                            expect(mockLog.error.calls.mostRecent().args).toContain(entity);
-                            if (/reject/.test(failType)) {
-                                expect(mockLog.error.calls.mostRecent().args).toContain(jasmine.stringMatching('I GOT A PROBLEM'));
-                            } else {
-                                expect(mockLog.error.calls.mostRecent().args).toContain(jasmine.stringMatching('400'));
-                                expect(mockLog.error.calls.mostRecent().args).toContain(jasmine.stringMatching('let you do that, sixxy'));
-                            }
-                            expect(CacheMutex.prototype.release).toHaveBeenCalled();
-                        }).done(done);
-                    });
-                });
-            });
-        });
-*/
     });
 
     describe('sendConfirmationEmail', function() {
@@ -1949,7 +1941,7 @@ describe('userSvc (UT)', function() {
     });
 
     describe('signupUser', function() {
-        var customMethodDeferred;
+        var customMethodDeferred, mockModel;
         var svc, req;
         var result;
 
@@ -1957,11 +1949,6 @@ describe('userSvc (UT)', function() {
             customMethodDeferred = q.defer();
             svc = {
                 customMethod: jasmine.createSpy('svc.customMethod()').and.returnValue(customMethodDeferred.promise),
-                model: {
-                    validate: jasmine.createSpy('svc.model.validate()').and.returnValue({
-                        isValid: true
-                    })
-                },
                 _coll: 'users',
                 transformMongoDoc: jasmine.createSpy('svc.transformMongoDoc()').and.callFake(function(value) {
                     return value;
@@ -1970,6 +1957,10 @@ describe('userSvc (UT)', function() {
                     return value;
                 })
             };
+            mockModel = {
+                validate: jasmine.createSpy('model.validate()').and.returnValue({ isValid: true })
+            };
+            spyOn(userModule, 'createSignupModel').and.returnValue(mockModel);
             req = {
                 body: {
                     foo: 'bar'
@@ -1979,12 +1970,13 @@ describe('userSvc (UT)', function() {
         });
 
         it('should validate the model', function() {
-            expect(svc.model.validate).toHaveBeenCalledWith('create', { foo: 'bar' }, {}, {});
+            expect(userModule.createSignupModel).toHaveBeenCalledWith(svc);
+            expect(mockModel.validate).toHaveBeenCalledWith('create', { foo: 'bar' }, {}, {});
         });
 
         describe('when the model is valid', function() {
             beforeEach(function() {
-                svc.model.validate.and.returnValue({
+                mockModel.validate.and.returnValue({
                     isValid: true,
                     reason: null
                 });
@@ -2028,7 +2020,7 @@ describe('userSvc (UT)', function() {
 
         describe('when the model is not valid', function() {
             beforeEach(function() {
-                svc.model.validate.and.returnValue({
+                mockModel.validate.and.returnValue({
                     isValid: false,
                     reason: 'error message'
                 });
