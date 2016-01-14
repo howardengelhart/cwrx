@@ -1,5 +1,19 @@
 # Player Service Changelog
 
+### 2.1.2: Thu Jan 14 13:51:41 EST 2016
+* Add ability to create conditional player builds based on various
+  attributes of the experience/card: [#735](https://github.com/cinema6/cwrx/pull/735)
+* [FIX]: Stop triggering PagerDuty alerts if the request for a card
+  `4xx`s: [#736](https://github.com/cinema6/cwrx/pull/736)
+
+### 2.1.1: Thu Jan  7 16:30:36 EST 2016
+* The player is now built dynamically at runtime: [#723](https://github.com/cinema6/cwrx/pull/723)
+* Add support for debug (unminifed) player builds: [#725](https://github.com/cinema6/cwrx/pull/725)
+* Make sure the host (request origin) is set by the content service in
+  card pixel URLs: [#726](https://github.com/cinema6/cwrx/pull/726)
+* Allow campaign ID to be specified with a card ID: [#727](https://github.com/cinema6/cwrx/pull/727/files)
+* **Extra Deployment Steps**: [#724](https://github.com/cinema6/cwrx/issues/724)
+
 ### 2.1.0: Tue Dec 29 11:26:35 EST 2015
 * Include provided options in response body: [#712](https://github.com/cinema6/cwrx/pull/712)
 * Report player (front-end) version in the meta endpoint response:

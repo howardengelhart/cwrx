@@ -1,5 +1,7 @@
 # Org Service Changelog
 
+### 1.4.3: Mon Jan 11 12:36:22 EST 2016
+* [FIX]: Cease recursive validation if a field is unchanged: [#728](https://github.com/cinema6/cwrx/pull/728)
 * Upgrade mongo driver to 2.x, fixing reconnect issues: [#717](https://github.com/cinema6/cwrx/pull/717)
 
 ### 1.4.2: Fri Nov 13 11:03:21 EST 2015

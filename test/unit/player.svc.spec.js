@@ -18,17 +18,25 @@ describe('player service', function() {
     var AWS;
     var CloudWatchReporter;
     var HTMLDocument;
+    var fs;
+    var MockReadable;
+    var AppBuilder;
+    var streamToPromise;
+    var _;
 
     var requestDeferreds;
     var fnCaches;
     var MockFunctionCache;
     var MockAdLoader;
+    var MockAppBuilder;
     var playerHTML;
+    var builtPlayerHTML;
     var playerCSS;
     var playerJS;
     var log;
     var adLoader;
     var reporter;
+    var built;
 
     var setTimeout;
 
@@ -50,8 +58,13 @@ describe('player service', function() {
         clonePromise = require('../../lib/promise').clone;
         AWS = require('aws-sdk');
         HTMLDocument = require('../../lib/htmlDocument');
+        fs = require('fs-extra');
+        MockReadable = require('./helpers/MockReadable');
+        streamToPromise = require('stream-to-promise');
+        _ = require('lodash');
 
         playerHTML = require('fs').readFileSync(require.resolve('./helpers/player.html')).toString();
+        builtPlayerHTML = require('fs').readFileSync(require.resolve('./helpers/player--built.html')).toString();
         playerCSS = require('fs').readFileSync(require.resolve('./helpers/lightbox.css')).toString();
         playerJS = require('fs').readFileSync(require.resolve('./helpers/lightbox.js')).toString();
 
@@ -116,6 +129,20 @@ describe('player service', function() {
         });
 
         MockFunctionCache = require('../../lib/functionCache');
+
+        delete require.cache[require.resolve('rc-app-builder')];
+        AppBuilder = require('rc-app-builder');
+        require.cache[require.resolve('rc-app-builder')].exports = jasmine.createSpy('AppBuilder()').and.callFake(function(config) {
+            var builder = new AppBuilder(config);
+
+            spyOn(builder, 'build').and.callFake(function() {
+                return (built = new MockReadable(builtPlayerHTML));
+            });
+
+            return builder;
+        });
+
+        MockAppBuilder = require('rc-app-builder');
 
         log = {
             info: jasmine.createSpy('log.info()'),
@@ -257,6 +284,9 @@ describe('player service', function() {
                                             max: 5
                                         }
                                     }
+                                },
+                                app: {
+                                    version: 'master'
                                 },
                                 cloudwatch: {
                                     namespace: 'C6/Player',
@@ -839,6 +869,12 @@ describe('player service', function() {
                         }
                     }
                 },
+                app: {
+                    version: 'v2.4.1',
+                    staticURL: 'static/player/',
+                    entry: '/opt/sixxy/install/mini-reel-player/current/public/main.html',
+                    config: require.resolve('./helpers/build.json')
+                },
                 cloudwatch: {
                     namespace: 'C6/Player',
                     region: 'us-east-1',
@@ -930,8 +966,24 @@ describe('player service', function() {
         describe('@public', function() {
             describe('properties:', function() {
                 describe('config', function() {
-                    it('should be the provided config object', function() {
-                        expect(player.config).toBe(config);
+                    it('should equal the provided config object plus the builder config', function() {
+                        expect(player.config).toEqual(extend({
+                            app: {
+                                builder: require(config.app.config)
+                            }
+                        }, config));
+                    });
+
+                    describe('if there is no "config" path', function() {
+                        beforeEach(function() {
+                            delete config.app.config;
+
+                            player = new Player(config);
+                        });
+
+                        it('should make the builder null', function() {
+                            expect(player.config.app.builder).toBeNull();
+                        });
                     });
                 });
 
@@ -995,49 +1047,8 @@ describe('player service', function() {
                         expect(result).toEqual(jasmine.any(Promise));
                     });
 
-                    it('should make a request for the player', function() {
-                        expect(request.get).toHaveBeenCalledWith('http://localhost/apps/mini-reel-player/index.html', { gzip: true });
-                    });
-
-                    describe('when the HTML is fetched', function() {
-                        describe('with an RC', function() {
-                            beforeEach(function(done) {
-                                $('base').attr('href', 'v2.3.3-rc2-0-ge17e655/');
-
-                                requestDeferreds[request.get.calls.mostRecent().args[0]].resolve($.html());
-                                result.then(done, done.fail);
-                            });
-
-                            it('should fulfill with the version (parsed from the <base> tag', function() {
-                                expect(success).toHaveBeenCalledWith('v2.3.3-rc2');
-                            });
-                        });
-
-                        describe('without an RC', function() {
-                            beforeEach(function(done) {
-                                $('base').attr('href', 'v2.3.4-0-gb84bd38/');
-
-                                requestDeferreds[request.get.calls.mostRecent().args[0]].resolve($.html());
-                                result.then(done, done.fail);
-                            });
-
-                            it('should fulfill with the version (parsed from the <base> tag', function() {
-                                expect(success).toHaveBeenCalledWith('v2.3.4');
-                            });
-                        });
-
-                        describe('without a version', function() {
-                            beforeEach(function(done) {
-                                $('base').attr('href', '');
-
-                                requestDeferreds[request.get.calls.mostRecent().args[0]].resolve($.html());
-                                result.then(done, done.fail);
-                            });
-
-                            it('should fulfill with null', function() {
-                                expect(success).toHaveBeenCalledWith(null);
-                            });
-                        });
+                    it('should fulfill with config.app.version', function() {
+                        expect(success).toHaveBeenCalledWith(player.config.app.version);
                     });
                 });
 
@@ -1062,7 +1073,7 @@ describe('player service', function() {
                     var success, failure;
                     var options;
                     var document, experience, sponsoredCards, normalCards;
-                    var loadExperienceDeferred, loadCardDeferred;
+                    var loadExperienceDeferred, getPlayerDeferred, loadCardDeferred;
 
                     beforeEach(function(done) {
                         success = jasmine.createSpy('success()');
@@ -1092,7 +1103,8 @@ describe('player service', function() {
                             standalone: true,
                             embed: false,
                             countdown: false,
-                            prebuffer: true
+                            prebuffer: true,
+                            debug: false
                         };
 
                         document = new HTMLDocument(playerHTML);
@@ -1117,14 +1129,14 @@ describe('player service', function() {
                         spyOn(player, '__loadExperience__').and.returnValue(loadExperienceDeferred.promise);
                         spyOn(player, '__loadCard__').and.returnValue(loadCardDeferred.promise);
 
-                        player.__getPlayer__.and.returnValue(q(document));
+                        player.__getPlayer__.and.returnValue((getPlayerDeferred = q.defer()).promise);
 
                         player.get(options).then(success, failure);
                         q().then(done);
                     });
 
-                    it('should get the player', function() {
-                        expect(player.__getPlayer__).toHaveBeenCalledWith(options.type, options.secure, options.uuid);
+                    it('should not get the player', function() {
+                        expect(player.__getPlayer__).not.toHaveBeenCalled();
                     });
 
                     it('should load the experience', function() {
@@ -1151,6 +1163,10 @@ describe('player service', function() {
 
                             loadExperienceDeferred.fulfill(experience);
                             process.nextTick(done);
+                        });
+
+                        it('should fetch the player', function() {
+                            expect(player.__getPlayer__).toHaveBeenCalledWith(player.__getBuildProfile__(experience, options), true, options.uuid);
                         });
 
                         it('should loading brandings for the player', function() {
@@ -1189,23 +1205,30 @@ describe('player service', function() {
                             });
                         });
 
-                        it('should add the brandings as a resource', function() {
-                            expect(brandings.length).toBeGreaterThan(0);
-                            brandings.forEach(function(branding) {
-                                expect(document.addCSS).toHaveBeenCalledWith(branding.src, branding.styles);
+                        describe('when the player is fetched', function() {
+                            beforeEach(function(done) {
+                                getPlayerDeferred.resolve(document);
+                                process.nextTick(done);
                             });
-                        });
 
-                        it('should add the options as a resource', function() {
-                            expect(document.addResource).toHaveBeenCalledWith('options', 'application/json', options);
-                        });
+                            it('should add the brandings as a resource', function() {
+                                expect(brandings.length).toBeGreaterThan(0);
+                                brandings.forEach(function(branding) {
+                                    expect(document.addCSS).toHaveBeenCalledWith(branding.src, branding.styles);
+                                });
+                            });
 
-                        it('should add the experience as a resource', function() {
-                            expect(document.addResource).toHaveBeenCalledWith('experience', 'application/json', experience);
-                        });
+                            it('should add the options as a resource', function() {
+                                expect(document.addResource).toHaveBeenCalledWith('options', 'application/json', options);
+                            });
 
-                        it('should resolve to the player as a string of HTML', function() {
-                            expect(success).toHaveBeenCalledWith(document.toString());
+                            it('should add the experience as a resource', function() {
+                                expect(document.addResource).toHaveBeenCalledWith('experience', 'application/json', experience);
+                            });
+
+                            it('should resolve to the player as a string of HTML', function() {
+                                expect(success).toHaveBeenCalledWith(document.toString());
+                            });
                         });
                     });
 
@@ -1216,6 +1239,7 @@ describe('player service', function() {
 
                             player.__getBranding__.and.returnValue(q([]));
                             player.__loadExperience__.and.returnValue(q(experience));
+                            player.__getPlayer__.and.returnValue(q(document));
 
                             options.countdown = undefined;
 
@@ -1237,6 +1261,7 @@ describe('player service', function() {
 
                                 player.__getBranding__.and.returnValue(q([]));
                                 player.__loadExperience__.and.returnValue(q(experience));
+                                player.__getPlayer__.and.returnValue(q(document));
 
                                 options.prebuffer = value;
 
@@ -1332,7 +1357,7 @@ describe('player service', function() {
                                 });
 
                                 it('should call __getPlayer__()', function() {
-                                    expect(player.__getPlayer__).toHaveBeenCalledWith(options.type, options.secure, options.uuid);
+                                    expect(player.__getPlayer__).toHaveBeenCalledWith(player.__getBuildProfile__(null, options), false, options.uuid);
                                 });
 
                                 it('should add the options as a resource', function() {
@@ -1372,7 +1397,7 @@ describe('player service', function() {
                                     });
 
                                     it('should call __getPlayer__()', function() {
-                                        expect(player.__getPlayer__).toHaveBeenCalledWith(options.type, options.secure, options.uuid);
+                                        expect(player.__getPlayer__).toHaveBeenCalledWith(player.__getBuildProfile__(null, options), false, options.uuid);
                                     });
 
                                     it('should loading brandings for the player', function() {
@@ -1402,8 +1427,8 @@ describe('player service', function() {
                                 player.get(options).then(success, failure);
                             });
 
-                            it('should get the player', function() {
-                                expect(player.__getPlayer__).toHaveBeenCalledWith(options.type, options.secure, options.uuid);
+                            it('should not get the player', function() {
+                                expect(player.__getPlayer__).not.toHaveBeenCalled();
                             });
 
                             it('should not load the experience', function() {
@@ -1441,6 +1466,10 @@ describe('player service', function() {
                                     process.nextTick(done);
                                 });
 
+                                it('should load the player', function() {
+                                    expect(player.__getPlayer__).toHaveBeenCalledWith(player.__getBuildProfile__(experience, options), true, options.uuid);
+                                });
+
                                 it('should loading brandings for the player', function() {
                                     expect(player.__getBranding__).toHaveBeenCalledWith(experience.data.branding, options.type, options.desktop, options.uuid);
                                 });
@@ -1464,23 +1493,30 @@ describe('player service', function() {
                                     expect(experience.data.deck[0].data.prebuffer).toBe(options.prebuffer);
                                 });
 
-                                it('should add the brandings as a resource', function() {
-                                    expect(brandings.length).toBeGreaterThan(0);
-                                    brandings.forEach(function(branding) {
-                                        expect(document.addCSS).toHaveBeenCalledWith(branding.src, branding.styles);
+                                describe('when the player is fetched', function() {
+                                    beforeEach(function(done) {
+                                        getPlayerDeferred.resolve(document);
+                                        process.nextTick(done);
                                     });
-                                });
 
-                                it('should add the options as a resource', function() {
-                                    expect(document.addResource).toHaveBeenCalledWith('options', 'application/json', options);
-                                });
+                                    it('should add the brandings as a resource', function() {
+                                        expect(brandings.length).toBeGreaterThan(0);
+                                        brandings.forEach(function(branding) {
+                                            expect(document.addCSS).toHaveBeenCalledWith(branding.src, branding.styles);
+                                        });
+                                    });
 
-                                it('should add the experience as a resource', function() {
-                                    expect(document.addResource).toHaveBeenCalledWith('experience', 'application/json', experience);
-                                });
+                                    it('should add the options as a resource', function() {
+                                        expect(document.addResource).toHaveBeenCalledWith('options', 'application/json', options);
+                                    });
 
-                                it('should resolve to the player as a string of HTML', function() {
-                                    expect(success).toHaveBeenCalledWith(document.toString());
+                                    it('should add the experience as a resource', function() {
+                                        expect(document.addResource).toHaveBeenCalledWith('experience', 'application/json', experience);
+                                    });
+
+                                    it('should resolve to the player as a string of HTML', function() {
+                                        expect(success).toHaveBeenCalledWith(document.toString());
+                                    });
                                 });
                             });
                         });
@@ -1491,6 +1527,7 @@ describe('player service', function() {
                             player.__getBranding__.and.returnValue(q([]));
                             player.__loadExperience__.calls.reset();
                             loadExperienceDeferred.fulfill(experience);
+                            getPlayerDeferred.resolve(document);
                             options.origin = undefined;
 
                             player.get(options).finally(done);
@@ -1505,6 +1542,7 @@ describe('player service', function() {
                         beforeEach(function(done) {
                             player.__getBranding__.and.returnValue(q([]));
                             player.__loadExperience__.and.returnValue(q(experience));
+                            player.__getPlayer__.and.returnValue(q(document));
                             delete experience.data.campaign.launchUrls;
 
                             player.get(options).finally(done);
@@ -1520,6 +1558,7 @@ describe('player service', function() {
                             success.calls.reset();
                             failure.calls.reset();
                             player.__getBranding__.and.returnValue(q([]));
+                            player.__getPlayer__.and.returnValue(q(document));
                             player.__loadExperience__.and.callFake(function() {
                                 experience.data.deck.length = 0;
 
@@ -1543,6 +1582,7 @@ describe('player service', function() {
                         beforeEach(function(done) {
                             player.__getBranding__.and.returnValue(q([]));
                             player.__loadExperience__.and.returnValue(q(experience));
+                            player.__getPlayer__.and.returnValue(q(document));
                             options.launchUrls = null;
 
                             player.get(options).finally(done);
@@ -1565,6 +1605,7 @@ describe('player service', function() {
                                 experience.data.deck.length = 1;
                                 player.__getBranding__.and.returnValue(q([]));
                                 player.__loadExperience__.and.returnValue(q(experience));
+                                player.__getPlayer__.and.returnValue(q(document));
 
                                 player.get(options).then(success, failure).finally(done);
                             });
@@ -1581,6 +1622,7 @@ describe('player service', function() {
                                 experience.data.deck.length = 2;
                                 player.__getBranding__.and.returnValue(q([]));
                                 player.__loadExperience__.and.returnValue(q(experience));
+                                player.__getPlayer__.and.returnValue(q(document));
 
                                 player.get(options).then(success, failure).finally(done);
                             });
@@ -1603,6 +1645,7 @@ describe('player service', function() {
                                 failure.calls.reset();
                                 player.__getBranding__.and.returnValue(q([]));
                                 player.__loadExperience__.and.returnValue(q(experience));
+                                player.__getPlayer__.and.returnValue(q(document));
 
                                 options.context = context;
 
@@ -1625,6 +1668,7 @@ describe('player service', function() {
                             failure.calls.reset();
                             player.__getBranding__.and.returnValue(q([]));
                             player.__loadExperience__.and.returnValue(q(experience));
+                            player.__getPlayer__.and.returnValue(q(document));
                             player.__getBranding__.calls.reset();
                             player.__loadExperience__.calls.reset();
                             delete experience.data.branding;
@@ -1654,6 +1698,228 @@ describe('player service', function() {
 
         describe('@private', function() {
             describe('methods:', function() {
+                describe('__getBuildProfile__(experience, options)', function() {
+                    var experience, options;
+
+                    beforeEach(function() {
+                        experience = {
+                            id: 'e-00000000000000',
+                            data: {
+                                deck: []
+                            }
+                        };
+
+                        options = {
+                            context: 'mraid',
+                            type: 'desktop-card',
+                            secure: true,
+                            debug: false
+                        };
+                    });
+
+                    describe('if called with no experience', function() {
+                        var result;
+
+                        beforeEach(function() {
+                            result = player.__getBuildProfile__(undefined, options);
+                        });
+
+                        it('should not include any experience data', function() {
+                            expect(result).toEqual({
+                                type: options.type,
+                                context: options.context,
+
+                                debug: false,
+                                secure: options.secure,
+
+                                isMiniReel: null,
+                                card: {
+                                    types: null,
+                                    modules: null
+                                }
+                            });
+                        });
+                    });
+
+                    describe('.isMiniReel', function() {
+                        describe('if the experience has one card', function() {
+                            beforeEach(function() {
+                                experience.data.deck = [
+                                    {
+                                        id: 'rc-148031b2bc3c61',
+                                        type: 'youtube',
+                                        modules: [],
+                                        data: {
+                                            videoid: 'hfu3i4hf'
+                                        }
+                                    }
+                                ];
+                            });
+
+                            it('should be false', function() {
+                                expect(player.__getBuildProfile__(experience, options).isMiniReel).toBe(false);
+                            });
+                        });
+
+                        describe('if the experience has more than one card', function() {
+                            beforeEach(function() {
+                                experience.data.deck = [
+                                    {
+                                        id: 'rc-148031b2bc3c61',
+                                        type: 'youtube',
+                                        modules: [],
+                                        data: {
+                                            videoid: 'hfu3i4hf'
+                                        }
+                                    },
+                                    {
+                                        id: 'rc-7454d33ced199d',
+                                        type: 'adUnit',
+                                        modules: [],
+                                        data: {
+                                            videoid: 'jfsdoifheiuw'
+                                        }
+                                    }
+                                ];
+                            });
+
+                            it('should be true', function() {
+                                expect(player.__getBuildProfile__(experience, options).isMiniReel).toBe(true);
+                            });
+                        });
+                    });
+
+                    describe('.type', function() {
+                        it('should be the type from the options', function() {
+                            expect(player.__getBuildProfile__(experience, options).type).toBe(options.type);
+                        });
+                    });
+
+                    describe('.context', function() {
+                        it('should be the context from the options', function() {
+                            expect(player.__getBuildProfile__(experience, options).context).toBe(options.context);
+                        });
+                    });
+
+                    describe('.card', function() {
+                        beforeEach(function() {
+                            experience.data.deck = [
+                                {
+                                    id: 'rc-148031b2bc3c61',
+                                    type: 'youtube',
+                                    modules: ['post'],
+                                    data: {
+                                        videoid: 'hfu3i4hf'
+                                    }
+                                },
+                                {
+                                    id: 'rc-7454d33ced199d',
+                                    type: 'adUnit',
+                                    modules: [],
+                                    data: {
+                                        videoid: 'jfsdoifheiuw'
+                                    }
+                                },
+                                {
+                                    id: 'rc-6572dd1dbecce3',
+                                    type: 'instagram',
+                                    modules: ['ballot', 'displayAd'],
+                                    data: {
+                                        videoid: 'jfsdoifheiuw'
+                                    }
+                                },
+                                {
+                                    id: 'rc-148031b2bc3c61',
+                                    type: 'youtube',
+                                    modules: [],
+                                    data: {
+                                        videoid: 'hfu3i4hf'
+                                    }
+                                },
+                                {
+                                    id: 'rc-8ffd5508fea20c',
+                                    type: 'image',
+                                    modules: ['displayAd', 'comments'],
+                                    data: {
+                                        videoid: 'hfu3i4hf'
+                                    }
+                                },
+                                {
+                                    id: 'rc-25a030a6c76a5a',
+                                    type: 'instagram',
+                                    modules: [],
+                                    data: {
+                                        videoid: 'jfsdoifheiuw'
+                                    }
+                                },
+                                {
+                                    id: 'rc-abb7fc0d3c8f0d',
+                                    type: 'recap',
+                                    modules: ['post'],
+                                    data: {
+                                        videoid: 'hfu3i4hf'
+                                    }
+                                }
+                            ];
+                        });
+
+                        describe('.types', function() {
+                            it('should be a list of all the card types without duplicates', function() {
+                                expect(player.__getBuildProfile__(experience, options).card.types).toEqual([
+                                    'youtube',
+                                    'adUnit',
+                                    'instagram',
+                                    'image',
+                                    'recap'
+                                ]);
+                            });
+                        });
+
+                        describe('.modules', function() {
+                            it('should be a list of all the modules without duplicates', function() {
+                                expect(player.__getBuildProfile__(experience, options).card.modules).toEqual([
+                                    'post',
+                                    'ballot',
+                                    'displayAd',
+                                    'comments'
+                                ]);
+                            });
+                        });
+                    });
+
+                    describe('.debug', function() {
+                        [undefined, null, false, 0, true, 1, 2].forEach(function(debug) {
+                            describe('if options.debug is ' + debug, function() {
+                                beforeEach(function() {
+                                    options.debug = debug;
+                                });
+
+                                it('should be false', function() {
+                                    expect(player.__getBuildProfile__(experience, options).debug).toBe(false);
+                                });
+                            });
+                        });
+
+                        [3, 4, 5, 6, 7, 8, 9].forEach(function(debug) {
+                            describe('if options.debug is ' + debug, function() {
+                                beforeEach(function() {
+                                    options.debug = debug;
+                                });
+
+                                it('should be true', function() {
+                                    expect(player.__getBuildProfile__(experience, options).debug).toBe(true);
+                                });
+                            });
+                        });
+                    });
+
+                    describe('secure', function() {
+                        it('should be options.secure', function() {
+                            expect(player.__getBuildProfile__(experience, options).secure).toBe(options.secure);
+                        });
+                    });
+                });
+
                 describe('__apiParams__(type, params)', function() {
                     var type, params;
                     var result;
@@ -1749,30 +2015,86 @@ describe('player service', function() {
                     });
 
                     describe('with a card id and campaign', function() {
+                        var experience;
+                        var getCardDeferred;
+                        var result;
+
                         beforeEach(function(done) {
+                            getCardDeferred = q.defer();
+
                             success.calls.reset();
                             failure.calls.reset();
-                            spyOn(player.adLoader, 'getCard').and.returnValue(q.defer().promise);
+                            spyOn(player.adLoader, 'getCard').and.returnValue(getCardDeferred.promise);
                             spyOn(player.adLoader, 'findCard').and.returnValue(q.defer().promise);
                             player.__getExperience__.calls.reset();
 
                             params.card = 'rc-4a51653fcd65ac';
                             params.campaign = 'cam-dd8f7c06153451';
 
-                            player.__loadCard__(params, origin, uuid).then(success, failure).finally(done);
+                            experience = {
+                                id: config.api.experience.default,
+                                data: {
+                                    wildCardPlacement: '475839475',
+                                    title: null,
+                                    deck: []
+                                }
+                            };
+                            player.__getExperience__.and.returnValue(q(experience));
+
+                            result = player.__loadCard__(params, origin, uuid).then(success, failure);
+                            setTimeout(done, 1);
                         });
 
-                        it('should do nothing', function() {
-                            expect(player.__getExperience__).not.toHaveBeenCalled();
-                            expect(player.adLoader.findCard).not.toHaveBeenCalled();
-                            expect(player.adLoader.getCard).not.toHaveBeenCalled();
+                        it('should fetch the default experience', function() {
+                            expect(player.__getExperience__).toHaveBeenCalledWith(config.api.experience.default, player.__apiParams__('experience', params), origin, uuid);
                         });
 
-                        it('should reject the promise', function() {
-                            var error = failure.calls.mostRecent().args[0];
+                        it('should get the card', function() {
+                            expect(player.adLoader.getCard).toHaveBeenCalledWith(params.card, extend({
+                                experience: experience.id
+                            }, player.__apiParams__('card', params)), origin, uuid);
+                        });
 
-                            expect(error.message).toBe('Cannot specify campaign with card.');
-                            expect(error.status).toBe(400);
+                        describe('if the card\'s campaign', function() {
+                            var card;
+
+                            beforeEach(function() {
+                                card = {
+                                    id: params.card,
+                                    type: 'youtube',
+                                    data: {}
+                                };
+                            });
+
+                            describe('matches the specified campaign', function() {
+                                beforeEach(function(done) {
+                                    card.campaignId = params.campaign;
+                                    getCardDeferred.resolve(card);
+
+                                    result.finally(done);
+                                });
+
+                                it('should fulfill with the experience', function() {
+                                    expect(success).toHaveBeenCalledWith(experience);
+                                });
+                            });
+
+                            describe('does not match the specified campaign', function() {
+                                beforeEach(function(done) {
+                                    card.campaignId = 'cam-158d438def884c';
+                                    getCardDeferred.resolve(card);
+
+                                    result.finally(done);
+                                });
+
+                                it('should reject the promise', function() {
+                                    var error = failure.calls.mostRecent().args[0];
+
+                                    expect(failure).toHaveBeenCalledWith(jasmine.any(Error));
+                                    expect(error.message).toBe('Card\'s campaign {' + card.campaignId + '} does not match specified campaign {' + params.campaign + '}.');
+                                    expect(error.status).toBe(400);
+                                });
+                            });
                         });
                     });
 
@@ -1816,7 +2138,7 @@ describe('player service', function() {
                                 expect(player.adLoader.findCard).toHaveBeenCalledWith({
                                     campaign: params.campaign,
                                     categories: params.categories
-                                }, extend({ experience: experience.id }, player.__apiParams__('card', params)), uuid);
+                                }, extend({ experience: experience.id }, player.__apiParams__('card', params)), origin, uuid);
                             });
 
                             describe('and the card is fetched', function() {
@@ -1829,7 +2151,8 @@ describe('player service', function() {
                                         id: params.card,
                                         title: 'My Awesome Card!',
                                         data: {},
-                                        campaign: {}
+                                        campaign: {},
+                                        campaignId: params.campaign
                                     };
                                     findCardDeferred.fulfill(card);
 
@@ -1889,8 +2212,8 @@ describe('player service', function() {
                                     expect(error.status).toBe(404);
                                 });
 
-                                it('should log an error', function() {
-                                    expect(log.error).toHaveBeenCalled();
+                                it('should not log an error', function() {
+                                    expect(log.error).not.toHaveBeenCalled();
                                 });
                             });
                         });
@@ -1953,7 +2276,7 @@ describe('player service', function() {
                             it('should find the card', function() {
                                 expect(player.adLoader.getCard).toHaveBeenCalledWith(params.card, extend({
                                     experience: experience.id
-                                }, player.__apiParams__('card', params)), uuid);
+                                }, player.__apiParams__('card', params)), origin, uuid);
                             });
 
                             describe('and the card is fetched', function() {
@@ -1966,7 +2289,8 @@ describe('player service', function() {
                                         id: params.card,
                                         title: 'My Awesome Card!',
                                         data: {},
-                                        campaign: {}
+                                        campaign: {},
+                                        campaignId: 'cam-3855f65a9b64d0'
                                     };
                                     getCardDeferred.fulfill(card);
 
@@ -2101,7 +2425,7 @@ describe('player service', function() {
                         });
 
                         it('should load ads for the experience', function() {
-                            expect(player.adLoader.loadAds).toHaveBeenCalledWith(experience, params.categories, params.campaign, uuid);
+                            expect(player.adLoader.loadAds).toHaveBeenCalledWith(experience, params.categories, params.campaign, origin, uuid);
                         });
 
                         describe('if loading the ads', function() {
@@ -2175,7 +2499,7 @@ describe('player service', function() {
                         });
 
                         it('should load ads for the experience', function() {
-                            expect(player.adLoader.loadAds).toHaveBeenCalledWith(experience, params.categories, params.campaign, uuid);
+                            expect(player.adLoader.loadAds).toHaveBeenCalledWith(experience, params.categories, params.campaign, origin, uuid);
                         });
 
                         it('should not removePlaceholders() from the experience', function() {
@@ -2522,20 +2846,40 @@ describe('player service', function() {
                     });
                 });
 
-                describe('__getPlayer__(mode, secure, uuid)', function() {
+                describe('__getPlayer__(profile, conditional, uuid)', function() {
                     var success, failure;
-                    var mode, secure, uuid;
+                    var profile, conditional, uuid;
                     var result;
+
+                    var entry, builder;
 
                     beforeEach(function() {
                         success = jasmine.createSpy('success()');
                         failure = jasmine.createSpy('failure()');
-                        mode = 'lightbox';
-                        secure = false;
+
+                        profile = {
+                            type: 'lightbox',
+                            container: 'vpaid',
+
+                            debug: false,
+                            secure: false,
+
+                            isMiniReel: false,
+                            card: {
+                                types: ['youtube'],
+                                modules: ['post']
+                            }
+                        };
+                        conditional = true;
                         uuid = 'ehfurihf43iu';
 
-                        result = player.__getPlayer__(mode, secure, uuid);
+                        entry = new MockReadable(playerHTML);
+                        spyOn(fs, 'createReadStream').and.returnValue(entry);
+
+                        result = player.__getPlayer__(profile, conditional, uuid);
                         result.then(success, failure);
+
+                        builder = MockAppBuilder.calls.mostRecent().returnValue;
                     });
 
                     it('should be cached', function() {
@@ -2551,22 +2895,57 @@ describe('player service', function() {
                         expect(result).toEqual(jasmine.any(Promise));
                     });
 
-                    it('should make a request for the player', function() {
-                        expect(request.get).toHaveBeenCalledWith(resolveURL(config.api.root, config.api.player.endpoint), { gzip: true });
+                    it('should create a read stream for the entry', function() {
+                        expect(fs.createReadStream).toHaveBeenCalledWith(config.app.entry);
                     });
 
-                    describe('when the player fails to be fetched', function() {
-                        var reason;
+                    it('should create an AppBuilder', function() {
+                        var builder = _.assign(_.cloneDeep(player.config.app.builder), {
+                            debug: profile.debug,
+                            baseDir: require('path').dirname(config.app.entry),
+                            baseURL: require('url').resolve(config.api.root, config.app.staticURL + config.app.version + '/')
+                        });
 
+                        expect(MockAppBuilder).toHaveBeenCalledWith(builder);
+                    });
+
+                    it('should use conditionalify', function() {
+                        expect(builder.config.browserify.transforms[0]).toEqual([require.resolve('conditionalify'), {
+                            ecmaVersion: 6,
+                            context: profile
+                        }]);
+                        expect(builder.config.browserify.transforms.slice(1)).toEqual(player.config.app.builder.browserify.transforms);
+                    });
+
+                    it('should pass a stream to AppBuilder.prototype.build() that has the ${mode} macro replaced', function(done) {
+                        expect(builder.build).toHaveBeenCalledWith(jasmine.any(Object));
+                        streamToPromise(builder.build.calls.mostRecent().args[0]).then(function(data) {
+                            expect(data.toString()).toBe(playerHTML.replace(/\${mode}/g, profile.type));
+                        }).then(done, done.fail);
+                    });
+
+                    describe('if there is no error', function() {
                         beforeEach(function(done) {
-                            reason = new Error('Could not download stuff.');
-                            requestDeferreds[resolveURL(config.api.root, config.api.player.endpoint)].reject(reason);
-
                             result.finally(done);
                         });
 
-                        it('should reject the promsise', function() {
-                            expect(failure).toHaveBeenCalledWith(reason);
+                        it('should fulfill with an HTML document representing the built player', function() {
+                            expect(success).toHaveBeenCalledWith(new HTMLDocument(builtPlayerHTML).addResource('build-profile', 'application/json', profile));
+                        });
+                    });
+
+                    describe('if there is an error', function() {
+                        var error;
+
+                        beforeEach(function(done) {
+                            error = new Error('I HAD A PROBLEM!');
+
+                            builder.emit('error', error);
+                            result.finally(done);
+                        });
+
+                        it('should reject with the error', function() {
+                            expect(failure).toHaveBeenCalledWith(error);
                         });
 
                         it('should log an error', function() {
@@ -2574,135 +2953,111 @@ describe('player service', function() {
                         });
                     });
 
-                    describe('when the player is fetched', function() {
-                        beforeEach(function(done) {
-                            q().then(function() {
-                                request.get.calls.reset();
-                                requestDeferreds[resolveURL(config.api.root, config.api.player.endpoint)].resolve(playerHTML);
-                            }).then(function() {
-                                return requestDeferreds[resolveURL(config.api.root, config.api.player.endpoint)].promise;
-                            }).then(function() {
-                                return new q.Promise(function(resolve) {
-                                    setTimeout(resolve, 0);
-                                });
-                            }).done(done);
-                        });
-
-                        it('should make requests for the local CSS/JS files', function() {
-                            expect(request.get).toHaveBeenCalledWith('http://localhost/apps/mini-reel-player/v0.25.0-0-g8b946d4/css/lightbox.css', { gzip: true });
-                            expect(request.get).toHaveBeenCalledWith('http://localhost/apps/mini-reel-player/v0.25.0-0-g8b946d4/lightbox.js', { gzip: true });
-                            expect(request.get.calls.count()).toBe(2);
-                        });
-
-                        describe('if a sub-resource fails to be fetched', function() {
-                            var reason;
-
-                            beforeEach(function(done) {
-                                reason = new Error('Could not download stuff.');
-                                requestDeferreds['http://localhost/apps/mini-reel-player/v0.25.0-0-g8b946d4/lightbox.js'].reject(reason);
-
-                                result.finally(done);
-                            });
-
-                            it('should reject the promsise', function() {
-                                expect(failure).toHaveBeenCalledWith(reason);
-                            });
-
-                            it('should log an error', function() {
-                                expect(log.error).toHaveBeenCalled();
-                            });
-                        });
-
-                        describe('and the sub-resources are fetched', function() {
-                            beforeEach(function(done) {
-                                requestDeferreds['http://localhost/apps/mini-reel-player/v0.25.0-0-g8b946d4/css/lightbox.css'].resolve(playerCSS);
-                                requestDeferreds['http://localhost/apps/mini-reel-player/v0.25.0-0-g8b946d4/lightbox.js'].resolve(playerJS);
-
-                                result.then(function() {}).then(done, done);
-                            });
-
-                            it('should fulfill with an HTMLDocument where the external resources are replaced with inline ones', function() {
-                                var $orig = cheerio.load(playerHTML);
-                                var $result = cheerio.load(success.calls.mostRecent().args[0].toString());
-
-                                expect(success).toHaveBeenCalledWith(jasmine.any(HTMLDocument));
-
-                                expect($result('*').length).toBe($orig('*').length);
-                                expect($result('script[src="${mode}.js"]').length).toBe(0);
-                                expect($result('script[src="lightbox.js"]').length).toBe(0);
-                                expect($result('link[href="css/${mode}.css"]').length).toBe(0);
-                                expect($result('link[href="css/lightbox.css"]').length).toBe(0);
-
-                                expect($result('script[data-src="http://localhost/apps/mini-reel-player/v0.25.0-0-g8b946d4/lightbox.js"]').text()).toBe(HTMLDocument.rebaseJS(playerJS, 'http://localhost/apps/mini-reel-player/v0.25.0-0-g8b946d4/lightbox.js').replace(/<\/script>/g, '<\\/script>'));
-                                expect($result('style[data-href="http://localhost/apps/mini-reel-player/v0.25.0-0-g8b946d4/css/lightbox.css"]').text()).toBe(HTMLDocument.rebaseCSS(playerCSS, 'http://localhost/apps/mini-reel-player/v0.25.0-0-g8b946d4/css/lightbox.css'));
-                                expect($result('base').attr('href')).toBe('http://localhost/apps/mini-reel-player/v0.25.0-0-g8b946d4/');
-                            });
-                        });
-                    });
-
                     describe('if secure is true', function() {
                         beforeEach(function(done) {
-                            request.get.calls.reset();
+                            MockAppBuilder.calls.reset();
                             player.__getPlayer__.clear();
                             success.calls.reset();
                             failure.calls.reset();
-                            secure = true;
+                            profile.secure = true;
 
-                            jasmine.clock().uninstall();
-
-                            player.__getPlayer__(mode, secure, uuid).then(success, failure).finally(done);
-                            q.delay(1).then(function() {
-                                requestDeferreds[resolveURL(config.api.root, config.api.player.endpoint)].resolve(playerHTML);
-                            }).delay(1).then(function() {
-                                requestDeferreds['https://localhost/apps/mini-reel-player/v0.25.0-0-g8b946d4/css/lightbox.css'].resolve(playerCSS);
-                                requestDeferreds['https://localhost/apps/mini-reel-player/v0.25.0-0-g8b946d4/lightbox.js'].resolve(playerJS);
-                            }).delay(1).catch(function(error) { console.error(error); });
+                            player.__getPlayer__(profile, conditional, uuid).then(success, failure).finally(done);
                         });
 
-                        afterEach(function() {
-                            jasmine.clock().install();
+                        it('should make the baseURL secure', function() {
+                            expect(MockAppBuilder).toHaveBeenCalledWith(jasmine.objectContaining({
+                                baseURL: 'https://localhost/static/player/v2.4.1/'
+                            }));
+                        });
+                    });
+
+                    describe('if debug is true', function() {
+                        beforeEach(function(done) {
+                            MockAppBuilder.calls.reset();
+                            player.__getPlayer__.clear();
+                            success.calls.reset();
+                            failure.calls.reset();
+                            profile.debug = true;
+
+                            player.__getPlayer__(profile, conditional, uuid).then(success, failure).finally(done);
                         });
 
-                        it('should make the base tag secure', function() {
-                            var $result = cheerio.load(success.calls.mostRecent().args[0].toString());
+                        it('should make debug true', function() {
+                            expect(MockAppBuilder).toHaveBeenCalledWith(jasmine.objectContaining({
+                                debug: true
+                            }));
+                        });
+                    });
 
-                            expect($result('base').attr('href')).toBe('https://localhost/apps/mini-reel-player/v0.25.0-0-g8b946d4/');
+                    describe('if conditional is false', function() {
+                        beforeEach(function(done) {
+                            MockAppBuilder.calls.reset();
+                            player.__getPlayer__.clear();
+                            success.calls.reset();
+                            failure.calls.reset();
+                            conditional = false;
+
+                            player.__getPlayer__(profile, conditional, uuid).then(success, failure).finally(done);
+                            builder = MockAppBuilder.calls.mostRecent().returnValue;
+                        });
+
+                        it('should not add the conditionalify transform', function() {
+                            expect(builder.config.browserify.transforms).toEqual(player.config.app.builder.browserify.transforms);
                         });
                     });
 
                     describe('if called with a valid player type', function() {
+                        var builders;
+
                         beforeEach(function(done) {
-                            request.get.calls.reset();
+                            MockAppBuilder.calls.reset();
                             player.__getPlayer__.clear();
                             config.validTypes.forEach(function(type) {
-                                player.__getPlayer__(type, undefined);
+                                profile.type = type;
+
+                                player.__getPlayer__(profile, conditional, uuid);
+                            });
+                            builders = MockAppBuilder.calls.all().map(function(call) {
+                                return call.returnValue;
                             });
                             q().then(done);
                         });
 
-                        it('should allow the request to happen', function() {
-                            expect(request.get.calls.count()).toBe(config.validTypes.length);
+                        it('should allow the build to happen', function() {
+                            expect(builders.length).toBeGreaterThan(0);
+                            builders.forEach(function(builder) {
+                                expect(builder.build).toHaveBeenCalled();
+                            });
                         });
                     });
 
                     describe('if passed an invalid type', function() {
                         var types;
+                        var builders;
 
                         beforeEach(function(done) {
-                            request.get.calls.reset();
+                            MockAppBuilder.calls.reset();
                             success.calls.reset();
                             failure.calls.reset();
 
                             types = ['foo', 'bar', 'fulls', 'lightboxy'];
 
                             types.forEach(function(type) {
-                                player.__getPlayer__(type, undefined).then(success, failure);
+                                profile.type = type;
+
+                                player.__getPlayer__(profile, conditional, uuid).then(success, failure);
+                            });
+                            builders = MockAppBuilder.calls.all().map(function(call) {
+                                return call.returnValue;
                             });
                             q().then(function() {}).then(done);
                         });
 
-                        it('should not make any requests', function() {
-                            expect(request.get).not.toHaveBeenCalled();
+                        it('should not perform any builds', function() {
+                            expect(builders.length).toBeGreaterThan(0);
+                            builders.forEach(function(builder) {
+                                expect(builder.build).not.toHaveBeenCalled();
+                            });
                         });
 
                         it('should reject the promise', function() {

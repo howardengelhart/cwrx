@@ -295,7 +295,7 @@ describe('ads campaignUpdates endpoints (E2E):', function() {
                 expect(results[0].sessionID).toEqual(jasmine.any(String));
                 expect(results[0].service).toBe('ads');
                 expect(results[0].version).toEqual(jasmine.any(String));
-                expect(results[0].data).toEqual({route: 'GET /api/campaigns/cam-getId1/updates/:id',
+                expect(results[0].data).toEqual({route: 'GET /api/campaigns/:campId/updates?/:id',
                                                  params: { campId: 'cam-getId1', id: 'ur-getId1' }, query: {} });
             }).catch(function(error) {
                 expect(util.inspect(error)).not.toBeDefined();
@@ -395,7 +395,7 @@ describe('ads campaignUpdates endpoints (E2E):', function() {
                 expect(results[0].sessionID).toEqual(jasmine.any(String));
                 expect(results[0].service).toBe('ads');
                 expect(results[0].version).toEqual(jasmine.any(String));
-                expect(results[0].data).toEqual({route: 'GET /api/campaigns/cam-getQry1/updates/',
+                expect(results[0].data).toEqual({route: 'GET /api/campaigns/:campId/updates?/',
                                                  params: { campId: 'cam-getQry1' }, query: { sort: 'id,1' } });
             }).catch(function(error) {
                 expect(util.inspect(error)).not.toBeDefined();
@@ -469,6 +469,169 @@ describe('ads campaignUpdates endpoints (E2E):', function() {
 
         it('should return a 200 and [] if there are no updates for the campaign', function(done) {
             options.url = config.adsUrl + '/campaigns/cam-getQry2/updates/';
+            requestUtils.qRequest('get', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.body).toEqual([]);
+                expect(resp.response.headers['content-range']).toBe('items 0-0/0');
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
+
+        it('should be able to sort and paginate the results', function(done) {
+            options.qs.limit = 2;
+            options.qs.sort = 'status,-1';
+            requestUtils.qRequest('get', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.body.length).toBe(2);
+                expect(resp.body[0].id).toBe('ur-getQry5');
+                expect(resp.body[1].id).toBe('ur-getQry1');
+                expect(resp.response.headers['content-range']).toBe('items 1-2/4');
+                options.qs.skip = 2;
+                return requestUtils.qRequest('get', options);
+            }).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.body.length).toBe(2);
+                expect(resp.body[0].id).toBe('ur-getQry3');
+                expect(resp.body[1].id).toBe('ur-getQry4');
+                expect(resp.response.headers['content-range']).toBe('items 3-4/4');
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
+
+        it('should return a 401 if the user is not authenticated', function(done) {
+            delete options.jar;
+            requestUtils.qRequest('get', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(401);
+                expect(resp.body).toEqual('Unauthorized');
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
+    });
+
+    describe('GET /api/campaigns/updates/', function() {
+        var options;
+        beforeEach(function(done) {
+            options = {
+                url: config.adsUrl + '/campaigns/updates/',
+                qs: { sort: 'id,1' },
+                jar: selfieJar
+            };
+            var mockUpdates = [
+                { id: 'ur-getQry1', campaign: 'cam-getQry1', status: 'pending', user: 'e2e-user', org: 'o-selfie', data: {} },
+                { id: 'ur-getQry2', campaign: 'cam-getQry1', status: 'pending', user: 'not-e2e-user', org: 'o-admin', data: {} },
+                { id: 'ur-getQry3', campaign: 'cam-getQry2', status: 'approved', user: 'e2e-user', org: 'o-selfie', data: {} },
+                { id: 'ur-getQry4', campaign: 'cam-getQry2', status: 'approved', user: 'e2e-user', org: 'o-selfie', data: {} },
+                { id: 'ur-getQry5', campaign: 'cam-getQry3', status: 'rejected', user: 'e2e-user', org: 'o-selfie', data: {} }
+            ];
+            testUtils.resetCollection('campaignUpdates', mockUpdates).done(done, done.fail);
+        });
+
+        it('should get all updates a user can see', function(done) {
+            requestUtils.qRequest('get', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.body.length).toBe(4);
+                expect(resp.body[0].id).toBe('ur-getQry1');
+                expect(resp.body[1].id).toBe('ur-getQry3');
+                expect(resp.body[2].id).toBe('ur-getQry4');
+                expect(resp.body[3].id).toBe('ur-getQry5');
+                expect(resp.response.headers['content-range']).toBe('items 1-4/4');
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should write an entry to the audit collection', function(done) {
+            requestUtils.qRequest('get', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                return testUtils.mongoFind('audit', {}, {$natural: -1}, 1, 0, {db: 'c6Journal'});
+            }).then(function(results) {
+                expect(results[0].user).toBe('e2e-user');
+                expect(results[0].created).toEqual(jasmine.any(Date));
+                expect(results[0].host).toEqual(jasmine.any(String));
+                expect(results[0].pid).toEqual(jasmine.any(Number));
+                expect(results[0].uuid).toEqual(jasmine.any(String));
+                expect(results[0].sessionID).toEqual(jasmine.any(String));
+                expect(results[0].service).toBe('ads');
+                expect(results[0].version).toEqual(jasmine.any(String));
+                expect(results[0].data).toEqual({route: 'GET /api/campaigns/updates?/',
+                                                 params: {}, query: { sort: 'id,1' } });
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should allow a user to specify which fields to return', function(done) {
+            options.qs.fields = 'status,user';
+            requestUtils.qRequest('get', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.body.length).toBe(4);
+                expect(resp.body[0]).toEqual({ id: 'ur-getQry1', status: 'pending', user: 'e2e-user' });
+                expect(resp.body[1]).toEqual({ id: 'ur-getQry3', status: 'approved', user: 'e2e-user' });
+                expect(resp.body[2]).toEqual({ id: 'ur-getQry4', status: 'approved', user: 'e2e-user' });
+                expect(resp.body[3]).toEqual({ id: 'ur-getQry5', status: 'rejected', user: 'e2e-user' });
+                expect(resp.response.headers['content-range']).toBe('items 1-4/4');
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should get updates by list of statuses', function(done) {
+            options.qs.statuses = 'pending,rejected';
+            requestUtils.qRequest('get', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.body.length).toBe(2);
+                expect(resp.body[0].id).toBe('ur-getQry1');
+                expect(resp.body[1].id).toBe('ur-getQry5');
+                expect(resp.response.headers['content-range']).toBe('items 1-2/2');
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should get updates by list of ids', function(done) {
+            options.qs.ids = 'ur-getQry1,ur-getQry4';
+            requestUtils.qRequest('get', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.body.length).toBe(2);
+                expect(resp.body[0].id).toBe('ur-getQry1');
+                expect(resp.body[1].id).toBe('ur-getQry4');
+                expect(resp.response.headers['content-range']).toBe('items 1-2/2');
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
+
+        it('should get updates by list of campaign ids', function(done) {
+            options.qs.campaigns = 'cam-getQry1,cam-getQry3';
+            requestUtils.qRequest('get', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.body.length).toBe(2);
+                expect(resp.body[0].id).toBe('ur-getQry1');
+                expect(resp.body[1].id).toBe('ur-getQry5');
+                expect(resp.response.headers['content-range']).toBe('items 1-2/2');
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
+        
+        ['ids', 'statuses', 'campaigns'].forEach(function(param) {
+            it('should get no updates if the ' + param + ' param is empty', function(done) {
+                options.qs[param] = '';
+                requestUtils.qRequest('get', options).then(function(resp) {
+                    expect(resp.response.statusCode).toBe(200);
+                    expect(resp.body).toEqual([]);
+                    expect(resp.response.headers['content-range']).toBe('items 0-0/0');
+                }).catch(function(error) {
+                    expect(util.inspect(error)).not.toBeDefined();
+                }).done(done);
+            });
+        });
+
+        it('should return a 200 and [] if nothing is found', function(done) {
+            options.qs.ids = 'ur-getFake';
             requestUtils.qRequest('get', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
                 expect(resp.body).toEqual([]);

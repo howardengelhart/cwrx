@@ -22,6 +22,8 @@ describe('player service', function() {
     var systemExperience;
 
     beforeEach(function(done) {
+        jasmine.DEFAULT_TIMEOUT_INTERVAL = 30000;
+
         request = require('request-promise').defaults({
             jar: require('request-promise').jar(),
             resolveWithFullResponse: true,
@@ -68,7 +70,7 @@ describe('player service', function() {
         it('should return some metadata', function() {
             expect(body).toEqual({
                 serviceVersion: jasmine.any(String),
-                playerVersion: 'v1.0.0-rc2',
+                playerVersion: 'master',
                 started: jasmine.any(String),
                 status: 'OK'
             });
@@ -90,8 +92,15 @@ describe('player service', function() {
                 js: $('script[data-src$="' + type + '.js"]').text(),
                 experience: JSON.parse($('script[data-src="experience"]').text() || null),
                 options: JSON.parse($('script[data-src="options"]').text() || null),
+                buildProfile: JSON.parse($('script[data-src="build-profile"]').text() || null),
                 seemsValid: function() {
-                    return this.css.length >= 1000 && this.js.length >= 1000 && this.experience.data.deck.length > 0 && this.options && this.options.type === type;
+                    return !!(
+                        this.css.length >= 1000 &&
+                        this.js.length >= 1000 &&
+                        this.experience.data.deck.length > 0 &&
+                        this.options && this.options.type === type &&
+                        this.buildProfile && this.buildProfile.type === type
+                    );
                 }
             };
         }
@@ -125,23 +134,22 @@ describe('player service', function() {
             it('should change the <base>', function() {
                 var $base = $('base');
 
-                expect($base.attr('href')).toBe('http://localhost/apps/mini-reel-player/v1.0.0-rc2-0-ga4912c3/');
+                expect($base.attr('href')).toBe('http://localhost/static/player/master/');
             });
 
             it('should inline the css', function() {
-                var $css = $('style[data-href="http://localhost/apps/mini-reel-player/v1.0.0-rc2-0-ga4912c3/css/lightbox.css"]');
+                var $css = $('style[data-href="./css/lightbox.css"]');
 
                 expect($css.length).toBe(1);
                 expect($css.text().length).toBeGreaterThan(1000);
-                expect($css.text()).toContain('url(http://localhost/apps/mini-reel-player/v1.0.0-rc2-0-ga4912c3/img/social-card-sprites.png)'); // Test CSS rebasing
+                expect($css.text()).toContain('url(./img/social-card-sprites.png)'); // Test CSS rebasing
             });
 
             it('should inline the JS', function() {
-                var $js = $('script[data-src="http://localhost/apps/mini-reel-player/v1.0.0-rc2-0-ga4912c3/lightbox.js"]');
+                var $js = $('script[data-src="../src/lightbox.js"]');
 
                 expect($js.length).toBe(1);
                 expect($js.text().length).toBeGreaterThan(5000);
-                expect($js.text()).toContain('//# sourceMappingURL=http://localhost/apps/mini-reel-player/v1.0.0-rc2-0-ga4912c3/lightbox.js.map'); // Test JS source map rebasing
             });
 
             it('should inline the experience', function() {
@@ -173,6 +181,24 @@ describe('player service', function() {
                     standalone: true,
                     interstitial: false,
                     autoLaunch: true
+                });
+            });
+
+            it('should inline the build profile', function() {
+                var buildProfile = JSON.parse($('script[data-src="build-profile"]').text() || null);
+
+                expect(buildProfile).toEqual({
+                    type: 'lightbox',
+                    context: 'standalone',
+
+                    debug: false,
+                    secure: false,
+
+                    isMiniReel: true,
+                    card: {
+                        types: ['youtube', 'recap'],
+                        modules: ['ballot']
+                    }
                 });
             });
 
@@ -240,6 +266,24 @@ describe('player service', function() {
                         expect(cardIds).toContain(sponsoredCardId);
                     });
 
+                    it('should inline the build profile', function() {
+                        var buildProfile = JSON.parse($('script[data-src="build-profile"]').text() || null);
+
+                        expect(buildProfile).toEqual({
+                            type: 'lightbox',
+                            context: 'standalone',
+
+                            debug: false,
+                            secure: false,
+
+                            isMiniReel: true,
+                            card: {
+                                types: ['youtube', 'recap'],
+                                modules: []
+                            }
+                        });
+                    });
+
                     it('should remove all placeholders', function() {
                         var $experience = $('script[data-src="experience"]');
                         var experience = JSON.parse($experience.text());
@@ -289,6 +333,24 @@ describe('player service', function() {
 
                         expect(experience.data.deck[1].id).toBe('rc-0a8a41066c1c7b');
                         expect(experience.data.deck[3].id).toBe('rc-2b278986abacf8');
+                    });
+
+                    it('should inline the build profile', function() {
+                        var buildProfile = JSON.parse($('script[data-src="build-profile"]').text() || null);
+
+                        expect(buildProfile).toEqual({
+                            type: 'lightbox',
+                            context: 'standalone',
+
+                            debug: false,
+                            secure: false,
+
+                            isMiniReel: true,
+                            card: {
+                                types: ['youtube', 'adUnit', 'recap'],
+                                modules: []
+                            }
+                        });
                     });
 
                     it('should remove all placeholders', function() {
@@ -485,15 +547,29 @@ describe('player service', function() {
             });
 
             describe('and a campaign', function() {
-                beforeEach(function(done) {
-                    config.playerUrl.query.campaign = 'cam-d136408398ec7f';
+                describe('that matches the card', function() {
+                    beforeEach(function(done) {
+                        config.playerUrl.query.campaign = cards[0].campaignId;
 
-                    request.get(getURL()).then(getResponse).then(done, done.fail);
+                        request.get(getURL()).then(getResponse).then(done, done.fail);
+                    });
+
+                    it('should succeed', function() {
+                        expect(parseResponse('light').seemsValid()).toBe(true);
+                    });
                 });
 
-                it('should [400]', function() {
-                    expect(response.statusCode).toBe(400);
-                    expect(response.body.toString()).toBe('Cannot specify campaign with card.');
+                describe('that does not match the card', function() {
+                    beforeEach(function(done) {
+                        config.playerUrl.query.campaign = 'cam-9feeb5f2aa3563';
+
+                        request.get(getURL()).then(getResponse).then(done, done.fail);
+                    });
+
+                    it('should [400]', function() {
+                        expect(response.statusCode).toBe(400);
+                        expect(response.body).toBe('Card\'s campaign {' + cards[0].campaignId + '} does not match specified campaign {' + config.playerUrl.query.campaign + '}.');
+                    });
                 });
             });
 
@@ -515,6 +591,22 @@ describe('player service', function() {
 
             it('should load the player', function() {
                 expect(parseResponse('light').seemsValid()).toBe(true);
+            });
+
+            it('should inline the build profile', function() {
+                expect(parseResponse('light').buildProfile).toEqual({
+                    type: 'light',
+                    context: 'standalone',
+
+                    debug: false,
+                    secure: false,
+
+                    isMiniReel: false,
+                    card: {
+                        types: ['adUnit'],
+                        modules: []
+                    }
+                });
             });
 
             describe('and no countdown configuration', function() {
@@ -564,6 +656,34 @@ describe('player service', function() {
                     expect(card.data.prebuffer).toBe(true);
                 });
             });
+
+            [false, 0, true, 1, 2].forEach(function(debug) {
+                describe('and debug: ' + debug, function() {
+                    beforeEach(function(done) {
+                        config.playerUrl.query.debug = debug;
+
+                        request.get(getURL()).then(getResponse).then(done, done.fail);
+                    });
+
+                    it('should serve minified code', function() {
+                        expect((parseResponse('light').js.match(/\n/g).length)).toBeLessThan(50);
+                    });
+                });
+            });
+
+            [3, 4, 5, 6].forEach(function(debug) {
+                describe('and debug: ' + debug, function() {
+                    beforeEach(function(done) {
+                        config.playerUrl.query.debug = debug;
+
+                        request.get(getURL()).then(getResponse).then(done, done.fail);
+                    });
+
+                    it('should serve unminified code', function() {
+                        expect((parseResponse('light').js.match(/\n/g).length)).toBeGreaterThan(500);
+                    });
+                });
+            });
         });
 
         describe('with a campaign', function() {
@@ -592,6 +712,22 @@ describe('player service', function() {
 
             it('should load the player', function() {
                 expect(parseResponse('light').seemsValid()).toBe(true);
+            });
+
+            it('should inline the build profile', function() {
+                expect(parseResponse('light').buildProfile).toEqual({
+                    type: 'light',
+                    context: 'standalone',
+
+                    debug: false,
+                    secure: false,
+
+                    isMiniReel: false,
+                    card: {
+                        types: ['adUnit'],
+                        modules: []
+                    }
+                });
             });
         });
 
@@ -626,7 +762,23 @@ describe('player service', function() {
                         type: 'lightbox',
                         uuid: jasmine.any(String)
                     }));
-                    expect($('base').attr('href')).toBe('http://localhost/apps/mini-reel-player/v1.0.0-rc2-0-ga4912c3/');
+                    expect($('base').attr('href')).toBe('http://localhost/static/player/master/');
+                });
+
+                it('should inline the build profile', function() {
+                    expect(parseResponse('light').buildProfile).toEqual({
+                        type: 'lightbox',
+                        context: 'standalone',
+
+                        debug: false,
+                        secure: false,
+
+                        isMiniReel: null,
+                        card: {
+                            types: null,
+                            modules: null
+                        }
+                    });
                 });
 
                 describe('and a branding', function() {

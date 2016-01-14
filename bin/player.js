@@ -2,10 +2,7 @@
 
 var q = require('q');
 var request = require('request-promise');
-var cheerio = require('cheerio');
 var HTMLDocument = require('../lib/htmlDocument');
-var rebaseCSS = HTMLDocument.rebaseCSS;
-var rebaseJS = HTMLDocument.rebaseJS;
 var resolveURL = require('url').resolve;
 var parseURL = require('url').parse;
 var formatURL = require('url').format;
@@ -30,6 +27,12 @@ var setUuid = require('../lib/expressUtils').setUuid;
 var setBasicHeaders = require('../lib/expressUtils').setBasicHeaders;
 var handleOptions = require('../lib/expressUtils').handleOptions;
 var logRequest = require('../lib/expressUtils').logRequest;
+var AppBuilder = require('rc-app-builder');
+var fs = require('fs-extra');
+var replaceStream = require('replacestream');
+var concatStream = require('concat-stream');
+var dirname = require('path').dirname;
+var _ = require('lodash');
 
 var push = Array.prototype.push;
 
@@ -88,7 +91,11 @@ function Player(config) {
         gcInterval: Infinity
     });
 
-    this.config = config;
+    this.config = extend({
+        app: {
+            builder: (config.app.config || null) && require(config.app.config)
+        }
+    }, config);
     this.adLoader = new AdLoader({
         envRoot: config.api.root,
         cardEndpoint: config.api.card.endpoint,
@@ -122,6 +129,25 @@ function Player(config) {
  * @private methods * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  **************************************************************************************************/
 
+Player.prototype.__getBuildProfile__ = function __getBuildProfile__(experience, options) {
+    var isMiniReel = (experience || null) && experience.data.deck.length > 1;
+    var cards = (experience || null) && experience.data.deck;
+
+    return {
+        type: options.type,
+        context: options.context,
+
+        debug: options.debug > 2,
+        secure: options.secure,
+
+        isMiniReel: isMiniReel,
+        card: {
+            types: cards && _.uniq(cards.map(_.property('type'))),
+            modules: cards && _.uniq(_.flatten(cards.map(_.property('modules'))))
+        }
+    };
+};
+
 Player.prototype.__apiParams__ = function __apiParams__(type, params) {
     var validParams = this.config.api[type].validParams;
     var predicate = validParams ? function(value, key) {
@@ -142,12 +168,6 @@ Player.prototype.__loadCard__ = function __loadCard__(params, origin, uuid) {
     var categories = params.categories;
     var experienceId = this.config.api.experience.default;
 
-    if (cardId && campaignId) {
-        return q.reject(new ServiceError(
-            'Cannot specify campaign with card.', 400
-        ));
-    }
-
     return this.__getExperience__(experienceId, validParams, origin, uuid)
         .catch(function logError(reason) {
             log.error('[%1] Failed to fetch the default experience: %2.', uuid, inspect(reason));
@@ -163,20 +183,13 @@ Player.prototype.__loadCard__ = function __loadCard__(params, origin, uuid) {
 
                 return (function() {
                     if (cardId) {
-                        return adLoader.getCard(cardId, cardParams, uuid);
+                        return adLoader.getCard(cardId, cardParams, origin, uuid);
                     }
 
                     return adLoader.findCard({
                         campaign: campaignId,
                         categories: categories
-                    }, cardParams, uuid).catch(function logError(reason) {
-                        log.error(
-                            '[%1] Unexpected error finding a card: %2.',
-                            uuid, inspect(reason.message)
-                        );
-
-                        throw reason;
-                    }).then(function checkForCard(card) {
+                    }, cardParams, origin, uuid).then(function checkForCard(card) {
                         if (!card) { throw new Error('No cards found.'); }
 
                         return card;
@@ -185,6 +198,14 @@ Player.prototype.__loadCard__ = function __loadCard__(params, origin, uuid) {
                     adLoadTimeReporter.push(Date.now() - start);
                 }).catch(function createServiceError(reason) {
                     throw new ServiceError(reason.message, 404);
+                }).tap(function checkCampaignIdMatches(card) {
+                    if (campaignId && card.campaignId !== campaignId) {
+                        throw new ServiceError(
+                            'Card\'s campaign {' + card.campaignId + '} does not match ' +
+                                'specified campaign {' + campaignId + '}.',
+                            400
+                        );
+                    }
                 });
             }
 
@@ -222,13 +243,11 @@ Player.prototype.__loadExperience__ = function __loadExperience__(id, params, or
             return AdLoader.removePlaceholders(experience);
         }
 
-        return adLoader.loadAds(experience, categories, campaign, uuid)
+        return adLoader.loadAds(experience, categories, campaign, origin, uuid)
             .tap(function sendMetrics() {
                 adLoadTimeReporter.push(Date.now() - start);
             })
-            .catch(function trimCards(reason) {
-                log.warn('[%1] Unexpected failure loading ads: %2', uuid, inspect(reason));
-
+            .catch(function trimCards() {
                 AdLoader.removePlaceholders(experience);
                 AdLoader.removeSponsoredCards(experience);
             })
@@ -311,105 +330,60 @@ Player.prototype.__getBranding__ = function __getBranding__(branding, type, hove
 
 /**
  * Given a player "mode," this method will fetch the player's HTML file, replace any ${mode} macros
- * with the give mode and fetch an inline any HTML or CSS resources referenced in the file, and
- * return a cheerio document.
+ * with the give mode and build the player using rc-app-builder.
  */
-Player.prototype.__getPlayer__ = function __getPlayer__(mode, secure, uuid) {
+Player.prototype.__getPlayer__ = function __getPlayer__(profile, conditional, uuid) {
     var log = logger.getLog();
+    var type = profile.type;
+    var secure = profile.secure;
+    var debug = profile.debug;
     var config = this.config;
-    var playerLocation = resolveURL(config.api.root, config.api.player.endpoint);
+    var staticURL = resolveURL(config.api.root, config.app.staticURL + config.app.version + '/');
+    var builder = new AppBuilder(extend({
+        debug: debug,
 
-    function getBaseValue(original) {
-        var location = parseURL(playerLocation);
+        baseDir: dirname(config.app.entry),
+        baseURL: (function() {
+            var location = parseURL(staticURL);
 
-        return resolveURL(formatURL({
-            protocol: secure ? 'https:' : 'http:',
-            host: location.host,
-            pathname: location.pathname
-        }), original);
+            return formatURL({
+                protocol: secure ? 'https:' : 'http:',
+                host: location.host,
+                pathname: location.pathname
+            });
+        }())
+    }, config.app.builder));
+    var entry = fs.createReadStream(config.app.entry).pipe(replaceStream(/\${mode}/g, type));
+    var start = Date.now();
+
+    if (config.validTypes.indexOf(type) < 0) {
+        return q.reject(new ServiceError('Unknown player type: ' + type, 404, 'info'));
     }
 
-    var sameHostAsPlayer = (function() {
-        var playerHost = parseURL(playerLocation).host;
-
-        return function sameHostAsPlayer(resource) {
-            return parseURL(resource.url).host === playerHost;
-        };
-    }());
-
-    function fetchResource(resource) {
-        log.trace('[%1] Fetching sub-resource from "%2."', uuid, resource.url);
-
-        return q(request.get(resource.url, { gzip: true })).then(function(response) {
-            log.trace('[%1] Fetched "%2."', uuid, resource.url);
-
-            return { $node: resource.$node, text: response, url: resource.url };
-        });
+    if (conditional) {
+        builder.config.browserify.transforms.unshift([require.resolve('conditionalify'), {
+            ecmaVersion: 6,
+            context: profile
+        }]);
     }
 
-    if (this.config.validTypes.indexOf(mode) < 0) {
-        return q.reject(new ServiceError('Unknown player type: ' + mode, 404, 'info'));
-    }
+    log.info('[%1] Building the %2 player.', uuid, type);
 
-    log.trace('[%1] Fetching player template from "%2."', uuid, playerLocation);
+    return new q.Promise(function(resolve, reject) {
+        builder.on('error', reject);
 
-    return q(request.get(playerLocation, { gzip: true })).then(function parseHTML(response) {
-        log.trace('[%1] Fetched player template.', uuid);
-        return cheerio.load(response.replace(/\${mode}/g, mode));
-    }).then(function fetchSubResources($) {
-        var $base = $('base');
-        var baseURL = getBaseValue($base.attr('href'));
-        var jsResources = $('script[src]').get().map(function(script) {
-            var $script = $(script);
+        builder.build(entry).pipe(concatStream(function createHTMLDocument(data) {
+            var document = new HTMLDocument(data.toString());
 
-            return { $node: $script, url: resolveURL(baseURL, $script.attr('src')) };
-        }).filter(sameHostAsPlayer);
-        var cssResources = $('link[rel=stylesheet]').get().map(function(link) {
-            var $link = $(link);
+            log.info(
+                '[%1] Finished building the %2 player after %3ms.',
+                uuid, type, Date.now() - start
+            );
 
-            return { $node: $link, url: resolveURL(baseURL, $link.attr('href')) };
-        }).filter(sameHostAsPlayer);
-        var baseConfig = { $node: $base, url: baseURL };
-
-        log.trace(
-            '[%1] Player has %2 CSS file(s) and %3 JS file(s) that can be inlined.',
-            uuid, cssResources.length, jsResources.length
-        );
-
-        return q.all([
-            q.all(jsResources.map(fetchResource)),
-            q.all(cssResources.map(fetchResource))
-        ]).spread(function(js, css) {
-            return [$, baseConfig, js, css];
-        });
-    }).spread(function createDocument($, base, scripts, stylesheets) {
-        scripts.forEach(function(script) {
-            var $inlineScript = $('<script></script>');
-            var url = script.url;
-            var text = script.text;
-
-            $inlineScript.attr('data-src', url);
-            $inlineScript.text(rebaseJS(text, url).replace(/<\/script>/g, '<\\/script>'));
-
-            script.$node.replaceWith($inlineScript);
-        });
-        stylesheets.forEach(function(stylesheet) {
-            var $inlineStyles = $('<style></style>');
-            var url = stylesheet.url;
-            var text = stylesheet.text;
-
-            $inlineStyles.attr('data-href', url);
-            $inlineStyles.text(rebaseCSS(text, url));
-
-            stylesheet.$node.replaceWith($inlineStyles);
-        });
-        base.$node.attr('href', base.url);
-
-        log.trace('[%1] Successfully inlined JS and CSS.', uuid);
-
-        return new HTMLDocument($.html());
+            resolve(document.addResource('build-profile', 'application/json', profile));
+        }));
     }).catch(function logRejection(reason) {
-        log.error('[%1] Error getting %2 player template: %3.', uuid, mode, inspect(reason));
+        log.error('[%1] Error building the %2 player: %3.', uuid, type, inspect(reason));
         throw reason;
     });
 };
@@ -465,6 +439,9 @@ Player.startService = function startService() {
                         max: 5
                     }
                 }
+            },
+            app: {
+                version: 'master'
             },
             cloudwatch: {
                 namespace: 'C6/Player',
@@ -645,14 +622,7 @@ Player.startService = function startService() {
 };
 
 Player.prototype.getVersion = function getVersion() {
-    var url = resolveURL(this.config.api.root, this.config.api.player.endpoint);
-
-    return q(request.get(url, { gzip: true })).then(function getVersion(html) {
-        var $ = cheerio.load(html);
-        var value = $('head base').attr('href');
-
-        return (value.match(/v[\d.]+(-rc\d+)?/) || [null])[0];
-    });
+    return q(this.config.app.version);
 };
 
 Player.prototype.get = function get(/*options*/) {
@@ -663,7 +633,6 @@ Player.prototype.get = function get(/*options*/) {
     var type = options.type;
     var desktop = options.desktop;
     var origin = stripURL(options.origin);
-    var secure = options.secure;
     var uuid = options.uuid;
     var playUrls = options.playUrls;
     var countUrls = options.countUrls;
@@ -678,8 +647,10 @@ Player.prototype.get = function get(/*options*/) {
 
     log.trace('[%1] Getting player with options (%2.)', uuid, inspect(options));
 
-    function getPlayer() {
-        return self.__getPlayer__(type, secure, uuid).then(function inlineOptions(document) {
+    function getPlayer(experience) {
+        var profile = self.__getBuildProfile__(experience, options);
+
+        return self.__getPlayer__(profile, !!experience, uuid).then(function inlineOpt(document) {
             log.trace('[%1] Adding options (%2) to player HTML.', uuid, inspect(options));
             return document.addResource('options', 'application/json', options);
         });
@@ -709,13 +680,17 @@ Player.prototype.get = function get(/*options*/) {
     }
 
     function loadBranding(branding) {
-        return function inlineBranding(document) {
+        var promise = (function() {
             if (!branding) {
                 log.trace('[%1] branding is %2. Skipping branding load.', uuid, branding);
-                return q(document);
+                return q([]);
             }
 
-            return self.__getBranding__(branding, type, desktop, uuid).then(function add(items) {
+            return self.__getBranding__(branding, type, desktop, uuid);
+        }());
+
+        return function inlineBranding(document) {
+            return promise.then(function add(items) {
                 items.forEach(function addBrandingCSS(branding) {
                     var src = branding.src;
                     var contents = branding.styles;
@@ -756,11 +731,12 @@ Player.prototype.get = function get(/*options*/) {
         ));
     }
 
-    return q.all([
-        getPlayer(),
-        experience ? this.__loadExperience__(experience, options, origin, uuid) :
-            this.__loadCard__(options, origin, uuid)
-    ]).spread(function processExperience(document, experience) {
+    return (experience ?
+        this.__loadExperience__(experience, options, origin, uuid) :
+        this.__loadCard__(options, origin, uuid)
+    ).then(function processExperience(experience) {
+        var branding = experience.data.branding;
+
         if (experience.data.deck.length < 1) {
             throw new ServiceError('Experience {' + experience.id + '} has no cards.', 409);
         }
@@ -771,10 +747,10 @@ Player.prototype.get = function get(/*options*/) {
 
         setupExperience(experience);
 
-        log.trace('[%1] Adding experience (%2) to %3 player HTML.', uuid, experience.id, type);
-        document.addResource('experience', 'application/json', experience);
-
-        return loadBranding(experience.data.branding)(document);
+        return getPlayer(experience).then(loadBranding(branding)).then(function add(document) {
+            log.trace('[%1] Adding experience (%2) to %3 player HTML.', uuid, experience.id, type);
+            return document.addResource('experience', 'application/json', experience);
+        });
     }).then(stringify);
 };
 

@@ -1,0 +1,82 @@
+{
+    "browserify": {
+        "transforms": [
+            ["babelify", {
+                "plugins": [
+                    "check-es2015-constants",
+                    "transform-es2015-arrow-functions",
+                    "transform-es2015-block-scoped-functions",
+                    "transform-es2015-block-scoping", ["transform-es2015-classes", {
+                        "loose": true
+                    }],
+                    ["transform-es2015-computed-properties", {
+                        "loose": true
+                    }],
+                    ["transform-es2015-destructuring", {
+                        "loose": true
+                    }],
+                    ["transform-es2015-for-of", {
+                        "loose": true
+                    }],
+                    "transform-es2015-function-name",
+                    "transform-es2015-literals", ["transform-es2015-modules-commonjs", {
+                        "loose": true
+                    }],
+                    "transform-es2015-object-super",
+                    "transform-es2015-parameters",
+                    "transform-es2015-shorthand-properties",
+                    "transform-es2015-spread",
+                    "transform-es2015-sticky-regex", ["transform-es2015-template-literals", {
+                        "loose": true
+                    }],
+                    "transform-es2015-unicode-regex",
+
+                    "external-helpers-2",
+                    "transform-proto-to-assign"
+                ],
+                "sourceMaps": true
+            }],
+            ["partialify"]
+        ]
+    },
+
+    "uglify": {
+        "output": {
+            "indent_start": 0,
+            "indent_level": 4,
+            "quote_keys": false,
+            "space_colon": true,
+            "ascii_only": false,
+            "inline_script": false,
+            "width": 80,
+            "max_line_len": 32000,
+            "ie_proof": false,
+            "beautify": false,
+            "source_map": null,
+            "bracketize": false,
+            "comments": false,
+            "semicolons": true
+        },
+        "compress": {
+            "sequences": true,
+            "properties": true,
+            "dead_code": true,
+            "drop_debugger": true,
+            "unsafe": false,
+            "conditionals": true,
+            "comparisons": true,
+            "evaluate": true,
+            "booleans": true,
+            "loops": true,
+            "unused": true,
+            "hoist_funs": true,
+            "hoist_vars": false,
+            "if_return": true,
+            "join_vars": true,
+            "cascade": true,
+            "side_effects": true,
+            "warnings": true,
+            "global_defs": {}
+        }
+    }
+}

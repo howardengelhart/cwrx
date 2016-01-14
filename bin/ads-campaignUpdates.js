@@ -614,12 +614,34 @@
     // MUST be called before campaign module's setupEndpoints
     updateModule.setupEndpoints = function(app, svc, sessions, audit, jobManager) {
         var router      = express.Router({ mergeParams: true }),
-            mountPath   = '/api/campaigns?/:campId/updates?';
+            mountPath   = '/api/campaigns?(?=/?:campId?/update)';
         
         router.use(jobManager.setJobTimeout.bind(jobManager));
-
+        
         var authGetUpd = authUtils.middlewarify({campaignUpdates: 'read'});
-        router.get('/:id', sessions, authGetUpd, audit, function(req, res) {
+
+        router.get('/updates?/', sessions, authGetUpd, audit, function(req, res) {
+            var query = {};
+            if ('statuses' in req.query) {
+                query.status = String(req.query.statuses).split(',');
+            }
+            if ('ids' in req.query) {
+                query.id = String(req.query.ids).split(',');
+            }
+            if ('campaigns' in req.query) {
+                query.campaign = String(req.query.campaigns).split(',');
+            }
+
+            var promise = svc.getObjs(query, req, true);
+            promise.finally(function() {
+                jobManager.endJob(req, res, promise.inspect())
+                .catch(function(error) {
+                    res.send(500, { error: 'Error retrieving campaign updates', detail: error });
+                });
+            });
+        });
+
+        router.get('/:campId/updates?/:id', sessions, authGetUpd, audit, function(req, res) {
             var promise = svc.getObjs({id: req.params.id, campaign: req.params.campId}, req, false);
             promise.finally(function() {
                 jobManager.endJob(req, res, promise.inspect())
@@ -629,7 +651,7 @@
             });
         });
 
-        router.get('/', sessions, authGetUpd, audit, function(req, res) {
+        router.get('/:campId/updates?/', sessions, authGetUpd, audit, function(req, res) {
             var query = { campaign: req.params.campId };
             if ('statuses' in req.query) {
                 query.status = String(req.query.statuses).split(',');
@@ -648,7 +670,7 @@
         });
 
         var authPostUpd = authUtils.middlewarify({campaignUpdates: 'create'});
-        router.post('/', sessions, authPostUpd, audit, function(req, res) {
+        router.post('/:campId/updates?/', sessions, authPostUpd, audit, function(req, res) {
             var promise;
             
             if (updateModule.canAutoApprove(req)) {
@@ -666,7 +688,7 @@
         });
 
         var authPutUpd = authUtils.middlewarify({campaignUpdates: 'edit'});
-        router.put('/:id', sessions, authPutUpd, audit, function(req, res) {
+        router.put('/:campId/updates?/:id', sessions, authPutUpd, audit, function(req, res) {
             var promise = svc.editObj(req);
             promise.finally(function() {
                 jobManager.endJob(req, res, promise.inspect())
