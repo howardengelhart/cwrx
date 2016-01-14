@@ -1,5 +1,6 @@
 # User Service Changelog
 
+### 3.1.0: Thu Jan 14 17:49:00 EST 2016
 * Support `referralCode` prop, + set on org when confirming new user: [#737](https://github.com/cinema6/cwrx/issues/737)
 * Extra deployment steps:
     * Update system user's policy with `fieldValidation.orgs.referralCode.__allowed = true`

@@ -1,12 +1,12 @@
 # Org Service Changelog
 
-
+### 1.5.0: Thu Jan 14 17:49:00 EST 2016
 * [FEATURE]: Add endpoints for new `referralCode` entities: [#737](https://github.com/cinema6/cwrx/issues/737)
 * Extra deployment steps:
     * Add policies for managing `referralCodes`
     * Update `policyAdmin` policy to allow configuring `permissions` and `fieldValidation` for `referralCodes`
     * Setup mongo indexes for `referralCodes` collection
-    * Deploy orgSvc cookbook version TODO
+    * Deploy orgSvc cookbook version 1.1.0
 
 ### 1.4.3: Mon Jan 11 12:36:22 EST 2016
 * [FIX]: Cease recursive validation if a field is unchanged: [#728](https://github.com/cinema6/cwrx/pull/728)

@@ -292,7 +292,6 @@
                 payment.campaignName = mapping[payment.campaignId];
                 
                 if (payment.campaignId && !payment.campaignName) {
-                    // TODO: I did a logentries hack for this, remove when this is deployed
                     log.info('[%1] Campaign %2 from payment %3 not found in db',
                              req.uuid, payment.campaignId, payment.id);
                 }
@@ -309,7 +308,6 @@
 
     /* Gets all transactions made by the org. Fetches transactions for all payment methods, even
      * methods that have since been deleted. */
-    //TODO: should probably set Content-Range header for consistency, even if no pagination controls
     payModule.getPayments = function(gateway, orgSvc, req) {
         var log = logger.getLog();
         
