@@ -189,14 +189,7 @@ Player.prototype.__loadCard__ = function __loadCard__(params, origin, uuid) {
                     return adLoader.findCard({
                         campaign: campaignId,
                         categories: categories
-                    }, cardParams, origin, uuid).catch(function logError(reason) {
-                        log.error(
-                            '[%1] Unexpected error finding a card: %2.',
-                            uuid, inspect(reason.message)
-                        );
-
-                        throw reason;
-                    }).then(function checkForCard(card) {
+                    }, cardParams, origin, uuid).then(function checkForCard(card) {
                         if (!card) { throw new Error('No cards found.'); }
 
                         return card;
@@ -254,9 +247,7 @@ Player.prototype.__loadExperience__ = function __loadExperience__(id, params, or
             .tap(function sendMetrics() {
                 adLoadTimeReporter.push(Date.now() - start);
             })
-            .catch(function trimCards(reason) {
-                log.warn('[%1] Unexpected failure loading ads: %2', uuid, inspect(reason));
-
+            .catch(function trimCards() {
                 AdLoader.removePlaceholders(experience);
                 AdLoader.removeSponsoredCards(experience);
             })
