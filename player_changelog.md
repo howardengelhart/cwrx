@@ -2,6 +2,8 @@
 
 * Add ability to create conditional player builds based on various
   attributes of the experience/card: [#735](https://github.com/cinema6/cwrx/pull/735)
+* [FIX]: Stop triggering PagerDuty alerts if the request for a card
+  `4xx`s: [#736](https://github.com/cinema6/cwrx/pull/736)
 
 ### 2.1.1: Thu Jan  7 16:30:36 EST 2016
 * The player is now built dynamically at runtime: [#723](https://github.com/cinema6/cwrx/pull/723)
