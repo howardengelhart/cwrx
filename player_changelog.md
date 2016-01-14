@@ -1,5 +1,6 @@
 # Player Service Changelog
 
+### 2.1.2: Thu Jan 14 13:51:41 EST 2016
 * Add ability to create conditional player builds based on various
   attributes of the experience/card: [#735](https://github.com/cinema6/cwrx/pull/735)
 * [FIX]: Stop triggering PagerDuty alerts if the request for a card
