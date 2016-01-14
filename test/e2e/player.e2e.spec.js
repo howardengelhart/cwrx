@@ -92,8 +92,15 @@ describe('player service', function() {
                 js: $('script[data-src$="' + type + '.js"]').text(),
                 experience: JSON.parse($('script[data-src="experience"]').text() || null),
                 options: JSON.parse($('script[data-src="options"]').text() || null),
+                buildProfile: JSON.parse($('script[data-src="build-profile"]').text() || null),
                 seemsValid: function() {
-                    return this.css.length >= 1000 && this.js.length >= 1000 && this.experience.data.deck.length > 0 && this.options && this.options.type === type;
+                    return !!(
+                        this.css.length >= 1000 &&
+                        this.js.length >= 1000 &&
+                        this.experience.data.deck.length > 0 &&
+                        this.options && this.options.type === type &&
+                        this.buildProfile && this.buildProfile.type === type
+                    );
                 }
             };
         }
@@ -177,6 +184,24 @@ describe('player service', function() {
                 });
             });
 
+            it('should inline the build profile', function() {
+                var buildProfile = JSON.parse($('script[data-src="build-profile"]').text() || null);
+
+                expect(buildProfile).toEqual({
+                    type: 'lightbox',
+                    context: 'standalone',
+
+                    debug: false,
+                    secure: false,
+
+                    isMiniReel: true,
+                    card: {
+                        types: ['youtube', 'recap'],
+                        modules: ['ballot']
+                    }
+                });
+            });
+
             it('should inline the branding', function() {
                 var $branding = $('head style[data-href="http://localhost/collateral/branding/digitaljournal/styles/lightbox/theme.css"]');
                 var $brandingHover = $('head style[data-href="http://localhost/collateral/branding/digitaljournal/styles/lightbox/theme--hover.css"]');
@@ -241,6 +266,24 @@ describe('player service', function() {
                         expect(cardIds).toContain(sponsoredCardId);
                     });
 
+                    it('should inline the build profile', function() {
+                        var buildProfile = JSON.parse($('script[data-src="build-profile"]').text() || null);
+
+                        expect(buildProfile).toEqual({
+                            type: 'lightbox',
+                            context: 'standalone',
+
+                            debug: false,
+                            secure: false,
+
+                            isMiniReel: true,
+                            card: {
+                                types: ['youtube', 'recap'],
+                                modules: []
+                            }
+                        });
+                    });
+
                     it('should remove all placeholders', function() {
                         var $experience = $('script[data-src="experience"]');
                         var experience = JSON.parse($experience.text());
@@ -290,6 +333,24 @@ describe('player service', function() {
 
                         expect(experience.data.deck[1].id).toBe('rc-0a8a41066c1c7b');
                         expect(experience.data.deck[3].id).toBe('rc-2b278986abacf8');
+                    });
+
+                    it('should inline the build profile', function() {
+                        var buildProfile = JSON.parse($('script[data-src="build-profile"]').text() || null);
+
+                        expect(buildProfile).toEqual({
+                            type: 'lightbox',
+                            context: 'standalone',
+
+                            debug: false,
+                            secure: false,
+
+                            isMiniReel: true,
+                            card: {
+                                types: ['youtube', 'adUnit', 'recap'],
+                                modules: []
+                            }
+                        });
                     });
 
                     it('should remove all placeholders', function() {
@@ -532,6 +593,22 @@ describe('player service', function() {
                 expect(parseResponse('light').seemsValid()).toBe(true);
             });
 
+            it('should inline the build profile', function() {
+                expect(parseResponse('light').buildProfile).toEqual({
+                    type: 'light',
+                    context: 'standalone',
+
+                    debug: false,
+                    secure: false,
+
+                    isMiniReel: false,
+                    card: {
+                        types: ['adUnit'],
+                        modules: []
+                    }
+                });
+            });
+
             describe('and no countdown configuration', function() {
                 beforeEach(function(done) {
                     delete config.playerUrl.query.countdown;
@@ -636,6 +713,22 @@ describe('player service', function() {
             it('should load the player', function() {
                 expect(parseResponse('light').seemsValid()).toBe(true);
             });
+
+            it('should inline the build profile', function() {
+                expect(parseResponse('light').buildProfile).toEqual({
+                    type: 'light',
+                    context: 'standalone',
+
+                    debug: false,
+                    secure: false,
+
+                    isMiniReel: false,
+                    card: {
+                        types: ['adUnit'],
+                        modules: []
+                    }
+                });
+            });
         });
 
         describe('with no experience, card, or campaign campaign', function() {
@@ -670,6 +763,22 @@ describe('player service', function() {
                         uuid: jasmine.any(String)
                     }));
                     expect($('base').attr('href')).toBe('http://localhost/static/player/master/');
+                });
+
+                it('should inline the build profile', function() {
+                    expect(parseResponse('light').buildProfile).toEqual({
+                        type: 'lightbox',
+                        context: 'standalone',
+
+                        debug: false,
+                        secure: false,
+
+                        isMiniReel: null,
+                        card: {
+                            types: null,
+                            modules: null
+                        }
+                    });
                 });
 
                 describe('and a branding', function() {

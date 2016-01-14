@@ -32,6 +32,7 @@ var fs = require('fs-extra');
 var replaceStream = require('replacestream');
 var concatStream = require('concat-stream');
 var dirname = require('path').dirname;
+var _ = require('lodash');
 
 var push = Array.prototype.push;
 
@@ -127,6 +128,25 @@ function Player(config) {
 /***************************************************************************************************
  * @private methods * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  **************************************************************************************************/
+
+Player.prototype.__getBuildProfile__ = function __getBuildProfile__(experience, options) {
+    var isMiniReel = (experience || null) && experience.data.deck.length > 1;
+    var cards = (experience || null) && experience.data.deck;
+
+    return {
+        type: options.type,
+        context: options.context,
+
+        debug: options.debug > 2,
+        secure: options.secure,
+
+        isMiniReel: isMiniReel,
+        card: {
+            types: cards && _.uniq(cards.map(_.property('type'))),
+            modules: cards && _.uniq(_.flatten(cards.map(_.property('modules'))))
+        }
+    };
+};
 
 Player.prototype.__apiParams__ = function __apiParams__(type, params) {
     var validParams = this.config.api[type].validParams;
@@ -321,8 +341,11 @@ Player.prototype.__getBranding__ = function __getBranding__(branding, type, hove
  * Given a player "mode," this method will fetch the player's HTML file, replace any ${mode} macros
  * with the give mode and build the player using rc-app-builder.
  */
-Player.prototype.__getPlayer__ = function __getPlayer__(mode, secure, debug, uuid) {
+Player.prototype.__getPlayer__ = function __getPlayer__(profile, conditional, uuid) {
     var log = logger.getLog();
+    var type = profile.type;
+    var secure = profile.secure;
+    var debug = profile.debug;
     var config = this.config;
     var staticURL = resolveURL(config.api.root, config.app.staticURL + config.app.version + '/');
     var builder = new AppBuilder(extend({
@@ -339,28 +362,37 @@ Player.prototype.__getPlayer__ = function __getPlayer__(mode, secure, debug, uui
             });
         }())
     }, config.app.builder));
-    var entry = fs.createReadStream(config.app.entry).pipe(replaceStream(/\${mode}/g, mode));
+    var entry = fs.createReadStream(config.app.entry).pipe(replaceStream(/\${mode}/g, type));
     var start = Date.now();
 
-    if (config.validTypes.indexOf(mode) < 0) {
-        return q.reject(new ServiceError('Unknown player type: ' + mode, 404, 'info'));
+    if (config.validTypes.indexOf(type) < 0) {
+        return q.reject(new ServiceError('Unknown player type: ' + type, 404, 'info'));
     }
 
-    log.info('[%1] Building the %2 player.', uuid, mode);
+    if (conditional) {
+        builder.config.browserify.transforms.unshift([require.resolve('conditionalify'), {
+            ecmaVersion: 6,
+            context: profile
+        }]);
+    }
+
+    log.info('[%1] Building the %2 player.', uuid, type);
 
     return new q.Promise(function(resolve, reject) {
         builder.on('error', reject);
 
         builder.build(entry).pipe(concatStream(function createHTMLDocument(data) {
+            var document = new HTMLDocument(data.toString());
+
             log.info(
                 '[%1] Finished building the %2 player after %3ms.',
-                uuid, mode, Date.now() - start
+                uuid, type, Date.now() - start
             );
 
-            resolve(new HTMLDocument(data.toString()));
+            resolve(document.addResource('build-profile', 'application/json', profile));
         }));
     }).catch(function logRejection(reason) {
-        log.error('[%1] Error building the %2 player: %3.', uuid, mode, inspect(reason));
+        log.error('[%1] Error building the %2 player: %3.', uuid, type, inspect(reason));
         throw reason;
     });
 };
@@ -610,7 +642,6 @@ Player.prototype.get = function get(/*options*/) {
     var type = options.type;
     var desktop = options.desktop;
     var origin = stripURL(options.origin);
-    var secure = options.secure;
     var uuid = options.uuid;
     var playUrls = options.playUrls;
     var countUrls = options.countUrls;
@@ -622,12 +653,13 @@ Player.prototype.get = function get(/*options*/) {
     var branding = options.branding;
     var countdown = options.countdown;
     var prebuffer = !!options.prebuffer;
-    var debug = options.debug;
 
     log.trace('[%1] Getting player with options (%2.)', uuid, inspect(options));
 
-    function getPlayer() {
-        return self.__getPlayer__(type, secure, debug > 2, uuid).then(function inlineOpt(document) {
+    function getPlayer(experience) {
+        var profile = self.__getBuildProfile__(experience, options);
+
+        return self.__getPlayer__(profile, !!experience, uuid).then(function inlineOpt(document) {
             log.trace('[%1] Adding options (%2) to player HTML.', uuid, inspect(options));
             return document.addResource('options', 'application/json', options);
         });
@@ -657,13 +689,17 @@ Player.prototype.get = function get(/*options*/) {
     }
 
     function loadBranding(branding) {
-        return function inlineBranding(document) {
+        var promise = (function() {
             if (!branding) {
                 log.trace('[%1] branding is %2. Skipping branding load.', uuid, branding);
-                return q(document);
+                return q([]);
             }
 
-            return self.__getBranding__(branding, type, desktop, uuid).then(function add(items) {
+            return self.__getBranding__(branding, type, desktop, uuid);
+        }());
+
+        return function inlineBranding(document) {
+            return promise.then(function add(items) {
                 items.forEach(function addBrandingCSS(branding) {
                     var src = branding.src;
                     var contents = branding.styles;
@@ -704,11 +740,12 @@ Player.prototype.get = function get(/*options*/) {
         ));
     }
 
-    return q.all([
-        getPlayer(),
-        experience ? this.__loadExperience__(experience, options, origin, uuid) :
-            this.__loadCard__(options, origin, uuid)
-    ]).spread(function processExperience(document, experience) {
+    return (experience ?
+        this.__loadExperience__(experience, options, origin, uuid) :
+        this.__loadCard__(options, origin, uuid)
+    ).then(function processExperience(experience) {
+        var branding = experience.data.branding;
+
         if (experience.data.deck.length < 1) {
             throw new ServiceError('Experience {' + experience.id + '} has no cards.', 409);
         }
@@ -719,10 +756,10 @@ Player.prototype.get = function get(/*options*/) {
 
         setupExperience(experience);
 
-        log.trace('[%1] Adding experience (%2) to %3 player HTML.', uuid, experience.id, type);
-        document.addResource('experience', 'application/json', experience);
-
-        return loadBranding(experience.data.branding)(document);
+        return getPlayer(experience).then(loadBranding(branding)).then(function add(document) {
+            log.trace('[%1] Adding experience (%2) to %3 player HTML.', uuid, experience.id, type);
+            return document.addResource('experience', 'application/json', experience);
+        });
     }).then(stringify);
 };
 

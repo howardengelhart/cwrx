@@ -1,5 +1,8 @@
 # Player Service Changelog
 
+* Add ability to create conditional player builds based on various
+  attributes of the experience/card: [#735](https://github.com/cinema6/cwrx/pull/735)
+
 ### 2.1.1: Thu Jan  7 16:30:36 EST 2016
 * The player is now built dynamically at runtime: [#723](https://github.com/cinema6/cwrx/pull/723)
 * Add support for debug (unminifed) player builds: [#725](https://github.com/cinema6/cwrx/pull/725)

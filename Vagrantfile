@@ -9,11 +9,11 @@ Vagrant.configure("2") do |config|
   config.vm.hostname = "cwrx-development"
 
   # Every Vagrant virtual environment requires a box to build off of.
-  config.vm.box = "Berkshelf-CentOS-6.3-x86_64-minimal"
+  config.vm.box = "Berkshelf-CentOS-6.3-x86_64-minimal--bigger"
 
   # The url from where the 'config.vm.box' box will be fetched if it
   # doesn't already exist on the user's system.
-  config.vm.box_url = "https://s3.amazonaws.com/c6.dev/VagrantBoxes/Berkshelf-CentOS-6.3-x86_64-minimal.box"
+  config.vm.box_url = "https://s3.amazonaws.com/c6.dev/VagrantBoxes/Berkshelf-CentOS-6.3-x86_64-minimal--bigger.box"
 
   config.vm.network :private_network, ip: "33.33.33.10"
   config.vm.provider :virtualbox do |vb|
