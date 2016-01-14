@@ -317,21 +317,9 @@ describe('orgSvc orgs (E2E):', function() {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
-
-        it('should not allow non-admins to get all orgs', function(done) {
-            options.jar = nonAdminJar;
-            requestUtils.qRequest('get', options).then(function(resp) {
-                expect(resp.response.statusCode).toBe(403);
-                expect(resp.body).toBe('Not authorized to read all orgs');
-                expect(resp.response.headers['content-range']).not.toBeDefined();
-            }).catch(function(error) {
-                expect(util.inspect(error)).not.toBeDefined();
-            }).done(done);
-        });
         
         it('should allow non-admins to see their own org', function(done) {
             options.jar = nonAdminJar;
-            options.qs.ids = 'o-1234,o-4567';
             requestUtils.qRequest('get', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
                 expect(resp.body).toEqual([{ id: 'o-1234', name: 'e2e-getOrg3', status: 'active' }]);

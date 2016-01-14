@@ -16,6 +16,7 @@ var q           = require('q'),
         'minireelGroups',
         'orgs',
         'policies',
+        'referralCodes',
         'roles',
         'sites',
         'users'

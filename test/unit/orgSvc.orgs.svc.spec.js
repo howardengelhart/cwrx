@@ -66,11 +66,6 @@ describe('orgSvc-orgs (UT)', function() {
             expect(svc.model.schema).toBe(orgModule.orgSchema);
         });
         
-        it('should prevent getting all orgs', function() {
-            expect(svc._middleware.read).toContain(svc.preventGetAll);
-            expect(CrudSvc.prototype.preventGetAll.bind).toHaveBeenCalledWith(svc);
-        });
-        
         it('should check special permissions on create', function() {
             expect(svc._middleware.create).toContain(orgModule.createPermCheck);
         });

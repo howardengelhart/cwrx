@@ -44,8 +44,6 @@
             
         svc._db = db;
         
-        svc.use('read', svc.preventGetAll.bind(svc));
-
         svc.use('create', orgModule.createPermCheck);
         svc.use('create', svc.validateUniqueProp.bind(svc, 'name', null));
         svc.use('create', orgModule.setupConfig);
