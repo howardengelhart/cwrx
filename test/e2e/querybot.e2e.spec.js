@@ -37,7 +37,7 @@ function pgQuery(conn,statement) {
 
 describe('querybot (E2E)', function(){
     var pgdata_campaign_summary_hourly, mockUser, mockCamps, pgconn,
-        cookieJar, options, camp1Data, camp2Data;
+        cookieJar, options, camp1Data, camp2Data, camp5Data;
 
     beforeEach(function(done){
         // TODO:  Work out what connection config should be!
@@ -54,8 +54,6 @@ describe('querybot (E2E)', function(){
                 impressions: 8409,
                 views      : 6461,
                 totalSpend : '1227.5900',
-                viewsToday  : 6054,
-                spendToday  : '1150.2600',
                 linkClicks : {
                     action      : 224,
                     facebook    : 18,
@@ -68,6 +66,22 @@ describe('querybot (E2E)', function(){
                     pinterest : 31,
                     twitter   : 32
                 }
+            },
+            today : {
+                impressions : 7903,
+                views       : 6054,
+                totalSpend  : '1150.2600',
+                linkClicks : {
+                    action      : 220,
+                    facebook    : 18,
+                    instagram   : 2,
+                    website     : 114,
+                    youtube     : 5
+                },
+                shareClicks : {
+                    facebook  : 11,
+                    twitter   : 21
+                }
             }
         };
 
@@ -77,8 +91,6 @@ describe('querybot (E2E)', function(){
                 impressions : 612,
                 views       : 512,
                 totalSpend  : '56.3200',
-                viewsToday  : 318,
-                spendToday  : '34.9800',
                 linkClicks  : {
                     action : 2,
                     facebook : 9,
@@ -88,9 +100,40 @@ describe('querybot (E2E)', function(){
                     youtube : 3
                 },
                 shareClicks : {}
+            },
+            today : {
+                impressions : 385,
+                views : 318,
+                totalSpend  : '34.9800',
+                linkClicks  : {
+                    action : 2,
+                    facebook : 9,
+                    twitter : 11
+                },
+                shareClicks : {}
             }
         };
-     
+        
+        camp5Data = {
+            campaignId : 'cam-cabd93049d032a',
+            summary : {
+                impressions: 99,
+                views      : 69,
+                totalSpend : '3.4500',
+                linkClicks : {
+                    website     : 6
+                },
+                shareClicks : {}
+            },
+            today : {
+                impressions: 0,
+                views       : 0,
+                totalSpend  : '0.0000',
+                linkClicks  : {},
+                shareClicks : {}
+            }
+        };
+ 
         var today = ((new Date()).toISOString()).substr(0,10);
         pgdata_campaign_summary_hourly = [
             'INSERT INTO rpt.campaign_summary_hourly_all VALUES',
@@ -181,7 +224,16 @@ describe('querybot (E2E)', function(){
             '(\'2015-12-03 23:00:00+00\',\'cam-b651cde4158304\',\'q1\',215,0.0000),',
             '(\'2015-12-03 23:00:00+00\',\'cam-b651cde4158304\',\'q2\',211,0.0000),',
             '(\'2015-12-03 23:00:00+00\',\'cam-b651cde4158304\',\'q3\',202,0.0000),',
-            '(\'2015-12-03 23:00:00+00\',\'cam-b651cde4158304\',\'q4\',193,0.0000);'
+            '(\'2015-12-03 23:00:00+00\',\'cam-b651cde4158304\',\'q4\',193,0.0000),',
+            '(\'2015-12-03 23:00:00+00\',\'cam-cabd93049d032a\',\'cardView\',99,0.0000),',
+            '(\'2015-12-03 23:00:00+00\',\'cam-cabd93049d032a\',\'completedView\',69,3.4500),',
+            '(\'2015-12-03 23:00:00+00\',\'cam-cabd93049d032a\',\'launch\',98,0.0000),',
+            '(\'2015-12-03 23:00:00+00\',\'cam-cabd93049d032a\',\'link.Website\',6,0.0000),',
+            '(\'2015-12-03 23:00:00+00\',\'cam-cabd93049d032a\',\'play\',89,0.0000),',
+            '(\'2015-12-03 23:00:00+00\',\'cam-cabd93049d032a\',\'q1\',84,0.0000),',
+            '(\'2015-12-03 23:00:00+00\',\'cam-cabd93049d032a\',\'q2\',74,0.0000),',
+            '(\'2015-12-03 23:00:00+00\',\'cam-cabd93049d032a\',\'q3\',52,0.0000),',
+            '(\'2015-12-03 23:00:00+00\',\'cam-cabd93049d032a\',\'q4\',30,0.0000);'
         ];
 
         mockUser = {
@@ -203,7 +255,9 @@ describe('querybot (E2E)', function(){
             { id: 'cam-278b8150021c68', name: 'camp 3', status: 'active',
                 user: 'not-e2e-user', org: 'not-e2e-org' },
             { id: 'e2e-getid3', name: 'camp 4', status: 'active',
-                user: 'not-e2e-user', org: 'not-e2e-org' }
+                user: 'not-e2e-user', org: 'not-e2e-org' },
+            { id: 'cam-cabd93049d032a', name: 'camp 5', status: 'active',
+                user: 'e2e-user', org: 'e2e-org' },
         ];
 
         function pgTruncate(){
@@ -310,28 +364,88 @@ describe('querybot (E2E)', function(){
             .then(done,done.fail);
         });
         
-        it('returns single doc with no data if the campaigns GET is singular with dates with no data',function(done){
+        it('returns single doc with initialized range data if the campaigns GET is singular with dates with no data',function(done){
             options.url += '/cam-1757d5cd13e383?startDate=2010-12-01&endDate=2010-12-02';
             requestUtils.qRequest('get', options)
             .then(function(resp) {
+                camp1Data.range = {
+                    startDate  : '2010-12-01',
+                    endDate    : '2010-12-02',
+                    impressions: 0,
+                    views      : 0,
+                    totalSpend : '0.0000',
+                    linkClicks : {},
+                    shareClicks : {}
+                };
                 expect(resp.response.statusCode).toEqual(200);
-                expect(resp.body).toEqual({ 
-                    campaignId: 'cam-1757d5cd13e383', 
-                    summary: { 
-                        impressions: 0, 
-                        views: 0, 
-                        totalSpend: '0.0000', 
-                        viewsToday: 6054, 
-                        spendToday: '1150.2600',
-                        linkClicks: {}, 
-                        shareClicks: {} 
-                    }
-                });
+                expect(resp.body).toEqual(camp1Data);
             })
             .then(done,done.fail);
         });
-        
-        
+
+        it('returns single doc with initialized range data if end date is < start date',function(done){
+            options.url += '/cam-1757d5cd13e383?startDate=2015-12-02&endDate=2015-12-01';
+            requestUtils.qRequest('get', options)
+            .then(function(resp) {
+                camp1Data.range = {
+                    startDate  : '2015-12-02',
+                    endDate    : '2015-12-01',
+                    impressions: 0,
+                    views      : 0,
+                    totalSpend : '0.0000',
+                    linkClicks : {},
+                    shareClicks : {}
+                };
+                expect(resp.response.statusCode).toEqual(200);
+                expect(resp.body).toEqual(camp1Data);
+            })
+            .then(done,done.fail);
+        });
+
+        it('returns single doc with range data with same start and end date',function(done){
+            options.url += '/cam-1757d5cd13e383?startDate=2015-12-02&endDate=2015-12-02';
+            requestUtils.qRequest('get', options)
+            .then(function(resp) {
+                camp1Data.range = {
+                    startDate  : '2015-12-02',
+                    endDate    : '2015-12-02',
+                    impressions: 283,
+                    views      : 209,
+                    totalSpend : '39.7100',
+                    linkClicks : {
+                        action : 3 
+                    },
+                    shareClicks : {
+                        facebook : 21,
+                        pinterest : 31
+                    }
+                };
+                expect(resp.response.statusCode).toEqual(200);
+                expect(resp.body).toEqual(camp1Data);
+            })
+            .then(done,done.fail);
+        });
+
+        it('returns single doc with initialized today data if the campaigns GET is singular with dates with no today data',function(done){
+            options.url += '/cam-cabd93049d032a?startDate=2015-12-01&endDate=2015-12-31';
+            requestUtils.qRequest('get', options)
+            .then(function(resp) {
+                camp5Data.range = {
+                    startDate  : '2015-12-01',
+                    endDate    : '2015-12-31',
+                    impressions: 99,
+                    views      : 69,
+                    totalSpend : '3.4500',
+                    linkClicks : {
+                        website     : 6
+                    },
+                    shareClicks : {}
+                };
+                expect(resp.response.statusCode).toEqual(200);
+                expect(resp.body).toEqual(camp5Data);
+            })
+            .then(done,done.fail);
+        });
     });
     
     describe('GET /api/analytics/campaigns/?ids=:id', function() {

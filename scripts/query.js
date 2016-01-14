@@ -1,24 +1,16 @@
-var server = 'https://33.33.33.10',
+var fs      = require('fs'),
+    request = require('request'),
+    q       = require('q'),
+
+    server = 'https://33.33.33.10',
     username = 'querybot',
     password = 'password',
     authUrl   = server + '/api/auth/login',
-    queryUrl  = server + '/api/analytics/campaigns',
-    authCookie = null; // will be set by authenticate method
+    queryUrl  = server + '/api/analytics/campaigns';
 
-/* 
- * Helper NPM Modules 
- * */
-var fs      = require('fs'),
-    request = require('request'),
-    q       = require('q');
-
-/* 
- * Logins in, returns cookie used for authenticated methods 
- * */
 function authenticate() {
-
     if ((username === null) || (password === null)) {
-        return q.reject('You must set the username and password variables at the top of this script.');
+        return q.reject('username and password required.');
     }
 
     var loginOpts = {
@@ -27,26 +19,22 @@ function authenticate() {
         json: {
             email       : username,
             password    : password
-        }
+        },
+        jar : true
     }, deferred = q.defer();
    
-    console.log('Authenticate with the api server.');
     request.post(loginOpts, function(error, response, body) {
         if (error) {
             console.log('Login error: ', error);
             return deferred.reject(error);
         }
-        else if (response.statusCode !== 200) { // 200 on success; 400 on bad request; 401 on wrong email/pass
+        else if (response.statusCode !== 200) {
             console.log('Login failure: ', response.statusCode);
             console.log(body);
             return deferred.reject(body);
         }
         
-        console.log('Successful login');
-        
-        // Successful login sets cookie named "c6Auth", which must be included on subsequent requests
-        authCookie = response.headers['set-cookie'][0].match(/c6Auth=[^\s]+/)[0];
-        return deferred.resolve(authCookie);
+        return deferred.resolve();
     });
 
     return deferred.promise;
@@ -55,12 +43,10 @@ function authenticate() {
 function getData() {
     
     var opts = {
-        url: queryUrl + '/?id=cam-5bebbf1c34a3d7,cam-bfc62ac554280e,x',
-        //url: queryUrl + '/cam-5bebbf1c34a3d7',
+        //url: queryUrl + '/?ids=cam-5bebbf1c34a3d7,cam-bfc62ac554280e,x',
+        url: queryUrl + '/cam-1757d5cd13e383?startDate=2015-12-02&endDate=2015-12-03',
         rejectUnauthorized : false,
-        headers: {
-            'Cookie': authCookie
-        }
+        jar : true
     }, deferred = q.defer();
    
     request.get(opts, function(error, response, body) {
@@ -68,14 +54,12 @@ function getData() {
             console.log(' Error: ', error);
             return deferred.reject(error);
         }
-        else if (response.statusCode !== 200) { // 200 on success; 400 on bad request; 401 on unauthorized
+        else if (response.statusCode !== 200) {
             console.log(' Failed: ', response.statusCode);
             console.log(body);
             return deferred.reject(body);
         }
         
-        console.log(' Success!');
-        console.log(' HEADERS: ', response.headers);
         return deferred.resolve(body);
     });
     
@@ -86,5 +70,4 @@ authenticate()
 .then(getData)
 .then(function(data){
     console.log('data:',data);
-
 });

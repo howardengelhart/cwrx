@@ -243,8 +243,8 @@ lib.setCampaignDataInCache = function(data,startDate,endDate,keyScope){
     });
 };
 
-lib.processCampaignSummaryRecord = function(record, obj) {
-    var m, eventCount = parseInt(record.eventCount,10), sub;
+lib.processCampaignSummaryRecord = function(record, obj, startDate, endDate) {
+    var m, eventCount = parseInt(record.eventCount,10), sub ;
     if (isNaN(eventCount)){
         eventCount = 0;
     }
@@ -257,32 +257,32 @@ lib.processCampaignSummaryRecord = function(record, obj) {
                 totalSpend  : '0.0000',
                 linkClicks  : {},
                 shareClicks : {}
+            },
+            today : {
+                impressions : 0,
+                views       : 0,
+                totalSpend  : '0.0000',
+                linkClicks  : {},
+                shareClicks : {}
             }
         };
+        if (startDate || endDate) {
+            obj.range = {
+                startDate   : startDate,
+                endDate     : endDate,
+                impressions : 0,
+                views       : 0,
+                totalSpend  : '0.0000',
+                linkClicks  : {},
+                shareClicks : {}
+            };
+        }
     }
 
     if (record.range === 'today'){
-        if (!obj.today) {
-            obj.today = {
-                impressions : 0,
-                views       : 0,
-                totalSpend  : '0.0000',
-                linkClicks  : {},
-                shareClicks : {}
-            };
-        }
         sub = obj.today;
     } else
     if (record.range === 'user'){
-        if (!obj.range) {
-            obj.range = {
-                impressions : 0,
-                views       : 0,
-                totalSpend  : '0.0000',
-                linkClicks  : {},
-                shareClicks : {}
-            };
-        }
         sub = obj.range;
     } else {
         sub = obj.summary;
@@ -325,7 +325,9 @@ lib.datesToDateClause = function(startDate,endDate,fieldName) {
 };
 
 lib.queryCampaignSummary = function(campaignIds,startDate,endDate) {
-    var dateClause = lib.datesToDateClause(startDate,endDate,'rec_ts'), statement;
+    var log = logger.getLog(),dateClause = lib.datesToDateClause(startDate,endDate,'rec_ts'),
+        statement;
+        
     
     statement = [
         'select campaign_id as "campaignId" ,\'summary\' as "range", event_type as "eventType",',
@@ -333,7 +335,7 @@ lib.queryCampaignSummary = function(campaignIds,startDate,endDate) {
         'from rpt.campaign_summary_hourly_all',
         'where campaign_id = ANY($1::text[])',
         'and NOT event_type = ANY($2::text[])',
-        'group by 1,2',
+        'group by 1,2,3',
         'union',
         'select campaign_id as "campaignId" ,\'today\' as "range", event_type as "eventType",',
         'sum(events) as "eventCount", sum(event_cost) as "eventCost"',
@@ -341,7 +343,7 @@ lib.queryCampaignSummary = function(campaignIds,startDate,endDate) {
         'where campaign_id = ANY($1::text[])',
         'and NOT event_type = ANY($2::text[])',
         'and rec_ts >= current_timestamp::date',
-        'group by 1,2'
+        'group by 1,2,3'
     ];
     
     if (dateClause) {
@@ -353,11 +355,11 @@ lib.queryCampaignSummary = function(campaignIds,startDate,endDate) {
             'where campaign_id = ANY($1::text[])',
             'and NOT event_type = ANY($2::text[])',
             'AND (' + dateClause + ')',
-            'group by 1,2'
+            'group by 1,2,3'
         ]);
     }
     statement.push('order by 1,2');
-
+    log.trace(statement.join('\n'));
     return lib.pgQuery(statement.join('\n'),
         [campaignIds,['q1','q2','q3','q4','launch','load','play','impression']])
         .then(function(result){
@@ -366,7 +368,9 @@ lib.queryCampaignSummary = function(campaignIds,startDate,endDate) {
                 if (res === undefined) {
                     res = {};
                 }
-                res[row.campaignId] = lib.processCampaignSummaryRecord( row,res[row.campaignId]);
+                res[row.campaignId] = lib.processCampaignSummaryRecord(
+                    row,res[row.campaignId],startDate,endDate
+                );
             });
             return res;
         });

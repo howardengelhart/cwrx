@@ -1,5 +1,5 @@
 var flush = true;
-fdescribe('querybot (UT)', function() {
+describe('querybot (UT)', function() {
     var mockLog, logger, q, pg, nextSpy, doneSpy, errorSpy, req, mockState, dbpass,
         mockLookup, mockDefer, mockClient, mockDone, mockPromise, mockCache, requestUtils;
 
@@ -634,6 +634,44 @@ fdescribe('querybot (UT)', function() {
                     linkClicks : {},
                     shareClicks : {}
                 },
+                today : {
+                    impressions : 0,
+                    views : 0,
+                    totalSpend : '0.0000',
+                    linkClicks : {},
+                    shareClicks : {}
+                }
+            });
+        });
+
+        it('initializes a record with range=user data',function(){
+            record.range = 'user';
+            var obj = lib.processCampaignSummaryRecord(record,undefined,'2015-01-01','2016-01-01');
+            expect(obj).toEqual({
+                campaignId : 'abc',
+                summary : {
+                    impressions : 0,
+                    views : 0,
+                    totalSpend : '0.0000',
+                    linkClicks : {},
+                    shareClicks : {}
+                },
+                today : {
+                    impressions : 0,
+                    views : 0,
+                    totalSpend : '0.0000',
+                    linkClicks : {},
+                    shareClicks : {}
+                },
+                range : {
+                    startDate : '2015-01-01',
+                    endDate   : '2016-01-01',
+                    impressions : 100,
+                    views : 0,
+                    totalSpend : '0.0000',
+                    linkClicks : {},
+                    shareClicks : {}
+                }
             });
         });
 
@@ -645,6 +683,32 @@ fdescribe('querybot (UT)', function() {
                 campaignId : 'abc',
                 summary : {
                     impressions : 100,
+                    views : 100,
+                    totalSpend : '25.2500',
+                    linkClicks : {},
+                    shareClicks : {}
+                },
+                today : {
+                    impressions : 0,
+                    views : 0,
+                    totalSpend : '0.0000',
+                    linkClicks : {},
+                    shareClicks : {}
+                }
+            });
+            record.range = 'today';
+            lib.processCampaignSummaryRecord(record,obj);
+            expect(obj).toEqual({
+                campaignId : 'abc',
+                summary : {
+                    impressions : 100,
+                    views : 100,
+                    totalSpend : '25.2500',
+                    linkClicks : {},
+                    shareClicks : {}
+                },
+                today : {
+                    impressions : 0,
                     views : 100,
                     totalSpend : '25.2500',
                     linkClicks : {},
@@ -667,6 +731,13 @@ fdescribe('querybot (UT)', function() {
                         facebook : 100
                     },
                     shareClicks : {}
+                },
+                today : {
+                    impressions : 0,
+                    views : 0,
+                    totalSpend : '0.0000',
+                    linkClicks : {},
+                    shareClicks : {}
                 }
             });
 
@@ -686,6 +757,13 @@ fdescribe('querybot (UT)', function() {
                     shareClicks : {
                         nosebook : 100
                     }
+                },
+                today : {
+                    impressions : 0,
+                    views : 0,
+                    totalSpend : '0.0000',
+                    linkClicks : {},
+                    shareClicks : {}
                 }
             });
         });
@@ -702,6 +780,13 @@ fdescribe('querybot (UT)', function() {
                     totalSpend : '0.0000',
                     linkClicks : { },
                     shareClicks : { }
+                },
+                today : {
+                    impressions : 0,
+                    views : 0,
+                    totalSpend : '0.0000',
+                    linkClicks : {},
+                    shareClicks : {}
                 }
             });
         });
@@ -718,6 +803,13 @@ fdescribe('querybot (UT)', function() {
                     totalSpend : '0.0000',
                     linkClicks : { },
                     shareClicks : { }
+                },
+                today : {
+                    impressions : 0,
+                    views : 0,
+                    totalSpend : '0.0000',
+                    linkClicks : {},
+                    shareClicks : {}
                 }
             });
         });
