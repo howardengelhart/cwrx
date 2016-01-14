@@ -2212,8 +2212,8 @@ describe('player service', function() {
                                     expect(error.status).toBe(404);
                                 });
 
-                                it('should log an error', function() {
-                                    expect(log.error).toHaveBeenCalled();
+                                it('should not log an error', function() {
+                                    expect(log.error).not.toHaveBeenCalled();
                                 });
                             });
                         });
