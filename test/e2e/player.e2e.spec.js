@@ -196,7 +196,7 @@ describe('player service', function() {
 
                     isMiniReel: true,
                     card: {
-                        types: ['youtube', 'recap'],
+                        types: ['recap', 'youtube'],
                         modules: ['ballot']
                     }
                 });
@@ -278,7 +278,7 @@ describe('player service', function() {
 
                             isMiniReel: true,
                             card: {
-                                types: ['youtube', 'recap'],
+                                types: ['recap', 'youtube'],
                                 modules: []
                             }
                         });
@@ -347,7 +347,7 @@ describe('player service', function() {
 
                             isMiniReel: true,
                             card: {
-                                types: ['youtube', 'adUnit', 'recap'],
+                                types: ['adUnit', 'recap', 'youtube'],
                                 modules: []
                             }
                         });
