@@ -1866,11 +1866,11 @@ describe('player service', function() {
                         describe('.types', function() {
                             it('should be a list of all the card types without duplicates', function() {
                                 expect(player.__getBuildProfile__(experience, options).card.types).toEqual([
-                                    'youtube',
                                     'adUnit',
-                                    'instagram',
                                     'image',
-                                    'recap'
+                                    'instagram',
+                                    'recap',
+                                    'youtube'
                                 ]);
                             });
                         });
@@ -1878,10 +1878,10 @@ describe('player service', function() {
                         describe('.modules', function() {
                             it('should be a list of all the modules without duplicates', function() {
                                 expect(player.__getBuildProfile__(experience, options).card.modules).toEqual([
-                                    'post',
                                     'ballot',
+                                    'comments',
                                     'displayAd',
-                                    'comments'
+                                    'post'
                                 ]);
                             });
                         });
