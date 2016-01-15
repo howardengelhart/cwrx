@@ -142,8 +142,8 @@ Player.prototype.__getBuildProfile__ = function __getBuildProfile__(experience, 
 
         isMiniReel: isMiniReel,
         card: {
-            types: cards && _.uniq(cards.map(_.property('type'))),
-            modules: cards && _.uniq(_.flatten(cards.map(_.property('modules'))))
+            types: cards && _.uniq(cards.map(_.property('type'))).sort(),
+            modules: cards && _.uniq(_.flatten(cards.map(_.property('modules')))).sort()
         }
     };
 };
