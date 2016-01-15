@@ -1,5 +1,7 @@
 # Collateral Service Changelog
 
+### 2.1.1: Fri Jan 15 11:20:29 EST 2016
+* Improve the accuracy of social link web-scraping: [#740](https://github.com/cinema6/cwrx/pull/740)
 * Upgrade mongo driver to 2.x, fixing reconnect issues: [#717](https://github.com/cinema6/cwrx/pull/717)
 
 ### 2.1.0: Fri Nov 20 15:48:37 EST 2015
