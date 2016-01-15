@@ -175,7 +175,7 @@ describe('querybot (UT)', function() {
 
     });
 
-    describe('campaignIdsFromRequest',function(){
+    describe('queryParamsFromRequest',function(){
         var req, mockResponse, result, queryOpts, setResult ;
         beforeEach(function(){
             req = {
@@ -214,12 +214,12 @@ describe('querybot (UT)', function() {
         it('pulls campaignIds from the request params',function(done){
             mockResponse.body = [{ id : 'ABC' }];
             req.params.id = 'ABC'; 
-            lib.campaignIdsFromRequest(req)
+            lib.queryParamsFromRequest(req)
             .then(setResult)
             .then(function(){
                 expect(queryOpts.qs.ids).toEqual('ABC');
                 expect(queryOpts.url).toEqual('https://local/api/campaigns/');
-                expect(result).toEqual(['ABC']);
+                expect(result).toEqual( { campaignIds : ['ABC'], startDate : null, endDate : null } );
             })
             .then(done,done.fail);
         });
@@ -227,12 +227,12 @@ describe('querybot (UT)', function() {
         it('pulls campaignIds from the query params',function(done){
             req.query.ids = 'ABC,DEF'; 
             mockResponse.body = [{ id : 'ABC' },{ id : 'DEF' }];
-            lib.campaignIdsFromRequest(req)
+            lib.queryParamsFromRequest(req)
             .then(setResult)
             .then(function(){
                 expect(queryOpts.qs.ids).toEqual('ABC,DEF');
                 expect(queryOpts.url).toEqual('https://local/api/campaigns/');
-                expect(result).toEqual(['ABC','DEF']);
+                expect(result).toEqual( { campaignIds : ['ABC','DEF'], startDate : null, endDate : null } );
             })
             .then(done,done.fail);
         });
@@ -241,12 +241,12 @@ describe('querybot (UT)', function() {
             mockResponse.body = [{ id : 'ABC' }];
             req.params.id = 'ABC'; 
             req.query.ids = 'DEF,GHI'; 
-            lib.campaignIdsFromRequest(req)
+            lib.queryParamsFromRequest(req)
             .then(setResult)
             .then(function(){
                 expect(queryOpts.qs.ids).toEqual('ABC');
                 expect(queryOpts.url).toEqual('https://local/api/campaigns/');
-                expect(result).toEqual(['ABC']);
+                expect(result).toEqual( { campaignIds : ['ABC'], startDate : null, endDate : null } );
             })
             .then(done,done.fail);
         });
@@ -254,12 +254,12 @@ describe('querybot (UT)', function() {
         it('squashes duplicate ids',function(done){
             req.query.ids = 'DEF,ABC,GHI,ABC'; 
             mockResponse.body = [{ id : 'DEF' },{ id : 'ABC' },{ id : 'GHI' }];
-            lib.campaignIdsFromRequest(req)
+            lib.queryParamsFromRequest(req)
             .then(setResult)
             .then(function(){
                 expect(queryOpts.qs.ids).toEqual('DEF,ABC,GHI');
                 expect(queryOpts.url).toEqual('https://local/api/campaigns/');
-                expect(result).toEqual(['DEF','ABC','GHI']);
+                expect(result).toEqual( { campaignIds : ['DEF','ABC','GHI'], startDate : null, endDate : null } );
             })
             .then(done,done.fail);
         });
@@ -267,12 +267,12 @@ describe('querybot (UT)', function() {
         it('return empty array if campaign service returns nothing',function(done){
             req.query.ids = 'DEF,ABC,GHI'; 
             mockResponse.body = [];
-            lib.campaignIdsFromRequest(req)
+            lib.queryParamsFromRequest(req)
             .then(setResult)
             .then(function(){
                 expect(queryOpts.qs.ids).toEqual('DEF,ABC,GHI');
                 expect(queryOpts.url).toEqual('https://local/api/campaigns/');
-                expect(result).toEqual([]);
+                expect(result).toEqual( { campaignIds : [], startDate : null, endDate : null } );
             })
             .then(done,done.fail);
         });
@@ -281,7 +281,7 @@ describe('querybot (UT)', function() {
             req.query.ids = 'DEF,ABC,GHI'; 
             mockResponse.response.statusCode = 401;
             mockResponse.body = 'Unauthorized.';
-            lib.campaignIdsFromRequest(req)
+            lib.queryParamsFromRequest(req)
             .then(setResult)
             .then(function(){
                 expect(queryOpts.qs.ids).toEqual('DEF,ABC,GHI');
@@ -289,19 +289,170 @@ describe('querybot (UT)', function() {
                 expect(mockLog.error).toHaveBeenCalledWith(
                     '[%1] Campaign Check Failed with: %2 : %3', req.uuid, 401, 'Unauthorized.'
                 );
-                expect(result).toEqual([]);
+                expect(result).toEqual( { campaignIds : [], startDate : null, endDate : null } );
             })
             .then(done,done.fail);
         });
 
         it('will reject if there are no ids on the request',function(done){
-            lib.campaignIdsFromRequest(req)
+            lib.queryParamsFromRequest(req)
             .then(done.fail,function(err){
                 expect(requestUtils.qRequest).not.toHaveBeenCalled();
                 expect(err).toEqual(new Error('At least one campaignId is required.'));
                 expect(err.status).toEqual(400);
                 done();
             });
+        });
+        
+        it('pulls startDate from the query params',function(done){
+            req.query.ids = 'ABC,DEF';
+            req.query.startDate = '2016-01-01';
+            mockResponse.body = [{ id : 'ABC' },{ id : 'DEF' }];
+            lib.queryParamsFromRequest(req)
+            .then(setResult)
+            .then(function(){
+                expect(queryOpts.qs.ids).toEqual('ABC,DEF');
+                expect(queryOpts.url).toEqual('https://local/api/campaigns/');
+                expect(result).toEqual( { 
+                    campaignIds : ['ABC','DEF'],
+                    startDate : '2016-01-01',
+                    endDate :  null
+                } );
+            })
+            .then(done,done.fail);
+        });
+
+        it('pulls endDate from the query params',function(done){
+            req.query.ids = 'ABC,DEF';
+            req.query.endDate   = '2016-01-02';
+            mockResponse.body = [{ id : 'ABC' },{ id : 'DEF' }];
+            lib.queryParamsFromRequest(req)
+            .then(setResult)
+            .then(function(){
+                expect(queryOpts.qs.ids).toEqual('ABC,DEF');
+                expect(queryOpts.url).toEqual('https://local/api/campaigns/');
+                expect(result).toEqual( { 
+                    campaignIds : ['ABC','DEF'],
+                    startDate : null,
+                    endDate : '2016-01-02' 
+                } );
+            })
+            .then(done,done.fail);
+        });
+
+        it('pulls startDate and endDate from the query params',function(done){
+            req.query.ids = 'ABC,DEF';
+            req.query.startDate = '2016-01-01';
+            req.query.endDate   = '2016-01-02';
+            mockResponse.body = [{ id : 'ABC' },{ id : 'DEF' }];
+            lib.queryParamsFromRequest(req)
+            .then(setResult)
+            .then(function(){
+                expect(queryOpts.qs.ids).toEqual('ABC,DEF');
+                expect(queryOpts.url).toEqual('https://local/api/campaigns/');
+                expect(result).toEqual( { 
+                    campaignIds : ['ABC','DEF'],
+                    startDate : '2016-01-01',
+                    endDate : '2016-01-02' 
+                } );
+            })
+            .then(done,done.fail);
+        });
+        
+        it('will reject if startDate is improperly formatted',function(done){
+            req.query.ids = 'ABC,DEF';
+            req.query.startDate = '01/01/2016';
+            lib.queryParamsFromRequest(req)
+            .then(done.fail,function(err){
+                expect(requestUtils.qRequest).not.toHaveBeenCalled();
+                expect(err).toEqual(new Error('Invalid startDate format, expecting YYYY-MM-DD.'));
+                expect(err.status).toEqual(400);
+                done();
+            });
+        });
+        
+        it('will reject if startDate is improperly formatted with stuff at end',function(done){
+            req.query.ids = 'ABC,DEF';
+            req.query.startDate = '2016-01-01;delete * from *;';
+            lib.queryParamsFromRequest(req)
+            .then(done.fail,function(err){
+                expect(requestUtils.qRequest).not.toHaveBeenCalled();
+                expect(err).toEqual(new Error('Invalid startDate format, expecting YYYY-MM-DD.'));
+                expect(err.status).toEqual(400);
+                done();
+            });
+        });
+        
+        it('will reject if startDate is improperly formatted with stuff at start',function(done){
+            req.query.ids = 'ABC,DEF';
+            req.query.startDate = 'delete * from *;2016-01-01';
+            lib.queryParamsFromRequest(req)
+            .then(done.fail,function(err){
+                expect(requestUtils.qRequest).not.toHaveBeenCalled();
+                expect(err).toEqual(new Error('Invalid startDate format, expecting YYYY-MM-DD.'));
+                expect(err.status).toEqual(400);
+                done();
+            });
+        });
+        
+        it('will reject if endDate is improperly formatted',function(done){
+            req.query.ids = 'ABC,DEF';
+            req.query.endDate = '01/01/2016';
+            lib.queryParamsFromRequest(req)
+            .then(done.fail,function(err){
+                expect(requestUtils.qRequest).not.toHaveBeenCalled();
+                expect(err).toEqual(new Error('Invalid endDate format, expecting YYYY-MM-DD.'));
+                expect(err.status).toEqual(400);
+                done();
+            });
+        });
+        
+        it('will reject if endDate is improperly formatted with stuff at end',function(done){
+            req.query.ids = 'ABC,DEF';
+            req.query.endDate = '2016-01-01;delete * from *;';
+            lib.queryParamsFromRequest(req)
+            .then(done.fail,function(err){
+                expect(requestUtils.qRequest).not.toHaveBeenCalled();
+                expect(err).toEqual(new Error('Invalid endDate format, expecting YYYY-MM-DD.'));
+                expect(err.status).toEqual(400);
+                done();
+            });
+        });
+        
+        it('will reject if endDate is improperly formatted with stuff at start',function(done){
+            req.query.ids = 'ABC,DEF';
+            req.query.endDate = 'delete * from *;2016-01-01';
+            lib.queryParamsFromRequest(req)
+            .then(done.fail,function(err){
+                expect(requestUtils.qRequest).not.toHaveBeenCalled();
+                expect(err).toEqual(new Error('Invalid endDate format, expecting YYYY-MM-DD.'));
+                expect(err.status).toEqual(400);
+                done();
+            });
+        });
+        
+        
+
+    });
+
+    describe('datesToDateClause',function(){
+        it('return null if there are no dates',function(){
+            expect(lib.datesToDateClause(null,null,'rec_ts')).toBeNull();
+        });
+
+        it('return clause with only start if there are is no endDate',function(){
+            expect(lib.datesToDateClause('2016-01-03',null,'rec_ts'))
+                .toEqual('rec_ts >= \'2016-01-03\'');
+        });
+
+        it('return clause with only end if there are is no startDate',function(){
+            expect(lib.datesToDateClause(null,'2016-01-03','rec_ts'))
+                .toEqual('rec_ts < (date \'2016-01-03\' + interval \'1 day\')');
+        });
+        
+        it('return clause with range if there are is startDate and endDate',function(){
+            expect(lib.datesToDateClause('2016-01-01','2016-01-03','rec_ts'))
+                .toEqual('rec_ts >= \'2016-01-01\' AND rec_ts < (date \'2016-01-03\' + interval \'1 day\')');
         });
     });
 
@@ -345,9 +496,12 @@ describe('querybot (UT)', function() {
         var fakeCache;
         beforeEach(function(){
             fakeCache = {
-                'abc:summary' : { campaignId : 'abc' },
-                'def:summary' : { campaignId : 'def' },
-                'ghi:summary' : { campaignId : 'ghi' }
+                'abc:null:null:summary'             : { campaignId : 'abc', v: 1 },
+                'abc:2016-01-03:null:summary'       : { campaignId : 'abc', v: 2 },
+                'abc:null:2016-01-03:summary'       : { campaignId : 'abc', v: 3 },
+                'def:null:null:summary'             : { campaignId : 'def', v: 1 },
+                'ghi:null:null:summary'             : { campaignId : 'ghi', v: 1 },
+                'ghi:2016-01-03:2016-01-03:summary' : { campaignId : 'ghi', v: 2 }
             };
             spyOn(lib,'campaignCacheGet').and.callFake(function(id){
                 return q(fakeCache[id]);
@@ -355,12 +509,42 @@ describe('querybot (UT)', function() {
         });
 
         it('returns data that it finds',function(done){
-            lib.getCampaignDataFromCache(['abc','123','def','ghi'],':summary')
+            lib.getCampaignDataFromCache(['abc','123','def','ghi'],null,null,'summary')
             .then(function(res){
                 expect(res).toEqual({
-                    'abc' : { campaignId : 'abc' },
-                    'def' : { campaignId : 'def' },
-                    'ghi' : { campaignId : 'ghi' }
+                    'abc' : { campaignId : 'abc', v: 1 },
+                    'def' : { campaignId : 'def', v: 1 },
+                    'ghi' : { campaignId : 'ghi', v: 1 }
+                });
+            })
+            .then(done,done.fail);
+        });
+
+        it('returns data that it finds with start date',function(done){
+            lib.getCampaignDataFromCache(['abc','123','def','ghi'],'2016-01-03',null,'summary')
+            .then(function(res){
+                expect(res).toEqual({
+                    'abc' : { campaignId : 'abc', v: 2 }
+                });
+            })
+            .then(done,done.fail);
+        });
+
+        it('returns data that it finds with end date',function(done){
+            lib.getCampaignDataFromCache(['abc','123','def','ghi'],null,'2016-01-03','summary')
+            .then(function(res){
+                expect(res).toEqual({
+                    'abc' : { campaignId : 'abc', v: 3 }
+                });
+            })
+            .then(done,done.fail);
+        });
+
+        it('returns data that it finds with start and end date',function(done){
+            lib.getCampaignDataFromCache(['abc','123','def','ghi'],'2016-01-03','2016-01-03','summary')
+            .then(function(res){
+                expect(res).toEqual({
+                    'ghi' : { campaignId : 'ghi', v: 2 }
                 });
             })
             .then(done,done.fail);
@@ -369,19 +553,19 @@ describe('querybot (UT)', function() {
         it('warns if there is an error, but proceeds',function(done){
             var err = new Error('An error');
             lib.campaignCacheGet.and.callFake(function(id){
-                if (id === 'def:summary') {
+                if (id === 'def:null:null:summary') {
                     return q.reject(err);
                 } else {
                     return q(fakeCache[id]);
                 }
             });
-            lib.getCampaignDataFromCache(['abc','123','def','ghi'],':summary')
+            lib.getCampaignDataFromCache(['abc','123','def','ghi'],null,null,'summary')
             .then(function(res){
                 expect(mockLog.warn).toHaveBeenCalledWith('Cache error: Key=%1, Error=%2',
-                    'def:summary','An error');
+                    'def:null:null:summary','An error');
                 expect(res).toEqual({
-                    'abc' : { campaignId : 'abc' },
-                    'ghi' : { campaignId : 'ghi' }
+                    'abc' : { campaignId : 'abc', v: 1 },
+                    'ghi' : { campaignId : 'ghi', v: 1 }
                 });
             })
             .then(done,done.fail);
@@ -402,15 +586,15 @@ describe('querybot (UT)', function() {
         });
 
         it('caches the data',function(done){
-            lib.setCampaignDataInCache(fakeData,':summary')
+            lib.setCampaignDataInCache(fakeData,null,'2016-01-01','summary')
             .then(function(result){
                 expect(lib.campaignCacheSet.calls.count()).toEqual(3);
                 expect(lib.campaignCacheSet.calls.allArgs()[0])
-                    .toEqual( ['abc:summary', { campaignId: 'abc'}] );
+                    .toEqual( ['abc:null:2016-01-01:summary', { campaignId: 'abc'}] );
                 expect(lib.campaignCacheSet.calls.allArgs()[1])
-                    .toEqual( ['def:summary', { campaignId: 'def'}] );
+                    .toEqual( ['def:null:2016-01-01:summary', { campaignId: 'def'}] );
                 expect(lib.campaignCacheSet.calls.allArgs()[2])
-                    .toEqual( ['ghi:summary', { campaignId: 'ghi'}] );
+                    .toEqual( ['ghi:null:2016-01-01:summary', { campaignId: 'ghi'}] );
                 expect(result).toBe(fakeData);
             })
             .then(done,done.fail);
@@ -420,7 +604,7 @@ describe('querybot (UT)', function() {
             lib.campaignCacheSet.and.callFake(function(id){
                 return q.reject(new Error('An error'));
             });
-            lib.setCampaignDataInCache(fakeData,':summary')
+            lib.setCampaignDataInCache(fakeData,null,null,'summary')
             .then(function(result){
                 expect(result).toBe(fakeData);
             })
@@ -449,6 +633,44 @@ describe('querybot (UT)', function() {
                     totalSpend : '0.0000',
                     linkClicks : {},
                     shareClicks : {}
+                },
+                today : {
+                    impressions : 0,
+                    views : 0,
+                    totalSpend : '0.0000',
+                    linkClicks : {},
+                    shareClicks : {}
+                }
+            });
+        });
+
+        it('initializes a record with range=user data',function(){
+            record.range = 'user';
+            var obj = lib.processCampaignSummaryRecord(record,undefined,'2015-01-01','2016-01-01');
+            expect(obj).toEqual({
+                campaignId : 'abc',
+                summary : {
+                    impressions : 0,
+                    views : 0,
+                    totalSpend : '0.0000',
+                    linkClicks : {},
+                    shareClicks : {}
+                },
+                today : {
+                    impressions : 0,
+                    views : 0,
+                    totalSpend : '0.0000',
+                    linkClicks : {},
+                    shareClicks : {}
+                },
+                range : {
+                    startDate : '2015-01-01',
+                    endDate   : '2016-01-01',
+                    impressions : 100,
+                    views : 0,
+                    totalSpend : '0.0000',
+                    linkClicks : {},
+                    shareClicks : {}
                 }
             });
         });
@@ -461,6 +683,32 @@ describe('querybot (UT)', function() {
                 campaignId : 'abc',
                 summary : {
                     impressions : 100,
+                    views : 100,
+                    totalSpend : '25.2500',
+                    linkClicks : {},
+                    shareClicks : {}
+                },
+                today : {
+                    impressions : 0,
+                    views : 0,
+                    totalSpend : '0.0000',
+                    linkClicks : {},
+                    shareClicks : {}
+                }
+            });
+            record.range = 'today';
+            lib.processCampaignSummaryRecord(record,obj);
+            expect(obj).toEqual({
+                campaignId : 'abc',
+                summary : {
+                    impressions : 100,
+                    views : 100,
+                    totalSpend : '25.2500',
+                    linkClicks : {},
+                    shareClicks : {}
+                },
+                today : {
+                    impressions : 0,
                     views : 100,
                     totalSpend : '25.2500',
                     linkClicks : {},
@@ -483,6 +731,13 @@ describe('querybot (UT)', function() {
                         facebook : 100
                     },
                     shareClicks : {}
+                },
+                today : {
+                    impressions : 0,
+                    views : 0,
+                    totalSpend : '0.0000',
+                    linkClicks : {},
+                    shareClicks : {}
                 }
             });
 
@@ -502,6 +757,13 @@ describe('querybot (UT)', function() {
                     shareClicks : {
                         nosebook : 100
                     }
+                },
+                today : {
+                    impressions : 0,
+                    views : 0,
+                    totalSpend : '0.0000',
+                    linkClicks : {},
+                    shareClicks : {}
                 }
             });
         });
@@ -518,6 +780,13 @@ describe('querybot (UT)', function() {
                     totalSpend : '0.0000',
                     linkClicks : { },
                     shareClicks : { }
+                },
+                today : {
+                    impressions : 0,
+                    views : 0,
+                    totalSpend : '0.0000',
+                    linkClicks : {},
+                    shareClicks : {}
                 }
             });
         });
@@ -534,6 +803,13 @@ describe('querybot (UT)', function() {
                     totalSpend : '0.0000',
                     linkClicks : { },
                     shareClicks : { }
+                },
+                today : {
+                    impressions : 0,
+                    views : 0,
+                    totalSpend : '0.0000',
+                    linkClicks : {},
+                    shareClicks : {}
                 }
             });
         });
@@ -552,16 +828,15 @@ describe('querybot (UT)', function() {
             lib.queryCampaignSummary(['abc','def']);
             expect(lib.pgQuery.calls.mostRecent().args[1]).toEqual([
                 ['abc','def'],
-                ['q1','q2','q3','q4','launch','load','play']
+                ['q1','q2','q3','q4','launch','load','play','impression']
             ]);
         });
     });
 
     describe('getCampaignSummaryAnalytics',function(){
-        var req, fakeCacheData, fakeQueryData, fakeIds;
+        var req, fakeCacheData, fakeQueryData ;
         beforeEach(function(){
             req = {},
-            fakeIds = [ 'abc', 'def', 'ghi' ];
             fakeCacheData = {
                 'abc' : { campaignId : 'abc', summary : {} },
                 'def' : { campaignId : 'def', summary : {} },
@@ -577,12 +852,14 @@ describe('querybot (UT)', function() {
             spyOn(lib,'setCampaignDataInCache').and.callFake(function(data,key){
                 return q(data);   
             });
-            spyOn(lib,'campaignIdsFromRequest').and.returnValue(q(['abc','def','ghi']));
+            spyOn(lib,'queryParamsFromRequest').and.returnValue(
+                q({ campaignIds : ['abc','def','ghi'], startDate :null , endDate : null })
+            );
         });
 
-        it('will return an empty result if campaignIdsFromRequest returns no ids',function(done){
+        it('will return an empty result if queryParamsFromRequest returns no ids',function(done){
             var err;
-            lib.campaignIdsFromRequest.and.returnValue(q([]));
+            lib.queryParamsFromRequest.and.returnValue(q( { campaignIds : [] } ));
             lib.getCampaignSummaryAnalytics(req)
             .then(function(r){
                 expect(r.campaignSummaryAnalytics).toEqual([]); 
@@ -596,7 +873,7 @@ describe('querybot (UT)', function() {
             lib.getCampaignSummaryAnalytics(req)
             .then(function(){
                 expect(lib.getCampaignDataFromCache).toHaveBeenCalledWith(
-                    ['abc','def','ghi'],':summary'
+                    ['abc','def','ghi'],null,null,'summary'
                 );
                 expect(lib.queryCampaignSummary).not.toHaveBeenCalled();
                 expect(lib.setCampaignDataInCache).not.toHaveBeenCalled();
@@ -614,11 +891,12 @@ describe('querybot (UT)', function() {
             lib.getCampaignSummaryAnalytics(req)
             .then(function(){
                 expect(lib.getCampaignDataFromCache).toHaveBeenCalledWith(
-                    ['abc','def','ghi'],':summary'
+                    ['abc','def','ghi'],null,null,'summary'
                 );
-                expect(lib.queryCampaignSummary).toHaveBeenCalledWith( ['abc','def','ghi']);
+                expect(lib.queryCampaignSummary).toHaveBeenCalledWith( 
+                    ['abc','def','ghi'],null,null);
                 expect(lib.setCampaignDataInCache).toHaveBeenCalledWith(
-                    fakeQueryData, ':summary'     
+                    fakeQueryData, null, null, 'summary'     
                 );
                 expect(req.campaignSummaryAnalytics).toEqual([
                     { campaignId : 'abc' , summary : {}},
@@ -638,11 +916,11 @@ describe('querybot (UT)', function() {
             lib.getCampaignSummaryAnalytics(req)
             .then(function(){
                 expect(lib.getCampaignDataFromCache).toHaveBeenCalledWith(
-                    ['abc','def','ghi'],':summary'
+                    ['abc','def','ghi'],null,null,'summary'
                 );
-                expect(lib.queryCampaignSummary).toHaveBeenCalledWith( ['abc','ghi']);
+                expect(lib.queryCampaignSummary).toHaveBeenCalledWith( ['abc','ghi'],null,null);
                 expect(lib.setCampaignDataInCache).toHaveBeenCalledWith(
-                    fakeQueryData, ':summary'     
+                    fakeQueryData, null, null, 'summary'     
                 );
                 expect(req.campaignSummaryAnalytics).toEqual([
                     { campaignId : 'def' , summary : {}},

@@ -37,7 +37,7 @@ function pgQuery(conn,statement) {
 
 describe('querybot (E2E)', function(){
     var pgdata_campaign_summary_hourly, mockUser, mockCamps, pgconn,
-        cookieJar, options, camp1Data, camp2Data;
+        cookieJar, options, camp1Data, camp2Data, camp5Data;
 
     beforeEach(function(done){
         // TODO:  Work out what connection config should be!
@@ -51,19 +51,35 @@ describe('querybot (E2E)', function(){
         camp1Data = {
             campaignId : 'cam-1757d5cd13e383',
             summary : {
-                impressions: 8186,
-                views      : 6263,
-                totalSpend : '1189.9700',
+                impressions: 8409,
+                views      : 6461,
+                totalSpend : '1227.5900',
                 linkClicks : {
-                    action      : 223,
+                    action      : 224,
+                    facebook    : 18,
+                    instagram   : 2,
+                    website     : 120,
+                    youtube     : 5
+                },
+                shareClicks : {
+                    facebook  : 53,
+                    pinterest : 31,
+                    twitter   : 32
+                }
+            },
+            today : {
+                impressions : 7903,
+                views       : 6054,
+                totalSpend  : '1150.2600',
+                linkClicks : {
+                    action      : 220,
                     facebook    : 18,
                     instagram   : 2,
                     website     : 114,
                     youtube     : 5
                 },
                 shareClicks : {
-                    facebook  : 32,
-                    pinterest : 31,
+                    facebook  : 11,
                     twitter   : 21
                 }
             }
@@ -84,76 +100,140 @@ describe('querybot (E2E)', function(){
                     youtube : 3
                 },
                 shareClicks : {}
+            },
+            today : {
+                impressions : 385,
+                views : 318,
+                totalSpend  : '34.9800',
+                linkClicks  : {
+                    action : 2,
+                    facebook : 9,
+                    twitter : 11
+                },
+                shareClicks : {}
             }
         };
-      
+        
+        camp5Data = {
+            campaignId : 'cam-cabd93049d032a',
+            summary : {
+                impressions: 99,
+                views      : 69,
+                totalSpend : '3.4500',
+                linkClicks : {
+                    website     : 6
+                },
+                shareClicks : {}
+            },
+            today : {
+                impressions: 0,
+                views       : 0,
+                totalSpend  : '0.0000',
+                linkClicks  : {},
+                shareClicks : {}
+            }
+        };
+ 
+        var today = ((new Date()).toISOString()).substr(0,10);
         pgdata_campaign_summary_hourly = [
             'INSERT INTO rpt.campaign_summary_hourly_all VALUES',
-            '(\'2015-12-03 01:00:00+00\',\'cam-1757d5cd13e383\',\'cardView\',2032,0.0000),',
-            '(\'2015-12-03 01:00:00+00\',\'cam-1757d5cd13e383\',\'completedView\',1542,292.9800),',
-            '(\'2015-12-03 01:00:00+00\',\'cam-1757d5cd13e383\',\'launch\',2032,0.0000),',
-            '(\'2015-12-03 01:00:00+00\',\'cam-1757d5cd13e383\',\'link.Action\',69,0.0000),',
-            '(\'2015-12-03 01:00:00+00\',\'cam-1757d5cd13e383\',\'link.Facebook\',7,0.0000),',
-            '(\'2015-12-03 01:00:00+00\',\'cam-1757d5cd13e383\',\'link.Website\',28,0.0000),',
-            '(\'2015-12-03 01:00:00+00\',\'cam-1757d5cd13e383\',\'link.YouTube\',2,0.0000),',
-            '(\'2015-12-03 01:00:00+00\',\'cam-1757d5cd13e383\',\'load\',2038,0.0000),',
-            '(\'2015-12-03 01:00:00+00\',\'cam-1757d5cd13e383\',\'play\',1881,0.0000),',
-            '(\'2015-12-03 01:00:00+00\',\'cam-1757d5cd13e383\',\'q1\',1597,0.0000),',
-            '(\'2015-12-03 01:00:00+00\',\'cam-1757d5cd13e383\',\'q2\',1374,0.0000),',
-            '(\'2015-12-03 01:00:00+00\',\'cam-1757d5cd13e383\',\'q3\',473,0.0000),',
-            '(\'2015-12-03 01:00:00+00\',\'cam-1757d5cd13e383\',\'q4\',322,0.0000),',
-            '(\'2015-12-03 01:00:00+00\',\'cam-1757d5cd13e383\',\'shareLink.facebook\',11,0.0000),',
-            '(\'2015-12-03 01:00:00+00\',\'cam-1757d5cd13e383\',\'shareLink.twitter\',21,0.0000),',
-            '(\'2015-12-03 00:00:00+00\',\'cam-1757d5cd13e383\',\'cardView\',5871,0.0000),',
-            '(\'2015-12-03 00:00:00+00\',\'cam-1757d5cd13e383\',\'completedView\',4512,857.2800),',
-            '(\'2015-12-03 00:00:00+00\',\'cam-1757d5cd13e383\',\'launch\',5871,0.0000),',
-            '(\'2015-12-03 00:00:00+00\',\'cam-1757d5cd13e383\',\'link.Action\',151,0.0000),',
-            '(\'2015-12-03 00:00:00+00\',\'cam-1757d5cd13e383\',\'link.Facebook\',11,0.0000),',
-            '(\'2015-12-03 00:00:00+00\',\'cam-1757d5cd13e383\',\'link.Instagram\',2,0.0000),',
-            '(\'2015-12-03 00:00:00+00\',\'cam-1757d5cd13e383\',\'link.Website\',86,0.0000),',
-            '(\'2015-12-03 00:00:00+00\',\'cam-1757d5cd13e383\',\'link.YouTube\',3,0.0000),',
-            '(\'2015-12-03 00:00:00+00\',\'cam-1757d5cd13e383\',\'load\',5928,0.0000),',
-            '(\'2015-12-03 00:00:00+00\',\'cam-1757d5cd13e383\',\'play\',5469,0.0000),',
-            '(\'2015-12-03 00:00:00+00\',\'cam-1757d5cd13e383\',\'q1\',4765,0.0000),',
-            '(\'2015-12-03 00:00:00+00\',\'cam-1757d5cd13e383\',\'q2\',3981,0.0000),',
-            '(\'2015-12-03 00:00:00+00\',\'cam-1757d5cd13e383\',\'q3\',1333,0.0000),',
-            '(\'2015-12-03 00:00:00+00\',\'cam-1757d5cd13e383\',\'q4\',918,0.0000),',
-            '(\'2015-12-02 23:00:00+00\',\'cam-1757d5cd13e383\',\'cardView\',283,0.0000),',
-            '(\'2015-12-02 23:00:00+00\',\'cam-1757d5cd13e383\',\'completedView\',209,39.7100),',
-            '(\'2015-12-02 23:00:00+00\',\'cam-1757d5cd13e383\',\'launch\',284,0.0000),',
-            '(\'2015-12-02 23:00:00+00\',\'cam-1757d5cd13e383\',\'link.Action\',3,0.0000),',
-            '(\'2015-12-02 23:00:00+00\',\'cam-1757d5cd13e383\',\'load\',299,0.0000),',
-            '(\'2015-12-02 23:00:00+00\',\'cam-1757d5cd13e383\',\'play\',278,0.0000),',
-            '(\'2015-12-02 23:00:00+00\',\'cam-1757d5cd13e383\',\'q1\',223,0.0000),',
-            '(\'2015-12-02 23:00:00+00\',\'cam-1757d5cd13e383\',\'q2\',155,0.0000),',
-            '(\'2015-12-02 23:00:00+00\',\'cam-1757d5cd13e383\',\'q3\',52,0.0000),',
-            '(\'2015-12-02 23:00:00+00\',\'cam-1757d5cd13e383\',\'q4\',30,0.0000),',
-            '(\'2015-12-02 23:00:00+00\',\'cam-1757d5cd13e383\',\'shareLink.facebook\',21,0.0000),',
-            '(\'2015-12-02 23:00:00+00\',\'cam-1757d5cd13e383\',\'shareLink.pinterest\',31,0.0000),',
-            '(\'2015-12-03 00:00:00+00\',\'cam-b651cde4158304\',\'cardView\',385,0.0000),',
-            '(\'2015-12-03 00:00:00+00\',\'cam-b651cde4158304\',\'completedView\',318,34.9800),',
-            '(\'2015-12-03 00:00:00+00\',\'cam-b651cde4158304\',\'launch\',384,0.0000),',
-            '(\'2015-12-03 00:00:00+00\',\'cam-b651cde4158304\',\'link.Action\',2,0.0000),',
-            '(\'2015-12-03 00:00:00+00\',\'cam-b651cde4158304\',\'link.Facebook\',9,0.0000),',
-            '(\'2015-12-03 00:00:00+00\',\'cam-b651cde4158304\',\'link.Twitter\',11,0.0000),',
-            '(\'2015-12-03 00:00:00+00\',\'cam-b651cde4158304\',\'load\',384,0.0000),',
-            '(\'2015-12-03 00:00:00+00\',\'cam-b651cde4158304\',\'play\',384,0.0000),',
-            '(\'2015-12-03 00:00:00+00\',\'cam-b651cde4158304\',\'q1\',359,0.0000),',
-            '(\'2015-12-03 00:00:00+00\',\'cam-b651cde4158304\',\'q2\',349,0.0000),',
-            '(\'2015-12-03 00:00:00+00\',\'cam-b651cde4158304\',\'q3\',336,0.0000),',
-            '(\'2015-12-03 00:00:00+00\',\'cam-b651cde4158304\',\'q4\',318,0.0000),',
-            '(\'2015-12-02 23:00:00+00\',\'cam-b651cde4158304\',\'cardView\',227,0.0000),',
-            '(\'2015-12-02 23:00:00+00\',\'cam-b651cde4158304\',\'completedView\',194,21.3400),',
-            '(\'2015-12-02 23:00:00+00\',\'cam-b651cde4158304\',\'launch\',227,0.0000),',
-            '(\'2015-12-02 23:00:00+00\',\'cam-b651cde4158304\',\'load\',227,0.0000),',
-            '(\'2015-12-02 23:00:00+00\',\'cam-b651cde4158304\',\'link.Instagram\',2,0.0000),',
-            '(\'2015-12-02 23:00:00+00\',\'cam-b651cde4158304\',\'link.Website\',86,0.0000),',
-            '(\'2015-12-02 23:00:00+00\',\'cam-b651cde4158304\',\'link.YouTube\',3,0.0000),',
-            '(\'2015-12-02 23:00:00+00\',\'cam-b651cde4158304\',\'play\',225,0.0000),',
-            '(\'2015-12-02 23:00:00+00\',\'cam-b651cde4158304\',\'q1\',215,0.0000),',
-            '(\'2015-12-02 23:00:00+00\',\'cam-b651cde4158304\',\'q2\',211,0.0000),',
-            '(\'2015-12-02 23:00:00+00\',\'cam-b651cde4158304\',\'q3\',202,0.0000),',
-            '(\'2015-12-02 23:00:00+00\',\'cam-b651cde4158304\',\'q4\',193,0.0000);'
+            '(\'' + today + ' 01:00:00+00\',\'cam-1757d5cd13e383\',\'cardView\',2032,0.0000),',
+            '(\'' + today + ' 01:00:00+00\',\'cam-1757d5cd13e383\',\'completedView\',1542,292.9800),',
+            '(\'' + today + ' 01:00:00+00\',\'cam-1757d5cd13e383\',\'launch\',2032,0.0000),',
+            '(\'' + today + ' 01:00:00+00\',\'cam-1757d5cd13e383\',\'link.Action\',69,0.0000),',
+            '(\'' + today + ' 01:00:00+00\',\'cam-1757d5cd13e383\',\'link.Facebook\',7,0.0000),',
+            '(\'' + today + ' 01:00:00+00\',\'cam-1757d5cd13e383\',\'link.Website\',28,0.0000),',
+            '(\'' + today + ' 01:00:00+00\',\'cam-1757d5cd13e383\',\'link.YouTube\',2,0.0000),',
+            '(\'' + today + ' 01:00:00+00\',\'cam-1757d5cd13e383\',\'load\',2038,0.0000),',
+            '(\'' + today + ' 01:00:00+00\',\'cam-1757d5cd13e383\',\'play\',1881,0.0000),',
+            '(\'' + today + ' 01:00:00+00\',\'cam-1757d5cd13e383\',\'q1\',1597,0.0000),',
+            '(\'' + today + ' 01:00:00+00\',\'cam-1757d5cd13e383\',\'q2\',1374,0.0000),',
+            '(\'' + today + ' 01:00:00+00\',\'cam-1757d5cd13e383\',\'q3\',473,0.0000),',
+            '(\'' + today + ' 01:00:00+00\',\'cam-1757d5cd13e383\',\'q4\',322,0.0000),',
+            '(\'' + today + ' 01:00:00+00\',\'cam-1757d5cd13e383\',\'shareLink.facebook\',11,0.0000),',
+            '(\'' + today + ' 01:00:00+00\',\'cam-1757d5cd13e383\',\'shareLink.twitter\',21,0.0000),',
+            '(\'' + today + ' 00:00:00+00\',\'cam-1757d5cd13e383\',\'cardView\',5871,0.0000),',
+            '(\'' + today + ' 00:00:00+00\',\'cam-1757d5cd13e383\',\'completedView\',4512,857.2800),',
+            '(\'' + today + ' 00:00:00+00\',\'cam-1757d5cd13e383\',\'launch\',5871,0.0000),',
+            '(\'' + today + ' 00:00:00+00\',\'cam-1757d5cd13e383\',\'link.Action\',151,0.0000),',
+            '(\'' + today + ' 00:00:00+00\',\'cam-1757d5cd13e383\',\'link.Facebook\',11,0.0000),',
+            '(\'' + today + ' 00:00:00+00\',\'cam-1757d5cd13e383\',\'link.Instagram\',2,0.0000),',
+            '(\'' + today + ' 00:00:00+00\',\'cam-1757d5cd13e383\',\'link.Website\',86,0.0000),',
+            '(\'' + today + ' 00:00:00+00\',\'cam-1757d5cd13e383\',\'link.YouTube\',3,0.0000),',
+            '(\'' + today + ' 00:00:00+00\',\'cam-1757d5cd13e383\',\'load\',5928,0.0000),',
+            '(\'' + today + ' 00:00:00+00\',\'cam-1757d5cd13e383\',\'play\',5469,0.0000),',
+            '(\'' + today + ' 00:00:00+00\',\'cam-1757d5cd13e383\',\'q1\',4765,0.0000),',
+            '(\'' + today + ' 00:00:00+00\',\'cam-1757d5cd13e383\',\'q2\',3981,0.0000),',
+            '(\'' + today + ' 00:00:00+00\',\'cam-1757d5cd13e383\',\'q3\',1333,0.0000),',
+            '(\'' + today + ' 00:00:00+00\',\'cam-1757d5cd13e383\',\'q4\',918,0.0000),',
+            '(\'2015-12-01 00:00:00+00\',\'cam-1757d5cd13e383\',\'cardView\',100,0.0000),',
+            '(\'2015-12-01 00:00:00+00\',\'cam-1757d5cd13e383\',\'completedView\',89,16.9100),',
+            '(\'2015-12-01 00:00:00+00\',\'cam-1757d5cd13e383\',\'launch\',154,0.0000),',
+            '(\'2015-12-01 00:00:00+00\',\'cam-1757d5cd13e383\',\'link.Action\',1,0.0000),',
+            '(\'2015-12-01 00:00:00+00\',\'cam-1757d5cd13e383\',\'load\',299,0.0000),',
+            '(\'2015-12-01 00:00:00+00\',\'cam-1757d5cd13e383\',\'play\',278,0.0000),',
+            '(\'2015-12-01 00:00:00+00\',\'cam-1757d5cd13e383\',\'q1\',223,0.0000),',
+            '(\'2015-12-01 00:00:00+00\',\'cam-1757d5cd13e383\',\'q2\',155,0.0000),',
+            '(\'2015-12-01 00:00:00+00\',\'cam-1757d5cd13e383\',\'q3\',52,0.0000),',
+            '(\'2015-12-01 00:00:00+00\',\'cam-1757d5cd13e383\',\'q4\',30,0.0000),',
+            '(\'2015-12-01 00:00:00+00\',\'cam-1757d5cd13e383\',\'shareLink.facebook\',21,0.0000),',
+            '(\'2015-12-01 00:00:00+00\',\'cam-1757d5cd13e383\',\'shareLink.twitter\',11,0.0000),',
+            '(\'2015-12-02 12:00:00+00\',\'cam-1757d5cd13e383\',\'cardView\',283,0.0000),',
+            '(\'2015-12-02 12:00:00+00\',\'cam-1757d5cd13e383\',\'completedView\',209,39.7100),',
+            '(\'2015-12-02 12:00:00+00\',\'cam-1757d5cd13e383\',\'launch\',284,0.0000),',
+            '(\'2015-12-02 12:00:00+00\',\'cam-1757d5cd13e383\',\'link.Action\',3,0.0000),',
+            '(\'2015-12-02 12:00:00+00\',\'cam-1757d5cd13e383\',\'load\',299,0.0000),',
+            '(\'2015-12-02 12:00:00+00\',\'cam-1757d5cd13e383\',\'play\',278,0.0000),',
+            '(\'2015-12-02 12:00:00+00\',\'cam-1757d5cd13e383\',\'q1\',223,0.0000),',
+            '(\'2015-12-02 12:00:00+00\',\'cam-1757d5cd13e383\',\'q2\',155,0.0000),',
+            '(\'2015-12-02 12:00:00+00\',\'cam-1757d5cd13e383\',\'q3\',52,0.0000),',
+            '(\'2015-12-02 12:00:00+00\',\'cam-1757d5cd13e383\',\'q4\',30,0.0000),',
+            '(\'2015-12-02 12:00:00+00\',\'cam-1757d5cd13e383\',\'shareLink.facebook\',21,0.0000),',
+            '(\'2015-12-02 12:00:00+00\',\'cam-1757d5cd13e383\',\'shareLink.pinterest\',31,0.0000),',
+            '(\'2015-12-03 23:00:00+00\',\'cam-1757d5cd13e383\',\'cardView\',123,0.0000),',
+            '(\'2015-12-03 23:00:00+00\',\'cam-1757d5cd13e383\',\'completedView\',109,20.7100),',
+            '(\'2015-12-03 23:00:00+00\',\'cam-1757d5cd13e383\',\'launch\',284,0.0000),',
+            '(\'2015-12-03 23:00:00+00\',\'cam-1757d5cd13e383\',\'link.Website\',6,0.0000),',
+            '(\'2015-12-03 23:00:00+00\',\'cam-1757d5cd13e383\',\'load\',299,0.0000),',
+            '(\'2015-12-03 23:00:00+00\',\'cam-1757d5cd13e383\',\'play\',278,0.0000),',
+            '(\'2015-12-03 23:00:00+00\',\'cam-1757d5cd13e383\',\'q1\',223,0.0000),',
+            '(\'2015-12-03 23:00:00+00\',\'cam-1757d5cd13e383\',\'q2\',155,0.0000),',
+            '(\'2015-12-03 23:00:00+00\',\'cam-1757d5cd13e383\',\'q3\',52,0.0000),',
+            '(\'2015-12-03 23:00:00+00\',\'cam-1757d5cd13e383\',\'q4\',30,0.0000),',
+            
+            '(\'' + today + ' 00:00:00+00\',\'cam-b651cde4158304\',\'cardView\',385,0.0000),',
+            '(\'' + today + ' 00:00:00+00\',\'cam-b651cde4158304\',\'completedView\',318,34.9800),',
+            '(\'' + today + ' 00:00:00+00\',\'cam-b651cde4158304\',\'launch\',384,0.0000),',
+            '(\'' + today + ' 00:00:00+00\',\'cam-b651cde4158304\',\'link.Action\',2,0.0000),',
+            '(\'' + today + ' 00:00:00+00\',\'cam-b651cde4158304\',\'link.Facebook\',9,0.0000),',
+            '(\'' + today + ' 00:00:00+00\',\'cam-b651cde4158304\',\'link.Twitter\',11,0.0000),',
+            '(\'' + today + ' 00:00:00+00\',\'cam-b651cde4158304\',\'load\',384,0.0000),',
+            '(\'' + today + ' 00:00:00+00\',\'cam-b651cde4158304\',\'play\',384,0.0000),',
+            '(\'' + today + ' 00:00:00+00\',\'cam-b651cde4158304\',\'q1\',359,0.0000),',
+            '(\'' + today + ' 00:00:00+00\',\'cam-b651cde4158304\',\'q2\',349,0.0000),',
+            '(\'' + today + ' 00:00:00+00\',\'cam-b651cde4158304\',\'q3\',336,0.0000),',
+            '(\'' + today + ' 00:00:00+00\',\'cam-b651cde4158304\',\'q4\',318,0.0000),',
+            '(\'2015-12-03 23:00:00+00\',\'cam-b651cde4158304\',\'cardView\',227,0.0000),',
+            '(\'2015-12-03 23:00:00+00\',\'cam-b651cde4158304\',\'completedView\',194,21.3400),',
+            '(\'2015-12-03 23:00:00+00\',\'cam-b651cde4158304\',\'launch\',227,0.0000),',
+            '(\'2015-12-03 23:00:00+00\',\'cam-b651cde4158304\',\'load\',227,0.0000),',
+            '(\'2015-12-03 23:00:00+00\',\'cam-b651cde4158304\',\'link.Instagram\',2,0.0000),',
+            '(\'2015-12-03 23:00:00+00\',\'cam-b651cde4158304\',\'link.Website\',86,0.0000),',
+            '(\'2015-12-03 23:00:00+00\',\'cam-b651cde4158304\',\'link.YouTube\',3,0.0000),',
+            '(\'2015-12-03 23:00:00+00\',\'cam-b651cde4158304\',\'play\',225,0.0000),',
+            '(\'2015-12-03 23:00:00+00\',\'cam-b651cde4158304\',\'q1\',215,0.0000),',
+            '(\'2015-12-03 23:00:00+00\',\'cam-b651cde4158304\',\'q2\',211,0.0000),',
+            '(\'2015-12-03 23:00:00+00\',\'cam-b651cde4158304\',\'q3\',202,0.0000),',
+            '(\'2015-12-03 23:00:00+00\',\'cam-b651cde4158304\',\'q4\',193,0.0000),',
+            '(\'2015-12-03 23:00:00+00\',\'cam-cabd93049d032a\',\'cardView\',99,0.0000),',
+            '(\'2015-12-03 23:00:00+00\',\'cam-cabd93049d032a\',\'completedView\',69,3.4500),',
+            '(\'2015-12-03 23:00:00+00\',\'cam-cabd93049d032a\',\'launch\',98,0.0000),',
+            '(\'2015-12-03 23:00:00+00\',\'cam-cabd93049d032a\',\'link.Website\',6,0.0000),',
+            '(\'2015-12-03 23:00:00+00\',\'cam-cabd93049d032a\',\'play\',89,0.0000),',
+            '(\'2015-12-03 23:00:00+00\',\'cam-cabd93049d032a\',\'q1\',84,0.0000),',
+            '(\'2015-12-03 23:00:00+00\',\'cam-cabd93049d032a\',\'q2\',74,0.0000),',
+            '(\'2015-12-03 23:00:00+00\',\'cam-cabd93049d032a\',\'q3\',52,0.0000),',
+            '(\'2015-12-03 23:00:00+00\',\'cam-cabd93049d032a\',\'q4\',30,0.0000);'
         ];
 
         mockUser = {
@@ -175,7 +255,9 @@ describe('querybot (E2E)', function(){
             { id: 'cam-278b8150021c68', name: 'camp 3', status: 'active',
                 user: 'not-e2e-user', org: 'not-e2e-org' },
             { id: 'e2e-getid3', name: 'camp 4', status: 'active',
-                user: 'not-e2e-user', org: 'not-e2e-org' }
+                user: 'not-e2e-user', org: 'not-e2e-org' },
+            { id: 'cam-cabd93049d032a', name: 'camp 5', status: 'active',
+                user: 'e2e-user', org: 'e2e-org' },
         ];
 
         function pgTruncate(){
@@ -252,7 +334,27 @@ describe('querybot (E2E)', function(){
             .then(done,done.fail);
         });
 
-        it('returns single document if the campaigns GET is singular form',function(done){
+        it('returns a 400 if the request has a bad start date format',function(done){
+            options.url += '/cam-1757d5cd13e383?startDate=apple';
+            requestUtils.qRequest('get', options)
+            .then(function(resp) {
+                expect(resp.response.statusCode).toEqual(400);
+                expect(resp.response.body).toEqual('Invalid startDate format, expecting YYYY-MM-DD.');
+            })
+            .then(done,done.fail);
+        });
+
+        it('returns a 400 if the request has a bad end date format',function(done){
+            options.url += '/cam-1757d5cd13e383?startDate=2015-12-01&endDate=2015-12-02T12:55:00+00';
+            requestUtils.qRequest('get', options)
+            .then(function(resp) {
+                expect(resp.response.statusCode).toEqual(400);
+                expect(resp.response.body).toEqual('Invalid endDate format, expecting YYYY-MM-DD.');
+            })
+            .then(done,done.fail);
+        });
+
+        it('returns single doc with all data if the campaigns GET is singular with no dates',function(done){
             options.url += '/cam-1757d5cd13e383';
             requestUtils.qRequest('get', options)
             .then(function(resp) {
@@ -262,6 +364,88 @@ describe('querybot (E2E)', function(){
             .then(done,done.fail);
         });
         
+        it('returns single doc with initialized range data if the campaigns GET is singular with dates with no data',function(done){
+            options.url += '/cam-1757d5cd13e383?startDate=2010-12-01&endDate=2010-12-02';
+            requestUtils.qRequest('get', options)
+            .then(function(resp) {
+                camp1Data.range = {
+                    startDate  : '2010-12-01',
+                    endDate    : '2010-12-02',
+                    impressions: 0,
+                    views      : 0,
+                    totalSpend : '0.0000',
+                    linkClicks : {},
+                    shareClicks : {}
+                };
+                expect(resp.response.statusCode).toEqual(200);
+                expect(resp.body).toEqual(camp1Data);
+            })
+            .then(done,done.fail);
+        });
+
+        it('returns single doc with initialized range data if end date is < start date',function(done){
+            options.url += '/cam-1757d5cd13e383?startDate=2015-12-02&endDate=2015-12-01';
+            requestUtils.qRequest('get', options)
+            .then(function(resp) {
+                camp1Data.range = {
+                    startDate  : '2015-12-02',
+                    endDate    : '2015-12-01',
+                    impressions: 0,
+                    views      : 0,
+                    totalSpend : '0.0000',
+                    linkClicks : {},
+                    shareClicks : {}
+                };
+                expect(resp.response.statusCode).toEqual(200);
+                expect(resp.body).toEqual(camp1Data);
+            })
+            .then(done,done.fail);
+        });
+
+        it('returns single doc with range data with same start and end date',function(done){
+            options.url += '/cam-1757d5cd13e383?startDate=2015-12-02&endDate=2015-12-02';
+            requestUtils.qRequest('get', options)
+            .then(function(resp) {
+                camp1Data.range = {
+                    startDate  : '2015-12-02',
+                    endDate    : '2015-12-02',
+                    impressions: 283,
+                    views      : 209,
+                    totalSpend : '39.7100',
+                    linkClicks : {
+                        action : 3 
+                    },
+                    shareClicks : {
+                        facebook : 21,
+                        pinterest : 31
+                    }
+                };
+                expect(resp.response.statusCode).toEqual(200);
+                expect(resp.body).toEqual(camp1Data);
+            })
+            .then(done,done.fail);
+        });
+
+        it('returns single doc with initialized today data if the campaigns GET is singular with dates with no today data',function(done){
+            options.url += '/cam-cabd93049d032a?startDate=2015-12-01&endDate=2015-12-31';
+            requestUtils.qRequest('get', options)
+            .then(function(resp) {
+                camp5Data.range = {
+                    startDate  : '2015-12-01',
+                    endDate    : '2015-12-31',
+                    impressions: 99,
+                    views      : 69,
+                    totalSpend : '3.4500',
+                    linkClicks : {
+                        website     : 6
+                    },
+                    shareClicks : {}
+                };
+                expect(resp.response.statusCode).toEqual(200);
+                expect(resp.body).toEqual(camp5Data);
+            })
+            .then(done,done.fail);
+        });
     });
     
     describe('GET /api/analytics/campaigns/?ids=:id', function() {

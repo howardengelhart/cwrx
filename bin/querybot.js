@@ -2,19 +2,22 @@
 
 var __ut__      = (global.jasmine !== undefined) ? true : false;
 
-var q               = require('q'),
-    path            = require('path'),
-    url             = require('url'),
-    express         = require('express'),
-    bodyParser      = require('body-parser'),
-    pg              = require('pg.js'),
-    inherits        = require('util').inherits,
-    expressUtils    = require('../lib/expressUtils'),
-    requestUtils    = require('../lib/requestUtils'),
-    dbpass          = require('../lib/dbpass'),
-    logger          = require('../lib/logger'),
-    authUtils       = require('../lib/authUtils'),
-    service         = require('../lib/service'),
+var q                 = require('q'),
+    path              = require('path'),
+    url               = require('url'),
+    express           = require('express'),
+    bodyParser        = require('body-parser'),
+    pg                = require('pg.js'),
+    inherits          = require('util').inherits,
+    expressUtils      = require('../lib/expressUtils'),
+    requestUtils      = require('../lib/requestUtils'),
+    cloudwatchMetrics = expressUtils.cloudwatchMetrics,
+//    CloudWatchReporter = require('../lib/cloudWatchReporter'),
+    dbpass            = require('../lib/dbpass'),
+    logger            = require('../lib/logger'),
+    authUtils         = require('../lib/authUtils'),
+    service           = require('../lib/service'),
+    inspect           = require('util').inspect,
     state   = {},
     lib     = {};
 
@@ -67,6 +70,12 @@ state.defaultConfig = {
     },
     api : {
         root: 'http://localhost/'
+    },
+    cloudwatch: {
+        namespace: 'C6/Querybot',
+        region: 'us-east-1',
+        sendInterval: (1 * 60 * 1000), // 1 min
+        environment : 'Development'
     },
     campaignCacheTTL : 120 * 1000,
     requestMaxAge : 300
@@ -140,9 +149,10 @@ lib.pgQuery = function(statement,params){
     return deferred.promise;
 };
 
-lib.campaignIdsFromRequest = function(req){
+lib.queryParamsFromRequest = function(req){
     var log = logger.getLog(), ids = {}, idList = '',
-        urlBase = url.resolve(state.config.api.root , '/api/campaigns/') ;
+        urlBase = url.resolve(state.config.api.root , '/api/campaigns/'),
+        result = { campaignIds : [], startDate : null, endDate : null };
     if (req.params.id) {
         ids[req.params.id] = 1;
     }
@@ -158,6 +168,26 @@ lib.campaignIdsFromRequest = function(req){
         return q.reject(new ServiceError('At least one campaignId is required.', 400));
     }
 
+    if (req.query.startDate) {
+        if (req.query.startDate.match(/^\d\d\d\d-\d\d-\d\d$/)){
+            result.startDate = req.query.startDate;
+        } else {
+            return q.reject(
+                new ServiceError('Invalid startDate format, expecting YYYY-MM-DD.', 400)
+            );
+        }
+    }
+
+    if (req.query.endDate) {
+        if (req.query.endDate.match(/^\d\d\d\d-\d\d-\d\d$/)){
+            result.endDate = req.query.endDate;
+        } else {
+            return q.reject(
+                new ServiceError('Invalid endDate format, expecting YYYY-MM-DD.', 400)
+            );
+        }
+    }
+
     idList = ids.join(',');
     log.trace('[%1] campaign check: %2, ids=%3', req.uuid,urlBase , idList);
     return requestUtils.qRequest('get', {
@@ -170,10 +200,9 @@ lib.campaignIdsFromRequest = function(req){
     })
     .then(function(resp){
         log.trace('[%1] STATUS CODE: %2',req.uuid,resp.response.statusCode);
-        var result = [];
         if (resp.response.statusCode === 200) {
             log.trace('[%1] campaign found: %2',req.uuid,resp.response.body);
-            result = resp.body.map(function(item){
+            result.campaignIds = resp.body.map(function(item){
                 return  item.id;
             });
         } else {
@@ -184,11 +213,12 @@ lib.campaignIdsFromRequest = function(req){
     });
 };
 
-lib.getCampaignDataFromCache = function(campaignIds,keySuffix){
+lib.getCampaignDataFromCache = function(campaignIds,startDate,endDate,keyScope){
     var log = logger.getLog(), retval;
     return q.all(campaignIds.map(function(id){
-        return lib.campaignCacheGet(id + keySuffix).catch(function(e){
-            log.warn('Cache error: Key=%1, Error=%2', id + keySuffix, e.message);
+        var key = [ id, startDate || 'null', endDate || 'null', keyScope ].join(':');
+        return lib.campaignCacheGet(key).catch(function(e){
+            log.warn('Cache error: Key=%1, Error=%2', key, e.message);
             return null;
         });
     }))
@@ -206,11 +236,12 @@ lib.getCampaignDataFromCache = function(campaignIds,keySuffix){
     });
 };
 
-lib.setCampaignDataInCache = function(data,keySuffix){
+lib.setCampaignDataInCache = function(data,startDate,endDate,keyScope){
     var log = logger.getLog();
     return q.all(Object.keys(data).map(function(id){
-        log.trace('Store campaign[%1] in cache.',id);
-        return lib.campaignCacheSet(id + keySuffix, data[id]);
+        var key = [ id, startDate || 'null', endDate || 'null', keyScope ].join(':');
+        log.trace('Store campaign[%1] in cache.',key);
+        return lib.campaignCacheSet(key, data[id]);
     }))
     .then(function(){
         return data;
@@ -221,8 +252,8 @@ lib.setCampaignDataInCache = function(data,keySuffix){
     });
 };
 
-lib.processCampaignSummaryRecord = function(record, obj) {
-    var m, eventCount = parseInt(record.eventCount,10);
+lib.processCampaignSummaryRecord = function(record, obj, startDate, endDate) {
+    var m, eventCount = parseInt(record.eventCount,10), sub ;
     if (isNaN(eventCount)){
         eventCount = 0;
     }
@@ -235,24 +266,51 @@ lib.processCampaignSummaryRecord = function(record, obj) {
                 totalSpend  : '0.0000',
                 linkClicks  : {},
                 shareClicks : {}
+            },
+            today : {
+                impressions : 0,
+                views       : 0,
+                totalSpend  : '0.0000',
+                linkClicks  : {},
+                shareClicks : {}
             }
         };
+        if (startDate || endDate) {
+            obj.range = {
+                startDate   : startDate,
+                endDate     : endDate,
+                impressions : 0,
+                views       : 0,
+                totalSpend  : '0.0000',
+                linkClicks  : {},
+                shareClicks : {}
+            };
+        }
+    }
+
+    if (record.range === 'today'){
+        sub = obj.today;
+    } else
+    if (record.range === 'user'){
+        sub = obj.range;
+    } else {
+        sub = obj.summary;
     }
     
     if (record.eventType === 'cardView') {
-        obj.summary.impressions = eventCount;
+        sub.impressions = eventCount;
     } else
     if (record.eventType === 'completedView') {
-        obj.summary.views       = eventCount;
-        obj.summary.totalSpend   = record.eventCost;
+        sub.views       = eventCount;
+        sub.totalSpend  = record.eventCost;
     } else  {
         m = record.eventType.match(/shareLink\.(.*)/);
         if (m) {
-            obj.summary.shareClicks[m[1].toLowerCase()] = eventCount;
+            sub.shareClicks[m[1].toLowerCase()] = eventCount;
         } else {
             m = record.eventType.match(/link\.(.*)/);
             if (m) {
-                obj.summary.linkClicks[m[1].toLowerCase()] = eventCount;
+                sub.linkClicks[m[1].toLowerCase()] = eventCount;
             }
         }
     }
@@ -260,24 +318,68 @@ lib.processCampaignSummaryRecord = function(record, obj) {
     return obj;
 };
 
-lib.queryCampaignSummary = function(campaignIds) {
-    var  statement =
-        'select campaign_id as "campaignId" ,event_type as "eventType",' +
-        'sum(events) as "eventCount", sum(event_cost) as "eventCost"' +
-        ' from rpt.campaign_summary_hourly_all' +
-        ' where campaign_id = ANY($1::text[]) ' +
-        ' and NOT event_type = ANY($2::text[]) ' +
-        ' group by campaign_id,event_type' +
-        ' order by campaign_id,event_type';
+lib.datesToDateClause = function(startDate,endDate,fieldName) {
+    var dateClause = null;
 
-    return lib.pgQuery(statement,[campaignIds,['q1','q2','q3','q4','launch','load','play']])
+    if (startDate){
+        dateClause = fieldName + ' >= \'' +  startDate + '\'';
+    }
+
+    if (endDate) {
+        dateClause = (dateClause !== null) ? (dateClause + ' AND ') : '';
+        dateClause += fieldName + ' < (date \'' + endDate + '\' + interval \'1 day\')';
+    }
+
+    return dateClause;
+};
+
+lib.queryCampaignSummary = function(campaignIds,startDate,endDate) {
+    var log = logger.getLog(),dateClause = lib.datesToDateClause(startDate,endDate,'rec_ts'),
+        statement;
+        
+    
+    statement = [
+        'select campaign_id as "campaignId" ,\'summary\' as "range", event_type as "eventType",',
+        'sum(events) as "eventCount", sum(event_cost) as "eventCost"',
+        'from rpt.campaign_summary_hourly_all',
+        'where campaign_id = ANY($1::text[])',
+        'and NOT event_type = ANY($2::text[])',
+        'group by 1,2,3',
+        'union',
+        'select campaign_id as "campaignId" ,\'today\' as "range", event_type as "eventType",',
+        'sum(events) as "eventCount", sum(event_cost) as "eventCost"',
+        'from rpt.campaign_summary_hourly_all',
+        'where campaign_id = ANY($1::text[])',
+        'and NOT event_type = ANY($2::text[])',
+        'and rec_ts >= current_timestamp::date',
+        'group by 1,2,3'
+    ];
+    
+    if (dateClause) {
+        statement = statement.concat([
+            'union',
+            'select campaign_id as "campaignId" ,\'user\' as "range", event_type as "eventType",',
+            'sum(events) as "eventCount", sum(event_cost) as "eventCost"',
+            'from rpt.campaign_summary_hourly_all',
+            'where campaign_id = ANY($1::text[])',
+            'and NOT event_type = ANY($2::text[])',
+            'AND (' + dateClause + ')',
+            'group by 1,2,3'
+        ]);
+    }
+    statement.push('order by 1,2');
+    log.trace(statement.join('\n'));
+    return lib.pgQuery(statement.join('\n'),
+        [campaignIds,['q1','q2','q3','q4','launch','load','play','impression']])
         .then(function(result){
             var res ;
             result.rows.forEach(function(row){
                 if (res === undefined) {
                     res = {};
                 }
-                res[row.campaignId] = lib.processCampaignSummaryRecord(row,res[row.campaignId]);
+                res[row.campaignId] = lib.processCampaignSummaryRecord(
+                    row,res[row.campaignId],startDate,endDate
+                );
             });
             return res;
         });
@@ -286,14 +388,16 @@ lib.queryCampaignSummary = function(campaignIds) {
 lib.getCampaignSummaryAnalytics = function(req){
 
     function prepare(r){
-        return lib.campaignIdsFromRequest(r)
-            .then(function(ids){
+        return lib.queryParamsFromRequest(r)
+            .then(function(res){
                 return {
                     request      : r,
-                    keySuffix    : ':summary',
+                    keyScope     : 'summary',
                     cacheResults : null,
                     queryResults : null,
-                    campaignIds  : ids
+                    campaignIds  : res.campaignIds,
+                    startDate    : res.startDate,
+                    endDate      : res.endDate
                 };
             });
     }
@@ -302,7 +406,7 @@ lib.getCampaignSummaryAnalytics = function(req){
         if (!j.campaignIds || !(j.campaignIds.length)){
             return j;
         }
-        return lib.getCampaignDataFromCache(j.campaignIds,j.keySuffix)
+        return lib.getCampaignDataFromCache(j.campaignIds,j.startDate,j.endDate,j.keyScope)
         .then(function(res){
             j.cacheResults = res;
             if (res) {
@@ -318,13 +422,13 @@ lib.getCampaignSummaryAnalytics = function(req){
         if (!j.campaignIds || !(j.campaignIds.length)){
             return j;
         }
-        return lib.queryCampaignSummary(j.campaignIds)
+        return lib.queryCampaignSummary(j.campaignIds,j.startDate,j.endDate)
             .then(function(res){
                 j.queryResults = res;
                 if (!res) {
                     return j;
                 }
-                return lib.setCampaignDataInCache(res,j.keySuffix)
+                return lib.setCampaignDataInCache(res,j.startDate,j.endDate,j.keyScope)
                     .then(function(){
                         return j;
                     });
@@ -357,8 +461,58 @@ lib.main = function(state) {
         return state;
     }
     log.info('Running as cluster worker, proceed with setting up web server.');
+    require('aws-sdk').config.update({ region: state.config.cloudwatch.region });
 
-    var app          = express();
+    var app = express(), cwCampaignSummarySingle, cwCampaignSummaryMulti;
+    cwCampaignSummarySingle = cloudwatchMetrics(
+        state.config.cloudwatch.namespace,
+        state.config.cloudwatch.sendInterval,
+        {
+            MetricName : 'Duration',
+            Dimensions : [
+                {
+                    Name : 'Environment',
+                    Value : state.config.cloudwatch.environment
+                },
+                {
+                    Name  : 'Function',
+                    Value : '/api/analytics/campaigns/:id'
+                }
+            ],
+            Unit: 'Milliseconds'
+        }
+    );
+    cwCampaignSummarySingle.reporter.removeAllListeners('flush');
+    cwCampaignSummarySingle.reporter.on('flush', function(data) {
+        log.info('Sending cwCampaignSummarySingle timing metrics to CloudWatch: %1',
+            inspect(data));
+    });
+
+    cwCampaignSummaryMulti = cloudwatchMetrics(
+        state.config.cloudwatch.namespace,
+        state.config.cloudwatch.sendInterval,
+        {
+            MetricName : 'Duration',
+            Dimensions : [
+                {
+                    Name : 'Environment',
+                    Value : state.config.cloudwatch.environment
+                },
+                {
+                    Name  : 'Function',
+                    Value : '/api/analytics/campaigns/'
+                }
+            ],
+            Unit: 'Milliseconds'
+        }
+    );
+
+    cwCampaignSummaryMulti.reporter.removeAllListeners('flush');
+    cwCampaignSummaryMulti.reporter.on('flush', function(data) {
+        log.info('Sending cwCampaignSummaryMulti timing metrics to CloudWatch: %1',
+            inspect(data));
+    });
+
     
     authUtils._db = state.dbs.c6Db;
 
@@ -391,7 +545,8 @@ lib.main = function(state) {
 
     
     var authAnalCamp = authUtils.middlewarify({campaigns: 'read'});
-    app.get('/api/analytics/campaigns/:id', sessions, authAnalCamp, function(req, res, next) {
+    app.get('/api/analytics/campaigns/:id', sessions, authAnalCamp, cwCampaignSummaryMulti,
+        function(req, res, next) {
         lib.getCampaignSummaryAnalytics(req)
         .then(function(){
             if (req.campaignSummaryAnalytics.length === 0) {
@@ -417,7 +572,8 @@ lib.main = function(state) {
         });
     });
     
-    app.get('/api/analytics/campaigns/', sessions, authAnalCamp, function(req, res, next) {
+    app.get('/api/analytics/campaigns/', sessions, authAnalCamp, cwCampaignSummarySingle,
+        function(req, res, next) {
         lib.getCampaignSummaryAnalytics(req)
         .then(function(){
             log.info('[%1] - returning data for %2 campaigns',

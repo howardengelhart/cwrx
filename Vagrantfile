@@ -35,6 +35,11 @@ Vagrant.configure("2") do |config|
     chef.environments_path = "./chef/environments"
     chef.environment = "Development"
     chef.json = {
+        :c6env => {
+            :npm => {
+                :registry => 'http://deployer1.corp.cinema6.com:4873'
+            }
+        },
         :c6mongo => {
             :users => {
                 :ids => ["evan", "howard", "e2eTests", "content", "collateral", "auth", "userSvc", "orgSvc", "vote", "siteSvc", "search", "deepthought", "ads", "querybot"]
