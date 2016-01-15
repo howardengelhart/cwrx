@@ -611,42 +611,6 @@ describe('CrudSvc', function() {
         });
     });
 
-    describe('preventGetAll', function() {
-        beforeEach(function() {
-            req._query = {};
-            req.user.permissions = {};
-        });
-
-        it('should prevent non-admins from querying with #nofilter', function() {
-            svc.preventGetAll(req, nextSpy, doneSpy);
-            req.user.permissions.thangs = {};
-            svc.preventGetAll(req, nextSpy, doneSpy);
-            req.user.permissions.thangs.read = Scope.Own;
-            svc.preventGetAll(req, nextSpy, doneSpy);
-            expect(nextSpy).not.toHaveBeenCalled();
-            expect(doneSpy.calls.count()).toBe(3);
-            doneSpy.calls.all().forEach(function(call) {
-                expect(call.args).toEqual([{code: 403, body: 'Not authorized to read all thangs'}]);
-            });
-        });
-
-        it('should allow admins to query with #nofilter', function() {
-            req.user.permissions.thangs = { read: Scope.All };
-            svc.preventGetAll(req, nextSpy, doneSpy);
-            expect(nextSpy).toHaveBeenCalled();
-            expect(doneSpy).not.toHaveBeenCalled();
-        });
-
-        it('should let anyone query with a filter', function() {
-            req._query.selfie = 'hawt';
-            svc.preventGetAll(req, nextSpy, doneSpy);
-            req.user.permissions.thangs = { read: Scope.All };
-            svc.preventGetAll(req, nextSpy, doneSpy);
-            expect(nextSpy.calls.count()).toBe(2);
-            expect(doneSpy).not.toHaveBeenCalled();
-        });
-    });
-
     describe('validateUniqueProp', function() {
         var transformedObject;
 

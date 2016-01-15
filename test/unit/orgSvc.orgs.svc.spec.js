@@ -45,8 +45,7 @@ describe('orgSvc-orgs (UT)', function() {
     describe('setupSvc', function() {
         var svc;
         beforeEach(function() {
-            [CrudSvc.prototype.preventGetAll, CrudSvc.prototype.validateUniqueProp,
-             orgModule.activeUserCheck].forEach(function(fn) {
+            [CrudSvc.prototype.validateUniqueProp, orgModule.activeUserCheck].forEach(function(fn) {
                 spyOn(fn, 'bind').and.returnValue(fn);
             });
 
@@ -64,11 +63,6 @@ describe('orgSvc-orgs (UT)', function() {
             expect(svc._ownedByUser).toBe(false);
             expect(svc.model).toEqual(jasmine.any(Model));
             expect(svc.model.schema).toBe(orgModule.orgSchema);
-        });
-        
-        it('should prevent getting all orgs', function() {
-            expect(svc._middleware.read).toContain(svc.preventGetAll);
-            expect(CrudSvc.prototype.preventGetAll.bind).toHaveBeenCalledWith(svc);
         });
         
         it('should check special permissions on create', function() {
@@ -183,29 +177,31 @@ describe('orgSvc-orgs (UT)', function() {
             });
         });
         
-        describe('when handling braintreeCustomer', function() {
-            it('should trim the field if set', function() {
-                newObj.braintreeCustomer = '123456';
-                expect(svc.model.validate('create', newObj, origObj, requester))
-                    .toEqual({ isValid: true, reason: undefined });
-                expect(newObj).toEqual({ name: 'test' });
-            });
-            
-            it('should be able to allow some requesters to set the field', function() {
-                newObj.braintreeCustomer = '123456';
-                requester.fieldValidation.orgs.braintreeCustomer = { __allowed: true };
+        ['braintreeCustomer', 'referralCode'].forEach(function(field) {
+            describe('when handling ' + field, function() {
+                it('should trim the field if set', function() {
+                    newObj[field] = '123456';
+                    expect(svc.model.validate('create', newObj, origObj, requester))
+                        .toEqual({ isValid: true, reason: undefined });
+                    expect(newObj).toEqual({ name: 'test' });
+                });
+                
+                it('should be able to allow some requesters to set the field', function() {
+                    newObj[field] = '123456';
+                    requester.fieldValidation.orgs[field] = { __allowed: true };
 
-                expect(svc.model.validate('create', newObj, origObj, requester))
-                    .toEqual({ isValid: true, reason: undefined });
-                expect(newObj).toEqual({ name: 'test', braintreeCustomer: '123456' });
-            });
-            
-            it('should fail if the field is not a string', function() {
-                newObj.braintreeCustomer = 123456;
-                requester.fieldValidation.orgs.braintreeCustomer = { __allowed: true };
+                    expect(svc.model.validate('create', newObj, origObj, requester))
+                        .toEqual({ isValid: true, reason: undefined });
+                    expect(newObj[field]).toEqual('123456');
+                });
+                
+                it('should fail if the field is not a string', function() {
+                    newObj[field] = 123456;
+                    requester.fieldValidation.orgs[field] = { __allowed: true };
 
-                expect(svc.model.validate('create', newObj, origObj, requester))
-                    .toEqual({ isValid: false, reason: 'braintreeCustomer must be in format: string' });
+                    expect(svc.model.validate('create', newObj, origObj, requester))
+                        .toEqual({ isValid: false, reason: field + ' must be in format: string' });
+                });
             });
         });
     });

@@ -830,7 +830,6 @@ describe('orgSvc-payments (UT)', function() {
                     { id: 'p3', amount: '30', campaignId: 'cam-2', campaignName: 'campaign 2' },
                     { id: 'p4', amount: '40', campaignId: 'cam-3', campaignName: 'campaign 3' }
                 ]);
-                expect(mockLog.warn).not.toHaveBeenCalled();
                 expect(mockLog.error).not.toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
@@ -843,7 +842,6 @@ describe('orgSvc-payments (UT)', function() {
                 expect(decorated).toEqual([
                     { id: 'p2', amount: '20' }
                 ]);
-                expect(mockLog.warn).not.toHaveBeenCalled();
                 expect(mockLog.error).not.toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
@@ -859,7 +857,6 @@ describe('orgSvc-payments (UT)', function() {
                     { id: 'p3', amount: '30', campaignId: 'cam-2', campaignName: 'campaign 2' },
                     { id: 'p4', amount: '40', campaignId: 'cam-3', campaignName: undefined }
                 ]);
-                expect(mockLog.warn).toHaveBeenCalled();
                 expect(mockLog.error).not.toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
@@ -875,7 +872,6 @@ describe('orgSvc-payments (UT)', function() {
                     { id: 'p3', amount: '30', campaignId: 'cam-2' },
                     { id: 'p4', amount: '40', campaignId: 'cam-3' }
                 ]);
-                expect(mockLog.warn).not.toHaveBeenCalled();
                 expect(mockLog.error).toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();

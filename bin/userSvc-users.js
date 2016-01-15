@@ -13,6 +13,7 @@
         objUtils        = require('../lib/objUtils'),
         authUtils       = require('../lib/authUtils'),
         CrudSvc         = require('../lib/crudSvc.js'),
+        Model           = require('../lib/model.js'),
         email           = require('../lib/email'),
         enums           = require('../lib/enums'),
         CacheMutex      = require('../lib/cacheMutex.js'),
@@ -75,6 +76,10 @@
         activationToken: {
             __allowed: false,
             __locked: true
+        },
+        referralCode: {
+            __allowed: false,
+            __type: 'string'
         }
     };
 
@@ -97,25 +102,20 @@
 
         userSvc._db = db;
 
-        var preventGetAll = userSvc.preventGetAll.bind(userSvc);
         var hashPassword = userModule.hashProp.bind(userModule, 'password');
         var hashNewPassword = userModule.hashProp.bind(userModule, 'newPassword');
-        var setupUser = userModule.setupUser;
         var validateUniqueEmail = userSvc.validateUniqueProp.bind(userSvc, 'email', null);
         var validateRoles = userModule.validateRoles.bind(userModule, userSvc);
         var validatePolicies = userModule.validatePolicies.bind(userModule, userSvc);
-        var preventSelfDeletion = userModule.preventSelfDeletion;
         var checkExistingWithNewEmail = userModule.checkExistingWithNewEmail.bind(
             userModule, userSvc
         );
-        var authorizeForceLogout = userModule.authorizeForceLogout;
         var giveActivationToken = userModule.giveActivationToken.bind(userModule,
             config.activationTokenTTL);
         var sendActivationEmail = userModule.sendActivationEmail.bind(userModule,
             config.emails.sender, config.emails.activationTarget);
         var setupSignupUser = userModule.setupSignupUser.bind(userModule, userSvc,
             config.newUserPermissions.roles, config.newUserPermissions.policies);
-        var validatePassword = userModule.validatePassword;
         var checkValidToken = userModule.checkValidToken.bind(userModule, userSvc);
         var createLinkedEntities = userModule.createLinkedEntities.bind(userModule, config,
             cache, userSvc);
@@ -127,31 +127,29 @@
         userSvc.checkScope = userModule.checkScope;
         userSvc.userPermQuery = userModule.userPermQuery;
 
-        userSvc.use('read', preventGetAll);
-
-        userSvc.use('create', validatePassword);
+        userSvc.use('create', userModule.validatePassword);
         userSvc.use('create', hashPassword);
-        userSvc.use('create', setupUser);
+        userSvc.use('create', userModule.setupUser);
         userSvc.use('create', validateUniqueEmail);
         userSvc.use('create', validateRoles);
         userSvc.use('create', validatePolicies);
 
-        userSvc.use('edit', validatePassword);
+        userSvc.use('edit', userModule.validatePassword);
         userSvc.use('edit', validateRoles);
         userSvc.use('edit', validatePolicies);
 
-        userSvc.use('delete', preventSelfDeletion);
+        userSvc.use('delete', userModule.preventSelfDeletion);
 
         userSvc.use('changePassword', hashNewPassword);
 
         userSvc.use('changeEmail', checkExistingWithNewEmail);
 
-        userSvc.use('forceLogout', authorizeForceLogout);
+        userSvc.use('forceLogout', userModule.authorizeForceLogout);
 
         userSvc.use('signupUser', setupSignupUser);
-        userSvc.use('signupUser', validatePassword);
+        userSvc.use('signupUser', userModule.validatePassword);
         userSvc.use('signupUser', hashPassword);
-        userSvc.use('signupUser', setupUser);
+        userSvc.use('signupUser', userModule.setupUser);
         userSvc.use('signupUser', validateUniqueEmail);
         userSvc.use('signupUser', giveActivationToken);
         userSvc.use('signupUser', sendActivationEmail);
@@ -164,6 +162,14 @@
         userSvc.use('resendActivation', sendActivationEmail);
 
         return userSvc;
+    };
+
+    // Create a modified user model for /signup that allows setting referralCode
+    userModule.createSignupModel = function(svc) {
+        var signupSchema = JSON.parse(JSON.stringify(svc.model.schema));
+        signupSchema.referralCode.__allowed = true;
+        
+        return new Model('users', signupSchema);
     };
 
     userModule.checkValidToken = function(svc, req, next, done) {
@@ -233,9 +239,17 @@
                 sixxyCookie = cookie;
                 log.info('[%1] Got cookie for sixxy user', req.uuid);
                 
+                var orgBody = {
+                    name: (company ? company : 'newOrg') + ' (' + id + ')'
+                };
+                
+                if (!!req.user.referralCode) {
+                    orgBody.referralCode = req.user.referralCode;
+                }
+                
                 return (!!req.user.org ? q(req.user.org) : postEntity('org', {
                     url: urlUtils.resolve(config.api.root, config.api.orgs.endpoint),
-                    json: { name: (company ? company : 'newOrg') + ' (' + id + ')' },
+                    json: orgBody,
                     headers: { cookie: sixxyCookie }
                 }))
                 .then(function(orgId) {
@@ -291,16 +305,6 @@
 
             next();
         }, done);
-    };
-
-    // Filters properties off the body of the provided request
-    userModule.filterProps = function filterProps(props, req, next) {
-        props.forEach(function(prop) {
-            if(req.body[prop]) {
-                delete req.body[prop];
-            }
-        });
-        next();
     };
 
     // Check whether the requester can operate on the target user according to their scope
@@ -377,8 +381,7 @@
             }).then(next);
     };
 
-    // Give the user some default properties. Make sure their email is lowercase. This is used as
-    // middleware when creating a user.
+    // Give the user some default properties. Make sure their email is lowercase.
     userModule.setupUser = function setupUser(req, next) {
         var newUser = req.body;
 
@@ -683,9 +686,10 @@
     };
 
     userModule.signupUser = function signupUser(svc, req) {
-        var log = logger.getLog();
+        var log = logger.getLog(),
+            model = userModule.createSignupModel(svc);
 
-        var validity = svc.model.validate('create', req.body, {}, {});
+        var validity = model.validate('create', req.body, {}, {});
         if(!validity.isValid) {
             return q({ code: 400, body: validity.reason});
         }

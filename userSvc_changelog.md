@@ -1,5 +1,10 @@
 # User Service Changelog
 
+### 3.1.0: Thu Jan 14 17:49:00 EST 2016
+* Support `referralCode` prop, + set on org when confirming new user: [#737](https://github.com/cinema6/cwrx/issues/737)
+* Extra deployment steps:
+    * Update system user's policy with `fieldValidation.orgs.referralCode.__allowed = true`
+
 ### 3.0.1: Mon Jan 11 12:36:22 EST 2016
 * [FIX]: Cease recursive validation if a field is unchanged: [#728](https://github.com/cinema6/cwrx/pull/728)
 * Add support for `decorated` query param on POST + PUT user endpoints: [#729](https://github.com/cinema6/cwrx/pull/729)

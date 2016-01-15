@@ -292,7 +292,7 @@
                 payment.campaignName = mapping[payment.campaignId];
                 
                 if (payment.campaignId && !payment.campaignName) {
-                    log.warn('[%1] Campaign %2 from payment %3 not found in db',
+                    log.info('[%1] Campaign %2 from payment %3 not found in db',
                              req.uuid, payment.campaignId, payment.id);
                 }
             });
