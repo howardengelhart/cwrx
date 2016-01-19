@@ -1,5 +1,8 @@
 # QueryBot Service Changelog
 
+### 1.2.1: Tue Jan 19 12:33:29 EST 2016
+* [FIX] : Fixed cloudwatch metrics (wrong metric going to wrong name) : [#743](https://github.com/cinema6/cwrx/issues/743)
+
 ### 1.2.0: Fri Jan 15 13:55:57 EST 2016
 * Upgrade mongo driver to 2.x, fixing reconnect issues: [#717](https://github.com/cinema6/cwrx/pull/717)
 * [FEATURE] : Support dates in query params, add data to campaign summary response : [#719](https://github.com/cinema6/cwrx/issues/719)

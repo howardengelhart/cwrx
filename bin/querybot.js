@@ -545,7 +545,7 @@ lib.main = function(state) {
 
     
     var authAnalCamp = authUtils.middlewarify({campaigns: 'read'});
-    app.get('/api/analytics/campaigns/:id', sessions, authAnalCamp, cwCampaignSummaryMulti,
+    app.get('/api/analytics/campaigns/:id', sessions, authAnalCamp, cwCampaignSummarySingle,
         function(req, res, next) {
         lib.getCampaignSummaryAnalytics(req)
         .then(function(){
@@ -572,7 +572,7 @@ lib.main = function(state) {
         });
     });
     
-    app.get('/api/analytics/campaigns/', sessions, authAnalCamp, cwCampaignSummarySingle,
+    app.get('/api/analytics/campaigns/', sessions, authAnalCamp, cwCampaignSummaryMulti,
         function(req, res, next) {
         lib.getCampaignSummaryAnalytics(req)
         .then(function(){
