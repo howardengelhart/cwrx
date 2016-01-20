@@ -15,8 +15,7 @@ describe('content public endpoints (E2E):', function() {
     });
 
     describe('GET /api/public/content/experiences/:id', function() {
-        var dateStr = String(new Date().valueOf()), // used for cache busting on site with csv branding
-            start = new Date(),
+        var start = new Date(),
             mockExps, mockOrgs, mockSites, mockCampaigns, mockCards, options;
         
         describe('basic tests:', function() {
@@ -38,21 +37,8 @@ describe('content public endpoints (E2E):', function() {
                     org: 'e2e-org',
                     status: [{ status: 'active', date: start }]
                 }];
-                mockSites = [{
-                    id: 'e2e-cinema6',
-                    status: 'active',
-                    host: 'cinema6.com',
-                    branding: 'siteBrand',
-                    placementId: 456,
-                    wildCardPlacement: 654,
-                    containers: [
-                        { id: 'veeseo', contentPlacementId: 1337, displayPlacementId: 7331 },
-                        { id: 'connatix', contentPlacementId: 246, displayPlacementId: 864 }
-                    ]
-                }];
                 q.all([
-                    testUtils.resetCollection('experiences', mockExps),
-                    testUtils.resetCollection('sites', mockSites)
+                    testUtils.resetCollection('experiences', mockExps)
                 ]).done(function() { done(); });
             });
 
@@ -97,12 +83,14 @@ describe('content public endpoints (E2E):', function() {
                 }).done(done);
             });
 
-            it('should not get tracking pixels if its a preview',function(done){
+            it('should not get tracking pixels if the request is in preview mode',function(done){
                 options.qs.preview = true;
                 requestUtils.qRequest('get', options).then(function(resp) {
                     expect(resp.response.statusCode).toBe(200);
                     expect(resp.body.data.campaign).toEqual({ });
-                }).then(done,done.fail);
+                }).catch(function(error) {
+                    expect(util.inspect(error)).not.toBeDefined();
+                }).done(done);
             });
 
             it('should not cache if the request is in preview mode', function(done) {
@@ -124,63 +112,38 @@ describe('content public endpoints (E2E):', function() {
                     expect(util.inspect(error)).not.toBeDefined();
                 }).done(done);
             });
-        });
-        
-        describe('setting adConfig:', function() {
-            beforeEach(function(done) {
-                options = {
-                    url: config.contentUrl + '/public/content/experiences/e2e-org-adConfig'
-                };
-                mockExps = [
-                    {
-                        id: 'e2e-org-adConfig',
-                        data: [ { data: {foo: 'bar' }, versionId: 'a5e744d0' } ],
-                        access: 'public',
-                        status: [{ status: 'active' }],
-                        user: 'e2e-user',
-                        org: 'e2e-adCfg-org'
-                    },
-                    {
-                        id: 'e2e-adConfig',
-                        data: [{data: { foo: 'bar', adConfig: {foo: 'baz'}}, versionId: 'a5e744d0'}],
-                        access: 'public',
-                        status: [{ status: 'active' }],
-                        user: 'e2e-user',
-                        org: 'e2e-adCfg-org'
-                    }
-                ];
-                mockOrgs = [{ id: 'e2e-adCfg-org', status: 'active', adConfig: { foo: 'bar' } }];
-                q.all([
-                    testUtils.resetCollection('experiences', mockExps),
-                    testUtils.resetCollection('orgs', mockOrgs)
-                ]).done(function() { done(); });
+            
+            describe('if the url extension is .js', function() {
+                xit('should return the experience as a CommonJS module if the extension is .js', function(done) {
+                    requestUtils.qRequest('get', options).then(function(resp) {
+                        expect(resp.response.statusCode).toBe(200);
+                        expect(resp.body.match(/module\.exports = {.*"id":"e2e-pubgetjs1".*};/)).toBeTruthy();
+                        expect(resp.response.headers['content-type']).toBe('application/javascript; charset=utf-8');
+                    }).catch(function(error) {
+                        expect(util.inspect(error)).not.toBeDefined();
+                    }).done(done);
+                });
+                
+                xit('should return errors in normal format', function(done) {
+                    options = { url: config.contentUrl + '/public/content/experiences/e2e-fake.js' };
+                    requestUtils.qRequest('get', options).then(function(resp) {
+                        expect(resp.response.statusCode).toBe(404);
+                        expect(resp.body).toBe('Experience not found');
+                        expect(resp.response.headers['content-type']).toBe('text/html; charset=utf-8');
+                    }).catch(function(error) {
+                        expect(util.inspect(error)).not.toBeDefined();
+                    }).done(done);
+                });
             });
-
-            it('should properly get the experience\'s org\'s adConfig if it exists', function(done) {
-                requestUtils.qRequest('get', options).then(function(resp) {
-                    expect(resp.response.statusCode).toBe(200);
-                    expect(resp.body._id).not.toBeDefined();
-                    expect(resp.body.id).toBe('e2e-org-adConfig');
-                    expect(resp.body.data.adConfig).toEqual({foo: 'bar'});
-                }).catch(function(error) {
-                    expect(util.inspect(error)).not.toBeDefined();
-                }).done(done);
-            });
-
-            it('should override the org\'s adConfig if it\'s defined on the experience', function(done) {
-                options.url = options.url.replace('e2e-org-adConfig', 'e2e-adConfig');
-                requestUtils.qRequest('get', options).then(function(resp) {
-                    expect(resp.response.statusCode).toBe(200);
-                    expect(resp.body._id).not.toBeDefined();
-                    expect(resp.body.id).toBe('e2e-adConfig');
-                    expect(resp.body.data.adConfig).toEqual({foo: 'baz'});
-                }).catch(function(error) {
-                    expect(util.inspect(error)).not.toBeDefined();
-                }).done(done);
+            
+            describe('if the url extension is .json', function() {
+                xit('should return the placement as JSON normally', function(done) {
+                
+                });
             });
         });
         
-        describe('setting branding + placement ids:', function() {
+        describe('when handling branding', function() {
             beforeEach(function(done) {
                 options = {
                     url: config.contentUrl + '/public/content/experiences/e2e-noProps',
@@ -260,67 +223,7 @@ describe('content public endpoints (E2E):', function() {
             });
         });
         
-        describe('handling containers', function() {
-            beforeEach(function(done) {
-                options = {
-                    url: config.contentUrl + '/public/content/experiences/e2e-pubget1',
-                    headers: { origin: 'http://someblog.com' }
-                };
-                mockExps = [{
-                    id: 'e2e-pubget1',
-                    data: [{ data: { foo: 'bar' } }],
-                    access: 'public',
-                    user: 'e2e-user',
-                    org: 'e2e-org',
-                    status: [{ status: 'active' }]
-                }];
-                mockOrgs = [{ id: 'e2e-active-org', status: 'active', adConfig: { foo: 'bar' }, branding: 'orgBrand' }];
-                q.all([testUtils.resetCollection('experiences', mockExps),
-                       testUtils.resetCollection('orgs', mockOrgs),
-                ]).done(function() { done(); });
-            });
-
-            it('should use the cinema6 site if the container is veeseo', function(done) {
-                options.qs = { container: 'veeseo' };
-                requestUtils.qRequest('get', options).then(function(resp) {
-                    expect(resp.response.statusCode).toBe(200);
-                    expect(resp.body.id).toBe('e2e-pubget1');
-                    expect(resp.body.data.branding).toBe('siteBrand');
-                    expect(resp.body.data.placementId).toBe(7331);
-                    expect(resp.body.data.wildCardPlacement).toBe(1337);
-                }).catch(function(error) {
-                    expect(util.inspect(error)).not.toBeDefined();
-                }).done(done);
-            });
-
-            it('should use the cinema6 site if the container is connatix', function(done) {
-                options.qs = { container: 'connatix' };
-                requestUtils.qRequest('get', options).then(function(resp) {
-                    expect(resp.response.statusCode).toBe(200);
-                    expect(resp.body.id).toBe('e2e-pubget1');
-                    expect(resp.body.data.branding).toBe('siteBrand');
-                    expect(resp.body.data.placementId).toBe(864);
-                    expect(resp.body.data.wildCardPlacement).toBe(246);
-                }).catch(function(error) {
-                    expect(util.inspect(error)).not.toBeDefined();
-                }).done(done);
-            });
-
-            it('should use defaults if the request\'s container is not in the site', function(done) {
-                options.qs = { container: 'taboola' };
-                requestUtils.qRequest('get', options).then(function(resp) {
-                    expect(resp.response.statusCode).toBe(200);
-                    expect(resp.body.id).toBe('e2e-pubget1');
-                    expect(resp.body.data.branding).toBe('siteBrand');
-                    expect(resp.body.data.placementId).toBe(456);
-                    expect(resp.body.data.wildCardPlacement).toBe(654);
-                }).catch(function(error) {
-                    expect(util.inspect(error)).not.toBeDefined();
-                }).done(done);
-            });
-        });
-        
-        describe('handling campaigns:', function() {
+        describe('when handling campaigns', function() {
             beforeEach(function(done) {
                 options = {
                     url: config.contentUrl + '/public/content/experiences/e2e-getcamps1',
@@ -514,18 +417,18 @@ describe('content public endpoints (E2E):', function() {
             });
         });
         
-        describe('access control:', function() {
+        describe('when controlling access to experiences', function() {
             beforeEach(function(done) {
                 options = { headers: { origin: 'http://fake.com' } };
                 mockExps = [
-                    { id: 'e2e-pubget2', status: [{status: 'pending'}], access: 'public' },
-                    { id: 'e2e-pubget3', status: [{status: 'active'}], access: 'private' }
+                    { id: 'e2e-access-1', status: [{status: 'pending'}], access: 'public' },
+                    { id: 'e2e-access-2', status: [{status: 'active'}], access: 'private' }
                 ];
                 testUtils.resetCollection('experiences', mockExps).done(function() { done(); });
             });
 
             it('should only get pending, public experiences if the origin is cinema6.com', function(done) {
-                options.url = config.contentUrl + '/public/content/experiences/e2e-pubget2';
+                options.url = config.contentUrl + '/public/content/experiences/e2e-access-1';
                 requestUtils.qRequest('get', options).then(function(resp) {
                     expect(resp.response.statusCode).toBe(404);
                     expect(resp.body).toBe('Experience not found');
@@ -533,17 +436,17 @@ describe('content public endpoints (E2E):', function() {
                     return requestUtils.qRequest('get', options);
                 }).then(function(resp) {
                     expect(resp.response.statusCode).toBe(200);
-                    expect(resp.body).toEqual({id: 'e2e-pubget2', data: jasmine.any(Object), status: 'pending', access: 'public'});
+                    expect(resp.body).toEqual({id: 'e2e-access-1', data: jasmine.any(Object), status: 'pending', access: 'public'});
                 }).catch(function(error) {
                     expect(util.inspect(error)).not.toBeDefined();
                 }).done(done);
             });
 
             it('should only get active, private experiences if the origin is not cinema6.com', function(done) {
-                options.url = config.contentUrl + '/public/content/experiences/e2e-pubget3';
+                options.url = config.contentUrl + '/public/content/experiences/e2e-access-2';
                 requestUtils.qRequest('get', options).then(function(resp) {
                     expect(resp.response.statusCode).toBe(200);
-                    expect(resp.body).toEqual({id: 'e2e-pubget3', data: jasmine.any(Object), status: 'active', access: 'private'});
+                    expect(resp.body).toEqual({id: 'e2e-access-2', data: jasmine.any(Object), status: 'active', access: 'private'});
                     options.headers.origin = 'https://staging.cinema6.com';
                     return requestUtils.qRequest('get', options);
                 }).then(function(resp) {
@@ -555,12 +458,12 @@ describe('content public endpoints (E2E):', function() {
             });
 
             it('should use the referer header for access control if origin is not defined', function(done) {
-                options.url = config.contentUrl + '/public/content/experiences/e2e-pubget2';
+                options.url = config.contentUrl + '/public/content/experiences/e2e-access-1';
                 options.headers = { referer: 'https://staging.cinema6.com' };
                 requestUtils.qRequest('get', options).then(function(resp) {
                     expect(resp.response.statusCode).toBe(200);
-                    expect(resp.body).toEqual({id: 'e2e-pubget2', data: jasmine.any(Object), status: 'pending', access: 'public'});
-                    options.url = config.contentUrl + '/public/content/experiences/e2e-pubget3';
+                    expect(resp.body).toEqual({id: 'e2e-access-1', data: jasmine.any(Object), status: 'pending', access: 'public'});
+                    options.url = config.contentUrl + '/public/content/experiences/e2e-access-2';
                     return requestUtils.qRequest('get', options);
                 }).then(function(resp) {
                     expect(resp.response.statusCode).toBe(404);
@@ -571,95 +474,8 @@ describe('content public endpoints (E2E):', function() {
             });
         });
     });
-
-    /* Currently, this endpoint is identical to GET /api/public/experiences/:id, so only one test is
-     * included here as a sanity check. If the endpoints diverge, additional tests should be written. */
-    describe('GET /api/public/experiences/:id.json', function() {
-        var mockExp, mockOrg, options;
-        beforeEach(function(done) {
-            options = { url: config.contentUrl + '/public/content/experiences/e2e-pubgetjson1.json' };
-            mockExp = { id: 'e2e-pubgetjson1', access: 'public', status: 'active' };
-            testUtils.resetCollection('experiences', mockExp).done(done);
-        });
-
-        it('should get an experience by id', function(done) {
-            requestUtils.qRequest('get', options).then(function(resp) {
-                expect(resp.response.statusCode).toBe(200);
-                expect(typeof resp.body).toBe('object');
-                expect(resp.body._id).not.toBeDefined();
-                expect(resp.body.id).toBe('e2e-pubgetjson1');
-                expect(resp.body.status).toBe('active');
-                expect(resp.body.access).toBe('public');
-                expect(resp.body.user).not.toBeDefined();
-                expect(resp.body.org).not.toBeDefined();
-                expect(resp.response.headers['content-type']).toBe('application/json; charset=utf-8');
-            }).catch(function(error) {
-                expect(util.inspect(error)).not.toBeDefined();
-            }).done(done);
-        });
-    });
-
-    // Sanity check that singular version of endpoint works too
-    describe('GET /api/public/experience/:id', function() {
-        var mockExp, mockOrg, options;
-        beforeEach(function() {
-            options = { url: config.contentUrl + '/public/content/experience/e2e-pubget1' };
-        });
-
-        it('should get an experience by id', function(done) {
-            requestUtils.qRequest('get', options).then(function(resp) {
-                expect(resp.response.statusCode).toBe(200);
-                expect(typeof resp.body).toBe('object');
-                expect(resp.body._id).not.toBeDefined();
-                expect(resp.body.id).toBe('e2e-pubget1');
-                expect(resp.body.status).toBe('active');
-                expect(resp.body.access).toBe('public');
-                expect(resp.body.user).not.toBeDefined();
-                expect(resp.body.org).not.toBeDefined();
-                expect(resp.response.headers['content-type']).toBe('application/json; charset=utf-8');
-            }).catch(function(error) {
-                expect(util.inspect(error)).not.toBeDefined();
-            }).done(done);
-        });
-    });
-
-    /* Currently this endpoint is mostly identical to GET /api/public/experiences/:id, so two tests
-     * are included to verify that the output is formatted correctly. If the endpoints diverge,
-     * additional tests should be written. */
-    describe('GET /api/public/experiences/:id.js', function() {
-        var mockExp, mockOrg, options;
-        beforeEach(function(done) {
-            options = { url: config.contentUrl + '/public/content/experiences/e2e-pubgetjs1.js' };
-            mockExp = { id: 'e2e-pubgetjs1', access: 'public', status: 'active' };
-            testUtils.resetCollection('experiences', mockExp).done(done);
-        });
-
-        it('should get an experience by id', function(done) {
-            requestUtils.qRequest('get', options).then(function(resp) {
-                expect(resp.response.statusCode).toBe(200);
-                expect(resp.body.match(/module\.exports = {.*"id":"e2e-pubgetjs1".*};/)).toBeTruthy();
-                expect(resp.response.headers['content-type']).toBe('application/javascript; charset=utf-8');
-            }).catch(function(error) {
-                expect(util.inspect(error)).not.toBeDefined();
-            }).done(done);
-        });
-
-        it('should return errors in normal format', function(done) {
-            options = { url: config.contentUrl + '/public/content/experiences/e2e-fake.js' };
-            requestUtils.qRequest('get', options).then(function(resp) {
-                expect(resp.response.statusCode).toBe(404);
-                expect(resp.body).toBe('Experience not found');
-                expect(resp.response.headers['content-type']).toBe('text/html; charset=utf-8');
-            }).catch(function(error) {
-                expect(util.inspect(error)).not.toBeDefined();
-            }).done(done);
-        });
+    
+    afterAll(function(done) {
+        testUtils.closeDbs().done(done, done.fail);
     });
 });
-
-describe('test cleanup', function() {
-    it('should close db connections', function(done) {
-        testUtils.closeDbs().done(done);
-    });
-});
-
