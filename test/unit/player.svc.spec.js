@@ -332,7 +332,7 @@ describe('player service', function() {
 
                     it('should create some middleware for parsing query params', function() {
                         expect(expressUtils.parseQuery).toHaveBeenCalledWith({
-                            arrays: ['categories', 'playUrls', 'countUrls', 'launchUrls']
+                            arrays: ['categories', 'playUrls', 'countUrls', 'clickUrls', 'launchUrls']
                         });
                     });
 
@@ -1098,6 +1098,7 @@ describe('player service', function() {
                             playUrls: ['play1.gif', 'play2.gif'],
                             countUrls: ['count1.gif', 'count2.gif'],
                             launchUrls: ['launch1.gif', 'launch2.gif'],
+                            clickUrls: ['click1.gif', 'click2.gif'],
                             desktop: true,
                             secure: true,
                             standalone: true,
@@ -1181,7 +1182,8 @@ describe('player service', function() {
                             sponsoredCards.forEach(function(card) {
                                 expect(MockAdLoader.addTrackingPixels).toHaveBeenCalledWith({
                                     playUrls: options.playUrls,
-                                    countUrls: options.countUrls
+                                    countUrls: options.countUrls,
+                                    clickUrls: options.clickUrls
                                 }, card);
                             });
                             expect(MockAdLoader.addTrackingPixels.calls.count()).toBe(sponsoredCards.length);
@@ -1481,7 +1483,8 @@ describe('player service', function() {
                                 it('should add the custom tracking pixels to each sponsored card', function() {
                                     expect(MockAdLoader.addTrackingPixels).toHaveBeenCalledWith({
                                         playUrls: options.playUrls,
-                                        countUrls: options.countUrls
+                                        countUrls: options.countUrls,
+                                        clickUrls: options.clickUrls
                                     }, experience.data.deck[0]);
                                 });
 

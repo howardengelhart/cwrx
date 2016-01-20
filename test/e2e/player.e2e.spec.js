@@ -297,6 +297,7 @@ describe('player service', function() {
                             config.playerUrl.query.launchUrls = 'http://c6.com/launch,http://rc.com/launch';
                             config.playerUrl.query.countUrls = 'http://c6.com/count,http://rc.com/count';
                             config.playerUrl.query.playUrls = 'http://c6.com/play,http://rc.com/play';
+                            config.playerUrl.query.clickUrls = 'http://c6.com/click,http://rc.com/click';
 
                             request.get(getURL()).then(getResponse).then(done, done.fail);
                         });
@@ -309,6 +310,16 @@ describe('player service', function() {
                             expect(experience.data.campaign.launchUrls).toEqual(jasmine.arrayContaining(config.playerUrl.query.launchUrls.split(',')));
                             expect(card.campaign.countUrls).toEqual(jasmine.arrayContaining(config.playerUrl.query.countUrls.split(',')));
                             expect(card.campaign.playUrls).toEqual(jasmine.arrayContaining(config.playerUrl.query.playUrls.split(',')));
+
+                            expect(Object.keys(card.links).length).toBeGreaterThan(0);
+                            Object.keys(card.links).forEach(function(type) {
+                                expect(card.links[type].tracking).toEqual(jasmine.arrayContaining(config.playerUrl.query.clickUrls.split(',')), type);
+                            });
+
+                            expect(Object.keys(card.shareLinks).length).toBeGreaterThan(0);
+                            Object.keys(card.shareLinks).forEach(function(type) {
+                                expect(card.shareLinks[type].tracking).toEqual(jasmine.arrayContaining(config.playerUrl.query.clickUrls.split(',')), type);
+                            });
                         });
                     });
                 });
@@ -366,6 +377,7 @@ describe('player service', function() {
                             config.playerUrl.query.launchUrls = 'http://c6.com/launch,http://rc.com/launch';
                             config.playerUrl.query.countUrls = 'http://c6.com/count,http://rc.com/count';
                             config.playerUrl.query.playUrls = 'http://c6.com/play,http://rc.com/play';
+                            config.playerUrl.query.clickUrls = 'http://c6.com/click,http://rc.com/click';
 
                             request.get(getURL()).then(getResponse).then(done, done.fail);
                         });
@@ -378,6 +390,16 @@ describe('player service', function() {
                             expect(experience.data.campaign.launchUrls).toEqual(jasmine.arrayContaining(config.playerUrl.query.launchUrls.split(',')));
                             expect(card.campaign.countUrls).toEqual(jasmine.arrayContaining(config.playerUrl.query.countUrls.split(',')));
                             expect(card.campaign.playUrls).toEqual(jasmine.arrayContaining(config.playerUrl.query.playUrls.split(',')));
+
+                            expect(Object.keys(card.links).length).toBeGreaterThan(0);
+                            Object.keys(card.links).forEach(function(type) {
+                                expect(card.links[type].tracking).toEqual(jasmine.arrayContaining(config.playerUrl.query.clickUrls.split(',')), type);
+                            });
+
+                            expect(Object.keys(card.shareLinks).length).toBeGreaterThan(0);
+                            Object.keys(card.shareLinks).forEach(function(type) {
+                                expect(card.shareLinks[type].tracking).toEqual(jasmine.arrayContaining(config.playerUrl.query.clickUrls.split(',')), type);
+                            });
                         });
                     });
                 });

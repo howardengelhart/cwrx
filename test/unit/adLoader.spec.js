@@ -7,6 +7,7 @@ describe('AdLoader()', function() {
     var Promise;
     var resolveURL;
     var clonePromise;
+    var _;
 
     var MockFunctionCache;
     var fnCache;
@@ -22,6 +23,7 @@ describe('AdLoader()', function() {
         resolveURL = require('url').resolve;
         clonePromise = require('../../lib/promise').clone;
         logger = require('../../lib/logger');
+        _ = require('lodash');
 
         jasmine.clock().install();
 
@@ -130,7 +132,8 @@ describe('AdLoader()', function() {
                             countUrls: ['px1.jpg', 'px2.jpg'],
                             playUrls: ['px3.jpg', 'px4.jpg'],
                             loadUrls: ['px5.jpg', 'px6.jpg'],
-                            fooUrls: ['px7.jpg', 'px8.jpg']
+                            fooUrls: ['px7.jpg', 'px8.jpg'],
+                            clickUrls: ['px9.jpg', 'px10.jpg']
                         };
 
                         card = {
@@ -185,7 +188,50 @@ describe('AdLoader()', function() {
                             },
                             "id": "rc-7a28568c31b689",
                             "lastUpdated": "2015-09-17T14:49:27.324Z",
-                            "links": {},
+                            "links": {
+                                "Action": {
+                                    "uri": "http://www.smashingmagazine.com",
+                                    "tracking": [
+                                        "//audit-staging.cinema6.com/pixel.gif?campaign=cam-ac039170b567ff&card=rc-e93e7cc5832401&experience=&container=&host=&hostApp=&network=&event=link.Action&d={delay}&cb={cachebreaker}"
+                                    ]
+                                },
+                                "Facebook": {
+                                    "uri": "https://www.facebook.com/dannon",
+                                    "tracking": [
+                                        "//audit-staging.cinema6.com/pixel.gif?campaign=cam-ac039170b567ff&card=rc-e93e7cc5832401&experience=&container=&host=&hostApp=&network=&event=link.Facebook&d={delay}&cb={cachebreaker}"
+                                    ]
+                                },
+                                "Twitter": {
+                                    "uri": "https://www.twitter.com/Dannon",
+                                    "tracking": [
+                                        "//audit-staging.cinema6.com/pixel.gif?campaign=cam-ac039170b567ff&card=rc-e93e7cc5832401&experience=&container=&host=&hostApp=&network=&event=link.Twitter&d={delay}&cb={cachebreaker}"
+                                    ]
+                                },
+                                "Website": {
+                                    "uri": "http://www.dannon.com",
+                                    "tracking": [
+                                        "//audit-staging.cinema6.com/pixel.gif?campaign=cam-ac039170b567ff&card=rc-e93e7cc5832401&experience=&container=&host=&hostApp=&network=&event=link.Website&d={delay}&cb={cachebreaker}"
+                                    ]
+                                },
+                                "Instagram": {
+                                    "uri": "http://instagram.com/dannon",
+                                    "tracking": [
+                                        "//audit-staging.cinema6.com/pixel.gif?campaign=cam-ac039170b567ff&card=rc-e93e7cc5832401&experience=&container=&host=&hostApp=&network=&event=link.Instagram&d={delay}&cb={cachebreaker}"
+                                    ]
+                                },
+                                "YouTube": {
+                                    "uri": "http://www.youtube.com/user/dannon",
+                                    "tracking": [
+                                        "//audit-staging.cinema6.com/pixel.gif?campaign=cam-ac039170b567ff&card=rc-e93e7cc5832401&experience=&container=&host=&hostApp=&network=&event=link.YouTube&d={delay}&cb={cachebreaker}"
+                                    ]
+                                },
+                                "Pinterest": {
+                                    "uri": "http://www.pinterest.com/dannonyogurt/",
+                                    "tracking": [
+                                        "//audit-staging.cinema6.com/pixel.gif?campaign=cam-ac039170b567ff&card=rc-e93e7cc5832401&experience=&container=&host=&hostApp=&network=&event=link.Pinterest&d={delay}&cb={cachebreaker}"
+                                    ]
+                                }
+                            },
                             "modules": [],
                             "note": "",
                             "params": {
@@ -194,7 +240,26 @@ describe('AdLoader()', function() {
                                 "ad": false
                             },
                             "placementId": null,
-                            "shareLinks": {},
+                            "shareLinks": {
+                                "facebook": {
+                                    "uri": "http://www.smashingmagazine.com",
+                                    "tracking": [
+                                        "//audit-staging.cinema6.com/pixel.gif?campaign=cam-ac039170b567ff&card=rc-e93e7cc5832401&experience=&container=&host=&hostApp=&network=&event=shareLink.facebook&d={delay}&cb={cachebreaker}"
+                                    ]
+                                },
+                                "twitter": {
+                                    "uri": "http://www.smashingmagazine.com",
+                                    "tracking": [
+                                        "//audit-staging.cinema6.com/pixel.gif?campaign=cam-ac039170b567ff&card=rc-e93e7cc5832401&experience=&container=&host=&hostApp=&network=&event=shareLink.twitter&d={delay}&cb={cachebreaker}"
+                                    ]
+                                },
+                                "pinterest": {
+                                    "uri": "http://www.smashingmagazine.com",
+                                    "tracking": [
+                                        "//audit-staging.cinema6.com/pixel.gif?campaign=cam-ac039170b567ff&card=rc-e93e7cc5832401&experience=&container=&host=&hostApp=&network=&event=shareLink.pinterest&d={delay}&cb={cachebreaker}"
+                                    ]
+                                }
+                            },
                             "source": "YouTube",
                             "sponsored": true,
                             "status": "active",
@@ -222,8 +287,60 @@ describe('AdLoader()', function() {
                         expect(card.campaign.fooUrls).toEqual(pixels.fooUrls);
                     });
 
+                    it('should not add clickUrls to the campaign', function() {
+                        expect(card.campaign.clickUrls).toEqual(originalCard.campaign.clickUrls);
+                    });
+
+                    it('should add the clickUrls to every link and shareLink', function() {
+                        expect(Object.keys(card.links).length).toBeGreaterThan(0);
+                        Object.keys(card.links).forEach(function(type) {
+                            expect(card.links[type].tracking).toEqual(originalCard.links[type].tracking.concat(pixels.clickUrls), type);
+                        });
+
+                        expect(Object.keys(card.shareLinks).length).toBeGreaterThan(0);
+                        Object.keys(card.shareLinks).forEach(function(type) {
+                            expect(card.shareLinks[type].tracking).toEqual(originalCard.shareLinks[type].tracking.concat(pixels.clickUrls), type);
+                        });
+                    });
+
                     it('should return the card', function() {
                         expect(result).toBe(card);
+                    });
+
+                    describe('if no clickUrls are specified', function() {
+                        beforeEach(function() {
+                            delete pixels.clickUrls;
+                            card.links = JSON.parse(JSON.stringify(originalCard.links));
+                            card.shareLinks = JSON.parse(JSON.stringify(originalCard.shareLinks));
+
+                            result = AdLoader.addTrackingPixels(pixels, card);
+                        });
+
+                        it('should not add anything to the tracking Arrays', function() {
+                            expect(Object.keys(card.links).length).toBeGreaterThan(0);
+                            Object.keys(card.links).forEach(function(type) {
+                                expect(card.links[type].tracking).toEqual(originalCard.links[type].tracking, type);
+                            });
+
+                            expect(Object.keys(card.shareLinks).length).toBeGreaterThan(0);
+                            Object.keys(card.shareLinks).forEach(function(type) {
+                                expect(card.shareLinks[type].tracking).toEqual(originalCard.shareLinks[type].tracking, type);
+                            });
+                        });
+                    });
+
+                    describe('if the card has no links or shareLinks', function() {
+                        beforeEach(function() {
+                            delete card.links;
+                            delete card.shareLinks;
+
+                            result = AdLoader.addTrackingPixels(pixels, card);
+                        });
+
+                        it('should create the Objects', function() {
+                            expect(card.links).toEqual({});
+                            expect(card.shareLinks).toEqual({});
+                        });
                     });
 
                     describe('if the card has no campaign', function() {
@@ -234,8 +351,7 @@ describe('AdLoader()', function() {
                         });
 
                         it('should create a campaign object', function() {
-                            expect(card.campaign).toEqual(pixels);
-                            expect(card.campaign).not.toBe(pixels);
+                            expect(card.campaign).toEqual(_.omit(pixels, ['clickUrls']));
                         });
                     });
 
