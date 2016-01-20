@@ -377,6 +377,41 @@ describe('content card endpoints (E2E):', function() {
                         expect(util.inspect(error)).not.toBeDefined();
                     }).done(done);
                 });
+                
+                it('should still objectify the link entries if the request is in preview mode', function(done) {
+                    options.qs.preview = 'true';
+                    requestUtils.qRequest('get', options).then(function(resp) {
+                        expect(resp.response.statusCode).toBe(200);
+                        expect(resp.body).toEqual(jasmine.objectContaining({
+                            links: {
+                                Facebook: {
+                                    uri: 'http://facebook.com/foo',
+                                    tracking: []
+                                },
+                                Twitter: {
+                                    uri: 'http://twitter.com/bar',
+                                    tracking: []
+                                }
+                            },
+                            shareLinks: {
+                                facebook: {
+                                    uri: 'http://fb.com',
+                                    tracking: []
+                                },
+                                twitter: {
+                                    uri: 'http://twttr.com',
+                                    tracking: []
+                                },
+                                pinterest: {
+                                    uri: 'http://pntrst.com',
+                                    tracking: []
+                                }
+                            }
+                        }));
+                    }).catch(function(error) {
+                        expect(util.inspect(error)).not.toBeDefined();
+                    }).done(done);
+                });
             });
 
             it('should not show inactive or deleted cards', function(done) {
