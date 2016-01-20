@@ -35,51 +35,53 @@ describe('content (UT)', function() {
     });
     
     describe('getPublicExp', function() {
-        var id, req, caches, cardSvc, config;
+        var id, caches, cardSvc, config, mockExp;
         beforeEach(function() {
-            id = 'e-1';
-            req = { isC6Origin: false, originHost: 'c6.com', uuid: '1234', query: {foo: 'bar'} };
-            config = { trackingPixel: 'track.me', defaultSiteConfig: { sites: 'good' } };
-            caches = {
-                experiences: {
-                    getPromise: jasmine.createSpy('expCache.getPromise').and.returnValue(q([{id: 'e-1', org: 'o-1'}]))
-                },
-                orgs: 'fakeOrgCache',
-                sites: 'fakeSiteCache',
-                campaigns: 'fakeCampCache'
-            };
-            cardSvc = 'fakeCardSvc';
             spyOn(expModule, 'canGetExperience').and.returnValue(true);
             expModule.formatOutput.and.callFake(function(exp) {
                 var newExp = JSON.parse(JSON.stringify(exp));
                 newExp.formatted = true;
                 return newExp;
             });
-            spyOn(expModule, 'setupTrackingPixels').and.callFake(function(exp, req, pixel) {
+            spyOn(expModule, 'setupTrackingPixels').and.callFake(function(pixel, exp, req) {
                 exp.withPixels = true;
             });
-            spyOn(expModule, 'getAdConfig').and.returnValue(q('withAdConfig'));
-            spyOn(expModule, 'getSiteConfig').and.returnValue(q('withSiteConfig'));
-            spyOn(expModule, 'handleCampaign').and.returnValue(q('withCampSwaps'));
+            spyOn(expModule, 'handleCampaign').and.callFake(function(cardSvc, cache, campId, exp, req) {
+                exp.withCampSwaps = true;
+                return q(exp);
+            });
+
+            mockExp = { id: 'e-1', data: { campaign: {}, branding: 'brandA' } };
+            caches = {
+                experiences: {
+                    getPromise: jasmine.createSpy('expCache.getPromise').and.callFake(function() { return q([mockExp]); })
+                },
+                campaigns: 'fakeCampCache'
+            };
+
+            id = 'e-1';
+            cardSvc = 'fakeCardSvc';
+            req.isC6Origin = false;
+            req.originHost = 'c6.com';
+            req.query = { branding: 'brandB' };
+            config = { trackingPixel: 'track.me', defaultSiteConfig: { branding: 'default' } };
         });
 
         it('should call cache.getPromise to get the experience', function(done) {
-            expModule.getPublicExp(id, req, caches, cardSvc, config).then(function(resp) {
+            expModule.getPublicExp(cardSvc, caches, config, id, req).then(function(resp) {
                 expect(resp.code).toBe(200);
-                expect(resp.body).toBe('withCampSwaps');
-                expect(caches.experiences.getPromise).toHaveBeenCalledWith({id: 'e-1'});
-                expect(expModule.formatOutput).toHaveBeenCalledWith({id: 'e-1', org: 'o-1'}, true);
-                expect(expModule.canGetExperience).toHaveBeenCalledWith(jasmine.any(Object), null, false);
-                expect(expModule.canGetExperience.calls.all()[0].args[0].formatted).toBe(true);
-                expect(expModule.setupTrackingPixels).toHaveBeenCalledWith(jasmine.any(Object), req, 'track.me');
-                expect(expModule.setupTrackingPixels.calls.all()[0].args[0].formatted).toBe(true);
-                expect(expModule.getAdConfig).toHaveBeenCalledWith({
-                    id: 'e-1', org: 'o-1', formatted: true, withPixels: true
-                }, 'o-1', 'fakeOrgCache');
-                expect(expModule.getSiteConfig).toHaveBeenCalledWith('withAdConfig', 'o-1', {foo: 'bar'},
-                    'fakeSiteCache', 'fakeOrgCache', {sites: 'good'});
-                expect(expModule.handleCampaign).toHaveBeenCalledWith(req, 'withSiteConfig', undefined,
-                    'fakeCampCache', 'fakeCardSvc');
+                expect(resp.body).toEqual({
+                    id: 'e-1',
+                    data: { campaign: {}, branding: 'brandA' },
+                    formatted: true,
+                    withPixels: true,
+                    withCampSwaps: true
+                });
+                expect(caches.experiences.getPromise).toHaveBeenCalledWith({ id: 'e-1' });
+                expect(expModule.formatOutput).toHaveBeenCalledWith(mockExp, true);
+                expect(expModule.canGetExperience).toHaveBeenCalledWith(resp.body, null, false);
+                expect(expModule.setupTrackingPixels).toHaveBeenCalledWith('track.me', resp.body, req);
+                expect(expModule.handleCampaign).toHaveBeenCalledWith('fakeCardSvc', 'fakeCampCache', undefined, resp.body, req);
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
             }).done(done);
@@ -87,35 +89,73 @@ describe('content (UT)', function() {
         
         it('should not setup tracking pixels for preview', function(done) {
             req.query.preview = true;
-            expModule.getPublicExp(id, req, caches, cardSvc, config).then(function(resp) {
+            expModule.getPublicExp(cardSvc, caches, config, id, req).then(function(resp) {
                 expect(resp.code).toBe(200);
+                expect(resp.body).toEqual({
+                    id: 'e-1',
+                    data: { campaign: {}, branding: 'brandA' },
+                    formatted: true,
+                    withCampSwaps: true
+                });
                 expect(expModule.setupTrackingPixels).not.toHaveBeenCalled();
             }).then(done,done.fail);
         });
         
         it('should pass the campaign query param to handleCampaign', function(done) {
             req.query.campaign = 'cam-1';
-            expModule.getPublicExp(id, req, caches, cardSvc, config).then(function(resp) {
+            expModule.getPublicExp(cardSvc, caches, config, id, req).then(function(resp) {
                 expect(resp.code).toBe(200);
-                expect(resp.body).toBe('withCampSwaps');
-                expect(expModule.handleCampaign).toHaveBeenCalledWith(req, 'withSiteConfig', 'cam-1',
-                    'fakeCampCache', 'fakeCardSvc');
+                expect(resp.body).toEqual(jasmine.objectContaining({ withCampSwaps: true }));
+                expect(expModule.handleCampaign).toHaveBeenCalledWith('fakeCardSvc', 'fakeCampCache', 'cam-1', resp.body, req);
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
             }).done(done);
         });
+        
+        describe('when handling branding', function() {
+            it('should fall back to the query param\'s branding if not on the experience', function(done) {
+                delete mockExp.data.branding;
+                expModule.getPublicExp(cardSvc, caches, config, id, req).then(function(resp) {
+                    expect(resp.code).toBe(200);
+                    expect(resp.body).toEqual({
+                        id: 'e-1',
+                        data: { campaign: {}, branding: 'brandB' },
+                        formatted: true,
+                        withPixels: true,
+                        withCampSwaps: true
+                    });
+                }).catch(function(error) {
+                    expect(error.toString()).not.toBeDefined();
+                }).done(done);
+            });
+
+            it('should fall back to a default if it\'s not defined anywhere else', function(done) {
+                delete mockExp.data.branding;
+                delete req.query.branding;
+                expModule.getPublicExp(cardSvc, caches, config, id, req).then(function(resp) {
+                    expect(resp.code).toBe(200);
+                    expect(resp.body).toEqual({
+                        id: 'e-1',
+                        data: { campaign: {}, branding: 'default' },
+                        formatted: true,
+                        withPixels: true,
+                        withCampSwaps: true
+                    });
+                }).catch(function(error) {
+                    expect(error.toString()).not.toBeDefined();
+                }).done(done);
+            });
+        });
 
         it('should return a 404 if nothing was found', function(done) {
-            caches.experiences.getPromise.and.returnValue(q([]));
-            expModule.getPublicExp(id, req, caches, cardSvc, config).then(function(resp) {
+            mockExp = undefined;
+            expModule.getPublicExp(cardSvc, caches, config, id, req).then(function(resp) {
                 expect(resp.code).toBe(404);
                 expect(resp.body).toBe('Experience not found');
                 expect(caches.experiences.getPromise).toHaveBeenCalled();
                 expect(expModule.formatOutput).not.toHaveBeenCalled();
                 expect(expModule.setupTrackingPixels).not.toHaveBeenCalled();
                 expect(expModule.canGetExperience).not.toHaveBeenCalled();
-                expect(expModule.getAdConfig).not.toHaveBeenCalled();
-                expect(expModule.getSiteConfig).not.toHaveBeenCalled();
                 expect(expModule.handleCampaign).not.toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
@@ -124,15 +164,13 @@ describe('content (UT)', function() {
 
         it('should return a 404 if the user cannot see the experience', function(done) {
             expModule.canGetExperience.and.returnValue(false);
-            expModule.getPublicExp(id, req, caches, cardSvc, config).then(function(resp) {
+            expModule.getPublicExp(cardSvc, caches, config, id, req).then(function(resp) {
                 expect(resp.code).toBe(404);
                 expect(resp.body).toBe('Experience not found');
                 expect(caches.experiences.getPromise).toHaveBeenCalled();
                 expect(expModule.formatOutput).toHaveBeenCalled();
                 expect(expModule.canGetExperience).toHaveBeenCalled();
                 expect(expModule.setupTrackingPixels).not.toHaveBeenCalled();
-                expect(expModule.getAdConfig).not.toHaveBeenCalled();
-                expect(expModule.getSiteConfig).not.toHaveBeenCalled();
                 expect(expModule.handleCampaign).not.toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
@@ -141,7 +179,7 @@ describe('content (UT)', function() {
 
         it('should fail if the promise was rejected', function(done) {
             caches.experiences.getPromise.and.returnValue(q.reject('I GOT A PROBLEM'));
-            expModule.getPublicExp(id, req, caches, cardSvc, config).then(function(resp) {
+            expModule.getPublicExp(cardSvc, caches, config, id, req).then(function(resp) {
                 expect(resp).not.toBeDefined();
             }).catch(function(error) {
                 expect(error).toBe('I GOT A PROBLEM');
@@ -150,48 +188,13 @@ describe('content (UT)', function() {
                 expect(expModule.formatOutput).not.toHaveBeenCalled();
                 expect(expModule.canGetExperience).not.toHaveBeenCalled();
                 expect(expModule.setupTrackingPixels).not.toHaveBeenCalled();
-                expect(expModule.getAdConfig).not.toHaveBeenCalled();
-                expect(expModule.handleCampaign).not.toHaveBeenCalled();
-            }).done(done);
-        });
-
-        it('should fail if calling getAdConfig fails', function(done) {
-            expModule.getAdConfig.and.returnValue(q.reject('I GOT A PROBLEM'));
-            expModule.getPublicExp(id, req, caches, cardSvc, config).then(function(resp) {
-                expect(resp).not.toBeDefined();
-            }).catch(function(error) {
-                expect(error).toBe('I GOT A PROBLEM');
-                expect(mockLog.error).toHaveBeenCalled();
-                expect(caches.experiences.getPromise).toHaveBeenCalled();
-                expect(expModule.formatOutput).toHaveBeenCalled();
-                expect(expModule.canGetExperience).toHaveBeenCalled();
-                expect(expModule.setupTrackingPixels).toHaveBeenCalled();
-                expect(expModule.getAdConfig).toHaveBeenCalled();
-                expect(expModule.getSiteConfig).not.toHaveBeenCalled();
-                expect(expModule.handleCampaign).not.toHaveBeenCalled();
-            }).done(done);
-        });
-
-        it('should fail if calling getSiteConfig fails', function(done) {
-            expModule.getSiteConfig.and.returnValue(q.reject('I GOT A PROBLEM'));
-            expModule.getPublicExp(id, req, caches, cardSvc, config).then(function(resp) {
-                expect(resp).not.toBeDefined();
-            }).catch(function(error) {
-                expect(error).toBe('I GOT A PROBLEM');
-                expect(mockLog.error).toHaveBeenCalled();
-                expect(caches.experiences.getPromise).toHaveBeenCalled();
-                expect(expModule.formatOutput).toHaveBeenCalled();
-                expect(expModule.canGetExperience).toHaveBeenCalled();
-                expect(expModule.setupTrackingPixels).toHaveBeenCalled();
-                expect(expModule.getAdConfig).toHaveBeenCalled();
-                expect(expModule.getSiteConfig).toHaveBeenCalled();
                 expect(expModule.handleCampaign).not.toHaveBeenCalled();
             }).done(done);
         });
 
         it('should fail if calling handleCampaign fails', function(done) {
             expModule.handleCampaign.and.returnValue(q.reject('I GOT A PROBLEM'));
-            expModule.getPublicExp(id, req, caches, cardSvc, config).then(function(resp) {
+            expModule.getPublicExp(cardSvc, caches, config, id, req).then(function(resp) {
                 expect(resp).not.toBeDefined();
             }).catch(function(error) {
                 expect(error).toBe('I GOT A PROBLEM');
@@ -200,8 +203,6 @@ describe('content (UT)', function() {
                 expect(expModule.formatOutput).toHaveBeenCalled();
                 expect(expModule.canGetExperience).toHaveBeenCalled();
                 expect(expModule.setupTrackingPixels).toHaveBeenCalled();
-                expect(expModule.getAdConfig).toHaveBeenCalled();
-                expect(expModule.getSiteConfig).toHaveBeenCalled();
                 expect(expModule.handleCampaign).toHaveBeenCalled();
             }).done(done);
         });

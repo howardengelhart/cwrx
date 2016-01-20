@@ -418,10 +418,6 @@
                 card.campaign = card.campaign || {};
                 card.params.sponsor = camp.advertiserDisplayName || card.params.sponsor;
 
-                //TODO: Kept for backwards compatibility with player service, remove eventually
-                card.adtechId = card.campaign.adtechId;
-                card.bannerId = card.campaign.bannerNumber;
-                
                 return card;
             });
         })

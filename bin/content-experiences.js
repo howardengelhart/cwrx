@@ -150,7 +150,7 @@
     };
     
     // Setup a launchUrls property on exp.data.campaign. trackingPixel should come from config
-    expModule.setupTrackingPixels = function(exp, req, trackingPixel) {
+    expModule.setupTrackingPixels = function(trackingPixel, exp, req) {
         exp.data = exp.data || {};
         exp.data.campaign = exp.data.campaign || {};
         
@@ -169,88 +169,10 @@
         
         (exp.data.campaign.launchUrls || (exp.data.campaign.launchUrls = [])).push(url);
     };
-
-    // Ensure experience has adConfig, getting from its org if necessary
-    expModule.getAdConfig = function(exp, orgId, orgCache) {
-        var log = logger.getLog();
-
-        if (!exp.data) {
-            log.warn('Experience %1 does not have data!', exp.id);
-            return q(exp);
-        }
-        if (exp.data.adConfig) {
-            return q(exp);
-        }
-        return orgCache.getPromise({id: orgId}).then(function(results) {
-            if (results.length === 0 || results[0].status !== Status.Active) {
-                log.warn('Org %1 not found', orgId);
-            } else if (!results[0].adConfig) {
-                log.info('Neither experience %1 nor org %2 have adConfig', exp.id, orgId);
-            } else {
-                exp.data.adConfig = results[0].adConfig;
-            }
-            return q(exp);
-        });
-    };
-
-    // Ensure experience has branding and placements, getting from current site or org if necessary
-    expModule.getSiteConfig = function(exp, orgId, qps, siteCache, orgCache, defaults) {
-        var log = logger.getLog(),
-            props = ['branding', 'placementId', 'wildCardPlacement'];
-        qps = qps || {};
-
-        function setProps(exp, obj) {
-            exp.data.placementId = exp.data.placementId || obj.placementId;
-            exp.data.wildCardPlacement = exp.data.wildCardPlacement || obj.wildCardPlacement;
-            exp.data.branding = exp.data.branding || obj.branding;
-        }
-
-        if (!exp.data) {
-            log.warn('Experience %1 does not have data!', exp.id);
-            return q(exp);
-        }
-        
-        setProps(exp, qps);
-        if (props.every(function(prop) { return !!exp.data[prop]; })) {
-            return q(exp);
-        }
-
-        return siteCache.getPromise({ host: 'cinema6.com' }).then(function(results) {
-            var site = results[0];
-            if (!site) {
-                log.warn('Site cinema6.com not found');
-            } else {
-                var container = (site.containers || []).filter(function(cont) {
-                    return cont.id === qps.container;
-                })[0];
-                
-                if (container) {
-                    exp.data.placementId = exp.data.placementId || container.displayPlacementId;
-                    exp.data.wildCardPlacement = exp.data.wildCardPlacement ||
-                                                 container.contentPlacementId;
-                } else {
-                    if (!!qps.container && !!site.containers) {
-                        log.warn('Container %1 not found for cinema6.com', qps.container);
-                    }
-                }
-                setProps(exp, site);
-            }
-            if (exp.data.branding) {
-                return q();
-            }
-            return orgCache.getPromise({id: orgId});
-        }).then(function(results) {
-            if (results && results.length !== 0 && results[0].status === Status.Active) {
-                setProps(exp, results[0]);
-            }
-            setProps(exp, defaults);
-            return q(exp);
-        });
-    };
     
     /* Swap the placeholder in the exp deck at position idx with the appropriate card, retrieved
-     * from the cardSvc. Also attaches the new card's adtechId from the camp's cards list */
-    expModule.swapCard = function(req, exp, idx, camp, cardSvc) {
+     * from the cardSvc. */
+    expModule.swapCard = function(cardSvc, camp, exp, idx, req) {
         var log = logger.getLog(),
             oldId = exp.data.deck[idx].id,
             newId = camp.staticCardMap[exp.id][oldId];
@@ -272,7 +194,7 @@
     
     /* Look up campaign by campId. If it has staticCardPlacements for this exp, look up those cards
      * and insert them in the appropriate slots */
-    expModule.handleCampaign = function(req, exp, campId, campCache, cardSvc) {
+    expModule.handleCampaign = function(cardSvc, campCache, campId, exp, req) {
         var log = logger.getLog();
         
         if (!campId) {
@@ -283,7 +205,7 @@
             return q(exp);
         }
         
-        return campCache.getPromise({id: String(campId)}).then(function(results) {
+        return campCache.getPromise({ id: String(campId) }).then(function(results) {
             var camp = results[0];
 
             if (!camp) {
@@ -308,52 +230,43 @@
                     return q();
                 }
 
-                return expModule.swapCard(req, exp, idx, camp, cardSvc);
+                return expModule.swapCard(cardSvc, camp, exp, idx, req);
             }));
         })
         .thenResolve(exp);
     };
 
-
-    expModule.getPublicExp = function(id, req, caches, cardSvc, config) {
+    expModule.getPublicExp = function(cardSvc, caches, config, id, req) {
         var log = logger.getLog(),
             qps = req.query,
-            query = {id: id};
+            defaultCfg = config.defaultSiteConfig,
+            query = { id: id };
 
         log.info('[%1] Guest user trying to get experience %2', req.uuid, id);
 
-        return caches.experiences.getPromise(query).then(function(results) {
-            var experiences = results.map(function(result) {
-                var formatted = expModule.formatOutput(result, true);
-                if (!expModule.canGetExperience(formatted, null, req.isC6Origin)) {
-                    return null;
-                } else {
-                    return formatted;
-                }
-            });
-
-            if (!experiences[0]) {
-                return q({code: 404, body: 'Experience not found'});
+        return caches.experiences.getPromise(query).spread(function(experience) {
+            if (!experience) {
+                return q({ code: 404, body: 'Experience not found' });
             }
+            var exp = expModule.formatOutput(experience, true);
+            if (!expModule.canGetExperience(exp, null, req.isC6Origin)) {
+                return q({ code: 404, body: 'Experience not found' });
+            }
+
             log.info('[%1] Retrieved experience %2', req.uuid, id);
 
             if (req.query.preview) {
-                experiences[0].data = experiences[0].data || {};
-                experiences[0].data.campaign = experiences[0].data.campaign || {};
+                exp.data = exp.data || {};
+                exp.data.campaign = exp.data.campaign || {};
             } else {
-                expModule.setupTrackingPixels(experiences[0], req, config.trackingPixel);
+                expModule.setupTrackingPixels(config.trackingPixel, exp, req);
             }
+            
+            exp.data.branding = exp.data.branding || qps.branding || defaultCfg.branding;
 
-            return expModule.getAdConfig(experiences[0], results[0].org, caches.orgs)
+            return expModule.handleCampaign(cardSvc, caches.campaigns, qps.campaign, exp, req)
             .then(function(exp) {
-                return expModule.getSiteConfig(exp, results[0].org, qps, caches.sites, caches.orgs,
-                                               config.defaultSiteConfig);
-            })
-            .then(function(exp) {
-                return expModule.handleCampaign(req, exp, qps.campaign, caches.campaigns, cardSvc);
-            })
-            .then(function(exp) {
-                return q({code: 200, body: exp});
+                return q({ code: 200, body: exp });
             });
         })
         .catch(function(error) {
@@ -673,7 +586,7 @@
     
     // Handle requests for experiences from /api/public/content/experience/:id endpoints
     expModule.handlePublicGet = function(req, res, caches, cardSvc, config) {
-        return expModule.getPublicExp(req.params.id, req, caches, cardSvc, config)
+        return expModule.getPublicExp(cardSvc, caches, config, req.params.id, req)
         .then(function(resp) {
             // don't cache for requests in preview mode
             if (!req.query.preview) {
