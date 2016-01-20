@@ -715,9 +715,7 @@ Player.prototype.get = function get(/*options*/) {
 
     if (!(experience || card || campaign)) {
         if (embed) {
-            return getPlayer()
-                .then(loadBranding(branding))
-                .then(stringify);
+            return getPlayer().then(loadBranding(branding)).then(stringify);
         }
 
         return q.reject(new ServiceError(
