@@ -43,6 +43,11 @@
             "sponsor": "Transformers"
         },
         "placementId": null,
+        "shareLinks": {
+            "facebook": "http://www.smashingmagazine.com",
+            "twitter": "http://www.smashingmagazine.com",
+            "pinterest": "http://www.smashingmagazine.com"
+        },
         "sponsored": true,
         "status": "active",
         "templateUrl": null,
@@ -92,7 +97,11 @@
             "action": null
         },
         "placementId": null,
-        "shareLinks": {},
+        "shareLinks": {
+            "facebook": "http://www.smashingmagazine.com",
+            "twitter": "http://www.smashingmagazine.com",
+            "pinterest": "http://www.smashingmagazine.com"
+        },
         "source": "YouTube",
         "sponsored": true,
         "status": "active",
@@ -155,6 +164,11 @@
             }
         },
         "placementId": null,
+        "shareLinks": {
+            "facebook": "http://www.smashingmagazine.com",
+            "twitter": "http://www.smashingmagazine.com",
+            "pinterest": "http://www.smashingmagazine.com"
+        },
         "source": "YouTube",
         "sponsored": true,
         "status": "active",
@@ -201,6 +215,11 @@
             "ad": true
         },
         "placementId": null,
+        "shareLinks": {
+            "facebook": "http://www.smashingmagazine.com",
+            "twitter": "http://www.smashingmagazine.com",
+            "pinterest": "http://www.smashingmagazine.com"
+        },
         "source": "YouTube",
         "sponsored": true,
         "status": "active",
