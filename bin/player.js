@@ -477,7 +477,7 @@ Player.startService = function startService() {
         var app = express();
         var player = new Player(state.config);
         var parsePlayerQuery = parseQuery({
-            arrays: ['categories', 'playUrls', 'countUrls', 'launchUrls']
+            arrays: ['categories', 'playUrls', 'countUrls', 'clickUrls', 'launchUrls']
         });
         var sendRequestMetrics = cloudwatchMetrics(
             state.config.cloudwatch.namespace,
@@ -636,6 +636,7 @@ Player.prototype.get = function get(/*options*/) {
     var uuid = options.uuid;
     var playUrls = options.playUrls;
     var countUrls = options.countUrls;
+    var clickUrls = options.clickUrls;
     var launchUrls = options.launchUrls;
     var experience = options.experience;
     var card = options.card;
@@ -665,7 +666,8 @@ Player.prototype.get = function get(/*options*/) {
             if (AdLoader.isSponsored(card)) {
                 AdLoader.addTrackingPixels({
                     playUrls: playUrls,
-                    countUrls: countUrls
+                    countUrls: countUrls,
+                    clickUrls: clickUrls
                 }, card);
 
                 if (countdown !== undefined) {
