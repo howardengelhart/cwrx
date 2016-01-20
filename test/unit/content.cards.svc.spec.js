@@ -972,10 +972,93 @@ describe('content-cards (UT)', function() {
         });
     });
     
+    describe('objectifyLinks', function() {
+        var card;
+        beforeEach(function() {
+            card = {
+                id: 'rc-1',
+                campaignId: 'cam-1',
+                links: {
+                    Website: 'http://website.com/foo',
+                    Action: 'http://action.com/bar'
+                },
+                shareLinks: {
+                    Facebook: 'http://facebook.com/foo',
+                    Twitter: 'http://twitter.com/bar'
+                }
+            };
+        });
+        
+        it('should convert links and shareLinks entries to objects', function() {
+            cardModule.objectifyLinks(card);
+            expect(card).toEqual({
+                id: 'rc-1',
+                campaignId: 'cam-1',
+                links: {
+                    Website: {
+                        uri: 'http://website.com/foo',
+                        tracking: []
+                    },
+                    Action: {
+                        uri: 'http://action.com/bar',
+                        tracking: []
+                    }
+                },
+                shareLinks: {
+                    Facebook: {
+                        uri: 'http://facebook.com/foo',
+                        tracking: []
+                    },
+                    Twitter: {
+                        uri: 'http://twitter.com/bar',
+                        tracking: []
+                    }
+                }
+            });
+        });
+        
+        it('should not mess with existing entries that are objects', function() {
+            card.links.Website = { uri: 'http://website.com/foo', tracking: ['bigbrother.iswatching'] };
+            card.shareLinks.Twitter = { uri: 'http://twitter.com/bar', tracking: ['bigbrother.isgood'] };
+
+            cardModule.objectifyLinks(card);
+            expect(card.links).toEqual({
+                Website: {
+                    uri: 'http://website.com/foo',
+                    tracking: ['bigbrother.iswatching']
+                },
+                Action: {
+                    uri: 'http://action.com/bar',
+                    tracking: []
+                }
+            });
+            expect(card.shareLinks).toEqual({
+                Facebook: {
+                    uri: 'http://facebook.com/foo',
+                    tracking: []
+                },
+                Twitter: {
+                    uri: 'http://twitter.com/bar',
+                    tracking: ['bigbrother.isgood']
+                }
+            });
+        });
+        
+        it('should do nothing if no links or shareLinks exist', function() {
+            delete card.links;
+            delete card.shareLinks;
+            cardModule.objectifyLinks(card);
+            expect(card).toEqual({
+                id: 'rc-1',
+                campaignId: 'cam-1'
+            });
+        });
+    });
+    
     describe('setupTrackingPixels', function() {
         var card;
         beforeEach(function() {
-            card = { id: 'rc-1', campaignId: 'cam-1' };
+            card = { id: 'rc-1', campaignId: 'cam-1', campaign: {} };
         
             spyOn(cardModule, 'formatUrl').and.callFake(function(card, req, event) {
                 return 'track.png?event=' + event;
@@ -1033,36 +1116,27 @@ describe('content-cards (UT)', function() {
         describe('if there are links on the card', function() {
             beforeEach(function() {
                 card.links = {
-                    Facebook: 'http://facebook.com/foo',
-                    Twitter: 'http://twitter.com/bar'
+                    Facebook: {
+                        uri: 'http://facebook.com/foo',
+                        tracking: []
+                    },
+                    Twitter: {
+                        uri: 'http://twitter.com/bar',
+                        tracking: []
+                    }
                 };
             });
             
             it('should also create tracking pixels for the links', function() {
                 cardModule.setupTrackingPixels(card, req);
-                expect(card).toEqual({
-                    id          : 'rc-1',
-                    campaignId  : 'cam-1',
-                    campaign    : {
-                        bufferUrls  : [ 'track.png?event=buffer' ],
-                        viewUrls    : [ 'track.png?event=cardView' ],
-                        playUrls    : [ 'track.png?event=play' ],
-                        loadUrls    : [ 'track.png?event=load' ],
-                        countUrls   : [ 'track.png?event=completedView' ],
-                        q1Urls      : [ 'track.png?event=q1' ],
-                        q2Urls      : [ 'track.png?event=q2' ],
-                        q3Urls      : [ 'track.png?event=q3' ],
-                        q4Urls      : [ 'track.png?event=q4' ]
+                expect(card.links).toEqual({
+                    Facebook: {
+                        uri: 'http://facebook.com/foo',
+                        tracking: [ 'track.png?event=link.Facebook' ]
                     },
-                    links: {
-                        Facebook: {
-                            uri: 'http://facebook.com/foo',
-                            tracking: [ 'track.png?event=link.Facebook' ]
-                        },
-                        Twitter: {
-                            uri: 'http://twitter.com/bar',
-                            tracking: [ 'track.png?event=link.Twitter' ]
-                        }
+                    Twitter: {
+                        uri: 'http://twitter.com/bar',
+                        tracking: [ 'track.png?event=link.Twitter' ]
                     }
                 });
             });
@@ -1097,36 +1171,27 @@ describe('content-cards (UT)', function() {
         describe('if there are shareLinks on the card', function() {
             beforeEach(function() {
                 card.shareLinks = {
-                    Facebook: 'http://facebook.com/foo',
-                    Twitter: 'http://twitter.com/bar'
+                    Facebook: {
+                        uri: 'http://facebook.com/foo',
+                        tracking: []
+                    },
+                    Twitter: {
+                        uri: 'http://twitter.com/bar',
+                        tracking: []
+                    }
                 };
             });
             
             it('should also create tracking pixels for the links', function() {
                 cardModule.setupTrackingPixels(card, req);
-                expect(card).toEqual({
-                    id          : 'rc-1',
-                    campaignId  : 'cam-1',
-                    campaign    : {
-                        bufferUrls  : [ 'track.png?event=buffer' ],
-                        viewUrls    : [ 'track.png?event=cardView' ],
-                        playUrls    : [ 'track.png?event=play' ],
-                        loadUrls    : [ 'track.png?event=load' ],
-                        countUrls   : [ 'track.png?event=completedView' ],
-                        q1Urls      : [ 'track.png?event=q1' ],
-                        q2Urls      : [ 'track.png?event=q2' ],
-                        q3Urls      : [ 'track.png?event=q3' ],
-                        q4Urls      : [ 'track.png?event=q4' ]
+                expect(card.shareLinks).toEqual({
+                    Facebook: {
+                        uri: 'http://facebook.com/foo',
+                        tracking: [ 'track.png?event=shareLink.Facebook' ]
                     },
-                    shareLinks: {
-                        Facebook: {
-                            uri: 'http://facebook.com/foo',
-                            tracking: [ 'track.png?event=shareLink.Facebook' ]
-                        },
-                        Twitter: {
-                            uri: 'http://twitter.com/bar',
-                            tracking: [ 'track.png?event=shareLink.Twitter' ]
-                        }
+                    Twitter: {
+                        uri: 'http://twitter.com/bar',
+                        tracking: [ 'track.png?event=shareLink.Twitter' ]
                     }
                 });
             });
@@ -1274,6 +1339,44 @@ describe('content-cards (UT)', function() {
             cardModule.getPublicCard(cardSvc, caches, 'rc-1', req).then(function(resp) {
                 expect(cardModule.setupTrackingPixels).toHaveBeenCalledWith(jasmine.any(Object), req);
             }).then(done,done.fail);
+        });
+        
+        describe('if there are links or shareLinks on the card', function() {
+            beforeEach(function() {
+                mockCard.links = {
+                    Website: 'http://website.com'
+                };
+                mockCard.shareLinks = {
+                    Facebook: 'http://facebook.com'
+                };
+            });
+
+            it('should always objectify the links, even if the request is a preview', function(done) {
+                q.all(['true', 'false'].map(function(val) {
+                    var reqCopy = JSON.parse(JSON.stringify(req));
+                    reqCopy.query.preview = val;
+                    return cardModule.getPublicCard(cardSvc, caches, 'rc-1', reqCopy).then(function(resp) {
+                        expect(resp).toEqual(jasmine.objectContaining({
+                            links: {
+                                Website: {
+                                    uri: 'http://website.com',
+                                    tracking: []
+                                }
+                            },
+                            shareLinks: {
+                                Facebook: {
+                                    uri: 'http://facebook.com',
+                                    tracking: []
+                                }
+                            }
+                        }));
+                    });
+                })).then(function() {
+                    expect(cardModule.setupTrackingPixels.calls.count()).toBe(1);
+                }).catch(function(error) {
+                    expect(error.toString()).not.toBeDefined();
+                }).done(done);
+            });
         });
         
         it('should return nothing if the card was not found', function(done) {

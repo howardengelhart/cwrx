@@ -1,5 +1,9 @@
 # Content Service Changelog
 
+### 3.5.2: Wed Jan 20 18:24:26 EST 2016
+* [FIX]: Always convert sponsored cards' `links` and `shareLinks` entries to objects: [#752](https://github.com/cinema6/cwrx/pull/752)
+* Extra deployment steps: None
+
 ### 3.5.1: Mon Jan 11 12:36:22 EST 2016
 * [FIX]: Cease recursive validation if a field is unchanged: [#728](https://github.com/cinema6/cwrx/pull/728)
 * Upgrade mongo driver to 2.x, fixing reconnect issues: [#717](https://github.com/cinema6/cwrx/pull/717)

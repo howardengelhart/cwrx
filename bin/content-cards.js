@@ -324,10 +324,30 @@
         return url;
     };
     
+    // Convert values in links + shareLinks hashes to objects like { url: '...', tracking: [...] }
+    cardModule.objectifyLinks = function(card) {
+        ['links', 'shareLinks'].forEach(function(prop) {
+            if (typeof card[prop] !== 'object') {
+                return;
+            }
+            
+            Object.keys(card[prop]).forEach(function(linkName) {
+                var origVal = card[prop][linkName];
+
+                if (typeof origVal === 'string') {
+                    card[prop][linkName] = {
+                        uri: origVal,
+                        tracking: []
+                    };
+                } else {
+                    card[prop][linkName].tracking = card[prop][linkName].tracking || [];
+                }
+            });
+        });
+    };
+    
     // Adds tracking pixels to card.campaign, initializing arrays if needed
     cardModule.setupTrackingPixels = function(card, req) {
-        card.campaign = card.campaign || {};
-
         function ensureList(prop) {
             return card.campaign[prop] || (card.campaign[prop] = []);
         }
@@ -342,26 +362,11 @@
         ensureList('q3Urls').push(cardModule.formatUrl(card, req, 'q3'));
         ensureList('q4Urls').push(cardModule.formatUrl(card, req, 'q4'));
         
+        // This code assumes cardModule.objectifyLinks() has already been called
         ['links', 'shareLinks'].forEach(function(prop) {
-            if (typeof card[prop] !== 'object') {
-                return;
-            }
-            
             var singular = prop.replace(/s$/, '');
             
-            
-            Object.keys(card[prop]).forEach(function(linkName) {
-                var origVal = card[prop][linkName];
-
-                if (typeof origVal === 'string') {
-                    card[prop][linkName] = {
-                        uri: origVal,
-                        tracking: []
-                    };
-                } else {
-                    card[prop][linkName].tracking = card[prop][linkName].tracking || [];
-                }
-                
+            Object.keys(card[prop] || {}).forEach(function(linkName) {
                 var pixelUrl = cardModule.formatUrl(card, req, singular + '.' + linkName);
                 card[prop][linkName].tracking.push(pixelUrl);
             });
@@ -387,7 +392,8 @@
             privateFields.forEach(function(key) { delete card[key]; });
             card = cardSvc.formatOutput(card);
             card.campaign = card.campaign || {};
-
+            cardModule.objectifyLinks(card);
+            
             if (req.query.preview !== 'true') {
                 cardModule.setupTrackingPixels(card, req);
             }
