@@ -868,6 +868,7 @@ describe('content-cards (UT)', function() {
             req.params.id = 'e-1';
             req.query = {
                 container: 'embed',
+                placement: 'pl-1',
                 hostApp: 'Mapsaurus',
                 network: 'pocketmath'
             };
@@ -886,6 +887,7 @@ describe('content-cards (UT)', function() {
                 card: 'rc-1',
                 experience: 'e-1',
                 container: 'embed',
+                placement: 'pl-1',
                 host: 'cinema6.com',
                 hostApp: 'Mapsaurus',
                 network: 'pocketmath',
@@ -924,6 +926,7 @@ describe('content-cards (UT)', function() {
                 card: 'rc-1',
                 experience: '',
                 container: '',
+                placement: '',
                 host: 'cinema6.com',
                 hostApp: '',
                 network: '',
@@ -942,6 +945,7 @@ describe('content-cards (UT)', function() {
                 card: 'rc-1',
                 experience: 'e-1',
                 container: 'embed',
+                placement: 'pl-1',
                 host: 'cinema6.com',
                 hostApp: 'Mapsaurus',
                 network: 'pocketmath',
@@ -961,6 +965,7 @@ describe('content-cards (UT)', function() {
                 card: 'rc-1',
                 experience: 'e-1',
                 container: 'embed',
+                placement: 'pl-1',
                 host: 'cinema6.com',
                 hostApp: 'Mapsaurus',
                 network: 'pocketmath',

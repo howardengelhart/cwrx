@@ -436,6 +436,7 @@ describe('content (UT)', function() {
             req.query = {
                 campaign: 'cam-1',
                 container: 'embed',
+                placement: 'pl-1',
                 hostApp: 'Mapsaurus',
                 network: 'pocketmath'
             };
@@ -461,6 +462,7 @@ describe('content (UT)', function() {
                 campaign: 'cam-1',
                 experience: 'e-1',
                 container: 'embed',
+                placement: 'pl-1',
                 host: 'cinema6.com',
                 hostApp: 'Mapsaurus',
                 network: 'pocketmath',

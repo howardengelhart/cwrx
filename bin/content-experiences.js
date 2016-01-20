@@ -158,6 +158,7 @@
             campaign    : req.query.campaign,
             experience  : exp.id,
             container   : req.query.container,
+            placement   : req.query.placement,
             host        : req.query.pageUrl || req.originHost,
             hostApp     : req.query.hostApp,
             network     : req.query.network,
