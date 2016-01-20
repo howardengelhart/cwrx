@@ -29,7 +29,7 @@
         caches : { //TODO: may want to rename this now...
             run     : path.normalize('/usr/local/share/cwrx/' + state.name + '/caches/run/'),
         },
-        cacheTTLs: {  // units here are minutes //TODO: remember cookbook changes
+        cacheTTLs: {  // units here are minutes
             placements: {
                 freshTTL: 1,
                 maxTTL: 4
