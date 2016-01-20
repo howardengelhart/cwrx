@@ -18,7 +18,10 @@
             __required: true,
             __unchangeable: true
         },
-        //TODO: also label prop?
+        label: {
+            __allowed: true,
+            __type: 'string'
+        },
         defaultData: {
             __type: 'object',
             __default: {},
@@ -101,7 +104,7 @@
             }),
             checkExistence('campaign', {
                 id: req.body.defaultData.campaign,
-                status: { $nin: [Status.Deleted, Status.Canceled, Status.Expired] } //TODO: confirm?
+                status: { $nin: [Status.Deleted, Status.Canceled, Status.Expired] }
             }),
             checkExistence('experience', {
                 id: req.body.defaultData.experience,

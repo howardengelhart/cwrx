@@ -111,6 +111,21 @@ describe('ads-containers (UT)', function() {
             });
         });
         
+        describe('when handling label', function() {
+            it('should fail if the field is not a string', function() {
+                newObj.label = 1234;
+                expect(svc.model.validate('create', newObj, origObj, requester))
+                    .toEqual({ isValid: false, reason: 'label must be in format: string' });
+            });
+            
+            it('should allow the field to be set', function() {
+                newObj.label = 'foo';
+                expect(svc.model.validate('create', newObj, origObj, requester))
+                    .toEqual({ isValid: true, reason: undefined });
+                expect(newObj.label).toEqual('foo');
+            });
+        });
+        
         describe('when handling defaultData', function() {
             beforeEach(function() {
                 newObj.defaultData = {};

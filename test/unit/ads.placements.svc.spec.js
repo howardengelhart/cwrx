@@ -63,7 +63,6 @@ describe('ads-placements (UT)', function() {
             expect(svc._prefix).toBe('pl');
             expect(svc._userProp).toBe(true);
             expect(svc._orgProp).toBe(true);
-            expect(svc._allowPublic).toBe(true);
             expect(svc.model).toEqual(jasmine.any(Model));
             expect(svc.model.schema).toBe(placeModule.placeSchema);
         });

@@ -21,7 +21,6 @@
         tagType: {
             __allowed: true,
             __type: 'string'
-            //TODO: __acceptableValues?
         },
         startDate: {
             __allowed: true,
@@ -45,7 +44,6 @@
             event: {
                 __allowed: true,
                 __type: 'string'
-                //TODO: __acceptableValues?
             },
             cost: {
                 __allowed: true,
@@ -84,8 +82,7 @@
     placeModule.setupSvc = function(db, config) {
         placeModule.config.cacheTTLs = config.cacheTTLs;
     
-        var opts = { allowPublic: true },
-            svc = new CrudSvc(db.collection('placements'), 'pl', opts, placeModule.placeSchema);
+        var svc = new CrudSvc(db.collection('placements'), 'pl', {}, placeModule.placeSchema);
         
         svc._db = db;
         
@@ -93,7 +90,7 @@
         
         svc.use('create', validateDataRefs);
         svc.use('create', placeModule.handleCostHistory);
-
+        
         svc.use('edit', validateDataRefs);
         svc.use('edit', placeModule.handleCostHistory);
         
@@ -153,7 +150,7 @@
             }),
             checkExistence('campaign', {
                 id: req.body.data.campaign,
-                status: { $nin: [Status.Deleted, Status.Canceled, Status.Expired] } //TODO: confirm?
+                status: { $nin: [Status.Deleted, Status.Canceled, Status.Expired] }
             }),
             checkExistence('experience', {
                 id: req.body.data.experience,
@@ -257,64 +254,67 @@
         
         router.use(jobManager.setJobTimeout.bind(jobManager));
         
-        var authGetCon = authUtils.middlewarify({containers: 'read'});
+        var authGetCon = authUtils.middlewarify({ placements: 'read' });
         router.get('/:id', sessions, authGetCon, audit, function(req, res) {
             var promise = svc.getObjs({id: req.params.id}, req, false);
             promise.finally(function() {
                 jobManager.endJob(req, res, promise.inspect())
                 .catch(function(error) {
-                    res.send(500, { error: 'Error retrieving container', detail: error });
+                    res.send(500, { error: 'Error retrieving placement', detail: error });
                 });
             });
         });
 
         router.get('/', sessions, authGetCon, audit, function(req, res) {
             var query = {};
-            if (req.query.name) {
-                query.name = String(req.query.name);
-            }
             if ('ids' in req.query) {
                 query.id = String(req.query.ids).split(',');
             }
+            ['user', 'org', 'data.container', 'data.experience',
+             'data.card', 'data.campaign'].forEach(function(field) {
+                if (req.query[field]) {
+                    query[field] = String(req.query[field]);
+                }
+            });
 
             var promise = svc.getObjs(query, req, true);
             promise.finally(function() {
                 jobManager.endJob(req, res, promise.inspect())
                 .catch(function(error) {
-                    res.send(500, { error: 'Error retrieving containers', detail: error });
+                    res.send(500, { error: 'Error retrieving placements', detail: error });
                 });
             });
         });
 
-        var authPostCon = authUtils.middlewarify({containers: 'create'});
+        var authPostCon = authUtils.middlewarify({ placements: 'create' });
         router.post('/', sessions, authPostCon, audit, function(req, res) {
             var promise = svc.createObj(req);
             promise.finally(function() {
                 jobManager.endJob(req, res, promise.inspect())
                 .catch(function(error) {
-                    res.send(500, { error: 'Error creating container', detail: error });
+                    res.send(500, { error: 'Error creating placement', detail: error });
                 });
             });
         });
 
-        var authPutCon = authUtils.middlewarify({containers: 'edit'});
+        var authPutCon = authUtils.middlewarify({ placements: 'edit' });
         router.put('/:id', sessions, authPutCon, audit, function(req, res) {
             var promise = svc.editObj(req);
             promise.finally(function() {
                 jobManager.endJob(req, res, promise.inspect())
                 .catch(function(error) {
-                    res.send(500, { error: 'Error updating container', detail: error });
+                    res.send(500, { error: 'Error updating placement', detail: error });
                 });
             });
         });
 
-        var authDelCon = authUtils.middlewarify({containers: 'delete'});
+        var authDelCon = authUtils.middlewarify({ placements: 'delete' });
         router.delete('/:id', sessions, authDelCon, audit, function(req,res) {
             var promise = svc.deleteObj(req);
             promise.finally(function() {
                 jobManager.endJob(req, res, promise.inspect())
                 .catch(function(error) {
-                    res.send(500, { error: 'Error deleting container', detail: error });
+                    res.send(500, { error: 'Error deleting placement', detail: error });
                 });
             });
         });
