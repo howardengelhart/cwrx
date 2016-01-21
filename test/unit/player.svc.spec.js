@@ -1789,6 +1789,151 @@ describe('player service', function() {
                         });
                     });
                 });
+
+                describe('getViaPlacement(options)', function() {
+                    var options;
+                    var success, failure;
+                    var result;
+                    var getPlacementDeferred;
+
+                    beforeEach(function(done) {
+                        options = {
+                            placement: 'pl-cc39777e109ea2',
+                            uuid: 'efh7384ry43785t',
+                            branding: 'cinema6',
+                            origin: 'http://cinema6.com/solo?id=e-92160a770b81d5&cb=fu92yr483r76472&foo=wer89437r83947r#foofurief',
+                            preview: false,
+                            playUrls: ['play1.gif', 'play2.gif'],
+                            countUrls: ['count1.gif', 'count2.gif'],
+                            launchUrls: ['launch1.gif', 'launch2.gif'],
+                            clickUrls: ['click1.gif', 'click2.gif'],
+                            desktop: true,
+                            mobile: false,
+                            secure: true,
+                            debug: 2
+                        };
+
+                        success = jasmine.createSpy('success()');
+                        failure = jasmine.createSpy('failure()');
+
+                        getPlacementDeferred = q.defer();
+                        player.__getPlacement__.and.returnValue(getPlacementDeferred.promise);
+
+                        result = player.getViaPlacement(_.cloneDeep(options));
+                        result.then(success, failure);
+                        q().finally(done);
+                    });
+
+                    it('should return a Promise', function() {
+                        expect(result).toEqual(jasmine.any(Promise));
+                    });
+
+                    it('should get the placement', function() {
+                        expect(player.__getPlacement__).toHaveBeenCalledWith(options.placement, {}, options.uuid);
+                    });
+
+                    describe('when the placement is fetched', function() {
+                        var placement;
+
+                        beforeEach(function(done) {
+                            placement = {
+                                id: options.placement,
+                                tagParams: {
+                                    type: 'desktop-card',
+                                    container: 'beeswax',
+                                    campaign: 'cam-7d39e9bb3d4342',
+                                    debug: true,
+                                    prebuffer: true
+                                }
+                            };
+
+                            spyOn(player, 'get').and.returnValue(q(playerHTML));
+
+                            getPlacementDeferred.resolve(_.cloneDeep(placement));
+                            result.finally(done);
+                        });
+
+                        it('should get() the player by extending the placement params with its own', function() {
+                            expect(player.get).toHaveBeenCalledWith(_.defaults(_.assign(_.cloneDeep(placement.tagParams), options), player.config.defaults));
+                        });
+
+                        it('should fulfill with the result of calling player.get()', function() {
+                            expect(success).toHaveBeenCalledWith(playerHTML);
+                        });
+
+                        describe('if the device is mobile', function() {
+                            beforeEach(function(done) {
+                                player.get.calls.reset();
+                                player.__getPlacement__.calls.reset();
+                                success.calls.reset();
+                                failure.calls.reset();
+
+                                options.mobile = true;
+                                options.desktop = false;
+
+                                player.getViaPlacement(options).then(success, failure).finally(done);
+                            });
+
+                            it('should set the type to the default mobileType', function() {
+                                expect(player.get).toHaveBeenCalledWith(jasmine.objectContaining({ type: player.config.defaults.mobileType }));
+                            });
+
+                            describe('and there is a mobileType', function() {
+                                beforeEach(function() {
+                                    player.get.calls.reset();
+                                    player.__getPlacement__.calls.reset();
+                                    success.calls.reset();
+                                    failure.calls.reset();
+                                });
+
+                                describe('in the request', function() {
+                                    beforeEach(function(done) {
+                                        options.mobileType = 'swipe';
+
+                                        player.getViaPlacement(options).then(success, failure).finally(done);
+                                    });
+
+                                    it('should set the type to that mobileType', function() {
+                                        expect(player.get).toHaveBeenCalledWith(jasmine.objectContaining({ type: options.mobileType }));
+                                    });
+                                });
+
+                                describe('in the placement', function() {
+                                    beforeEach(function(done) {
+                                        placement.tagParams.mobileType = 'swipe';
+                                        player.__getPlacement__.and.returnValue(q(_.cloneDeep(placement)));
+
+                                        player.getViaPlacement(options).then(success, failure).finally(done);
+                                    });
+
+                                    it('should set the type to that mobileType', function() {
+                                        expect(player.get).toHaveBeenCalledWith(jasmine.objectContaining({ type: placement.tagParams.mobileType }));
+                                    });
+                                });
+                            });
+                        });
+                    });
+
+                    describe('if a placement is not specified', function() {
+                        beforeEach(function(done) {
+                            success.calls.reset();
+                            failure.calls.reset();
+
+                            delete options.placement;
+
+                            player.getViaPlacement(_.cloneDeep(options)).then(success, failure).finally(done);
+                        });
+
+                        it('should reject the promise', function() {
+                            var error = failure.calls.mostRecent().args[0];
+
+                            expect(error).toEqual(jasmine.any(Error));
+                            expect(error.message).toBe('You must provide a placement.');
+                            expect(error.status).toBe(400);
+                            expect(error.constructor.name).toBe('ServiceError');
+                        });
+                    });
+                });
             });
         });
 

@@ -809,6 +809,32 @@ Player.prototype.get = function get(/*options*/) {
     }).then(stringify);
 };
 
+Player.prototype.getViaPlacement = function getViaPlacement(options) {
+    var log = logger.getLog();
+    var self = this;
+    var config = this.config;
+    var uuid = options.uuid;
+    var placement = options.placement;
+
+    if (!placement) {
+        return q.reject(new ServiceError('You must provide a placement.', 400));
+    }
+
+    log.trace('[%1] Fetching placement {%2}.', uuid, placement);
+
+    return this.__getPlacement__(placement, {}, uuid).then(function getPlayer(placement) {
+        var params = _.defaults(_.assign(placement.tagParams, options), config.defaults);
+
+        if (options.mobile) {
+            params.type = params.mobileType;
+        }
+
+        log.trace('[%1] Got placement. Getting player with options: %2.', uuid, inspect(params));
+
+        return self.get(params);
+    });
+};
+
 Player.prototype.resetCodeCache = function resetCodeCache() {
     this.__getPlayer__.clear();
     this.getVersion.clear();
