@@ -56,8 +56,8 @@ describe('ads containers endpoints (E2E):', function() {
         var options;
         beforeEach(function(done) {
             var mockCons = [
-                { id: 'e2e-con-1', name: 'box-1', status: 'active', defaultData: { container: 'box-1' } },
-                { id: 'e2e-deleted', name: 'gone', status: 'deleted', defaultData: { container: 'gone' } }
+                { id: 'e2e-con-1', name: 'box-1', status: 'active', defaultTagParams: { container: 'box-1' } },
+                { id: 'e2e-deleted', name: 'gone', status: 'deleted', defaultTagParams: { container: 'gone' } }
             ];
             options = {
                 url: config.adsUrl + '/containers/e2e-con-1',
@@ -73,7 +73,7 @@ describe('ads containers endpoints (E2E):', function() {
                     id: 'e2e-con-1',
                     name: 'box-1',
                     status: 'active',
-                    defaultData: { container: 'box-1' }
+                    defaultTagParams: { container: 'box-1' }
                 });
                 expect(resp.response.headers['content-range']).not.toBeDefined();
             }).catch(function(error) {
@@ -150,10 +150,10 @@ describe('ads containers endpoints (E2E):', function() {
         beforeEach(function(done) {
             options = { url: config.adsUrl + '/containers', qs: {sort: 'id,1'}, jar: cookieJar };
             var mockCons = [
-                { id: 'e2e-con-1', name: 'box-1', status: 'active', defaultData: { container: 'box-1' } },
-                { id: 'e2e-con-2', name: 'box-2', status: 'inactive', defaultData: { container: 'box-1' } },
-                { id: 'e2e-con-3', name: 'box-3', status: 'active', defaultData: { container: 'box-1' } },
-                { id: 'e2e-getgone', name: 'gone', status: 'deleted', defaultData: { container: 'gone' } }
+                { id: 'e2e-con-1', name: 'box-1', status: 'active', defaultTagParams: { container: 'box-1' } },
+                { id: 'e2e-con-2', name: 'box-2', status: 'inactive', defaultTagParams: { container: 'box-1' } },
+                { id: 'e2e-con-3', name: 'box-3', status: 'active', defaultTagParams: { container: 'box-1' } },
+                { id: 'e2e-getgone', name: 'gone', status: 'deleted', defaultTagParams: { container: 'gone' } }
             ];
             testUtils.resetCollection('containers', mockCons).done(done);
         });
@@ -284,7 +284,7 @@ describe('ads containers endpoints (E2E):', function() {
                 json: {
                     name: 'fake-container',
                     label: 'totally legit container',
-                    defaultData: {
+                    defaultTagParams: {
                         type: 'full',
                         branding: 'elitedaily'
                     }
@@ -303,7 +303,7 @@ describe('ads containers endpoints (E2E):', function() {
                     lastUpdated : resp.body.created,
                     name        : 'fake-container',
                     label       : 'totally legit container',
-                    defaultData : {
+                    defaultTagParams : {
                         container   : 'fake-container',
                         type        : 'full',
                         branding    : 'elitedaily'
@@ -334,7 +334,7 @@ describe('ads containers endpoints (E2E):', function() {
             }).done(done);
         });
         
-        it('should be able to initialize the defaultData if not provided', function(done) {
+        it('should be able to initialize the defaultTagParams if not provided', function(done) {
             options.json = { name: 'bare' };
             requestUtils.qRequest('post', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(201);
@@ -344,7 +344,7 @@ describe('ads containers endpoints (E2E):', function() {
                     created     : jasmine.any(String),
                     lastUpdated : resp.body.created,
                     name        : 'bare',
-                    defaultData : {
+                    defaultTagParams : {
                         container   : 'bare'
                     }
                 });
@@ -392,14 +392,14 @@ describe('ads containers endpoints (E2E):', function() {
             options.json.id = 'con-fake';
             options.json._id = '_WEORIULSKJF';
             options.json.created = new Date(Date.now() - 99999999);
-            options.json.defaultData.container = 'something-else';
+            options.json.defaultTagParams.container = 'something-else';
             requestUtils.qRequest('post', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(201);
                 expect(resp.body._id).not.toBeDefined();
                 expect(resp.body.id).toBeDefined();
                 expect(resp.body.id).not.toBe('con-fake');
                 expect(new Date(resp.body.created)).toBeGreaterThan(options.json.created);
-                expect(resp.body.defaultData.container).toBe('fake-container');
+                expect(resp.body.defaultTagParams.container).toBe('fake-container');
             }).catch(function(error) {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
@@ -421,8 +421,8 @@ describe('ads containers endpoints (E2E):', function() {
         var mockCons, options;
         beforeEach(function(done) {
             mockCons = [
-                { id: 'e2e-con-1', status: 'active', name: 'box-1', defaultData: { container: 'box-1', branding: 'c6' } },
-                { id: 'e2e-deleted', status: 'deleted', name: 'gone', defaultData: { container: 'gone' } }
+                { id: 'e2e-con-1', status: 'active', name: 'box-1', defaultTagParams: { container: 'box-1', branding: 'c6' } },
+                { id: 'e2e-deleted', status: 'deleted', name: 'gone', defaultTagParams: { container: 'gone' } }
             ];
             options = {
                 url: config.adsUrl + '/containers/e2e-con-1',
@@ -465,14 +465,14 @@ describe('ads containers endpoints (E2E):', function() {
         });
         
         it('should preserve the data.container property', function(done) {
-            options.json.defaultData = { branding: 'c7', type: 'mobile' };
+            options.json.defaultTagParams = { branding: 'c7', type: 'mobile' };
             requestUtils.qRequest('put', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
                 expect(resp.body._id).not.toBeDefined();
                 expect(resp.body.id).toBe('e2e-con-1');
                 expect(resp.body.name).toBe('box-1');
                 expect(resp.body.label).toBe('foo bar');
-                expect(resp.body.defaultData).toEqual({ container: 'box-1', branding: 'c7', type: 'mobile' });
+                expect(resp.body.defaultTagParams).toEqual({ container: 'box-1', branding: 'c7', type: 'mobile' });
             }).catch(function(error) {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
@@ -480,12 +480,12 @@ describe('ads containers endpoints (E2E):', function() {
         
         it('should not allow changing the name or data.container properties', function(done) {
             options.json.name = 'box-new';
-            options.json.defaultData = { branding: 'c7', container: 'box-new' };
+            options.json.defaultTagParams = { branding: 'c7', container: 'box-new' };
             requestUtils.qRequest('put', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
                 expect(resp.body.name).toBe('box-1');
                 expect(resp.body.label).toBe('foo bar');
-                expect(resp.body.defaultData).toEqual({ container: 'box-1', branding: 'c7' });
+                expect(resp.body.defaultTagParams).toEqual({ container: 'box-1', branding: 'c7' });
             }).catch(function(error) {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
@@ -542,8 +542,8 @@ describe('ads containers endpoints (E2E):', function() {
         var options;
         beforeEach(function(done) {
             var mockCons = [
-                { id: 'e2e-con-1', name: 'box-1', org: 'o-selfie', status: 'active', defaultData: { container: 'box-1' } },
-                { id: 'e2e-deleted', name: 'gone', org: 'o-selfie', status: 'deleted', defaultData: { container: 'gone' } }
+                { id: 'e2e-con-1', name: 'box-1', org: 'o-selfie', status: 'active', defaultTagParams: { container: 'box-1' } },
+                { id: 'e2e-deleted', name: 'gone', org: 'o-selfie', status: 'deleted', defaultTagParams: { container: 'gone' } }
             ];
             options = {
                 url: config.adsUrl + '/containers/e2e-con-1',

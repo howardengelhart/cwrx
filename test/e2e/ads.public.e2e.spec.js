@@ -25,7 +25,7 @@ describe('ads public endpoints (E2E):', function() {
 	                org: 'o-selfie',
 	                tagType: 'mraid',
 	                label: 'foo bar',
-	                data: { container: 'box-1', campaign: 'cam-1', branding: 'brandA' }
+	                tagParams: { container: 'box-1', campaign: 'cam-1', branding: 'brandA' }
                 },
                 {
 	                id: 'e2e-pl-2',
@@ -40,21 +40,21 @@ describe('ads public endpoints (E2E):', function() {
 	                    date: new Date('2016-01-20T15:43:02.370Z'),
 	                    externalCost: { event: 'click', cost: 0.123 }
 	                }],
-	                data: { container: 'box-2', campaign: 'cam-2', branding: 'brandB' }
+	                tagParams: { container: 'box-2', campaign: 'cam-2', branding: 'brandB' }
                 },
                 {
 	                id: 'e2e-pl-inactive',
 	                status: 'inactive',
 	                user: 'u-selfie',
 	                org: 'o-selfie',
-	                data: { container: 'box-2', campaign: 'cam-2', branding: 'brandC' }
+	                tagParams: { container: 'box-2', campaign: 'cam-2', branding: 'brandC' }
                 },
                 {
 	                id: 'e2e-deleted',
 	                status: 'deleted',
 	                user: 'u-selfie',
 	                org: 'o-selfie',
-	                data: { container: 'box-gone', campaign: 'cam-gone' }
+	                tagParams: { container: 'box-gone', campaign: 'cam-gone' }
                 }
             ];
             options = {
@@ -72,7 +72,7 @@ describe('ads public endpoints (E2E):', function() {
                     status: 'active',
                     tagType: 'mraid',
                     label: 'foo bar',
-                    data: { container: 'box-1', campaign: 'cam-1', branding: 'brandA' }
+                    tagParams: { container: 'box-1', campaign: 'cam-1', branding: 'brandA' }
                 });
                 expect(resp.response.headers['content-type']).toBe('application/json; charset=utf-8');
                 expect(resp.response.headers['cache-control']).toEqual(jasmine.any(String));
@@ -89,7 +89,7 @@ describe('ads public endpoints (E2E):', function() {
                 expect(resp.body).toEqual({
                     id: 'e2e-pl-2',
                     status: 'active',
-                    data: { container: 'box-2', campaign: 'cam-2', branding: 'brandB' }
+                    tagParams: { container: 'box-2', campaign: 'cam-2', branding: 'brandB' }
                 });
                 expect(resp.response.headers['content-type']).toBe('application/json; charset=utf-8');
                 expect(resp.response.headers['cache-control']).toEqual(jasmine.any(String));
@@ -108,7 +108,7 @@ describe('ads public endpoints (E2E):', function() {
                     status: 'active',
                     tagType: 'mraid',
                     label: 'foo bar',
-                    data: { container: 'box-1', campaign: 'cam-1', branding: 'brandA' }
+                    tagParams: { container: 'box-1', campaign: 'cam-1', branding: 'brandA' }
                 });
                 expect(resp.response.headers['content-type']).toBe('application/json; charset=utf-8');
                 expect(resp.response.headers['cache-control']).toBe('max-age=0');
@@ -150,7 +150,7 @@ describe('ads public endpoints (E2E):', function() {
                 options.url = config.adsUrl + '/public/placements/e2e-pl-2.js';
                 requestUtils.qRequest('get', options).then(function(resp) {
                     expect(resp.response.statusCode).toBe(200);
-                    expect(resp.body).toBe('module.exports = {"id":"e2e-pl-2","status":"active","data":{"container":"box-2","campaign":"cam-2","branding":"brandB"}};');
+                    expect(resp.body).toBe('module.exports = {"id":"e2e-pl-2","status":"active","tagParams":{"container":"box-2","campaign":"cam-2","branding":"brandB"}};');
                     expect(resp.response.headers['content-type']).toBe('application/javascript; charset=utf-8');
                     expect(resp.response.headers['cache-control']).toEqual(jasmine.any(String));
                     expect(resp.response.headers['cache-control']).not.toBe('max-age=0');
@@ -181,7 +181,7 @@ describe('ads public endpoints (E2E):', function() {
                     expect(resp.body).toEqual({
                         id: 'e2e-pl-2',
                         status: 'active',
-                        data: { container: 'box-2', campaign: 'cam-2', branding: 'brandB' }
+                        tagParams: { container: 'box-2', campaign: 'cam-2', branding: 'brandB' }
                     });
                     expect(resp.response.headers['content-type']).toBe('application/json; charset=utf-8');
                     expect(resp.response.headers['cache-control']).toEqual(jasmine.any(String));

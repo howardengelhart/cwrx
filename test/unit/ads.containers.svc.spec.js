@@ -61,7 +61,7 @@ describe('ads-containers (UT)', function() {
             expect(CrudSvc.prototype.validateUniqueProp.bind).toHaveBeenCalledWith(svc, 'name', /^[\w-]+$/);
         });
         
-        it('should copy the name to the defaultData on create and edit', function() {
+        it('should copy the name to the defaultTagParams on create and edit', function() {
             expect(svc._middleware.create).toContain(conModule.copyName);
             expect(svc._middleware.edit).toContain(conModule.copyName);
         });
@@ -126,52 +126,52 @@ describe('ads-containers (UT)', function() {
             });
         });
         
-        describe('when handling defaultData', function() {
+        describe('when handling defaultTagParams', function() {
             beforeEach(function() {
-                newObj.defaultData = {};
-                requester.fieldValidation.containers.defaultData = {};
+                newObj.defaultTagParams = {};
+                requester.fieldValidation.containers.defaultTagParams = {};
             });
 
             it('should fail if not an object', function() {
-                newObj.defaultData = 'big data big problems';
+                newObj.defaultTagParams = 'big data big problems';
                 expect(svc.model.validate('edit', newObj, origObj, requester))
-                    .toEqual({ isValid: false, reason: 'defaultData must be in format: object' });
+                    .toEqual({ isValid: false, reason: 'defaultTagParams must be in format: object' });
             });
             
             it('should ensure the field is at least set to a default value on create', function() {
-                delete newObj.defaultData;
+                delete newObj.defaultTagParams;
                 expect(svc.model.validate('create', newObj, origObj, requester))
                     .toEqual({ isValid: true, reason: undefined });
-                expect(newObj.defaultData).toEqual({});
+                expect(newObj.defaultTagParams).toEqual({});
             });
             
             it('should not allow the field to be unset', function() {
-                origObj.defaultData = { big: 'yes' };
-                newObj.defaultData = null;
+                origObj.defaultTagParams = { big: 'yes' };
+                newObj.defaultTagParams = null;
                 expect(svc.model.validate('edit', newObj, origObj, requester))
                     .toEqual({ isValid: true, reason: undefined });
-                expect(newObj.defaultData).toEqual({ big: 'yes' });
+                expect(newObj.defaultTagParams).toEqual({ big: 'yes' });
                 
-                newObj.defaultData = undefined;
+                newObj.defaultTagParams = undefined;
                 expect(svc.model.validate('edit', newObj, origObj, requester))
                     .toEqual({ isValid: true, reason: undefined });
-                expect(newObj.defaultData).toEqual({ big: 'yes' });
+                expect(newObj.defaultTagParams).toEqual({ big: 'yes' });
             });
             
             describe('subfield container', function() {
                 it('should trim the field if set', function() {
-                    newObj.defaultData = { foo: 'bar', container: 'UPS flat rate box' };
+                    newObj.defaultTagParams = { foo: 'bar', container: 'UPS flat rate box' };
                     expect(svc.model.validate('create', newObj, origObj, requester))
                         .toEqual({ isValid: true, reason: undefined });
-                    expect(newObj.defaultData).toEqual({ foo: 'bar' });
+                    expect(newObj.defaultTagParams).toEqual({ foo: 'bar' });
                 });
 
                 it('should not allow any requesters to set the field', function() {
-                    requester.fieldValidation.containers.defaultData.container = { __allowed: true };
-                    newObj.defaultData = { foo: 'bar', container: 'UPS flat rate box' };
+                    requester.fieldValidation.containers.defaultTagParams.container = { __allowed: true };
+                    newObj.defaultTagParams = { foo: 'bar', container: 'UPS flat rate box' };
                     expect(svc.model.validate('create', newObj, origObj, requester))
                         .toEqual({ isValid: true, reason: undefined });
-                    expect(newObj.defaultData).toEqual({ foo: 'bar' });
+                    expect(newObj.defaultTagParams).toEqual({ foo: 'bar' });
                 });
             });
         });
@@ -181,20 +181,20 @@ describe('ads-containers (UT)', function() {
         beforeEach(function() {
             req.body = {
                 name: 'heavy duty box',
-                defaultData: { foo: 'bar' }
+                defaultTagParams: { foo: 'bar' }
             };
             req.origObj = {
                 name: 'small box',
-                defaultData: { foo: 'bar', container: 'small box' }
+                defaultTagParams: { foo: 'bar', container: 'small box' }
             };
         });
         
-        it('should copy the name to defaultData.container', function() {
+        it('should copy the name to defaultTagParams.container', function() {
             conModule.copyName(req, nextSpy, doneSpy);
             expect(nextSpy).toHaveBeenCalled();
             expect(req.body).toEqual({
                 name: 'heavy duty box',
-                defaultData: { foo: 'bar', container: 'heavy duty box' }
+                defaultTagParams: { foo: 'bar', container: 'heavy duty box' }
             });
         });
         
@@ -203,7 +203,7 @@ describe('ads-containers (UT)', function() {
             conModule.copyName(req, nextSpy, doneSpy);
             expect(nextSpy).toHaveBeenCalled();
             expect(req.body).toEqual({
-                defaultData: { foo: 'bar', container: 'small box' }
+                defaultTagParams: { foo: 'bar', container: 'small box' }
             });
         });
     });

@@ -51,7 +51,7 @@ describe('ads-placements (UT)', function() {
                 placements: { freshTTL: 10, maxTTL: 40 },
                 cloudFront: 50
             } };
-            spyOn(placeModule.validateDataRefs, 'bind').and.returnValue(placeModule.validateDataRefs);
+            spyOn(placeModule.validateExtRefs, 'bind').and.returnValue(placeModule.validateExtRefs);
             spyOn(placeModule.getPublicPlacement, 'bind').and.returnValue(placeModule.getPublicPlacement);
             svc = placeModule.setupSvc(mockDb, config);
         });
@@ -82,9 +82,9 @@ describe('ads-placements (UT)', function() {
         });
         
         it('should validate references to other objects on create and edit', function() {
-            expect(placeModule.validateDataRefs.bind).toHaveBeenCalledWith(placeModule, svc);
-            expect(svc._middleware.create).toContain(placeModule.validateDataRefs);
-            expect(svc._middleware.edit).toContain(placeModule.validateDataRefs);
+            expect(placeModule.validateExtRefs.bind).toHaveBeenCalledWith(placeModule, svc);
+            expect(svc._middleware.create).toContain(placeModule.validateExtRefs);
+            expect(svc._middleware.edit).toContain(placeModule.validateExtRefs);
         });
         
         it('should manage the costHistory on create and edit', function() {
@@ -97,7 +97,7 @@ describe('ads-placements (UT)', function() {
         var svc, newObj, origObj, requester;
         beforeEach(function() {
             svc = placeModule.setupSvc(mockDb, placeModule.config);
-            newObj = { data: { container: 'box', campaign: 'cam-1' } };
+            newObj = { tagParams: { container: 'box', campaign: 'cam-1' } };
             origObj = {};
             requester = { fieldValidation: { placements: {} } };
         });
@@ -215,64 +215,64 @@ describe('ads-placements (UT)', function() {
             });
         });
         
-        describe('when handling data', function() {
+        describe('when handling tagParams', function() {
             beforeEach(function() {
-                requester.fieldValidation.placements.data = {};
+                requester.fieldValidation.placements.tagParams = {};
             });
         
             it('should fail if not an object', function() {
-                newObj.data = 'big data big problems';
+                newObj.tagParams = 'big tagParams big problems';
                 expect(svc.model.validate('edit', newObj, origObj, requester))
-                    .toEqual({ isValid: false, reason: 'data must be in format: object' });
+                    .toEqual({ isValid: false, reason: 'tagParams must be in format: object' });
             });
             
             it('should fail if the field is not set on create', function() {
-                delete newObj.data;
+                delete newObj.tagParams;
                 expect(svc.model.validate('create', newObj, origObj, requester))
-                    .toEqual({ isValid: false, reason: 'Missing required field: data' });
-                expect(newObj.data).toEqual();
+                    .toEqual({ isValid: false, reason: 'Missing required field: tagParams' });
+                expect(newObj.tagParams).toEqual();
             });
             
             it('should not allow the field to be unset', function() {
-                origObj.data = { container: 'box', campaign: 'cam-1' };
-                newObj.data = null;
+                origObj.tagParams = { container: 'box', campaign: 'cam-1' };
+                newObj.tagParams = null;
                 expect(svc.model.validate('edit', newObj, origObj, requester))
                     .toEqual({ isValid: true, reason: undefined });
-                expect(newObj.data).toEqual({ container: 'box', campaign: 'cam-1' });
+                expect(newObj.tagParams).toEqual({ container: 'box', campaign: 'cam-1' });
                 
-                newObj.data = undefined;
+                newObj.tagParams = undefined;
                 expect(svc.model.validate('edit', newObj, origObj, requester))
                     .toEqual({ isValid: true, reason: undefined });
-                expect(newObj.data).toEqual({ container: 'box', campaign: 'cam-1' });
+                expect(newObj.tagParams).toEqual({ container: 'box', campaign: 'cam-1' });
             });
             
             ['container', 'campaign'].forEach(function(field) {
                 describe('subfield ' + field, function() {
                     it('should fail if the field is not a string', function() {
-                        newObj.data[field] = 1234;
+                        newObj.tagParams[field] = 1234;
                         expect(svc.model.validate('create', newObj, origObj, requester))
-                            .toEqual({ isValid: false, reason: 'data.' + field + ' must be in format: string' });
+                            .toEqual({ isValid: false, reason: 'tagParams.' + field + ' must be in format: string' });
                     });
                     
                     it('should fail if the field is not set', function() {
-                        delete newObj.data[field];
+                        delete newObj.tagParams[field];
                         expect(svc.model.validate('create', newObj, origObj, requester))
-                            .toEqual({ isValid: false, reason: 'Missing required field: data.' + field });
+                            .toEqual({ isValid: false, reason: 'Missing required field: tagParams.' + field });
                     });
 
                     it('should pass if the field was set on the origObj', function() {
-                        origObj.data = { container: 'old container', campaign: 'cam-old' };
-                        delete newObj.data[field];
+                        origObj.tagParams = { container: 'old container', campaign: 'cam-old' };
+                        delete newObj.tagParams[field];
                         expect(svc.model.validate('create', newObj, origObj, requester))
                             .toEqual({ isValid: true, reason: undefined });
-                        expect(newObj.data[field]).toEqual(origObj.data[field]);
+                        expect(newObj.tagParams[field]).toEqual(origObj.tagParams[field]);
                     });
                     
                     it('should allow the field to be set', function() {
-                        newObj.data[field] = 'foo';
+                        newObj.tagParams[field] = 'foo';
                         expect(svc.model.validate('create', newObj, origObj, requester))
                             .toEqual({ isValid: true, reason: undefined });
-                        expect(newObj.data[field]).toEqual('foo');
+                        expect(newObj.tagParams[field]).toEqual('foo');
                     });
                 });
             });
@@ -280,27 +280,27 @@ describe('ads-placements (UT)', function() {
             ['card', 'experience'].forEach(function(field) {
                 describe('subfield ' + field, function() {
                     it('should fail if the field is not a string', function() {
-                        newObj.data[field] = 1234;
+                        newObj.tagParams[field] = 1234;
                         expect(svc.model.validate('create', newObj, origObj, requester))
-                            .toEqual({ isValid: false, reason: 'data.' + field + ' must be in format: string' });
+                            .toEqual({ isValid: false, reason: 'tagParams.' + field + ' must be in format: string' });
                     });
                     
                     it('should allow the field to be set', function() {
-                        newObj.data[field] = 'foo';
+                        newObj.tagParams[field] = 'foo';
                         expect(svc.model.validate('create', newObj, origObj, requester))
                             .toEqual({ isValid: true, reason: undefined });
-                        expect(newObj.data[field]).toEqual('foo');
+                        expect(newObj.tagParams[field]).toEqual('foo');
                     });
                 });
             });
         });
     });
     
-    describe('validateDataRefs', function() {
+    describe('validateExtRefs', function() {
         var svc, collections;
         beforeEach(function() {
             req.body = {
-                data: {
+                tagParams: {
                     container: 'box',
                     campaign: 'cam-1',
                     card: 'rc-1',
@@ -319,8 +319,8 @@ describe('ads-placements (UT)', function() {
             svc = { _db: mockDb };
         });
         
-        it('should check that all linked entities in req.body.data exist and call next', function(done) {
-            placeModule.validateDataRefs(svc, req, nextSpy, doneSpy).catch(errorSpy).finally(function() {
+        it('should check that all linked entities in req.body.tagParams exist and call next', function(done) {
+            placeModule.validateExtRefs(svc, req, nextSpy, doneSpy).catch(errorSpy).finally(function() {
                 expect(nextSpy).toHaveBeenCalled();
                 expect(doneSpy).not.toHaveBeenCalled();
                 expect(errorSpy).not.toHaveBeenCalled();
@@ -332,10 +332,10 @@ describe('ads-placements (UT)', function() {
             }).done(done);
         });
 
-        it('should skip entities that are not defined in req.body.data', function(done) {
-            delete req.body.data.card;
-            delete req.body.data.experience;
-            placeModule.validateDataRefs(svc, req, nextSpy, doneSpy).catch(errorSpy).finally(function() {
+        it('should skip entities that are not defined in req.body.tagParams', function(done) {
+            delete req.body.tagParams.card;
+            delete req.body.tagParams.experience;
+            placeModule.validateExtRefs(svc, req, nextSpy, doneSpy).catch(errorSpy).finally(function() {
                 expect(nextSpy).toHaveBeenCalled();
                 expect(doneSpy).not.toHaveBeenCalled();
                 expect(errorSpy).not.toHaveBeenCalled();
@@ -349,7 +349,7 @@ describe('ads-placements (UT)', function() {
         
         it('should call done if an entity cannot be found', function(done) {
             collections.cards.count.and.returnValue(q(0));
-            placeModule.validateDataRefs(svc, req, nextSpy, doneSpy).catch(errorSpy).finally(function() {
+            placeModule.validateExtRefs(svc, req, nextSpy, doneSpy).catch(errorSpy).finally(function() {
                 expect(nextSpy).not.toHaveBeenCalled();
                 expect(doneSpy).toHaveBeenCalledWith({ code: 400, body: 'card rc-1 not found' });
                 expect(errorSpy).not.toHaveBeenCalled();
@@ -364,7 +364,7 @@ describe('ads-placements (UT)', function() {
         it('should only call done once', function(done) {
             collections.cards.count.and.returnValue(q(0));
             collections.containers.count.and.returnValue(q(0));
-            placeModule.validateDataRefs(svc, req, nextSpy, doneSpy).catch(errorSpy).finally(function() {
+            placeModule.validateExtRefs(svc, req, nextSpy, doneSpy).catch(errorSpy).finally(function() {
                 expect(nextSpy).not.toHaveBeenCalled();
                 expect(doneSpy).toHaveBeenCalledWith({ code: 400, body: 'container box not found' });
                 expect(doneSpy.calls.count()).toBe(1);
@@ -380,7 +380,7 @@ describe('ads-placements (UT)', function() {
         it('should reject if one or more queries fail', function(done) {
             collections.experiences.count.and.returnValue(q.reject('Experiences got a problem'));
             collections.campaigns.count.and.returnValue(q.reject('Campaigns got a problem'));
-            placeModule.validateDataRefs(svc, req, nextSpy, doneSpy).catch(errorSpy).finally(function() {
+            placeModule.validateExtRefs(svc, req, nextSpy, doneSpy).catch(errorSpy).finally(function() {
                 expect(nextSpy).not.toHaveBeenCalled();
                 expect(doneSpy).not.toHaveBeenCalled();
                 expect(errorSpy).toHaveBeenCalledWith(new Error('Mongo error'));
@@ -397,7 +397,7 @@ describe('ads-placements (UT)', function() {
         var oldDate;
         beforeEach(function() {
             req.body = {
-                data: { container: 'box', campaign: 'cam-1' },
+                tagParams: { container: 'box', campaign: 'cam-1' },
                 externalCost: { event: 'click', cost: 0.1 }
             };
 
@@ -484,7 +484,7 @@ describe('ads-placements (UT)', function() {
                 externalCost    : { event: 'click', cost: 1.0 },
                 costHistory     : [{ yesterday: 'expensive' }],
                 budget          : { daily: 100, total: 1000 },
-                data            : { foo: 'bar' }
+                tagParams            : { foo: 'bar' }
             };
             cache = {
                 getPromise: jasmine.createSpy('cache.getPromise').and.callFake(function() { return q([mockPlacement]); })
@@ -499,7 +499,7 @@ describe('ads-placements (UT)', function() {
                 expect(resp).toEqual({
                     id: 'pl-1',
                     status: Status.Active,
-                    data: { foo: 'bar' }
+                    tagParams: { foo: 'bar' }
                 });
                 expect(cache.getPromise).toHaveBeenCalledWith({ id: 'pl-1' });
                 expect(svc.formatOutput).toHaveBeenCalledWith(mockPlacement);
@@ -550,7 +550,7 @@ describe('ads-placements (UT)', function() {
         var svc, res;
         beforeEach(function() {
             svc = {
-                getPublicPlacement: jasmine.createSpy('svc.getPublicPlacement()').and.returnValue(q({ id: 'pl-1', data: { foo: 'bar' } }))
+                getPublicPlacement: jasmine.createSpy('svc.getPublicPlacement()').and.returnValue(q({ id: 'pl-1', tagParams: { foo: 'bar' } }))
             };
             res = {
                 header: jasmine.createSpy('res.header()')
@@ -563,7 +563,7 @@ describe('ads-placements (UT)', function() {
         
         it('should set the cache-control and return a 200 if the placement is found', function(done) {
             placeModule.handlePublicGet(req, res, svc).then(function(resp) {
-                expect(resp).toEqual({ code: 200, body: { id: 'pl-1', data: { foo: 'bar' } } });
+                expect(resp).toEqual({ code: 200, body: { id: 'pl-1', tagParams: { foo: 'bar' } } });
                 expect(svc.getPublicPlacement).toHaveBeenCalledWith('pl-1', req);
                 expect(res.header).toHaveBeenCalledWith('cache-control', 'max-age=300');
             }).catch(function(error) {
@@ -589,7 +589,7 @@ describe('ads-placements (UT)', function() {
 
             it('should return the placement as a CommonJS module', function(done) {
                 placeModule.handlePublicGet(req, res, svc).then(function(resp) {
-                    expect(resp).toEqual({ code: 200, body: 'module.exports = {"id":"pl-1","data":{"foo":"bar"}};' });
+                    expect(resp).toEqual({ code: 200, body: 'module.exports = {"id":"pl-1","tagParams":{"foo":"bar"}};' });
                     expect(svc.getPublicPlacement).toHaveBeenCalledWith('pl-1', req);
                     expect(res.header).toHaveBeenCalledWith('cache-control', 'max-age=300');
                 }).catch(function(error) {
@@ -616,7 +616,7 @@ describe('ads-placements (UT)', function() {
 
             it('should not set the cache-control header', function(done) {
                 placeModule.handlePublicGet(req, res, svc).then(function(resp) {
-                    expect(resp).toEqual({ code: 200, body: { id: 'pl-1', data: { foo: 'bar' } } });
+                    expect(resp).toEqual({ code: 200, body: { id: 'pl-1', tagParams: { foo: 'bar' } } });
                     expect(svc.getPublicPlacement).toHaveBeenCalledWith('pl-1', req);
                     expect(res.header).not.toHaveBeenCalled();
                 }).catch(function(error) {

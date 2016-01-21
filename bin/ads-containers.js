@@ -18,7 +18,7 @@
             __allowed: true,
             __type: 'string'
         },
-        defaultData: {
+        defaultTagParams: {
             __type: 'object',
             __default: {},
             __required: true,
@@ -46,11 +46,11 @@
         return svc;
     };
     
-    // copy top-level name to defaultData.container
+    // copy top-level name to defaultTagParams.container
     conModule.copyName = function(req, next/*, done*/) {
         var name = req.body.name || req.origObj.name;
 
-        req.body.defaultData.container = name;
+        req.body.defaultTagParams.container = name;
         
         next();
     };

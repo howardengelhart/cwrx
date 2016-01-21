@@ -55,7 +55,7 @@
             __type: 'objectArray',
             __locked: true
         },
-        data: {
+        tagParams: {
             __type: 'object',
             __required: true,
             container: {
@@ -86,12 +86,12 @@
         
         svc._db = db;
         
-        var validateDataRefs = placeModule.validateDataRefs.bind(placeModule, svc);
+        var validateExtRefs = placeModule.validateExtRefs.bind(placeModule, svc);
         
-        svc.use('create', validateDataRefs);
+        svc.use('create', validateExtRefs);
         svc.use('create', placeModule.handleCostHistory);
         
-        svc.use('edit', validateDataRefs);
+        svc.use('edit', validateExtRefs);
         svc.use('edit', placeModule.handleCostHistory);
         
         var cache = new QueryCache(
@@ -104,18 +104,18 @@
         return svc;
     };
     
-    // Check that references to other C6 objects in data hash are valid
-    placeModule.validateDataRefs = function(svc, req, next, done) {
+    // Check that references to other C6 objects in tagParams hash are valid
+    placeModule.validateExtRefs = function(svc, req, next, done) {
         var log = logger.getLog(),
             doneCalled = false;
         
         function checkExistence(prop, query) {
             // pass check w/o querying mongo if prop doesn't exist
-            if (!req.body.data[prop]) {
+            if (!req.body.tagParams[prop]) {
                 return q();
             }
             
-            log.trace('[%1] Checking that %2 %3 exists', req.uuid, prop, req.body.data[prop]);
+            log.trace('[%1] Checking that %2 %3 exists', req.uuid, prop, req.body.tagParams[prop]);
             
             return q(svc._db.collection(prop + 's').count(query))
             .then(function(count) {
@@ -123,7 +123,7 @@
                     return;
                 }
 
-                var msg = util.format('%s %s not found', prop, req.body.data[prop]);
+                var msg = util.format('%s %s not found', prop, req.body.tagParams[prop]);
                 log.info('[%1] %2 with query %3, not saving placement',
                          req.uuid, msg, util.inspect(query));
 
@@ -140,20 +140,20 @@
         
         return q.all([
             checkExistence('container', {
-                name: req.body.data.container,
+                name: req.body.tagParams.container,
                 status: { $ne: Status.Deleted }
             }),
             checkExistence('card', {
-                id: req.body.data.card,
-                campaignId: req.body.data.campaign,
+                id: req.body.tagParams.card,
+                campaignId: req.body.tagParams.campaign,
                 status: { $ne: Status.Deleted }
             }),
             checkExistence('campaign', {
-                id: req.body.data.campaign,
+                id: req.body.tagParams.campaign,
                 status: { $nin: [Status.Deleted, Status.Canceled, Status.Expired] }
             }),
             checkExistence('experience', {
-                id: req.body.data.experience,
+                id: req.body.tagParams.experience,
                 'status.0.status': { $ne: Status.Deleted }
             })
         ])
@@ -270,8 +270,8 @@
             if ('ids' in req.query) {
                 query.id = String(req.query.ids).split(',');
             }
-            ['user', 'org', 'data.container', 'data.experience',
-             'data.card', 'data.campaign'].forEach(function(field) {
+            ['user', 'org', 'tagParams.container', 'tagParams.experience',
+             'tagParams.card', 'tagParams.campaign'].forEach(function(field) {
                 if (req.query[field]) {
                     query[field] = String(req.query[field]);
                 }
