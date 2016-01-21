@@ -538,6 +538,21 @@ describe('player service', function() {
                         });
                     });
 
+                    describe('route: GET /api/public/player', function() {
+                        var middlewareify;
+
+                        beforeEach(function() {
+                            middlewareify = _.find(player.middlewareify.calls.all(), function(call) {
+                                return call.args[0] === 'getViaPlacement';
+                            });
+                            expect(middlewareify).toBeDefined();
+                        });
+
+                        it('should exist', function() {
+                            expect(expressApp.get).toHaveBeenCalledWith('/api/public/player', expressUtils.parseQuery.calls.mostRecent().returnValue, expressUtils.cloudwatchMetrics.calls.mostRecent().returnValue, middlewareify.returnValue);
+                        });
+                    });
+
                     describe('route: GET /api/public/players/:type', function() {
                         var middlewareify;
 

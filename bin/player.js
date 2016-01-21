@@ -557,6 +557,11 @@ Player.startService = function startService() {
             res.send(200, state.config.appVersion);
         });
 
+        app.get(
+            '/api/public/player',
+            parsePlayerQuery, sendMetrics, player.middlewareify('getViaPlacement')
+        );
+
         app.get('/api/public/players/:type', parsePlayerQuery, sendMetrics, function redirect(
             req,
             res,
