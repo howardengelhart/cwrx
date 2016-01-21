@@ -104,21 +104,21 @@ describe('content card endpoints (E2E):', function() {
             done();
         });
     });
-    
+
     describe('public endpoints', function() {
         var mockCards, mockCamps, options;
         beforeEach(function(done) {
             mockCards = [
-                { id: 'e2e-pubget1', campaign: { minViewTime: 3 }, campaignId: 'cam-cards-e2e1', status: 'active', user: 'e2e-user', org: 'e2e-org' },
-                { id: 'e2e-pubget2', campaign: { minViewTime: 3 }, campaignId: 'cam-cards-multi', status: 'active', user: 'e2e-user', org: 'e2e-org' },
-                { id: 'e2e-pubget3', campaign: { minViewTime: 3 }, campaignId: 'cam-cards-multi', status: 'active', user: 'e2e-user', org: 'e2e-org' },
-                { id: 'e2e-pubget4', campaign: { minViewTime: 3 }, campaignId: 'cam-cards-multi', status: 'active', user: 'e2e-user', org: 'e2e-org' },
-                { id: 'e2e-pubgetInactive', campaignId: 'cam-cards-e2e1', status: 'inactive', user: 'e2e-user', org: 'e2e-org' },
-                { id: 'e2e-pubgetDeleted', campaignId: 'cam-cards-e2e1', status: 'deleted', user: 'e2e-user', org: 'e2e-org' },
-                { id: 'e2e-draftCamp', campaign: { minViewTime: 3 }, campaignId: 'cam-cards-e2e2', status: 'active', user: 'e2e-user', org: 'e2e-org' },
-                { id: 'e2e-canceledCamp', campaign: { minViewTime: 3 }, campaignId: 'cam-cards-e2e3', status: 'active', user: 'e2e-user', org: 'e2e-org' },
-                { id: 'e2e-expiredCamp', campaign: { minViewTime: 3 }, campaignId: 'cam-cards-e2e4', status: 'active', user: 'e2e-user', org: 'e2e-org' },
-                { id: 'e2e-deletedCamp', campaign: { minViewTime: 3 }, campaignId: 'cam-cards-e2e5', status: 'active', user: 'e2e-user', org: 'e2e-org' },
+                { id: 'rc-pubget1', campaign: { minViewTime: 3 }, campaignId: 'cam-cards-e2e1', status: 'active', user: 'e2e-user', org: 'e2e-org' },
+                { id: 'rc-pubget2', campaign: { minViewTime: 3 }, campaignId: 'cam-cards-multi', status: 'active', user: 'e2e-user', org: 'e2e-org' },
+                { id: 'rc-pubget3', campaign: { minViewTime: 3 }, campaignId: 'cam-cards-multi', status: 'active', user: 'e2e-user', org: 'e2e-org' },
+                { id: 'rc-pubget4', campaign: { minViewTime: 3 }, campaignId: 'cam-cards-multi', status: 'active', user: 'e2e-user', org: 'e2e-org' },
+                { id: 'rc-pubgetInactive', campaignId: 'cam-cards-e2e1', status: 'inactive', user: 'e2e-user', org: 'e2e-org' },
+                { id: 'rc-pubgetDeleted', campaignId: 'cam-cards-e2e1', status: 'deleted', user: 'e2e-user', org: 'e2e-org' },
+                { id: 'rc-draftCamp', campaign: { minViewTime: 3 }, campaignId: 'cam-cards-e2e2', status: 'active', user: 'e2e-user', org: 'e2e-org' },
+                { id: 'rc-canceledCamp', campaign: { minViewTime: 3 }, campaignId: 'cam-cards-e2e3', status: 'active', user: 'e2e-user', org: 'e2e-org' },
+                { id: 'rc-expiredCamp', campaign: { minViewTime: 3 }, campaignId: 'cam-cards-e2e4', status: 'active', user: 'e2e-user', org: 'e2e-org' },
+                { id: 'rc-deletedCamp', campaign: { minViewTime: 3 }, campaignId: 'cam-cards-e2e5', status: 'active', user: 'e2e-user', org: 'e2e-org' },
             ];
             mockCamps = [
                 {
@@ -126,13 +126,13 @@ describe('content card endpoints (E2E):', function() {
                     status: 'active',
                     advertiserId: 'a-1',
                     advertiserDisplayName: 'Heinz',
-                    cards: [{ id: 'e2e-pubget1' }]
+                    cards: [{ id: 'rc-pubget1' }]
                 },
                 {
                     id: 'cam-cards-multi',
                     status: 'active',
                     advertiserDisplayName: 'Skippy',
-                    cards: [{ id: 'e2e-pubget2' }, { id: 'e2e-pubget3' }, { id: 'e2e-pubget4' }]
+                    cards: [{ id: 'rc-pubget2' }, { id: 'rc-pubget3' }, { id: 'rc-pubget4' }]
                 },
                 { id: 'cam-cards-empty', status: 'active', user: 'e2e-user', org: 'e2e-org' },
                 { id: 'cam-cards-e2e2', status: 'draft', user: 'e2e-user', org: 'e2e-org' },
@@ -150,10 +150,11 @@ describe('content card endpoints (E2E):', function() {
         describe('GET /api/public/content/cards/:id', function() {
             beforeEach(function() {
                 options = {
-                    url: config.contentUrl + '/public/content/cards/e2e-pubget1',
+                    url: config.contentUrl + '/public/content/cards/rc-pubget1',
                     headers: { origin: 'http://test.com' },
                     qs: {
                         container: 'embed',
+                        placement: 'pl-1',
                         hostApp: 'Mapsaurus',
                         network: 'pocketmath'
                     }
@@ -164,7 +165,7 @@ describe('content card endpoints (E2E):', function() {
                 requestUtils.qRequest('get', options).then(function(resp) {
                     expect(resp.response.statusCode).toBe(200);
                     expect(resp.body).toEqual({
-                        id: 'e2e-pubget1',
+                        id: 'rc-pubget1',
                         status: 'active',
                         campaignId: 'cam-cards-e2e1',
                         params: { sponsor: 'Heinz' },
@@ -199,9 +200,10 @@ describe('content card endpoints (E2E):', function() {
 
                         var expectedQuery = {
                             campaign    : 'cam-cards-e2e1',
-                            card        : 'e2e-pubget1',
+                            card        : 'rc-pubget1',
                             experience  : '',
                             container   : 'embed',
+                            placement: 'pl-1',
                             host        : 'test.com',
                             hostApp     : 'Mapsaurus',
                             network     : 'pocketmath',
@@ -257,7 +259,7 @@ describe('content card endpoints (E2E):', function() {
                 requestUtils.qRequest('get', options).then(function(resp) {
                     expect(resp.response.statusCode).toBe(200);
                     expect(resp.body).toEqual({
-                        id: 'e2e-pubget1',
+                        id: 'rc-pubget1',
                         status: 'active',
                         campaignId: 'cam-cards-e2e1',
                         params: { sponsor: 'Heinz' },
@@ -276,8 +278,8 @@ describe('content card endpoints (E2E):', function() {
             describe('if retrieving a card with links and shareLinks', function() {
                 beforeEach(function(done) {
                     mockCards.push({
-                        id: 'e2e-pubgetlinks',
-                        campaign: { adtechId: 14, bannerNumber: 2 },
+                        id: 'rc-pubgetlinks',
+                        campaign: { minViewTime: 1 },
                         campaignId: 'cam-links',
                         status: 'active',
                         user: 'e2e-user',
@@ -292,9 +294,9 @@ describe('content card endpoints (E2E):', function() {
                             pinterest: 'http://pntrst.com'
                         }
                     });
-                    mockCamps[0].cards.push({ id: 'e2e-pubgetlinks' });
+                    mockCamps[0].cards.push({ id: 'rc-pubgetlinks' });
                     mockCamps[0].id = 'cam-links';
-                    options.url = config.contentUrl + '/public/content/cards/e2e-pubgetlinks';
+                    options.url = config.contentUrl + '/public/content/cards/rc-pubgetlinks';
                     q.all([
                         testUtils.resetCollection('cards', mockCards),
                         testUtils.resetCollection('campaigns', mockCamps)
@@ -305,12 +307,10 @@ describe('content card endpoints (E2E):', function() {
                     requestUtils.qRequest('get', options).then(function(resp) {
                         expect(resp.response.statusCode).toBe(200);
                         expect(resp.body).toEqual({
-                            id: 'e2e-pubgetlinks',
+                            id: 'rc-pubgetlinks',
                             status: 'active',
                             campaignId: 'cam-links',
                             params: { sponsor: 'Heinz' },
-                            adtechId: 14,
-                            bannerId: 2,
                             campaign: jasmine.any(Object),
                             links: {
                                 Facebook: {
@@ -344,9 +344,10 @@ describe('content card endpoints (E2E):', function() {
                             expect(parsed.pathname).toBeDefined();
                             expect(parsed.query).toEqual({
                                 campaign    : 'cam-links',
-                                card        : 'e2e-pubgetlinks',
+                                card        : 'rc-pubgetlinks',
                                 experience  : '',
                                 container   : 'embed',
+                                placement   : 'pl-1',
                                 host        : 'test.com',
                                 hostApp     : 'Mapsaurus',
                                 network     : 'pocketmath',
@@ -362,9 +363,10 @@ describe('content card endpoints (E2E):', function() {
                             expect(parsed.pathname).toBeDefined();
                             expect(parsed.query).toEqual({
                                 campaign    : 'cam-links',
-                                card        : 'e2e-pubgetlinks',
+                                card        : 'rc-pubgetlinks',
                                 experience  : '',
                                 container   : 'embed',
+                                placement   : 'pl-1',
                                 host        : 'test.com',
                                 hostApp     : 'Mapsaurus',
                                 network     : 'pocketmath',
@@ -415,8 +417,8 @@ describe('content card endpoints (E2E):', function() {
             });
 
             it('should not show inactive or deleted cards', function(done) {
-                q.all(['e2e-pubgetInactive', 'e2e-pubgetDeleted'].map(function(id) {
-                    options.url = options.url.replace('e2e-pubget1', id);
+                q.all(['rc-pubgetInactive', 'rc-pubgetDeleted'].map(function(id) {
+                    options.url = options.url.replace('rc-pubget1', id);
                     return requestUtils.qRequest('get', options);
                 }))
                 .then(function(results) {
@@ -432,9 +434,9 @@ describe('content card endpoints (E2E):', function() {
             });
             
             it('should not show cards with campaigns that are not running', function(done) {
-                q.all(['e2e-canceledCamp', 'e2e-expiredCamp', 'e2e-deletedCamp'].map(function(id) {
+                q.all(['rc-canceledCamp', 'rc-expiredCamp', 'rc-deletedCamp'].map(function(id) {
                     var opts = JSON.parse(JSON.stringify(options));
-                    opts.url = opts.url.replace('e2e-pubget1', id);
+                    opts.url = opts.url.replace('rc-pubget1', id);
                     return requestUtils.qRequest('get', opts);
                 })).then(function(results) {
                     results.forEach(function(resp) {
@@ -449,11 +451,11 @@ describe('content card endpoints (E2E):', function() {
             });
             
             it('should show cards with draft campaigns', function(done) {
-                options.url = options.url.replace('e2e-pubget1', 'e2e-draftCamp');
+                options.url = options.url.replace('rc-pubget1', 'rc-draftCamp');
                 requestUtils.qRequest('get', options).then(function(resp) {
                     expect(resp.response.statusCode).toBe(200);
                     expect(resp.body).toEqual(jasmine.objectContaining({
-                        id: 'e2e-draftCamp',
+                        id: 'rc-draftCamp',
                         status: 'active',
                         campaignId: 'cam-cards-e2e2',
                         campaign: jasmine.objectContaining({
@@ -468,7 +470,7 @@ describe('content card endpoints (E2E):', function() {
             });
             
             it('should return a 404 for nonexistent cards', function(done) {
-                options.url = options.url.replace('e2e-pubget1', 'e2e-fake');
+                options.url = options.url.replace('rc-pubget1', 'rc-SDLJFWOIEU');
                 requestUtils.qRequest('get', options).then(function(resp) {
                     expect(resp.response.statusCode).toBe(404);
                     expect(resp.body).toBe('Card not found');
@@ -488,94 +490,50 @@ describe('content card endpoints (E2E):', function() {
                     expect(util.inspect(error)).not.toBeDefined();
                 }).done(done);
             });
-        });
+            
+            describe('if the url extension is .js', function() {
+                it('should get a card by id', function(done) {
+                    options.url = config.contentUrl + '/public/content/cards/rc-pubget1.js';
+                    requestUtils.qRequest('get', options).then(function(resp) {
+                        expect(resp.response.statusCode).toBe(200);
+                        expect(resp.body).toMatch(/module\.exports = {.*"id":"rc-pubget1".*};/);
+                        expect(resp.response.headers['content-type']).toBe('application/javascript; charset=utf-8');
+                    }).catch(function(error) {
+                        expect(util.inspect(error)).not.toBeDefined();
+                    }).done(done);
+                });
 
-        /* Currently, this endpoint is identical to GET /api/public/cards/:id, so only one test is
-         * included here as a sanity check. If the endpoints diverge, additional tests should be written. */
-        describe('GET /api/public/cards/:id.json', function() {
-            it('should get a card by id', function(done) {
-                options = {
-                    url: config.contentUrl + '/public/content/cards/e2e-pubget1.json',
-                    headers: { origin: 'http://test.com' },
-                    qs: {
-                        container: 'embed',
-                        hostApp: 'Mapsaurus',
-                        network: 'pocketmath'
-                    }
-                };
-                requestUtils.qRequest('get', options).then(function(resp) {
-                    expect(resp.response.statusCode).toBe(200);
-                    expect(resp.body).toEqual({
-                        id: 'e2e-pubget1',
-                        status: 'active',
-                        campaignId: 'cam-cards-e2e1',
-                        params: { sponsor: 'Heinz' },
-                        campaign: jasmine.any(Object)
-                    });
-                    expect(resp.response.headers['content-type']).toBe('application/json; charset=utf-8');
-                    expect(resp.response.headers['cache-control']).toEqual(jasmine.any(String));
-                    expect(resp.response.headers['cache-control']).not.toBe('max-age=0');
-                }).catch(function(error) {
-                    expect(util.inspect(error)).not.toBeDefined();
-                }).done(done);
+                it('should return errors in normal format', function(done) {
+                    options.url = config.contentUrl + '/public/content/cards/rc-LSKFJWOI.js';
+                    requestUtils.qRequest('get', options).then(function(resp) {
+                        expect(resp.response.statusCode).toBe(404);
+                        expect(resp.body).toBe('Card not found');
+                        expect(resp.response.headers['content-type']).toBe('text/html; charset=utf-8');
+                    }).catch(function(error) {
+                        expect(util.inspect(error)).not.toBeDefined();
+                    }).done(done);
+                });
             });
-        });
-
-        /* Currently this endpoint is mostly identical to GET /api/public/cards/:id, so two tests
-         * are included to verify that the output is formatted correctly. If the endpoints diverge,
-         * additional tests should be written. */
-        describe('GET /api/public/cards/:id.js', function() {
-            var mockCard, mockOrg, options;
-            beforeEach(function(done) {
-                options = { url: config.contentUrl + '/public/content/cards/e2e-pubgetjs1.js' };
-                mockCard = { id: 'e2e-pubgetjs1', status: 'active', campaignId: 'cam-cards-e2e1' };
-                testUtils.resetCollection('cards', mockCard).done(done);
-            });
-
-            it('should get a card by id', function(done) {
-                options.url = config.contentUrl + '/public/content/cards/e2e-pubget1.js';
-                requestUtils.qRequest('get', options).then(function(resp) {
-                    expect(resp.response.statusCode).toBe(200);
-                    expect(resp.body).toMatch(/module\.exports = {.*"id":"e2e-pubget1".*};/);
-                    expect(resp.response.headers['content-type']).toBe('application/javascript; charset=utf-8');
-                }).catch(function(error) {
-                    expect(util.inspect(error)).not.toBeDefined();
-                }).done(done);
-            });
-
-            it('should return errors in normal format', function(done) {
-                options.url = config.contentUrl + '/public/content/cards/e2e-fake.js';
-                requestUtils.qRequest('get', options).then(function(resp) {
-                    expect(resp.response.statusCode).toBe(404);
-                    expect(resp.body).toBe('Card not found');
-                    expect(resp.response.headers['content-type']).toBe('text/html; charset=utf-8');
-                }).catch(function(error) {
-                    expect(util.inspect(error)).not.toBeDefined();
-                }).done(done);
-            });
-        });
-
-        // sanity check that singular endpoint still works
-        describe('GET /api/public/content/card/:id', function() {
-            it('should get an active card by id', function(done) {
-                options = {
-                    url: config.contentUrl + '/public/content/card/e2e-pubget1',
-                    headers: { origin: 'http://test.com' },
-                    qs: {
-                        container: 'embed',
-                        hostApp: 'Mapsaurus',
-                        network: 'pocketmath'
-                    }
-                };
-                requestUtils.qRequest('get', options).then(function(resp) {
-                    expect(resp.response.statusCode).toBe(200);
-                    expect(resp.body.id).toBe('e2e-pubget1');
-                    expect(resp.response.headers['content-type']).toBe('application/json; charset=utf-8');
-                    expect(resp.response.headers['cache-control']).toEqual(jasmine.any(String));
-                    expect(resp.response.headers['cache-control']).not.toBe('max-age=0');
-                }).catch(function(error) {
-                    expect(util.inspect(error)).not.toBeDefined();
-                }).done(done);
+            
+            describe('if the url extension is .json', function() {
+                it('should return the card as JSON normally', function(done) {
+                    options.url = config.contentUrl + '/public/content/cards/rc-pubget1.json';
+                    requestUtils.qRequest('get', options).then(function(resp) {
+                        expect(resp.response.statusCode).toBe(200);
+                        expect(resp.body).toEqual({
+                            id: 'rc-pubget1',
+                            status: 'active',
+                            campaignId: 'cam-cards-e2e1',
+                            params: { sponsor: 'Heinz' },
+                            campaign: jasmine.any(Object),
+                        });
+                        expect(resp.response.headers['content-type']).toBe('application/json; charset=utf-8');
+                        expect(resp.response.headers['cache-control']).toEqual(jasmine.any(String));
+                        expect(resp.response.headers['cache-control']).not.toBe('max-age=0');
+                    }).catch(function(error) {
+                        expect(util.inspect(error)).not.toBeDefined();
+                    }).done(done);
+                });
             });
         });
         
@@ -587,6 +545,7 @@ describe('content card endpoints (E2E):', function() {
                     qs: {
                         campaign: 'cam-cards-multi',
                         container: 'embed',
+                        placement: 'pl-1',
                         hostApp: 'Mapsaurus',
                         network: 'pocketmath'
                     }
@@ -597,9 +556,9 @@ describe('content card endpoints (E2E):', function() {
                 requestUtils.qRequest('get', options).then(function(resp) {
                     expect(resp.response.statusCode).toBe(200);
                     expect(resp.body.length).toBe(3);
-                    expect(resp.body[0]).toEqual(jasmine.objectContaining({ id: 'e2e-pubget2', campaign: jasmine.any(Object) }));
-                    expect(resp.body[1]).toEqual(jasmine.objectContaining({ id: 'e2e-pubget3', campaign: jasmine.any(Object) }));
-                    expect(resp.body[2]).toEqual(jasmine.objectContaining({ id: 'e2e-pubget4', campaign: jasmine.any(Object) }));
+                    expect(resp.body[0]).toEqual(jasmine.objectContaining({ id: 'rc-pubget2', campaign: jasmine.any(Object) }));
+                    expect(resp.body[1]).toEqual(jasmine.objectContaining({ id: 'rc-pubget3', campaign: jasmine.any(Object) }));
+                    expect(resp.body[2]).toEqual(jasmine.objectContaining({ id: 'rc-pubget4', campaign: jasmine.any(Object) }));
                     
                     resp.body.forEach(function(card) {
                         [
@@ -622,6 +581,7 @@ describe('content card endpoints (E2E):', function() {
                                 card        : card.id,
                                 experience  : '',
                                 container   : 'embed',
+                                placement   : 'pl-1',
                                 host        : 'test.com',
                                 hostApp     : 'Mapsaurus',
                                 network     : 'pocketmath',
@@ -663,8 +623,8 @@ describe('content card endpoints (E2E):', function() {
                 requestUtils.qRequest('get', options).then(function(resp) {
                     expect(resp.response.statusCode).toBe(200);
                     expect(resp.body.length).toBe(2);
-                    expect(resp.body[0]).toEqual(jasmine.objectContaining({ id: 'e2e-pubget2', campaign: jasmine.any(Object) }));
-                    expect(resp.body[1]).toEqual(jasmine.objectContaining({ id: 'e2e-pubget3', campaign: jasmine.any(Object) }));
+                    expect(resp.body[0]).toEqual(jasmine.objectContaining({ id: 'rc-pubget2', campaign: jasmine.any(Object) }));
+                    expect(resp.body[1]).toEqual(jasmine.objectContaining({ id: 'rc-pubget3', campaign: jasmine.any(Object) }));
                     expect(resp.response.headers['content-range']).toBe('items 1-2/3');
                 }).catch(function(error) {
                     expect(util.inspect(error)).not.toBeDefined();
@@ -680,9 +640,9 @@ describe('content card endpoints (E2E):', function() {
                     requestUtils.qRequest('get', options).then(function(resp) {
                         expect(resp.response.statusCode).toBe(200);
                         expect(resp.body.length).toBe(3);
-                        expect(resp.body).toContain(jasmine.objectContaining({ id: 'e2e-pubget2', campaign: jasmine.any(Object) }));
-                        expect(resp.body).toContain(jasmine.objectContaining({ id: 'e2e-pubget3', campaign: jasmine.any(Object) }));
-                        expect(resp.body).toContain(jasmine.objectContaining({ id: 'e2e-pubget4', campaign: jasmine.any(Object) }));
+                        expect(resp.body).toContain(jasmine.objectContaining({ id: 'rc-pubget2', campaign: jasmine.any(Object) }));
+                        expect(resp.body).toContain(jasmine.objectContaining({ id: 'rc-pubget3', campaign: jasmine.any(Object) }));
+                        expect(resp.body).toContain(jasmine.objectContaining({ id: 'rc-pubget4', campaign: jasmine.any(Object) }));
                         expect(resp.response.headers['content-range']).not.toBeDefined();
                     }).catch(function(error) {
                         expect(util.inspect(error)).not.toBeDefined();
@@ -695,7 +655,7 @@ describe('content card endpoints (E2E):', function() {
                         expect(resp.response.statusCode).toBe(200);
                         expect(resp.body.length).toBe(2);
                         var optionalMatcher = { asymmetricMatch: function(actual) {
-                            return actual.id === 'e2e-pubget2' || actual.id === 'e2e-pubget3' || actual.id === 'e2e-pubget4';
+                            return actual.id === 'rc-pubget2' || actual.id === 'rc-pubget3' || actual.id === 'rc-pubget4';
                         } };
                         expect(resp.body[0]).toEqual(optionalMatcher);
                         expect(resp.body[1]).toEqual(optionalMatcher);
@@ -756,8 +716,7 @@ describe('content card endpoints (E2E):', function() {
             });
         });
     });
-
-
+    
     describe('GET /api/content/cards/:id', function() {
         beforeEach(function(done) {
             var mockCards = [
