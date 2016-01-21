@@ -557,7 +557,12 @@ Player.startService = function startService() {
                 var status = (reason && reason.status) || 500;
                 var message = (reason && reason.message) || 'Internal error';
 
-                log.info('[%1] Failure: {%2} %3', uuid, status, message);
+                if (reason instanceof ServiceError) {
+                    log.info('[%1] Failure: {%2} %3', uuid, status, message);
+                } else {
+                    log.error('[%1] Failure: {%2} %3 [%4]', uuid, status, inspect(reason), req.url);
+                }
+
                 res.send(status, message);
             });
         });

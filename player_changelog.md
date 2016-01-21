@@ -1,5 +1,9 @@
 # Player Service Changelog
 
+### 2.2.1: Thu Jan 21 10:53:29 EST 2016
+* [FIX]: Log errors (and trigger PagerDuty alerts) when requests fail
+  for unexpected reasons: [#753](https://github.com/cinema6/cwrx/pull/753)
+
 ### 2.2.0: Wed Jan 20 12:14:09 EST 2016
 * [FEATURE]: Add support for third-party `clickUrls` that will be fired
   whenever a link click/share occurs: [#747](https://github.com/cinema6/cwrx/pull/747)

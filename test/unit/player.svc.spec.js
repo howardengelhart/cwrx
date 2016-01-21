@@ -171,6 +171,7 @@ describe('player service', function() {
                 describe('startService()', function() {
                     var MockPlayer, MockBrowserInfo, mockExpress, expressApp;
                     var player, browser;
+                    var ServiceError;
 
                     var expressRoutes;
                     var success, failure;
@@ -230,7 +231,16 @@ describe('player service', function() {
                         });
                         MockPlayer.startService = Player.startService;
 
-                        MockPlayer.startService().then(success, failure).finally(done);
+                        MockPlayer.startService().then(success, failure)
+                            .then(function() {
+                                // This is my hacktastic way to get hold of the ServiceError constructor.
+                                // Maybe ServiceError should go in a lib soon?
+                                return player.__getExperience__().catch(function(error) {
+                                    expect(error.constructor.name).toBe('ServiceError');
+                                    ServiceError = error.constructor;
+                                });
+                            })
+                            .then(done, done.fail);
                     });
 
                     afterEach(function() {
@@ -590,6 +600,10 @@ describe('player service', function() {
                                     it('should send a 500', function() {
                                         expect(response.send).toHaveBeenCalledWith(500, 'Internal error');
                                     });
+
+                                    it('should log an error', function() {
+                                        expect(log.error).toHaveBeenCalled();
+                                    });
                                 });
 
                                 describe('with a non-Error reason', function() {
@@ -600,6 +614,10 @@ describe('player service', function() {
 
                                     it('should send a 500', function() {
                                         expect(response.send).toHaveBeenCalledWith(500, 'Internal error');
+                                    });
+
+                                    it('should log an error', function() {
+                                        expect(log.error).toHaveBeenCalled();
                                     });
                                 });
 
@@ -616,53 +634,28 @@ describe('player service', function() {
                                     it('should send a 500', function() {
                                         expect(response.send).toHaveBeenCalledWith(500, error.message);
                                     });
+
+                                    it('should log an error', function() {
+                                        expect(log.error).toHaveBeenCalled();
+                                    });
                                 });
 
-                                describe('with an Error with a status', function() {
+                                describe('with a ServiceError', function() {
                                     var error;
 
-                                    beforeEach(function() {
-                                        error = new Error('It did not work.');
+                                    beforeEach(function(done) {
+                                        error = new ServiceError('Could not find something.', 404);
+
+                                        getDeferred.reject(error);
+                                        getDeferred.promise.finally(done);
                                     });
 
-                                    describe('below 500', function() {
-                                        beforeEach(function(done) {
-                                            error.status = 404;
-
-                                            getDeferred.reject(error);
-                                            getDeferred.promise.finally(done);
-                                        });
-
-                                        it('should use the status', function() {
-                                            expect(response.send).toHaveBeenCalledWith(404, error.message);
-                                        });
+                                    it('should use the status', function() {
+                                        expect(response.send).toHaveBeenCalledWith(404, error.message);
                                     });
 
-                                    describe('above or equal to 500', function() {
-                                        beforeEach(function(done) {
-                                            error.status = 502;
-
-                                            getDeferred.reject(error);
-                                            getDeferred.promise.finally(done);
-                                        });
-
-                                        it('should use the status', function() {
-                                            expect(response.send).toHaveBeenCalledWith(502, error.message);
-                                        });
-                                    });
-
-                                    describe('and a logLevel', function() {
-                                        beforeEach(function(done) {
-                                            error.logLevel = 'info';
-                                            error.status = 404;
-
-                                            getDeferred.reject(error);
-                                            getDeferred.promise.finally(done);
-                                        });
-
-                                        it('should use the status', function() {
-                                            expect(response.send).toHaveBeenCalledWith(404, error.message);
-                                        });
+                                    it('should not log an error', function() {
+                                        expect(log.error).not.toHaveBeenCalled();
                                     });
                                 });
                             });
