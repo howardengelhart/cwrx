@@ -97,7 +97,7 @@ describe('ads-placements (UT)', function() {
         var svc, newObj, origObj, requester;
         beforeEach(function() {
             svc = placeModule.setupSvc(mockDb, placeModule.config);
-            newObj = { tagParams: { container: 'box', campaign: 'cam-1' } };
+            newObj = { tagParams: { type: 'full', container: 'box', campaign: 'cam-1' } };
             origObj = {};
             requester = { fieldValidation: { placements: {} } };
         });
@@ -246,7 +246,7 @@ describe('ads-placements (UT)', function() {
                 expect(newObj.tagParams).toEqual({ container: 'box', campaign: 'cam-1' });
             });
             
-            ['container', 'campaign'].forEach(function(field) {
+            ['container', 'campaign', 'type'].forEach(function(field) {
                 describe('subfield ' + field, function() {
                     it('should fail if the field is not a string', function() {
                         newObj.tagParams[field] = 1234;
@@ -261,7 +261,7 @@ describe('ads-placements (UT)', function() {
                     });
 
                     it('should pass if the field was set on the origObj', function() {
-                        origObj.tagParams = { container: 'old container', campaign: 'cam-old' };
+                        origObj.tagParams = { type: 'oldType', container: 'old container', campaign: 'cam-old' };
                         delete newObj.tagParams[field];
                         expect(svc.model.validate('create', newObj, origObj, requester))
                             .toEqual({ isValid: true, reason: undefined });

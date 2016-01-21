@@ -105,21 +105,21 @@ describe('ads placements endpoints (E2E):', function() {
 	                status: 'active',
 	                user: 'u-selfie',
 	                org: 'o-selfie',
-	                tagParams: { container: 'box-1', campaign: 'cam-1' }
+	                tagParams: { type: 'full', container: 'box-1', campaign: 'cam-1' }
                 },
                 {
 	                id: 'e2e-pl-2',
 	                status: 'active',
 	                user: 'u-admin',
 	                org: 'o-admin',
-	                tagParams: { container: 'box-2', campaign: 'cam-2' }
+	                tagParams: { type: 'full', container: 'box-2', campaign: 'cam-2' }
                 },
                 {
 	                id: 'e2e-deleted',
 	                status: 'deleted',
 	                user: 'u-selfie',
 	                org: 'o-selfie',
-	                tagParams: { container: 'box-gone', campaign: 'cam-gone' }
+	                tagParams: { type: 'full', container: 'box-gone', campaign: 'cam-gone' }
                 }
             ];
 
@@ -138,7 +138,7 @@ describe('ads placements endpoints (E2E):', function() {
 	                status: 'active',
 	                user: 'u-selfie',
 	                org: 'o-selfie',
-	                tagParams: { container: 'box-1', campaign: 'cam-1' }
+	                tagParams: { type: 'full', container: 'box-1', campaign: 'cam-1' }
                 });
                 expect(resp.response.headers['content-range']).not.toBeDefined();
             }).catch(function(error) {
@@ -235,35 +235,35 @@ describe('ads placements endpoints (E2E):', function() {
 	                status: 'active',
 	                user: 'u-selfie',
 	                org: 'o-selfie',
-	                tagParams: { container: 'box-1', campaign: 'cam-1', branding: 'brandA' }
+	                tagParams: { type: 'typeA', container: 'box-1', campaign: 'cam-1' }
                 },
                 {
 	                id: 'e2e-pl-2',
 	                status: 'active',
 	                user: 'u-admin',
 	                org: 'o-admin',
-	                tagParams: { container: 'box-1', campaign: 'cam-1', branding: 'brandB' }
+	                tagParams: { type: 'typeB', container: 'box-1', campaign: 'cam-1' }
                 },
                 {
 	                id: 'e2e-pl-3',
 	                status: 'active',
 	                user: 'u-other',
 	                org: 'o-selfie',
-	                tagParams: { container: 'box-2', campaign: 'cam-1', experience: 'e-1', branding: 'brandC' }
+	                tagParams: { type: 'typeC', container: 'box-2', campaign: 'cam-1', experience: 'e-1' }
                 },
                 {
 	                id: 'e2e-pl-4',
 	                status: 'active',
 	                user: 'u-selfie',
 	                org: 'o-selfie',
-	                tagParams: { container: 'box-1', campaign: 'cam-2', card: 'rc-1', branding: 'brandD' }
+	                tagParams: { type: 'typeD', container: 'box-1', campaign: 'cam-2', card: 'rc-1' }
                 },
                 {
 	                id: 'e2e-deleted',
 	                status: 'deleted',
 	                user: 'u-selfie',
 	                org: 'o-selfie',
-	                tagParams: { container: 'box-gone', campaign: 'cam-gone' }
+	                tagParams: { type: 'typeE', container: 'box-gone', campaign: 'cam-gone' }
                 }
             ];
             testUtils.resetCollection('placements', mockPlacements).done(done);
@@ -382,7 +382,7 @@ describe('ads placements endpoints (E2E):', function() {
 
         it('should be able to sort and paginate the results', function(done) {
             options.qs.limit = 2;
-            options.qs.sort = 'tagParams.branding,-1';
+            options.qs.sort = 'tagParams.type,-1';
             requestUtils.qRequest('get', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
                 expect(resp.body.length).toBe(2);
@@ -443,6 +443,7 @@ describe('ads placements endpoints (E2E):', function() {
                     startDate: start,
                     endDate: end,
                     tagParams: {
+                        type: 'full',
                         container: 'box-active',
                         campaign: 'cam-active',
                         type: 'full',
@@ -507,8 +508,8 @@ describe('ads placements endpoints (E2E):', function() {
             }).done(done);
         });
         
-        it('should return a 400 if the container or campaign are not defined', function(done) {
-            q.all(['container', 'campaign'].map(function(field) {
+        it('should return a 400 if the container, campaign or type are not defined', function(done) {
+            q.all(['container', 'campaign', 'type'].map(function(field) {
                 var newOpts = JSON.parse(JSON.stringify(options));
                 newOpts.jar = nonAdminJar;
                 delete newOpts.json.tagParams[field];
@@ -543,6 +544,7 @@ describe('ads placements endpoints (E2E):', function() {
         describe('when providing links to other entities in tagParams', function() {
             it('should succeed if all linked entities are active', function(done) {
                 options.json.tagParams = {
+                    type: 'full',
                     container: 'box-active',
                     campaign: 'cam-active',
                     card: 'rc-active',
@@ -551,6 +553,7 @@ describe('ads placements endpoints (E2E):', function() {
                 requestUtils.qRequest('post', options).then(function(resp) {
                     expect(resp.response.statusCode).toBe(201);
                     expect(resp.body.tagParams).toEqual({
+                        type: 'full',
                         container: 'box-active',
                         campaign: 'cam-active',
                         card: 'rc-active',
@@ -563,6 +566,7 @@ describe('ads placements endpoints (E2E):', function() {
             
             it('should succeed if all linked entities are inactive/paused', function(done) {
                 options.json.tagParams = {
+                    type: 'full',
                     container: 'box-inactive',
                     campaign: 'cam-paused',
                     card: 'rc-paused',
@@ -571,6 +575,7 @@ describe('ads placements endpoints (E2E):', function() {
                 requestUtils.qRequest('post', options).then(function(resp) {
                     expect(resp.response.statusCode).toBe(201);
                     expect(resp.body.tagParams).toEqual({
+                        type: 'full',
                         container: 'box-inactive',
                         campaign: 'cam-paused',
                         card: 'rc-paused',
@@ -623,6 +628,7 @@ describe('ads placements endpoints (E2E):', function() {
             
             it('should return a 400 if the campaign and card do not match', function(done) {
                 options.json.tagParams = {
+                    type: 'full',
                     container: 'box-active',
                     campaign: 'cam-active',
                     card: 'rc-paused'
@@ -696,14 +702,14 @@ describe('ads placements endpoints (E2E):', function() {
 	                status: 'active',
 	                user: 'u-selfie',
 	                org: 'o-selfie',
-	                tagParams: { container: 'box-active', campaign: 'cam-active' }
+	                tagParams: { type: 'full', container: 'box-active', campaign: 'cam-active' }
                 },
                 {
 	                id: 'e2e-pl-2',
 	                status: 'active',
 	                user: 'u-admin',
 	                org: 'o-admin',
-	                tagParams: { container: 'box-active', campaign: 'cam-active' }
+	                tagParams: { type: 'full', container: 'box-active', campaign: 'cam-active' }
                 },
                 {
 	                id: 'e2e-pl-3',
@@ -717,14 +723,14 @@ describe('ads placements endpoints (E2E):', function() {
 	                    date: new Date('2016-01-20T15:43:02.370Z'),
 	                    externalCost: { event: 'click', cost: 0.12 }
 	                }],
-	                tagParams: { container: 'box-active', campaign: 'cam-active' }
+	                tagParams: { type: 'full', container: 'box-active', campaign: 'cam-active' }
                 },
                 {
 	                id: 'e2e-deleted',
 	                status: 'deleted',
 	                user: 'u-selfie',
 	                org: 'o-selfie',
-	                tagParams: { container: 'box-deleted', campaign: 'cam-deleted' }
+	                tagParams: { type: 'full', container: 'box-deleted', campaign: 'cam-deleted' }
                 }
             ];
             options = {
@@ -732,7 +738,7 @@ describe('ads placements endpoints (E2E):', function() {
                 json: {
                     label: 'foo bar',
                     tagType: 'mraid',
-                    tagParams: { container: 'box-active', campaign: 'cam-active', branding: 'brandA' }
+                    tagParams: { type: 'mobile', container: 'box-active', campaign: 'cam-active' }
                 },
                 jar: cookieJar
             };
@@ -745,7 +751,7 @@ describe('ads placements endpoints (E2E):', function() {
                 expect(resp.body._id).not.toBeDefined();
                 expect(resp.body.id).toBe('e2e-pl-1');
                 expect(resp.body.label).toBe('foo bar');
-                expect(resp.body.tagParams).toEqual({ container: 'box-active', campaign: 'cam-active', branding: 'brandA' });
+                expect(resp.body.tagParams).toEqual({ type: 'mobile', container: 'box-active', campaign: 'cam-active' });
             }).catch(function(error) {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
@@ -849,6 +855,7 @@ describe('ads placements endpoints (E2E):', function() {
                 requestUtils.qRequest('put', options).then(function(resp) {
                     expect(resp.response.statusCode).toBe(200);
                     expect(resp.body.tagParams).toEqual({
+                        type: 'full',
                         container: 'box-active',
                         campaign: 'cam-active',
                         card: 'rc-active',
@@ -869,6 +876,7 @@ describe('ads placements endpoints (E2E):', function() {
                 requestUtils.qRequest('put', options).then(function(resp) {
                     expect(resp.response.statusCode).toBe(200);
                     expect(resp.body.tagParams).toEqual({
+                        type: 'full',
                         container: 'box-inactive',
                         campaign: 'cam-paused',
                         card: 'rc-paused',
@@ -995,7 +1003,7 @@ describe('ads placements endpoints (E2E):', function() {
                 expect(results[0].response.statusCode).toBe(200);
                 expect(results[0].body.id).toBe('e2e-pl-1');
                 expect(results[0].body.label).toBe('foo bar');
-                expect(results[0].body.tagParams).toEqual({ container: 'box-active', campaign: 'cam-active', branding: 'brandA' });
+                expect(results[0].body.tagParams).toEqual({ type: 'mobile', container: 'box-active', campaign: 'cam-active' });
                 
                 expect(results[1].response.statusCode).toBe(403);
                 expect(results[1].body).toEqual('Not authorized to edit this');
@@ -1044,21 +1052,21 @@ describe('ads placements endpoints (E2E):', function() {
 	                status: 'active',
 	                user: 'u-selfie',
 	                org: 'o-selfie',
-	                tagParams: { container: 'box-1', campaign: 'cam-1' }
+	                tagParams: { type: 'full', container: 'box-1', campaign: 'cam-1' }
                 },
                 {
 	                id: 'e2e-pl-2',
 	                status: 'active',
 	                user: 'u-admin',
 	                org: 'o-admin',
-	                tagParams: { container: 'box-2', campaign: 'cam-2' }
+	                tagParams: { type: 'full', container: 'box-2', campaign: 'cam-2' }
                 },
                 {
 	                id: 'e2e-deleted',
 	                status: 'deleted',
 	                user: 'u-selfie',
 	                org: 'o-selfie',
-	                tagParams: { container: 'box-gone', campaign: 'cam-gone' }
+	                tagParams: { type: 'full', container: 'box-gone', campaign: 'cam-gone' }
                 }
             ];
             options = {
