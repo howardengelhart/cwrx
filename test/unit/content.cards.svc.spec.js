@@ -868,6 +868,7 @@ describe('content-cards (UT)', function() {
             req.params.id = 'e-1';
             req.query = {
                 container: 'embed',
+                placement: 'pl-1',
                 hostApp: 'Mapsaurus',
                 network: 'pocketmath'
             };
@@ -886,6 +887,7 @@ describe('content-cards (UT)', function() {
                 card: 'rc-1',
                 experience: 'e-1',
                 container: 'embed',
+                placement: 'pl-1',
                 host: 'cinema6.com',
                 hostApp: 'Mapsaurus',
                 network: 'pocketmath',
@@ -924,6 +926,7 @@ describe('content-cards (UT)', function() {
                 card: 'rc-1',
                 experience: '',
                 container: '',
+                placement: '',
                 host: 'cinema6.com',
                 hostApp: '',
                 network: '',
@@ -942,6 +945,7 @@ describe('content-cards (UT)', function() {
                 card: 'rc-1',
                 experience: 'e-1',
                 container: 'embed',
+                placement: 'pl-1',
                 host: 'cinema6.com',
                 hostApp: 'Mapsaurus',
                 network: 'pocketmath',
@@ -961,6 +965,7 @@ describe('content-cards (UT)', function() {
                 card: 'rc-1',
                 experience: 'e-1',
                 container: 'embed',
+                placement: 'pl-1',
                 host: 'cinema6.com',
                 hostApp: 'Mapsaurus',
                 network: 'pocketmath',
@@ -1277,8 +1282,6 @@ describe('content-cards (UT)', function() {
                     campaign: { pixels: 'setup' },
                     status: Status.Active,
                     params: { sponsor: 'Heinz' },
-                    adtechId: undefined,
-                    bannerId: undefined,
                     formatted: true
                 });
                 expect(cardSvc.formatOutput).toHaveBeenCalled();
@@ -1307,18 +1310,6 @@ describe('content-cards (UT)', function() {
             delete mockCamp.advertiserDisplayName;
             cardModule.getPublicCard(cardSvc, caches, 'rc-1', req).then(function(resp) {
                 expect(resp.params).toEqual({ foo: 'bar', sponsor: 'Hunts' });
-                expect(cardSvc.formatOutput).toHaveBeenCalled();
-                expect(mockLog.warn).not.toHaveBeenCalled();
-            }).catch(function(error) {
-                expect(error.toString()).not.toBeDefined();
-            }).done(done);
-        });
-        
-        it('should take adtechId + bannerId from the campaign hash if defined', function(done) {
-            mockCard.campaign = { adtechId: 101, bannerNumber: 5 };
-            cardModule.getPublicCard(cardSvc, caches, 'rc-1', req).then(function(resp) {
-                expect(resp.adtechId).toEqual(101);
-                expect(resp.bannerId).toEqual(5);
                 expect(cardSvc.formatOutput).toHaveBeenCalled();
                 expect(mockLog.warn).not.toHaveBeenCalled();
             }).catch(function(error) {

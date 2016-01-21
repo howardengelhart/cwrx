@@ -62,9 +62,7 @@
             }
         },
         defaultSiteConfig: {
-            branding: 'default',
-            placementId: null,
-            wildCardPlacement: null
+            branding: 'default'
         },
         siteExceptions: {
             public: ['www.cinema6.com', 'demo.cinema6.com'],
@@ -117,8 +115,6 @@
         log.info('Running as cluster worker, proceed with setting up web server.');
 
         var app          = express(),
-            collKeys     = ['experiences','orgs','users','sites','campaigns','cards','categories'],
-            cacheKeys    = ['experiences', 'orgs', 'sites', 'campaigns', 'cards'],
             collections  = {},
             caches       = {},
             jobManager   = new JobManager(state.cache, state.config.jobTimeouts),
@@ -127,10 +123,10 @@
             audit        = auditJournal.middleware.bind(auditJournal),
             catSvc, cardSvc, metagetta;
             
-        collKeys.forEach(function(key) {
+        ['experiences', 'users', 'campaigns', 'cards', 'categories'].forEach(function(key) {
             collections[key] = state.dbs.c6Db.collection(key);
         });
-        cacheKeys.forEach(function(key) {
+        ['experiences', 'campaigns', 'cards'].forEach(function(key) {
             var ttls = state.config.cacheTTLs[key];
             caches[key] = new QueryCache(ttls.freshTTL, ttls.maxTTL, collections[key]);
         });
