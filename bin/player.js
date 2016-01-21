@@ -90,6 +90,11 @@ function Player(config) {
         maxTTL: Infinity,
         gcInterval: Infinity
     });
+    var placementCache = new FunctionCache({
+        freshTTL: config.api.placement.cacheTTLs.fresh,
+        maxTTL: config.api.placement.cacheTTLs.max,
+        extractor: clonePromise
+    });
 
     this.config = extend({
         app: {
@@ -120,6 +125,8 @@ function Player(config) {
     this.__getExperience__ = contentCache.add(this.__getExperience__.bind(this), -1);
     // Memoize Player.prototype.__getBranding__() method.
     this.__getBranding__ = brandingCache.add(this.__getBranding__.bind(this), -1);
+    // Memoize Player.prototype.__getPlacement__() method.
+    this.__getPlacement__ = placementCache.add(this.__getPlacement__.bind(this), -1);
 
     //Cache the initial player version.
     this.getVersion();
@@ -255,6 +262,29 @@ Player.prototype.__loadExperience__ = function __loadExperience__(id, params, or
     }
 
     return getExperience(id, validParams, origin, uuid).then(loadAds);
+};
+
+Player.prototype.__getPlacement__ = function __getPlacement__(id, params, uuid) {
+    var log = logger.getLog();
+    var config = this.config;
+    var placementLocation = resolveURL(config.api.root, config.api.placement.endpoint);
+    var url = resolveURL(placementLocation, id);
+
+    return q(request.get(url, { qs: params, json: true }).catch(function handleRejection(reason) {
+        if (reason.name !== 'StatusCodeError') {
+            log.error('[%1] Unexpected error fetching placement: {%2}', uuid, inspect(reason));
+            throw new ServiceError(reason.message, 500);
+        }
+
+        if (reason.statusCode >= 500) {
+            log.error(
+                '[%1] Bad response fetching placement: [%2] {%3} (%4)',
+                uuid, reason.statusCode, inspect(reason), url
+            );
+        }
+
+        throw new ServiceError(reason.message, reason.statusCode);
+    }));
 };
 
 Player.prototype.__getExperience__ = function __getExperience__(id, params, origin, uuid) {
@@ -434,6 +464,14 @@ Player.startService = function startService() {
                         'hostApp', 'network', 'experience',
                         'preview'
                     ],
+                    cacheTTLs: {
+                        fresh: 1,
+                        max: 5
+                    }
+                },
+                placement: {
+                    endpoint: 'api/public/placements/',
+                    validParams: [],
                     cacheTTLs: {
                         fresh: 1,
                         max: 5

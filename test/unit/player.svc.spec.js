@@ -302,6 +302,14 @@ describe('player service', function() {
                                             fresh: 1,
                                             max: 5
                                         }
+                                    },
+                                    placement: {
+                                        endpoint: 'api/public/placements/',
+                                        validParams: [],
+                                        cacheTTLs: {
+                                            fresh: 1,
+                                            max: 5
+                                        }
                                     }
                                 },
                                 app: {
@@ -752,6 +760,14 @@ describe('player service', function() {
                             fresh: 1,
                             max: 5
                         }
+                    },
+                    placement: {
+                        endpoint: 'api/public/placements/',
+                        validParams: [],
+                        cacheTTLs: {
+                            fresh: 1,
+                            max: 5
+                        }
                     }
                 },
                 app: {
@@ -846,6 +862,18 @@ describe('player service', function() {
                 maxTTL: Infinity,
                 gcInterval: Infinity
             });
+        });
+
+        it('should create a FunctionCache for the placements', function() {
+            expect(MockFunctionCache).toHaveBeenCalledWith({
+                freshTTL: config.api.placement.cacheTTLs.fresh,
+                maxTTL: config.api.placement.cacheTTLs.max,
+                extractor: clonePromise
+            });
+        });
+
+        it('should create 5 FunctionCaches', function() {
+            expect(MockFunctionCache.calls.count()).toBe(5);
         });
 
         describe('@public', function() {
@@ -2764,6 +2792,156 @@ describe('player service', function() {
                                     { src: resolveURL(base, branding + '/styles/' + type + '/theme.css'), styles: themeCSS },
                                     { src: resolveURL(base, branding + '/styles/' + type + '/theme--hover.css'), styles: themeHoverCSS }
                                 ]);
+                            });
+                        });
+                    });
+                });
+
+                describe('__getPlacement__(id, params, uuid)', function() {
+                    var id, params, uuid;
+                    var result;
+                    var success, failure;
+
+                    beforeEach(function(done) {
+                        id = 'pl-cc39777e109ea2';
+                        params = { foo: 'bar' };
+                        uuid = 'u928yr4';
+
+                        success = jasmine.createSpy('success()');
+                        failure = jasmine.createSpy('failure()');
+
+                        result = player.__getPlacement__(id, params, uuid);
+                        result.then(success, failure);
+                        q().finally(done);
+                    });
+
+                    it('should cache the function', function() {
+                        expect(fnCaches[4].add.calls.all().map(function(call) { return call.returnValue; })).toContain(player.__getPlacement__);
+                        fnCaches[4].add.calls.all().forEach(function(call) {
+                            if (call.returnValue === player.__getPlacement__) {
+                                expect(call.args).toEqual([jasmine.any(Function), -1]);
+                            }
+                        });
+                    });
+
+                    it('should return a Promise', function() {
+                        expect(result).toEqual(jasmine.any(Promise));
+                    });
+
+                    it('should make a request for the placement', function() {
+                        expect(request.get).toHaveBeenCalledWith('http://localhost/api/public/placements/pl-cc39777e109ea2', {
+                            qs: params,
+                            json: true
+                        });
+                    });
+
+                    describe('if the request', function() {
+                        var deferred;
+
+                        beforeEach(function() {
+                            deferred = requestDeferreds[request.get.calls.mostRecent().args[0]];
+                        });
+
+                        describe('fails', function() {
+                            var reason;
+
+                            describe('for some unknown reason', function() {
+                                beforeEach(function(done) {
+                                    reason = new Error('Something just went wrong...');
+
+                                    deferred.reject(reason);
+                                    result.finally(done);
+                                });
+
+                                it('should [500]', function() {
+                                    var error = failure.calls.mostRecent().args[0];
+
+                                    expect(error).toEqual(jasmine.any(Error));
+                                    expect(error.message).toBe(reason.message);
+                                    expect(error.status).toBe(500);
+                                    expect(error.constructor.name).toBe('ServiceError');
+                                });
+
+                                it('should log an error', function() {
+                                    expect(log.error).toHaveBeenCalled();
+                                });
+                            });
+
+                            describe('because of a StatusCode', function() {
+                                beforeEach(function() {
+                                    reason = new Error('The page could not be loaded.');
+                                    reason.name = 'StatusCodeError';
+                                });
+
+                                [400, 404, 409].forEach(function(statusCode) {
+                                    describe('of ' + statusCode, function() {
+                                        beforeEach(function(done) {
+                                            reason.statusCode = statusCode;
+
+                                            deferred.reject(reason);
+                                            result.finally(done);
+                                        });
+
+                                        it('should adopt the status code of the placement response', function() {
+                                            var error = failure.calls.mostRecent().args[0];
+
+                                            expect(error).toEqual(jasmine.any(Error));
+                                            expect(error.message).toBe(reason.message);
+                                            expect(error.status).toBe(reason.statusCode);
+                                            expect(error.constructor.name).toBe('ServiceError');
+                                        });
+
+                                        it('should not log an error', function() {
+                                            expect(log.error).not.toHaveBeenCalled();
+                                        });
+                                    });
+                                });
+
+                                [500, 501, 503].forEach(function(statusCode) {
+                                    describe('of ' + statusCode, function() {
+                                        beforeEach(function(done) {
+                                            reason.statusCode = statusCode;
+
+                                            deferred.reject(reason);
+                                            result.finally(done);
+                                        });
+
+                                        it('should adopt the status code of the placement response', function() {
+                                            var error = failure.calls.mostRecent().args[0];
+
+                                            expect(error).toEqual(jasmine.any(Error));
+                                            expect(error.message).toBe(reason.message);
+                                            expect(error.status).toBe(reason.statusCode);
+                                            expect(error.constructor.name).toBe('ServiceError');
+                                        });
+
+                                        it('should log an error', function() {
+                                            expect(log.error).toHaveBeenCalled();
+                                        });
+                                    });
+                                });
+                            });
+                        });
+
+                        describe('succeeds', function() {
+                            var placement;
+
+                            beforeEach(function(done) {
+                                placement = {
+                                    id: id,
+                                    tagParams: {
+                                        type: 'desktop-card',
+                                        container: 'pocketmath',
+                                        campaign: 'cam-6e3ca7443b7554'
+                                    }
+                                };
+
+                                deferred.resolve(placement);
+                                result.finally(done);
+                            });
+
+                            it('should fulfill with the placement', function() {
+                                expect(success).toHaveBeenCalledWith(placement);
                             });
                         });
                     });
