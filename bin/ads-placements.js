@@ -58,6 +58,11 @@
         tagParams: {
             __type: 'object',
             __required: true,
+            type: {
+                __type: 'string',
+                __allowed: true,
+                __required: true
+            },
             container: {
                 __type: 'string',
                 __allowed: true,
