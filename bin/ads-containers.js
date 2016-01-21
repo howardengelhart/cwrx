@@ -1,13 +1,9 @@
 (function(){
     'use strict';
 
-    var q           = require('q'),
-        util        = require('util'),
-        express     = require('express'),
-        logger      = require('../lib/logger'),
+    var express     = require('express'),
         CrudSvc     = require('../lib/crudSvc'),
         authUtils   = require('../lib/authUtils'),
-        Status      = require('../lib/enums').Status,
 
         conModule = {};
     
@@ -39,16 +35,13 @@
             svc = new CrudSvc(db.collection('containers'), 'con', opts, conModule.conSchema);
         svc._db = db;
         
-        var validateUniqueName  = svc.validateUniqueProp.bind(svc, 'name', /^[\w-]+$/),
-            validateDataRefs    = conModule.validateDataRefs.bind(conModule, svc);
+        var validateUniqueName  = svc.validateUniqueProp.bind(svc, 'name', /^[\w-]+$/);
         
         svc.use('create', validateUniqueName);
         svc.use('create', conModule.copyName);
-        svc.use('create', validateDataRefs);
 
         svc.use('edit', validateUniqueName);
         svc.use('edit', conModule.copyName);
-        svc.use('edit', validateDataRefs);
         
         return svc;
     };
@@ -62,62 +55,6 @@
         next();
     };
 
-    // Check that references to other C6 objects in data hash are valid
-    conModule.validateDataRefs = function(svc, req, next, done) {
-        var log = logger.getLog(),
-            doneCalled = false;
-        
-        function checkExistence(prop, query) {
-            // pass check w/o querying mongo if prop doesn't exist
-            if (!req.body.defaultData[prop]) {
-                return q();
-            }
-            
-            log.trace('[%1] Checking that %2 %3 exists',req.uuid, prop, req.body.defaultData[prop]);
-            
-            return q(svc._db.collection(prop + 's').count(query))
-            .then(function(count) {
-                if (count > 0) {
-                    return;
-                }
-
-                var msg = util.format('%s %s not found', prop, req.body.defaultData[prop]);
-                log.info('[%1] %2 with query %3, not saving container',
-                         req.uuid, msg, util.inspect(query));
-
-                if (!doneCalled) {
-                    doneCalled = true;
-                    done({ code: 400, body: msg });
-                }
-            })
-            .catch(function(error) {
-                log.error('[%1] Error counting %2s: %3', req.uuid, prop, util.inspect(error));
-                return q.reject(new Error('Mongo error'));
-            });
-        }
-        
-        return q.all([
-            checkExistence('card', {
-                id: req.body.defaultData.card,
-                campaignId: req.body.defaultData.campaign,
-                status: { $ne: Status.Deleted }
-            }),
-            checkExistence('campaign', {
-                id: req.body.defaultData.campaign,
-                status: { $nin: [Status.Deleted, Status.Canceled, Status.Expired] }
-            }),
-            checkExistence('experience', {
-                id: req.body.defaultData.experience,
-                'status.0.status': { $ne: Status.Deleted }
-            })
-        ])
-        .then(function() {
-            if (!doneCalled) {
-                return next();
-            }
-        });
-    };
-    
     conModule.setupEndpoints = function(app, svc, sessions, audit, jobManager) {
         var router      = express.Router(),
             mountPath   = '/api/containers?'; // prefix to all endpoints declared here

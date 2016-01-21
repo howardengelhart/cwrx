@@ -10,7 +10,7 @@ var q               = require('q'),
     };
 
 describe('ads containers endpoints (E2E):', function() {
-    var cookieJar, mockCards, mockCamps, mockExps;
+    var cookieJar;
 
     beforeEach(function(done) {
         jasmine.DEFAULT_TIMEOUT_INTERVAL = 10000;
@@ -37,24 +37,6 @@ describe('ads containers endpoints (E2E):', function() {
                 containers: { read: 'all', create: 'all', edit: 'all', delete: 'all' }
             }
         };
-        
-        mockExps = [
-            { id: 'e-active', status: [{ status: 'active' }], user: 'e2e-user', org: 'e2e-org' },
-            { id: 'e-inactive', status: [{ status: 'inactive' }], user: 'e2e-user', org: 'e2e-org' },
-            { id: 'e-deleted', status: [{ status: 'deleted' }], user: 'e2e-user', org: 'e2e-org' },
-        ];
-        mockCards = [
-            { id: 'rc-active', campaignId: 'cam-active', status: 'active', user: 'e2e-user', org: 'e2e-org' },
-            { id: 'rc-paused', campaignId: 'cam-paused', status: 'paused', user: 'e2e-user', org: 'e2e-org' },
-            { id: 'rc-deleted', campaignId: 'cam-deleted', status: 'deleted', user: 'e2e-user', org: 'e2e-org' },
-        ];
-        mockCamps = [
-            { id: 'cam-active', status: 'active', cards: [{ id: 'rc-active' }], user: 'e2e-user', org: 'e2e-org' },
-            { id: 'cam-paused', status: 'paused', cards: [{ id: 'rc-paused' }], user: 'e2e-user', org: 'e2e-org' },
-            { id: 'cam-deleted', status: 'deleted', cards: [{ id: 'rc-deleted' }], user: 'e2e-user', org: 'e2e-org' },
-            { id: 'cam-canceled', status: 'canceled', cards: [], user: 'e2e-user', org: 'e2e-org' },
-            { id: 'cam-expired', status: 'expired', cards: [], user: 'e2e-user', org: 'e2e-org' },
-        ];
         
         q.all([
             testUtils.resetCollection('users', mockUser),
@@ -308,13 +290,7 @@ describe('ads containers endpoints (E2E):', function() {
                     }
                 }
             };
-            q.all([
-                testUtils.resetCollection('containers'),
-                testUtils.resetCollection('campaigns', mockCamps),
-                testUtils.resetCollection('cards', mockCards),
-                testUtils.resetCollection('experiences', mockExps)
-            ])
-            .done(function() { done(); });
+            testUtils.resetCollection('containers').done(done);
         });
 
         it('should be able to create a container', function(done) {
@@ -375,109 +351,6 @@ describe('ads containers endpoints (E2E):', function() {
             }).catch(function(error) {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
-        });
-        
-        describe('if providing links to other entities in defaultData', function() {
-            it('should succeed if all linked entities are active', function(done) {
-                options.json.defaultData = {
-                    campaign: 'cam-active',
-                    card: 'rc-active',
-                    experience: 'e-active'
-                };
-                requestUtils.qRequest('post', options).then(function(resp) {
-                    expect(resp.response.statusCode).toBe(201);
-                    expect(resp.body.defaultData).toEqual({
-                        container: 'fake-container',
-                        campaign: 'cam-active',
-                        card: 'rc-active',
-                        experience: 'e-active'
-                    });
-                }).catch(function(error) {
-                    expect(util.inspect(error)).not.toBeDefined();
-                }).done(done);
-            });
-            
-            it('should succeed if all linked entities are inactive/paused', function(done) {
-                options.json.defaultData = {
-                    campaign: 'cam-paused',
-                    card: 'rc-paused',
-                    experience: 'e-inactive'
-                };
-                requestUtils.qRequest('post', options).then(function(resp) {
-                    expect(resp.response.statusCode).toBe(201);
-                    expect(resp.body.defaultData).toEqual({
-                        container: 'fake-container',
-                        campaign: 'cam-paused',
-                        card: 'rc-paused',
-                        experience: 'e-inactive'
-                    });
-                }).catch(function(error) {
-                    expect(util.inspect(error)).not.toBeDefined();
-                }).done(done);
-            });
-            
-            it('should return a 400 if any entities are deleted', function(done) {
-                q.all([
-                    { campaign: 'cam-deleted' },
-                    { card: 'rc-deleted' },
-                    { experience: 'e-deleted' }
-                ].map(function(obj) {
-                    options.json.defaultData = obj;
-                    return requestUtils.qRequest('post', options).then(function(resp) {
-                        expect(resp.response.statusCode).toBe(400);
-                        var key = Object.keys(obj)[0];
-                        expect(resp.body).toBe(key + ' ' + obj[key] + ' not found');
-                    });
-                })).catch(function(error) {
-                    expect(util.inspect(error)).not.toBeDefined();
-                }).done(done);
-            });
-            
-            it('should return a 400 if any entities are non-existent', function(done) {
-                q.all([
-                    { campaign: 'cam-boople' },
-                    { card: 'rc-snoots' },
-                    { experience: 'e-floofle' }
-                ].map(function(obj) {
-                    options.json.defaultData = obj;
-                    return requestUtils.qRequest('post', options).then(function(resp) {
-                        expect(resp.response.statusCode).toBe(400);
-                        var key = Object.keys(obj)[0];
-                        expect(resp.body).toBe(key + ' ' + obj[key] + ' not found');
-                    });
-                })).catch(function(error) {
-                    expect(util.inspect(error)).not.toBeDefined();
-                }).done(done);
-            });
-            
-            it('should return a 400 if the campaign and card do not match', function(done) {
-                options.json.defaultData = {
-                    campaign: 'cam-active',
-                    card: 'rc-paused'
-                };
-                requestUtils.qRequest('post', options).then(function(resp) {
-                    expect(resp.response.statusCode).toBe(400);
-                    expect(resp.body).toBe('card rc-paused not found');
-                }).catch(function(error) {
-                    expect(util.inspect(error)).not.toBeDefined();
-                }).done(done);
-            });
-            
-            it('should return a 400 if the campaign is canceled or expired', function(done) {
-                q.all([
-                    { campaign: 'cam-expired' },
-                    { campaign: 'cam-canceled' }
-                ].map(function(obj) {
-                    options.json.defaultData = obj;
-                    return requestUtils.qRequest('post', options).then(function(resp) {
-                        expect(resp.response.statusCode).toBe(400);
-                        var key = Object.keys(obj)[0];
-                        expect(resp.body).toBe(key + ' ' + obj[key] + ' not found');
-                    });
-                })).catch(function(error) {
-                    expect(util.inspect(error)).not.toBeDefined();
-                }).done(done);
-            });
         });
         
         it('should return a 400 if no name is provided', function(done) {
@@ -634,109 +507,6 @@ describe('ads containers endpoints (E2E):', function() {
             }).done(done);
         });
 
-        describe('if providing links to other entities in defaultData', function() {
-            it('should succeed if all linked entities are active', function(done) {
-                options.json.defaultData = {
-                    campaign: 'cam-active',
-                    card: 'rc-active',
-                    experience: 'e-active'
-                };
-                requestUtils.qRequest('put', options).then(function(resp) {
-                    expect(resp.response.statusCode).toBe(200);
-                    expect(resp.body.defaultData).toEqual({
-                        container: 'box-1',
-                        campaign: 'cam-active',
-                        card: 'rc-active',
-                        experience: 'e-active'
-                    });
-                }).catch(function(error) {
-                    expect(util.inspect(error)).not.toBeDefined();
-                }).done(done);
-            });
-            
-            it('should succeed if all linked entities are inactive/paused', function(done) {
-                options.json.defaultData = {
-                    campaign: 'cam-paused',
-                    card: 'rc-paused',
-                    experience: 'e-inactive'
-                };
-                requestUtils.qRequest('put', options).then(function(resp) {
-                    expect(resp.response.statusCode).toBe(200);
-                    expect(resp.body.defaultData).toEqual({
-                        container   : 'box-1',
-                        campaign: 'cam-paused',
-                        card: 'rc-paused',
-                        experience: 'e-inactive'
-                    });
-                }).catch(function(error) {
-                    expect(util.inspect(error)).not.toBeDefined();
-                }).done(done);
-            });
-            
-            it('should return a 400 if any entities are deleted', function(done) {
-                q.all([
-                    { campaign: 'cam-deleted' },
-                    { card: 'rc-deleted' },
-                    { experience: 'e-deleted' }
-                ].map(function(obj) {
-                    options.json.defaultData = obj;
-                    return requestUtils.qRequest('put', options).then(function(resp) {
-                        expect(resp.response.statusCode).toBe(400);
-                        var key = Object.keys(obj)[0];
-                        expect(resp.body).toBe(key + ' ' + obj[key] + ' not found');
-                    });
-                })).catch(function(error) {
-                    expect(util.inspect(error)).not.toBeDefined();
-                }).done(done);
-            });
-            
-            it('should return a 400 if any entities are non-existent', function(done) {
-                q.all([
-                    { campaign: 'cam-boople' },
-                    { card: 'rc-snoots' },
-                    { experience: 'e-floofle' }
-                ].map(function(obj) {
-                    options.json.defaultData = obj;
-                    return requestUtils.qRequest('put', options).then(function(resp) {
-                        expect(resp.response.statusCode).toBe(400);
-                        var key = Object.keys(obj)[0];
-                        expect(resp.body).toBe(key + ' ' + obj[key] + ' not found');
-                    });
-                })).catch(function(error) {
-                    expect(util.inspect(error)).not.toBeDefined();
-                }).done(done);
-            });
-            
-            it('should return a 400 if the campaign and card do not match', function(done) {
-                options.json.defaultData = {
-                    campaign: 'cam-active',
-                    card: 'rc-paused'
-                };
-                requestUtils.qRequest('put', options).then(function(resp) {
-                    expect(resp.response.statusCode).toBe(400);
-                    expect(resp.body).toBe('card rc-paused not found');
-                }).catch(function(error) {
-                    expect(util.inspect(error)).not.toBeDefined();
-                }).done(done);
-            });
-            
-            it('should return a 400 if the campaign is canceled or expired', function(done) {
-                q.all([
-                    { campaign: 'cam-expired' },
-                    { campaign: 'cam-canceled' }
-                ].map(function(obj) {
-                    options.json.defaultData = obj;
-                    return requestUtils.qRequest('put', options).then(function(resp) {
-                        expect(resp.response.statusCode).toBe(400);
-                        var key = Object.keys(obj)[0];
-                        expect(resp.body).toBe(key + ' ' + obj[key] + ' not found');
-                    });
-                })).catch(function(error) {
-                    expect(util.inspect(error)).not.toBeDefined();
-                }).done(done);
-            });
-        });
-        
         it('should not edit a container that has been deleted', function(done) {
             options.url = config.adsUrl + '/containers/e2e-deleted';
             requestUtils.qRequest('put', options).then(function(resp) {
