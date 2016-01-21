@@ -12,7 +12,7 @@ var express = require('express');
 var logger = require('../lib/logger');
 var inherits = require('util').inherits;
 var inspect = require('util').inspect;
-var BrowserInfo = require('../lib/browserInfo');
+var BrowserInfo = require('rc-browser-info');
 var resolvePath = require('path').resolve;
 var inspect = require('util').inspect;
 var filterObject = require('../lib/objUtils').filter;
@@ -479,7 +479,7 @@ Player.startService = function startService() {
         var parsePlayerQuery = parseQuery({
             arrays: ['categories', 'playUrls', 'countUrls', 'clickUrls', 'launchUrls']
         });
-        var sendRequestMetrics = cloudwatchMetrics(
+        var sendMetrics = cloudwatchMetrics(
             state.config.cloudwatch.namespace,
             state.config.cloudwatch.sendInterval,
             { Dimensions: state.config.cloudwatch.dimensions }
@@ -519,53 +519,32 @@ Player.startService = function startService() {
             res.send(200, state.config.appVersion);
         });
 
-        app.get('/api/public/players/:type', parsePlayerQuery, sendRequestMetrics, function route(
+        app.get('/api/public/players/:type', parsePlayerQuery, sendMetrics, function redirect(
             req,
-            res
+            res,
+            next
         ) {
             var config = state.config;
             var type = req.params.type;
             var uuid = req.uuid;
             var query = req.query;
-            var secure = req.secure;
             var mobileType = query.mobileType || config.defaults.mobileType;
             var typeRedirect = config.typeRedirects[type];
-            var origin = req.get('origin') || req.get('referer');
             var agent = req.get('user-agent');
             var browser = new BrowserInfo(agent);
 
             if (typeRedirect) {
                 log.trace('[%1] Redirecting agent from %2 to %3 player.', uuid, type, typeRedirect);
-                return q(res.redirect(301, typeRedirect + formatURL({ query: req.query })));
+                return res.redirect(301, typeRedirect + formatURL({ query: req.query }));
             }
 
             if (browser.isMobile && type !== mobileType) {
                 log.trace('[%1] Redirecting agent to mobile player: %2.', uuid, mobileType);
-                return q(res.redirect(303, mobileType + formatURL({ query: req.query })));
+                return res.redirect(303, mobileType + formatURL({ query: req.query }));
             }
 
-            return player.get(extend({
-                type: type,
-                uuid: uuid,
-                origin: origin,
-                desktop: browser.isDesktop,
-                secure: secure
-            }, query)).then(function sendResponse(html) {
-                log.info('[%1] {GET %2} Response Length: %3.', uuid, req.url, html.length);
-                return res.send(200, html);
-            }).catch(function handleRejection(reason) {
-                var status = (reason && reason.status) || 500;
-                var message = (reason && reason.message) || 'Internal error';
-
-                if (reason instanceof ServiceError) {
-                    log.info('[%1] Failure: {%2} %3', uuid, status, message);
-                } else {
-                    log.error('[%1] Failure: {%2} %3 [%4]', uuid, status, inspect(reason), req.url);
-                }
-
-                res.send(status, message);
-            });
-        });
+            return next();
+        }, player.middlewareify('get'));
 
         app.use(function(err, req, res, next) {
             if (err) {
@@ -624,6 +603,39 @@ Player.startService = function startService() {
 
             return route(state);
         });
+};
+
+Player.prototype.middlewareify = function middlewareify(method) {
+    var self = this;
+    var log = logger.getLog();
+
+    return function middleware(req, res) {
+        var uuid = req.uuid;
+        var browser = new BrowserInfo(req.get('user-agent'));
+        var options = extend(extend({
+            uuid: uuid,
+            origin: req.get('origin') || req.get('referer'),
+            desktop: browser.isDesktop,
+            mobile: browser.isMobile,
+            secure: req.secure
+        }, req.query), req.params);
+
+        self[method](options).then(function sendResponse(result) {
+            log.info('[%1] {GET %2} Response Length: %3.', uuid, req.url, result.length);
+            return res.send(200, result);
+        }).catch(function handleRejection(reason) {
+            var status = (reason && reason.status) || 500;
+            var message = (reason && reason.message) || 'Internal error';
+
+            if (reason instanceof ServiceError) {
+                log.info('[%1] Failure: {%2} %3', uuid, status, message);
+            } else {
+                log.error('[%1] Failure: {%2} %3 [%4]', uuid, status, inspect(reason), req.url);
+            }
+
+            res.send(status, message);
+        });
+    };
 };
 
 Player.prototype.getVersion = function getVersion() {
