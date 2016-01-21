@@ -16,6 +16,8 @@
         advertModule    = require('./ads-advertisers'),
         updateModule    = require('./ads-campaignUpdates'),
         campModule      = require('./ads-campaigns'),
+        conModule       = require('./ads-containers'),
+        placeModule     = require('./ads-placements'),
         siteModule      = require('./ads-sites'),
         
         state   = {},
@@ -26,6 +28,13 @@
         appDir: __dirname,
         caches : { //TODO: may want to rename this now...
             run     : path.normalize('/usr/local/share/cwrx/' + state.name + '/caches/run/'),
+        },
+        cacheTTLs: {  // units here are minutes
+            placements: {
+                freshTTL: 1,
+                maxTTL: 4
+            },
+            cloudFront: 5
         },
         emails: {
             awsRegion: 'us-east-1',
@@ -106,6 +115,8 @@
             campSvc      = campModule.setupSvc(state.dbs.c6Db, state.config),
             updateSvc    = updateModule.setupSvc(state.dbs.c6Db, campSvc, state.config),
             siteSvc      = siteModule.setupSvc(state.dbs.c6Db.collection('sites')),
+            conSvc       = conModule.setupSvc(state.dbs.c6Db),
+            placeSvc     = placeModule.setupSvc(state.dbs.c6Db, state.config),
             auditJournal = new journal.AuditJournal(state.dbs.c6Journal.collection('audit'),
                                                     state.config.appVersion, state.config.appName);
         authUtils._db = state.dbs.c6Db;
@@ -147,6 +158,8 @@
 
         campModule.setupEndpoints(app, campSvc, state.sessions, audit, jobManager);
         siteModule.setupEndpoints(app, siteSvc, state.sessions, audit, jobManager);
+        conModule.setupEndpoints(app, conSvc, state.sessions, audit, jobManager);
+        placeModule.setupEndpoints(app, placeSvc, state.sessions, audit, jobManager);
         
         app.use(function(err, req, res, next) {
             if (err) {

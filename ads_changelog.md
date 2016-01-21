@@ -1,5 +1,14 @@
 # Ads Service Changelog
 
+* [FEATURE]: Add endpoints for placements: [#732](https://github.com/cinema6/cwrx/issues/732)
+* [FEATURE]: Add endpoints for containers: [#731](https://github.com/cinema6/cwrx/issues/731)
+* Extra deployment steps:
+    * Add policies for managing `placements` and `containers`
+    * Update `policyAdmin` policy to allow configuring `permissions` and `fieldValidation` for `placements` and `containers`
+    * Setup mongo indexes for `placements` and `containers` collections
+    * Create container entities for each existing container in Cinema6 site
+    * Deploy ads cookbook version 2.0.0
+
 ### 4.1.0: Tue Jan 12 11:52:59 EST 2016
 * [FEATURE]: Add `GET /api/campaigns/updates/` for getting updates from many campaigns: [#730](https://github.com/cinema6/cwrx/pull/730)
 * Extra deployment steps: None
