@@ -175,6 +175,7 @@ describe('player service', function() {
                     uuid: jasmine.any(String),
                     origin: 'https://imasdk.googleapis.com',
                     desktop: true,
+                    mobile: false,
                     secure: false,
                     experience: experience.id,
                     context: 'standalone',
