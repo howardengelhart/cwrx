@@ -20,6 +20,46 @@ describe('player service', function() {
     var request;
     var config;
     var systemExperience;
+    var response, body, $;
+
+    function getResponse(/*response*/) {
+        response = arguments[0];
+
+        try {
+            body = JSON.parse(response.body.toString());
+        } catch(e) {
+            body = response.body.toString();
+        }
+
+        try {
+            $ = cheerio.load(response.body.toString());
+        } catch(e) {
+            $ = null;
+        }
+    }
+
+    function parseResponse(type) {
+        return {
+            css: $('style[data-href$="' + type + '.css"]').text(),
+            js: $('script[data-src$="' + type + '.js"]').text(),
+            experience: JSON.parse($('script[data-src="experience"]').text() || null),
+            options: JSON.parse($('script[data-src="options"]').text() || null),
+            buildProfile: JSON.parse($('script[data-src="build-profile"]').text() || null),
+            seemsValid: function() {
+                return !!(
+                    this.css.length >= 1000 &&
+                    this.js.length >= 1000 &&
+                    this.experience.data.deck.length > 0 &&
+                    this.options && this.options.type === type &&
+                    this.buildProfile && this.buildProfile.type === type
+                );
+            }
+        };
+    }
+
+    function getURL() {
+        return formatURL(config.playerUrl);
+    }
 
     beforeEach(function(done) {
         jasmine.DEFAULT_TIMEOUT_INTERVAL = 30000;
@@ -47,20 +87,13 @@ describe('player service', function() {
         resetCollection('experiences', [systemExperience]).then(done, done.fail);
     });
 
+    afterEach(function() {
+        response = undefined;
+        body = undefined;
+        $ = undefined;
+    });
+
     describe('[GET] /api/players/meta', function() {
-        var response;
-        var body;
-
-        function getResponse() {
-            response = arguments[0];
-
-            try {
-                body = JSON.parse(response.body.toString());
-            } catch(e) {
-                body = response.body.toString();
-            }
-        }
-
         beforeEach(function(done) {
             config.playerUrl.pathname = '/api/players/meta';
 
@@ -78,37 +111,6 @@ describe('player service', function() {
     });
 
     describe('[GET] /api/public/players/:type', function() {
-        var response;
-        var $;
-
-        function getResponse(_response_) {
-            response = _response_;
-            try { $ = cheerio.load(response.body.toString()); } catch(e) {}
-        }
-
-        function parseResponse(type) {
-            return {
-                css: $('style[data-href$="' + type + '.css"]').text(),
-                js: $('script[data-src$="' + type + '.js"]').text(),
-                experience: JSON.parse($('script[data-src="experience"]').text() || null),
-                options: JSON.parse($('script[data-src="options"]').text() || null),
-                buildProfile: JSON.parse($('script[data-src="build-profile"]').text() || null),
-                seemsValid: function() {
-                    return !!(
-                        this.css.length >= 1000 &&
-                        this.js.length >= 1000 &&
-                        this.experience.data.deck.length > 0 &&
-                        this.options && this.options.type === type &&
-                        this.buildProfile && this.buildProfile.type === type
-                    );
-                }
-            };
-        }
-
-        function getURL() {
-            return formatURL(config.playerUrl);
-        }
-
         beforeEach(function() {
             config.playerUrl.pathname = '/api/public/players/lightbox';
         });
