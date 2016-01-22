@@ -449,7 +449,7 @@ Player.startService = function startService() {
                         'campaign', 'branding', 'placementId',
                         'container', 'wildCardPlacement',
                         'pageUrl', 'hostApp', 'network',
-                        'preview'
+                        'preview', 'placement'
                     ],
                     cacheTTLs: {
                         fresh: 1,
@@ -462,7 +462,7 @@ Player.startService = function startService() {
                     validParams: [
                         'container', 'pageUrl',
                         'hostApp', 'network', 'experience',
-                        'preview'
+                        'preview', 'placement'
                     ],
                     cacheTTLs: {
                         fresh: 1,
