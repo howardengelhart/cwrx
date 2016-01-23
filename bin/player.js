@@ -12,7 +12,7 @@ var express = require('express');
 var logger = require('../lib/logger');
 var inherits = require('util').inherits;
 var inspect = require('util').inspect;
-var BrowserInfo = require('../lib/browserInfo');
+var BrowserInfo = require('rc-browser-info');
 var resolvePath = require('path').resolve;
 var inspect = require('util').inspect;
 var filterObject = require('../lib/objUtils').filter;
@@ -90,6 +90,11 @@ function Player(config) {
         maxTTL: Infinity,
         gcInterval: Infinity
     });
+    var placementCache = new FunctionCache({
+        freshTTL: config.api.placement.cacheTTLs.fresh,
+        maxTTL: config.api.placement.cacheTTLs.max,
+        extractor: clonePromise
+    });
 
     this.config = extend({
         app: {
@@ -120,6 +125,8 @@ function Player(config) {
     this.__getExperience__ = contentCache.add(this.__getExperience__.bind(this), -1);
     // Memoize Player.prototype.__getBranding__() method.
     this.__getBranding__ = brandingCache.add(this.__getBranding__.bind(this), -1);
+    // Memoize Player.prototype.__getPlacement__() method.
+    this.__getPlacement__ = placementCache.add(this.__getPlacement__.bind(this), -1);
 
     //Cache the initial player version.
     this.getVersion();
@@ -255,6 +262,29 @@ Player.prototype.__loadExperience__ = function __loadExperience__(id, params, or
     }
 
     return getExperience(id, validParams, origin, uuid).then(loadAds);
+};
+
+Player.prototype.__getPlacement__ = function __getPlacement__(id, params, uuid) {
+    var log = logger.getLog();
+    var config = this.config;
+    var placementLocation = resolveURL(config.api.root, config.api.placement.endpoint);
+    var url = resolveURL(placementLocation, id);
+
+    return q(request.get(url, { qs: params, json: true }).catch(function handleRejection(reason) {
+        if (reason.name !== 'StatusCodeError') {
+            log.error('[%1] Unexpected error fetching placement: {%2}', uuid, inspect(reason));
+            throw new ServiceError(reason.message, 500);
+        }
+
+        if (reason.statusCode >= 500) {
+            log.error(
+                '[%1] Bad response fetching placement: [%2] {%3} (%4)',
+                uuid, reason.statusCode, inspect(reason), url
+            );
+        }
+
+        throw new ServiceError(reason.message, reason.statusCode);
+    }));
 };
 
 Player.prototype.__getExperience__ = function __getExperience__(id, params, origin, uuid) {
@@ -419,7 +449,7 @@ Player.startService = function startService() {
                         'campaign', 'branding', 'placementId',
                         'container', 'wildCardPlacement',
                         'pageUrl', 'hostApp', 'network',
-                        'preview'
+                        'preview', 'placement'
                     ],
                     cacheTTLs: {
                         fresh: 1,
@@ -432,8 +462,16 @@ Player.startService = function startService() {
                     validParams: [
                         'container', 'pageUrl',
                         'hostApp', 'network', 'experience',
-                        'preview'
+                        'preview', 'placement'
                     ],
+                    cacheTTLs: {
+                        fresh: 1,
+                        max: 5
+                    }
+                },
+                placement: {
+                    endpoint: 'api/public/placements/',
+                    validParams: [],
                     cacheTTLs: {
                         fresh: 1,
                         max: 5
@@ -479,7 +517,7 @@ Player.startService = function startService() {
         var parsePlayerQuery = parseQuery({
             arrays: ['categories', 'playUrls', 'countUrls', 'clickUrls', 'launchUrls']
         });
-        var sendRequestMetrics = cloudwatchMetrics(
+        var sendMetrics = cloudwatchMetrics(
             state.config.cloudwatch.namespace,
             state.config.cloudwatch.sendInterval,
             { Dimensions: state.config.cloudwatch.dimensions }
@@ -519,53 +557,37 @@ Player.startService = function startService() {
             res.send(200, state.config.appVersion);
         });
 
-        app.get('/api/public/players/:type', parsePlayerQuery, sendRequestMetrics, function route(
+        app.get(
+            '/api/public/player',
+            parsePlayerQuery, sendMetrics, player.middlewareify('getViaPlacement')
+        );
+
+        app.get('/api/public/players/:type', parsePlayerQuery, sendMetrics, function redirect(
             req,
-            res
+            res,
+            next
         ) {
             var config = state.config;
             var type = req.params.type;
             var uuid = req.uuid;
             var query = req.query;
-            var secure = req.secure;
             var mobileType = query.mobileType || config.defaults.mobileType;
             var typeRedirect = config.typeRedirects[type];
-            var origin = req.get('origin') || req.get('referer');
             var agent = req.get('user-agent');
             var browser = new BrowserInfo(agent);
 
             if (typeRedirect) {
                 log.trace('[%1] Redirecting agent from %2 to %3 player.', uuid, type, typeRedirect);
-                return q(res.redirect(301, typeRedirect + formatURL({ query: req.query })));
+                return res.redirect(301, typeRedirect + formatURL({ query: req.query }));
             }
 
             if (browser.isMobile && type !== mobileType) {
                 log.trace('[%1] Redirecting agent to mobile player: %2.', uuid, mobileType);
-                return q(res.redirect(303, mobileType + formatURL({ query: req.query })));
+                return res.redirect(303, mobileType + formatURL({ query: req.query }));
             }
 
-            return player.get(extend({
-                type: type,
-                uuid: uuid,
-                origin: origin,
-                desktop: browser.isDesktop,
-                secure: secure
-            }, query)).then(function sendResponse(html) {
-                log.info('[%1] {GET %2} Response Length: %3.', uuid, req.url, html.length);
-                return res.send(200, html);
-            }).catch(function handleRejection(reason) {
-                var status = (reason && reason.status) || 500;
-                var message = (reason && reason.message) || 'Internal error';
-
-                if (reason instanceof ServiceError) {
-                    log.info('[%1] Failure: {%2} %3', uuid, status, message);
-                } else {
-                    log.error('[%1] Failure: {%2} %3 [%4]', uuid, status, inspect(reason), req.url);
-                }
-
-                res.send(status, message);
-            });
-        });
+            return next();
+        }, player.middlewareify('get'));
 
         app.use(function(err, req, res, next) {
             if (err) {
@@ -624,6 +646,39 @@ Player.startService = function startService() {
 
             return route(state);
         });
+};
+
+Player.prototype.middlewareify = function middlewareify(method) {
+    var self = this;
+    var log = logger.getLog();
+
+    return function middleware(req, res) {
+        var uuid = req.uuid;
+        var browser = new BrowserInfo(req.get('user-agent'));
+        var options = extend(extend({
+            uuid: uuid,
+            origin: req.get('origin') || req.get('referer'),
+            desktop: browser.isDesktop,
+            mobile: browser.isMobile,
+            secure: req.secure
+        }, req.query), req.params);
+
+        self[method](options).then(function sendResponse(result) {
+            log.info('[%1] {GET %2} Response Length: %3.', uuid, req.url, result.length);
+            return res.send(200, result);
+        }).catch(function handleRejection(reason) {
+            var status = (reason && reason.status) || 500;
+            var message = (reason && reason.message) || 'Internal error';
+
+            if (reason instanceof ServiceError) {
+                log.info('[%1] Failure: {%2} %3', uuid, status, message);
+            } else {
+                log.error('[%1] Failure: {%2} %3 [%4]', uuid, status, inspect(reason), req.url);
+            }
+
+            res.send(status, message);
+        });
+    };
 };
 
 Player.prototype.getVersion = function getVersion() {
@@ -757,6 +812,32 @@ Player.prototype.get = function get(/*options*/) {
             return document.addResource('experience', 'application/json', experience);
         });
     }).then(stringify);
+};
+
+Player.prototype.getViaPlacement = function getViaPlacement(options) {
+    var log = logger.getLog();
+    var self = this;
+    var config = this.config;
+    var uuid = options.uuid;
+    var placement = options.placement;
+
+    if (!placement) {
+        return q.reject(new ServiceError('You must provide a placement.', 400));
+    }
+
+    log.trace('[%1] Fetching placement {%2}.', uuid, placement);
+
+    return this.__getPlacement__(placement, {}, uuid).then(function getPlayer(placement) {
+        var params = _.defaults(_.assign(placement.tagParams, options), config.defaults);
+
+        if (options.mobile) {
+            params.type = params.mobileType;
+        }
+
+        log.trace('[%1] Got placement. Getting player with options: %2.', uuid, inspect(params));
+
+        return self.get(params);
+    });
 };
 
 Player.prototype.resetCodeCache = function resetCodeCache() {

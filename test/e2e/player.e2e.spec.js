@@ -20,6 +20,46 @@ describe('player service', function() {
     var request;
     var config;
     var systemExperience;
+    var response, body, $;
+
+    function getResponse(/*response*/) {
+        response = arguments[0];
+
+        try {
+            body = JSON.parse(response.body.toString());
+        } catch(e) {
+            body = response.body.toString();
+        }
+
+        try {
+            $ = cheerio.load(response.body.toString());
+        } catch(e) {
+            $ = null;
+        }
+    }
+
+    function parseResponse(type) {
+        return {
+            css: $('style[data-href$="' + type + '.css"]').text(),
+            js: $('script[data-src$="' + type + '.js"]').text(),
+            experience: JSON.parse($('script[data-src="experience"]').text() || null),
+            options: JSON.parse($('script[data-src="options"]').text() || null),
+            buildProfile: JSON.parse($('script[data-src="build-profile"]').text() || null),
+            seemsValid: function() {
+                return !!(
+                    this.css.length >= 1000 &&
+                    this.js.length >= 1000 &&
+                    this.experience.data.deck.length > 0 &&
+                    this.options && this.options.type === type &&
+                    this.buildProfile && this.buildProfile.type === type
+                );
+            }
+        };
+    }
+
+    function getURL() {
+        return formatURL(config.playerUrl);
+    }
 
     beforeEach(function(done) {
         jasmine.DEFAULT_TIMEOUT_INTERVAL = 30000;
@@ -47,20 +87,13 @@ describe('player service', function() {
         resetCollection('experiences', [systemExperience]).then(done, done.fail);
     });
 
+    afterEach(function() {
+        response = undefined;
+        body = undefined;
+        $ = undefined;
+    });
+
     describe('[GET] /api/players/meta', function() {
-        var response;
-        var body;
-
-        function getResponse() {
-            response = arguments[0];
-
-            try {
-                body = JSON.parse(response.body.toString());
-            } catch(e) {
-                body = response.body.toString();
-            }
-        }
-
         beforeEach(function(done) {
             config.playerUrl.pathname = '/api/players/meta';
 
@@ -78,37 +111,6 @@ describe('player service', function() {
     });
 
     describe('[GET] /api/public/players/:type', function() {
-        var response;
-        var $;
-
-        function getResponse(_response_) {
-            response = _response_;
-            try { $ = cheerio.load(response.body.toString()); } catch(e) {}
-        }
-
-        function parseResponse(type) {
-            return {
-                css: $('style[data-href$="' + type + '.css"]').text(),
-                js: $('script[data-src$="' + type + '.js"]').text(),
-                experience: JSON.parse($('script[data-src="experience"]').text() || null),
-                options: JSON.parse($('script[data-src="options"]').text() || null),
-                buildProfile: JSON.parse($('script[data-src="build-profile"]').text() || null),
-                seemsValid: function() {
-                    return !!(
-                        this.css.length >= 1000 &&
-                        this.js.length >= 1000 &&
-                        this.experience.data.deck.length > 0 &&
-                        this.options && this.options.type === type &&
-                        this.buildProfile && this.buildProfile.type === type
-                    );
-                }
-            };
-        }
-
-        function getURL() {
-            return formatURL(config.playerUrl);
-        }
-
         beforeEach(function() {
             config.playerUrl.pathname = '/api/public/players/lightbox';
         });
@@ -173,6 +175,7 @@ describe('player service', function() {
                     uuid: jasmine.any(String),
                     origin: 'https://imasdk.googleapis.com',
                     desktop: true,
+                    mobile: false,
                     secure: false,
                     experience: experience.id,
                     context: 'standalone',
@@ -844,6 +847,103 @@ describe('player service', function() {
                 it('should redirect to the ' + types.new + ' player', function() {
                     expect(response.statusCode).toBe(301);
                     expect(response.headers.location).toBe(types.new + formatURL({ query: config.playerUrl.query }));
+                });
+            });
+        });
+    });
+
+    describe('[GET] /api/public/player', function() {
+        var placement, card, campaign;
+
+        beforeEach(function(done) {
+            placement = require('./helpers/player/placement.json');
+            card = require('./helpers/player/cards.json')[1];
+            campaign = require('./helpers/player/campaign_with_static_map.json');
+
+            expect(placement.tagParams.card).toBe(card.id);
+            expect(card.campaignId).toBe(campaign.id);
+            expect(placement.tagParams.campaign).toBe(campaign.id);
+
+            q.all([
+                resetCollection('placements', [placement]),
+                resetCollection('cards', [card]),
+                resetCollection('campaigns', [campaign])
+            ]).then(done, done.fail);
+
+            config.playerUrl.pathname = '/api/public/player';
+        });
+
+        describe('without a placement', function() {
+            beforeEach(function(done) {
+                request.get(getURL()).then(getResponse).then(done, done.fail);
+            });
+
+            it('should [400]', function() {
+                expect(response.statusCode).toBe(400);
+                expect(body).toBe('You must provide a placement.');
+            });
+        });
+
+        describe('with a placement', function() {
+            beforeEach(function(done) {
+                config.playerUrl.query.placement = placement.id;
+                config.playerUrl.query.playUrls = 'https://tracking.com/pixel.gif?event=play';
+                config.playerUrl.query.debug = 2;
+
+                request.get(getURL()).then(getResponse).then(done, done.fail);
+            });
+
+            it('should return a valid player', function() {
+                expect(parseResponse('light').seemsValid()).toBe(true);
+            });
+
+            it('should create options by combining the options from the placement with the ones in the query params', function() {
+                expect(parseResponse('light').options).toEqual({
+                    container: 'reactx',
+                    campaign: 'cam-7637703876d1f5',
+                    card: 'rc-2b278986abacf8',
+                    type: 'light',
+                    debug: 2,
+                    uuid: jasmine.any(String),
+                    origin: 'https://imasdk.googleapis.com',
+                    desktop: true,
+                    mobile: false,
+                    secure: false,
+                    placement: 'pl-83bc832ca2b056',
+                    playUrls: ['https://tracking.com/pixel.gif?event=play'],
+                    context: 'standalone',
+                    mobileType: 'mobile',
+                    standalone: true,
+                    interstitial: false,
+                    autoLaunch: true
+                });
+            });
+
+            it('should get the creative from the placement', function() {
+                expect(parseResponse('light').experience.data.deck[0].id).toBe(card.id);
+            });
+
+            describe('on a mobile device', function() {
+                beforeEach(function(done) {
+                    request = request.defaults({
+                        headers: {
+                            'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 8_0 like Mac OS X) AppleWebKit/600.1.3 (KHTML, like Gecko) Version/8.0 Mobile/12A4345d Safari/600.1.4'
+                        }
+                    });
+
+                    request.get(getURL()).then(getResponse).then(done, done.fail);
+                });
+
+                it('should serve the mobile player', function() {
+                    expect(parseResponse('mobile').seemsValid()).toBe(true);
+                });
+
+                it('should make the options reflect the substituted player', function() {
+                    expect(parseResponse('mobile').options).toEqual(jasmine.objectContaining({
+                        desktop: false,
+                        mobile: true,
+                        type: 'mobile'
+                    }));
                 });
             });
         });

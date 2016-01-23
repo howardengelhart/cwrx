@@ -1,0 +1,28 @@
+{
+    "id": "pl-83bc832ca2b056",
+    "status": "active",
+    "created": "2016-01-22T16:56:10.154Z",
+    "lastUpdated": "2016-01-22T16:56:10.154Z",
+    "user": "u-test",
+    "org": "o-test",
+    "label": "e2e-test-placement",
+    "tagType": "iframe",
+    "startDate": "2016-01-22T16:58:10+00:00",
+    "endDate": "2020-01-22T16:58:10+00:00",
+    "budget": {
+        "daily": 100,
+        "total": 1000000
+    },
+    "externalCost": {
+        "event": "play",
+        "cost": 0.04
+    },
+    "costHistory": [],
+    "tagParams": {
+        "container": "reactx",
+        "campaign": "cam-7637703876d1f5",
+        "card": "rc-2b278986abacf8",
+        "type": "light",
+        "debug": 1
+    }
+}

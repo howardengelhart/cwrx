@@ -1168,7 +1168,8 @@ describe('AdLoader()', function() {
                                 pageUrl: 'http://www.cinema6.com',
                                 branding: 'foo',
                                 wildCardPlacement: '7583475',
-                                preview: false
+                                preview: false,
+                                placement: 'pl-fb664dc7936ca5'
                             }
                         };
                         categories = ['food', 'gaming', 'tech', 'lifestyle', 'humor'];
@@ -1192,7 +1193,8 @@ describe('AdLoader()', function() {
                             network: experience.$params.network,
                             pageUrl: experience.$params.pageUrl,
                             experience: experience.id,
-                            preview: experience.$params.preview
+                            preview: experience.$params.preview,
+                            placement: experience.$params.placement
                         }, 3, origin, uuid);
                     });
 

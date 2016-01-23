@@ -6,6 +6,7 @@ describe('player service', function() {
     var request;
     var cheerio;
     var FunctionCache;
+    var BrowserInfo;
     var service;
     var express;
     var formatURL;
@@ -29,6 +30,7 @@ describe('player service', function() {
     var MockFunctionCache;
     var MockAdLoader;
     var MockAppBuilder;
+    var MockBrowserInfo;
     var playerHTML;
     var builtPlayerHTML;
     var playerCSS;
@@ -81,6 +83,10 @@ describe('player service', function() {
 
             return req;
         });
+
+        delete require.cache[require.resolve('rc-browser-info')];
+        BrowserInfo = require('rc-browser-info');
+        MockBrowserInfo = require.cache[require.resolve('rc-browser-info')].exports = jasmine.createSpy('BrowserInfo()').and.callFake(BrowserInfo);
 
         delete require.cache[require.resolve('../../lib/cloudWatchReporter')];
         CloudWatchReporter = require('../../lib/cloudWatchReporter');
@@ -169,7 +175,7 @@ describe('player service', function() {
         describe('@public', function() {
             describe('methods:', function() {
                 describe('startService()', function() {
-                    var MockPlayer, MockBrowserInfo, mockExpress, expressApp;
+                    var MockPlayer, mockExpress, expressApp;
                     var player, browser;
                     var ServiceError;
 
@@ -222,12 +228,15 @@ describe('player service', function() {
                         });
 
                         browser = { isMobile: false, isDesktop: true };
-                        MockBrowserInfo = require.cache[require.resolve('../../lib/browserInfo')].exports = jasmine.createSpy('BrowserInfo()').and.returnValue(browser);
+                        MockBrowserInfo.and.returnValue(browser);
 
                         delete require.cache[require.resolve('../../bin/player')];
                         Player = require('../../bin/player');
                         MockPlayer = require.cache[require.resolve('../../bin/player')].exports = jasmine.createSpy('MockPlayer()').and.callFake(function(config) {
-                            return (player = new Player(config));
+                            player = new Player(config);
+                            spyOn(player, 'middlewareify').and.callThrough();
+
+                            return player;
                         });
                         MockPlayer.startService = Player.startService;
 
@@ -274,7 +283,7 @@ describe('player service', function() {
                                             'campaign', 'branding', 'placementId',
                                             'container', 'wildCardPlacement',
                                             'pageUrl', 'hostApp', 'network',
-                                            'preview'
+                                            'preview', 'placement'
                                         ],
                                         cacheTTLs: {
                                             fresh: 1,
@@ -287,8 +296,16 @@ describe('player service', function() {
                                         validParams: [
                                             'container', 'pageUrl',
                                             'hostApp', 'network', 'experience',
-                                            'preview'
+                                            'preview', 'placement'
                                         ],
+                                        cacheTTLs: {
+                                            fresh: 1,
+                                            max: 5
+                                        }
+                                    },
+                                    placement: {
+                                        endpoint: 'api/public/placements/',
+                                        validParams: [],
                                         cacheTTLs: {
                                             fresh: 1,
                                             max: 5
@@ -521,22 +538,45 @@ describe('player service', function() {
                         });
                     });
 
-                    describe('route: GET /api/public/players/:type', function() {
+                    describe('route: GET /api/public/player', function() {
+                        var middlewareify;
+
+                        beforeEach(function() {
+                            middlewareify = _.find(player.middlewareify.calls.all(), function(call) {
+                                return call.args[0] === 'getViaPlacement';
+                            });
+                            expect(middlewareify).toBeDefined();
+                        });
+
                         it('should exist', function() {
-                            expect(expressApp.get).toHaveBeenCalledWith('/api/public/players/:type', expressUtils.parseQuery.calls.mostRecent().returnValue, expressUtils.cloudwatchMetrics.calls.mostRecent().returnValue, jasmine.any(Function));
+                            expect(expressApp.get).toHaveBeenCalledWith('/api/public/player', expressUtils.parseQuery.calls.mostRecent().returnValue, expressUtils.cloudwatchMetrics.calls.mostRecent().returnValue, middlewareify.returnValue);
+                        });
+                    });
+
+                    describe('route: GET /api/public/players/:type', function() {
+                        var middlewareify;
+
+                        beforeEach(function() {
+                            middlewareify = _.find(player.middlewareify.calls.all(), function(call) {
+                                return call.args[0] === 'get';
+                            });
+                            expect(middlewareify).toBeDefined();
+                        });
+
+                        it('should exist', function() {
+                            expect(expressApp.get).toHaveBeenCalledWith('/api/public/players/:type', expressUtils.parseQuery.calls.mostRecent().returnValue, expressUtils.cloudwatchMetrics.calls.mostRecent().returnValue, jasmine.any(Function), middlewareify.returnValue);
                         });
 
                         describe('when invoked', function() {
                             var state;
                             var middleware;
-                            var request, response;
+                            var request, response, next;
                             var headers;
-                            var getDeferred;
 
-                            beforeEach(function(done) {
+                            beforeEach(function() {
                                 state = service.daemonize.calls.mostRecent().args[0];
 
-                                middleware = expressRoutes.get['/api/public/players/:type'][0][expressRoutes.get['/api/public/players/:type'][0].length - 1];
+                                middleware = expressRoutes.get['/api/public/players/:type'][0][expressRoutes.get['/api/public/players/:type'][0].length - 2];
                                 headers = {
                                     'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_10_5) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/45.0.2454.99 Safari/537.36',
                                     'origin': 'https://github.com/cinema6/cwrx/pull/504/files'
@@ -557,127 +597,17 @@ describe('player service', function() {
                                     send: jasmine.createSpy('response.send()'),
                                     redirect: jasmine.createSpy('response.redirect()')
                                 };
+                                next = jasmine.createSpy('next()');
 
-                                getDeferred = q.defer();
-                                spyOn(player, 'get').and.returnValue(getDeferred.promise);
-
-                                middleware(request, response);
-                                q().then(done);
+                                middleware(request, response, next);
                             });
 
-                            it('should create a BrowserInfo()', function() {
-                                expect(MockBrowserInfo).toHaveBeenCalledWith(request.get('user-agent'));
+                            it('should call next()', function() {
+                                expect(next).toHaveBeenCalled();
                             });
 
-                            it('should get() the player', function() {
-                                expect(player.get).toHaveBeenCalledWith(extend({
-                                    type: request.params.type,
-                                    uuid: request.uuid,
-                                    origin: request.get('origin'),
-                                    desktop: browser.isDesktop,
-                                    secure: request.secure
-                                }, request.query));
-                            });
-
-                            describe('and the get() succeeds', function() {
-                                beforeEach(function(done) {
-                                    getDeferred.fulfill(playerHTML);
-                                    getDeferred.promise.finally(done);
-                                });
-
-                                it('should send() the response', function() {
-                                    expect(response.send).toHaveBeenCalledWith(200, playerHTML);
-                                });
-                            });
-
-                            describe('and the get() fails', function() {
-                                describe('with no reason', function() {
-                                    beforeEach(function(done) {
-                                        getDeferred.reject();
-                                        getDeferred.promise.finally(done);
-                                    });
-
-                                    it('should send a 500', function() {
-                                        expect(response.send).toHaveBeenCalledWith(500, 'Internal error');
-                                    });
-
-                                    it('should log an error', function() {
-                                        expect(log.error).toHaveBeenCalled();
-                                    });
-                                });
-
-                                describe('with a non-Error reason', function() {
-                                    beforeEach(function(done) {
-                                        getDeferred.reject('I failed!');
-                                        getDeferred.promise.finally(done);
-                                    });
-
-                                    it('should send a 500', function() {
-                                        expect(response.send).toHaveBeenCalledWith(500, 'Internal error');
-                                    });
-
-                                    it('should log an error', function() {
-                                        expect(log.error).toHaveBeenCalled();
-                                    });
-                                });
-
-                                describe('with an Error reason', function() {
-                                    var error;
-
-                                    beforeEach(function(done) {
-                                        error = new Error('I have a problem...');
-
-                                        getDeferred.reject(error);
-                                        getDeferred.promise.finally(done);
-                                    });
-
-                                    it('should send a 500', function() {
-                                        expect(response.send).toHaveBeenCalledWith(500, error.message);
-                                    });
-
-                                    it('should log an error', function() {
-                                        expect(log.error).toHaveBeenCalled();
-                                    });
-                                });
-
-                                describe('with a ServiceError', function() {
-                                    var error;
-
-                                    beforeEach(function(done) {
-                                        error = new ServiceError('Could not find something.', 404);
-
-                                        getDeferred.reject(error);
-                                        getDeferred.promise.finally(done);
-                                    });
-
-                                    it('should use the status', function() {
-                                        expect(response.send).toHaveBeenCalledWith(404, error.message);
-                                    });
-
-                                    it('should not log an error', function() {
-                                        expect(log.error).not.toHaveBeenCalled();
-                                    });
-                                });
-                            });
-
-                            describe('if the request has no origin', function() {
-                                beforeEach(function() {
-                                    player.get.calls.reset();
-                                    player.get.and.returnValue(q(playerHTML));
-                                    delete headers.origin;
-                                });
-
-                                describe('but has a referer', function() {
-                                    beforeEach(function(done) {
-                                        headers.referer = 'https://nodejs.org/api/modules.html#modules_module_filename';
-
-                                        middleware(request, response).finally(done);
-                                    });
-
-                                    it('should set the referer as the origin', function() {
-                                        expect(player.get).toHaveBeenCalledWith(jasmine.objectContaining({ origin: request.get('referer') }));
-                                    });
-                                });
+                            it('should not redirect', function() {
+                                expect(response.redirect).not.toHaveBeenCalled();
                             });
 
                             [
@@ -689,19 +619,16 @@ describe('player service', function() {
                                 describe('if the type is ' + type, function() {
                                     var config;
 
-                                    beforeEach(function(done) {
-                                        response.send.calls.reset();
-                                        player.get.calls.reset();
-                                        player.get.and.returnValue(q(playerHTML));
-
+                                    beforeEach(function() {
+                                        next.calls.reset();
                                         config = service.daemonize.calls.mostRecent().args[0].config;
 
                                         request.params.type = type;
-                                        middleware(request, response).finally(done);
+                                        middleware(request, response, next);
                                     });
 
-                                    it('should not get() the player', function() {
-                                        expect(player.get).not.toHaveBeenCalled();
+                                    it('should not call next()', function() {
+                                        expect(next).not.toHaveBeenCalled();
                                     });
 
                                     it('should redirect the agent to the configured type', function() {
@@ -719,18 +646,16 @@ describe('player service', function() {
                                     config = service.daemonize.calls.mostRecent().args[0].config;
 
                                     delete config.typeRedirects.swipe;
-                                    response.send.calls.reset();
-                                    player.get.calls.reset();
+                                    next.calls.reset();
                                     browser.isMobile = true;
                                     browser.isDesktop = false;
-                                    player.get.and.returnValue(q(playerHTML));
                                 });
 
                                 describe('and a mobileType is specified', function() {
-                                    beforeEach(function(done) {
+                                    beforeEach(function() {
                                         request.query.mobileType = 'swipe';
 
-                                        middleware(request, response).finally(done);
+                                        middleware(request, response, next);
                                     });
 
                                     it('should redirect the agent to the mobileType', function() {
@@ -739,40 +664,35 @@ describe('player service', function() {
                                         }));
                                     });
 
-                                    it('should not get() the player', function() {
-                                        expect(player.get).not.toHaveBeenCalled();
-                                        expect(response.send).not.toHaveBeenCalled();
+                                    it('should not call next()', function() {
+                                        expect(next).not.toHaveBeenCalled();
                                     });
 
                                     describe('and the type is already the mobileType', function() {
-                                        beforeEach(function(done) {
+                                        beforeEach(function() {
                                             response.redirect.calls.reset();
-                                            player.get.calls.reset();
-                                            response.send.calls.reset();
+                                            next.calls.reset();
 
                                             request.params.type = request.query.mobileType;
 
-                                            middleware(request, response).finally(done);
+                                            middleware(request, response, next);
                                         });
 
                                         it('should not redirect the agent', function() {
                                             expect(response.redirect).not.toHaveBeenCalled();
                                         });
 
-                                        it('should get() the player and send the response', function() {
-                                            expect(player.get).toHaveBeenCalledWith(jasmine.objectContaining({
-                                                desktop: browser.isDesktop
-                                            }));
-                                            expect(response.send).toHaveBeenCalledWith(200, jasmine.any(String));
+                                        it('should call next()', function() {
+                                            expect(next).toHaveBeenCalled();
                                         });
                                     });
                                 });
 
                                 describe('and a mobileType is not specified', function() {
-                                    beforeEach(function(done) {
+                                    beforeEach(function() {
                                         delete request.query.mobileType;
 
-                                        middleware(request, response).finally(done);
+                                        middleware(request, response, next);
                                     });
 
                                     it('should redirect the agent to the default mobileType', function() {
@@ -781,31 +701,26 @@ describe('player service', function() {
                                         }));
                                     });
 
-                                    it('should not get() the player', function() {
-                                        expect(player.get).not.toHaveBeenCalled();
-                                        expect(response.send).not.toHaveBeenCalled();
+                                    it('should not call next()', function() {
+                                        expect(next).not.toHaveBeenCalled();
                                     });
 
                                     describe('and the type is already the default mobileType', function() {
-                                        beforeEach(function(done) {
+                                        beforeEach(function() {
                                             response.redirect.calls.reset();
-                                            player.get.calls.reset();
-                                            response.send.calls.reset();
+                                            next.calls.reset();
 
                                             request.params.type = state.config.defaults.mobileType;
 
-                                            middleware(request, response).finally(done);
+                                            middleware(request, response, next);
                                         });
 
                                         it('should not redirect the agent', function() {
                                             expect(response.redirect).not.toHaveBeenCalled();
                                         });
 
-                                        it('should get() the player and send the response', function() {
-                                            expect(player.get).toHaveBeenCalledWith(jasmine.objectContaining({
-                                                desktop: browser.isDesktop
-                                            }));
-                                            expect(response.send).toHaveBeenCalledWith(200, jasmine.any(String));
+                                        it('should call next()', function() {
+                                            expect(next).toHaveBeenCalled();
                                         });
                                     });
                                 });
@@ -841,7 +756,7 @@ describe('player service', function() {
                             'campaign', 'branding', 'placementId',
                             'container', 'wildCardPlacement',
                             'pageUrl', 'hostApp', 'network',
-                            'preview'
+                            'preview', 'placement'
                         ],
                         cacheTTLs: {
                             fresh: 1,
@@ -854,8 +769,16 @@ describe('player service', function() {
                         validParams: [
                             'container', 'pageUrl',
                             'hostApp', 'network', 'experience',
-                            'preview'
+                            'preview', 'placement'
                         ],
+                        cacheTTLs: {
+                            fresh: 1,
+                            max: 5
+                        }
+                    },
+                    placement: {
+                        endpoint: 'api/public/placements/',
+                        validParams: [],
                         cacheTTLs: {
                             fresh: 1,
                             max: 5
@@ -956,6 +879,18 @@ describe('player service', function() {
             });
         });
 
+        it('should create a FunctionCache for the placements', function() {
+            expect(MockFunctionCache).toHaveBeenCalledWith({
+                freshTTL: config.api.placement.cacheTTLs.fresh,
+                maxTTL: config.api.placement.cacheTTLs.max,
+                extractor: clonePromise
+            });
+        });
+
+        it('should create 5 FunctionCaches', function() {
+            expect(MockFunctionCache.calls.count()).toBe(5);
+        });
+
         describe('@public', function() {
             describe('properties:', function() {
                 describe('config', function() {
@@ -1010,6 +945,186 @@ describe('player service', function() {
             });
 
             describe('methods:', function() {
+                describe('middlewareify(method, optionifier)', function() {
+                    var method, optionifier;
+                    var result;
+
+                    beforeEach(function() {
+                        method = 'get';
+
+                        result = player.middlewareify(method, optionifier);
+                    });
+
+                    it('should return a Function', function() {
+                        expect(result).toEqual(jasmine.any(Function));
+                    });
+
+                    describe('when the returned function is called', function() {
+                        var middleware;
+                        var headers, browser;
+                        var req, res, next;
+                        var methodDeferred;
+
+                        beforeEach(function(done) {
+                            middleware = result;
+
+                            headers = {
+                                'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_10_5) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/45.0.2454.99 Safari/537.36',
+                                'origin': 'https://github.com/cinema6/cwrx/pull/504/files'
+                            };
+                            req = {
+                                params: { type: 'lightbox' },
+                                query: {
+                                    foo: 'bar',
+                                    bleh: 'hey'
+                                },
+                                uuid: '8w94yr4389',
+                                get: function(header) {
+                                    return headers[header.toLowerCase()];
+                                },
+                                secure: true
+                            };
+                            res = {
+                                send: jasmine.createSpy('res.send()'),
+                                redirect: jasmine.createSpy('res.redirect()')
+                            };
+                            next = jasmine.createSpy('next()');
+
+                            browser = { isMobile: false, isDesktop: true };
+                            MockBrowserInfo.and.returnValue(browser);
+
+                            methodDeferred = q.defer();
+                            spyOn(player, method).and.returnValue(methodDeferred.promise);
+
+                            middleware(req, res, next);
+                            q().finally(done);
+                        });
+
+                        it('should create a BrowserInfo()', function() {
+                            expect(MockBrowserInfo).toHaveBeenCalledWith(req.get('user-agent'));
+                        });
+
+                        it('should [method]() the player, passing in the req.query + some params it creates', function() {
+                            expect(player[method]).toHaveBeenCalledWith(extend(extend({
+                                uuid: req.uuid,
+                                origin: req.get('origin'),
+                                desktop: browser.isDesktop,
+                                mobile: browser.isMobile,
+                                secure: req.secure
+                            }, req.query), req.params));
+                        });
+
+                        describe('and the method call succeeds', function() {
+                            beforeEach(function(done) {
+                                methodDeferred.fulfill(playerHTML);
+                                methodDeferred.promise.finally(done);
+                            });
+
+                            it('should send() the response', function() {
+                                expect(res.send).toHaveBeenCalledWith(200, playerHTML);
+                            });
+                        });
+
+                        describe('and the method call fails', function() {
+                            describe('with no reason', function() {
+                                beforeEach(function(done) {
+                                    methodDeferred.reject();
+                                    methodDeferred.promise.finally(done);
+                                });
+
+                                it('should send a 500', function() {
+                                    expect(res.send).toHaveBeenCalledWith(500, 'Internal error');
+                                });
+
+                                it('should log an error', function() {
+                                    expect(log.error).toHaveBeenCalled();
+                                });
+                            });
+
+                            describe('with a non-Error reason', function() {
+                                beforeEach(function(done) {
+                                    methodDeferred.reject('I failed!');
+                                    methodDeferred.promise.finally(done);
+                                });
+
+                                it('should send a 500', function() {
+                                    expect(res.send).toHaveBeenCalledWith(500, 'Internal error');
+                                });
+
+                                it('should log an error', function() {
+                                    expect(log.error).toHaveBeenCalled();
+                                });
+                            });
+
+                            describe('with an Error reason', function() {
+                                var error;
+
+                                beforeEach(function(done) {
+                                    error = new Error('I have a problem...');
+
+                                    methodDeferred.reject(error);
+                                    methodDeferred.promise.finally(done);
+                                });
+
+                                it('should send a 500', function() {
+                                    expect(res.send).toHaveBeenCalledWith(500, error.message);
+                                });
+
+                                it('should log an error', function() {
+                                    expect(log.error).toHaveBeenCalled();
+                                });
+                            });
+
+                            describe('with a ServiceError', function() {
+                                var ServiceError;
+                                var error;
+
+                                beforeEach(function(done) {
+                                    player.__getExperience__().catch(function(error) {
+                                        ServiceError = error.constructor;
+                                        expect(ServiceError.name).toBe('ServiceError');
+                                    }).then(function() {
+                                        error = new ServiceError('Could not find something.', 404);
+
+                                        methodDeferred.reject(error);
+                                        return methodDeferred.promise.catch(function() {});
+                                    }).then(done, done.fail);
+                                });
+
+                                it('should use the status', function() {
+                                    expect(res.send).toHaveBeenCalledWith(404, error.message);
+                                });
+
+                                it('should not log an error', function() {
+                                    expect(log.error).not.toHaveBeenCalled();
+                                });
+                            });
+                        });
+
+                        describe('if the request has no origin', function() {
+                            beforeEach(function() {
+                                player[method].calls.reset();
+                                player[method].and.returnValue(q(playerHTML));
+
+                                delete headers.origin;
+                            });
+
+                            describe('but has a referer', function() {
+                                beforeEach(function(done) {
+                                    headers.referer = 'https://nodejs.org/api/modules.html#modules_module_filename';
+
+                                    middleware(req, res, next);
+                                    q().finally(done);
+                                });
+
+                                it('should set the referer as the origin', function() {
+                                    expect(player[method]).toHaveBeenCalledWith(jasmine.objectContaining({ origin: req.get('referer') }));
+                                });
+                            });
+                        });
+                    });
+                });
+
                 describe('getVersion()', function() {
                     var success, failure;
                     var $;
@@ -1686,6 +1801,151 @@ describe('player service', function() {
 
                         it('should fulfill with a String of HTML', function() {
                             expect(success).toHaveBeenCalledWith(document.toString());
+                        });
+                    });
+                });
+
+                describe('getViaPlacement(options)', function() {
+                    var options;
+                    var success, failure;
+                    var result;
+                    var getPlacementDeferred;
+
+                    beforeEach(function(done) {
+                        options = {
+                            placement: 'pl-cc39777e109ea2',
+                            uuid: 'efh7384ry43785t',
+                            branding: 'cinema6',
+                            origin: 'http://cinema6.com/solo?id=e-92160a770b81d5&cb=fu92yr483r76472&foo=wer89437r83947r#foofurief',
+                            preview: false,
+                            playUrls: ['play1.gif', 'play2.gif'],
+                            countUrls: ['count1.gif', 'count2.gif'],
+                            launchUrls: ['launch1.gif', 'launch2.gif'],
+                            clickUrls: ['click1.gif', 'click2.gif'],
+                            desktop: true,
+                            mobile: false,
+                            secure: true,
+                            debug: 2
+                        };
+
+                        success = jasmine.createSpy('success()');
+                        failure = jasmine.createSpy('failure()');
+
+                        getPlacementDeferred = q.defer();
+                        player.__getPlacement__.and.returnValue(getPlacementDeferred.promise);
+
+                        result = player.getViaPlacement(_.cloneDeep(options));
+                        result.then(success, failure);
+                        q().finally(done);
+                    });
+
+                    it('should return a Promise', function() {
+                        expect(result).toEqual(jasmine.any(Promise));
+                    });
+
+                    it('should get the placement', function() {
+                        expect(player.__getPlacement__).toHaveBeenCalledWith(options.placement, {}, options.uuid);
+                    });
+
+                    describe('when the placement is fetched', function() {
+                        var placement;
+
+                        beforeEach(function(done) {
+                            placement = {
+                                id: options.placement,
+                                tagParams: {
+                                    type: 'desktop-card',
+                                    container: 'beeswax',
+                                    campaign: 'cam-7d39e9bb3d4342',
+                                    debug: true,
+                                    prebuffer: true
+                                }
+                            };
+
+                            spyOn(player, 'get').and.returnValue(q(playerHTML));
+
+                            getPlacementDeferred.resolve(_.cloneDeep(placement));
+                            result.finally(done);
+                        });
+
+                        it('should get() the player by extending the placement params with its own', function() {
+                            expect(player.get).toHaveBeenCalledWith(_.defaults(_.assign(_.cloneDeep(placement.tagParams), options), player.config.defaults));
+                        });
+
+                        it('should fulfill with the result of calling player.get()', function() {
+                            expect(success).toHaveBeenCalledWith(playerHTML);
+                        });
+
+                        describe('if the device is mobile', function() {
+                            beforeEach(function(done) {
+                                player.get.calls.reset();
+                                player.__getPlacement__.calls.reset();
+                                success.calls.reset();
+                                failure.calls.reset();
+
+                                options.mobile = true;
+                                options.desktop = false;
+
+                                player.getViaPlacement(options).then(success, failure).finally(done);
+                            });
+
+                            it('should set the type to the default mobileType', function() {
+                                expect(player.get).toHaveBeenCalledWith(jasmine.objectContaining({ type: player.config.defaults.mobileType }));
+                            });
+
+                            describe('and there is a mobileType', function() {
+                                beforeEach(function() {
+                                    player.get.calls.reset();
+                                    player.__getPlacement__.calls.reset();
+                                    success.calls.reset();
+                                    failure.calls.reset();
+                                });
+
+                                describe('in the request', function() {
+                                    beforeEach(function(done) {
+                                        options.mobileType = 'swipe';
+
+                                        player.getViaPlacement(options).then(success, failure).finally(done);
+                                    });
+
+                                    it('should set the type to that mobileType', function() {
+                                        expect(player.get).toHaveBeenCalledWith(jasmine.objectContaining({ type: options.mobileType }));
+                                    });
+                                });
+
+                                describe('in the placement', function() {
+                                    beforeEach(function(done) {
+                                        placement.tagParams.mobileType = 'swipe';
+                                        player.__getPlacement__.and.returnValue(q(_.cloneDeep(placement)));
+
+                                        player.getViaPlacement(options).then(success, failure).finally(done);
+                                    });
+
+                                    it('should set the type to that mobileType', function() {
+                                        expect(player.get).toHaveBeenCalledWith(jasmine.objectContaining({ type: placement.tagParams.mobileType }));
+                                    });
+                                });
+                            });
+                        });
+                    });
+
+                    describe('if a placement is not specified', function() {
+                        beforeEach(function(done) {
+                            success.calls.reset();
+                            failure.calls.reset();
+
+                            delete options.placement;
+
+                            player.getViaPlacement(_.cloneDeep(options)).then(success, failure).finally(done);
+                        });
+
+                        it('should reject the promise', function() {
+                            var error = failure.calls.mostRecent().args[0];
+
+                            expect(error).toEqual(jasmine.any(Error));
+                            expect(error.message).toBe('You must provide a placement.');
+                            expect(error.status).toBe(400);
+                            expect(error.constructor.name).toBe('ServiceError');
                         });
                     });
                 });
@@ -2692,6 +2952,156 @@ describe('player service', function() {
                                     { src: resolveURL(base, branding + '/styles/' + type + '/theme.css'), styles: themeCSS },
                                     { src: resolveURL(base, branding + '/styles/' + type + '/theme--hover.css'), styles: themeHoverCSS }
                                 ]);
+                            });
+                        });
+                    });
+                });
+
+                describe('__getPlacement__(id, params, uuid)', function() {
+                    var id, params, uuid;
+                    var result;
+                    var success, failure;
+
+                    beforeEach(function(done) {
+                        id = 'pl-cc39777e109ea2';
+                        params = { foo: 'bar' };
+                        uuid = 'u928yr4';
+
+                        success = jasmine.createSpy('success()');
+                        failure = jasmine.createSpy('failure()');
+
+                        result = player.__getPlacement__(id, params, uuid);
+                        result.then(success, failure);
+                        q().finally(done);
+                    });
+
+                    it('should cache the function', function() {
+                        expect(fnCaches[4].add.calls.all().map(function(call) { return call.returnValue; })).toContain(player.__getPlacement__);
+                        fnCaches[4].add.calls.all().forEach(function(call) {
+                            if (call.returnValue === player.__getPlacement__) {
+                                expect(call.args).toEqual([jasmine.any(Function), -1]);
+                            }
+                        });
+                    });
+
+                    it('should return a Promise', function() {
+                        expect(result).toEqual(jasmine.any(Promise));
+                    });
+
+                    it('should make a request for the placement', function() {
+                        expect(request.get).toHaveBeenCalledWith('http://localhost/api/public/placements/pl-cc39777e109ea2', {
+                            qs: params,
+                            json: true
+                        });
+                    });
+
+                    describe('if the request', function() {
+                        var deferred;
+
+                        beforeEach(function() {
+                            deferred = requestDeferreds[request.get.calls.mostRecent().args[0]];
+                        });
+
+                        describe('fails', function() {
+                            var reason;
+
+                            describe('for some unknown reason', function() {
+                                beforeEach(function(done) {
+                                    reason = new Error('Something just went wrong...');
+
+                                    deferred.reject(reason);
+                                    result.finally(done);
+                                });
+
+                                it('should [500]', function() {
+                                    var error = failure.calls.mostRecent().args[0];
+
+                                    expect(error).toEqual(jasmine.any(Error));
+                                    expect(error.message).toBe(reason.message);
+                                    expect(error.status).toBe(500);
+                                    expect(error.constructor.name).toBe('ServiceError');
+                                });
+
+                                it('should log an error', function() {
+                                    expect(log.error).toHaveBeenCalled();
+                                });
+                            });
+
+                            describe('because of a StatusCode', function() {
+                                beforeEach(function() {
+                                    reason = new Error('The page could not be loaded.');
+                                    reason.name = 'StatusCodeError';
+                                });
+
+                                [400, 404, 409].forEach(function(statusCode) {
+                                    describe('of ' + statusCode, function() {
+                                        beforeEach(function(done) {
+                                            reason.statusCode = statusCode;
+
+                                            deferred.reject(reason);
+                                            result.finally(done);
+                                        });
+
+                                        it('should adopt the status code of the placement response', function() {
+                                            var error = failure.calls.mostRecent().args[0];
+
+                                            expect(error).toEqual(jasmine.any(Error));
+                                            expect(error.message).toBe(reason.message);
+                                            expect(error.status).toBe(reason.statusCode);
+                                            expect(error.constructor.name).toBe('ServiceError');
+                                        });
+
+                                        it('should not log an error', function() {
+                                            expect(log.error).not.toHaveBeenCalled();
+                                        });
+                                    });
+                                });
+
+                                [500, 501, 503].forEach(function(statusCode) {
+                                    describe('of ' + statusCode, function() {
+                                        beforeEach(function(done) {
+                                            reason.statusCode = statusCode;
+
+                                            deferred.reject(reason);
+                                            result.finally(done);
+                                        });
+
+                                        it('should adopt the status code of the placement response', function() {
+                                            var error = failure.calls.mostRecent().args[0];
+
+                                            expect(error).toEqual(jasmine.any(Error));
+                                            expect(error.message).toBe(reason.message);
+                                            expect(error.status).toBe(reason.statusCode);
+                                            expect(error.constructor.name).toBe('ServiceError');
+                                        });
+
+                                        it('should log an error', function() {
+                                            expect(log.error).toHaveBeenCalled();
+                                        });
+                                    });
+                                });
+                            });
+                        });
+
+                        describe('succeeds', function() {
+                            var placement;
+
+                            beforeEach(function(done) {
+                                placement = {
+                                    id: id,
+                                    tagParams: {
+                                        type: 'desktop-card',
+                                        container: 'pocketmath',
+                                        campaign: 'cam-6e3ca7443b7554'
+                                    }
+                                };
+
+                                deferred.resolve(placement);
+                                result.finally(done);
+                            });
+
+                            it('should fulfill with the placement', function() {
+                                expect(success).toHaveBeenCalledWith(placement);
                             });
                         });
                     });

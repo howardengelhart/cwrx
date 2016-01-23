@@ -1,5 +1,8 @@
 # Player Service Changelog
 
+* [FEATURE]: Add [GET /api/public/player] endpoint to return a player
+  configured via a placement: [#756](https://github.com/cinema6/cwrx/pull/756)
+
 ### 2.2.1: Thu Jan 21 10:53:29 EST 2016
 * [FIX]: Log errors (and trigger PagerDuty alerts) when requests fail
   for unexpected reasons: [#753](https://github.com/cinema6/cwrx/pull/753)
