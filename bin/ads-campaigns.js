@@ -150,6 +150,8 @@
             svc = new CrudSvc(campColl, 'cam', { statusHistory: true }, campModule.campSchema);
         svc._db = db;
         
+        svc.autoApproveTokens = {};
+        
         var extraValidation = campModule.extraValidation.bind(campModule, svc);
         
         svc.use('read', campModule.formatTextQuery);
@@ -160,7 +162,7 @@
         svc.use('create', campModule.updateCards);
         svc.use('create', campModule.handlePricingHistory);
 
-        svc.use('edit', campModule.statusCheck.bind(campModule, [enums.Status.Draft]));
+        svc.use('edit', campModule.statusCheck.bind(campModule, svc, [enums.Status.Draft]));
         svc.use('edit', campModule.enforceLock);
         svc.use('edit', campModule.fetchCards);
         svc.use('edit', extraValidation);
@@ -170,7 +172,7 @@
         svc.use('edit', campModule.updateCards);
         svc.use('edit', campModule.handlePricingHistory);
 
-        svc.use('delete', campModule.statusCheck.bind(campModule, [
+        svc.use('delete', campModule.statusCheck.bind(campModule, svc, [
             enums.Status.Draft,
             enums.Status.Pending,
             enums.Status.Canceled,
@@ -272,12 +274,16 @@
         return next();
     };
 
-    // Check and 400 if req.origObj.status is not one of the statuses in permitted
-    campModule.statusCheck = function(permitted, req, next, done) {
-        var log = logger.getLog();
+    /* Check and 400 if req.origObj.status is not one of the statuses in permitted
+     * Bypassed if user has directEditCampaigns entitlement, or if request is a result of an auto-
+     * approved update request. */
+    campModule.statusCheck = function(campSvc, permitted, req, next, done) {
+        var log = logger.getLog(),
+            token = req.query['auto-approve-token'];
 
         if (permitted.indexOf(req.origObj.status) !== -1 ||
-            !!req.user.entitlements.directEditCampaigns) {
+            !!req.user.entitlements.directEditCampaigns ||
+            !!token && campSvc.autoApproveTokens[req.origObj.id] === token) {
             return q(next());
         } else {
             log.info('[%1] This action not permitted on %2 campaign', req.uuid, req.origObj.status);

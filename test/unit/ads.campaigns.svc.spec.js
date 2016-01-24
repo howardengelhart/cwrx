@@ -115,6 +115,7 @@ describe('ads-campaigns (UT)', function() {
             expect(svc._orgProp).toBe(true);
             expect(svc.model).toEqual(jasmine.any(Model));
             expect(svc.model.schema).toBe(campModule.campSchema);
+            expect(svc.autoApproveTokens).toEqual({});
         });
         
         it('should save some config variables locally', function() {
@@ -159,9 +160,9 @@ describe('ads-campaigns (UT)', function() {
         });
         
         it('should prevent editing + deleting campaigns while in certain statuses', function() {
-            expect(svc._middleware.edit).toContain(getBoundFn(campModule.statusCheck, [campModule, [Status.Draft]]));
+            expect(svc._middleware.edit).toContain(getBoundFn(campModule.statusCheck, [campModule, svc, [Status.Draft]]));
             expect(svc._middleware.delete).toContain(getBoundFn(campModule.statusCheck,
-                [campModule, [Status.Draft, Status.Pending, Status.Canceled, Status.Expired]]));
+                [campModule, svc, [Status.Draft, Status.Pending, Status.Canceled, Status.Expired]]));
         });
         
         it('should prevent editing locked campaigns on edit', function() {
@@ -383,31 +384,61 @@ describe('ads-campaigns (UT)', function() {
     });
     
     describe('statusCheck', function() {
-        var permitted;
+        var permitted, svc;
         beforeEach(function() {
             req.origObj = { id: 'cam-1', status: Status.Active };
             req.user.entitlements = {};
             permitted = [Status.Draft, Status.Canceled];
+            req.query = {};
+            svc = { autoApproveTokens: {} };
         });
 
         it('should call done if the campaign is not one of the permitted statuses', function() {
-            campModule.statusCheck(permitted, req, nextSpy, doneSpy);
+            campModule.statusCheck(svc, permitted, req, nextSpy, doneSpy);
             expect(nextSpy).not.toHaveBeenCalled();
             expect(doneSpy).toHaveBeenCalledWith({ code: 400, body: 'Action not permitted on ' + Status.Active + ' campaign' });
         });
         
         it('should call next if the campaign is one of the permitted statuses', function() {
             req.origObj.status = Status.Canceled;
-            campModule.statusCheck(permitted, req, nextSpy, doneSpy);
+            campModule.statusCheck(svc, permitted, req, nextSpy, doneSpy);
             expect(nextSpy).toHaveBeenCalled();
             expect(doneSpy).not.toHaveBeenCalled();
         });
         
         it('should call next if the user has the directEditCampaigns entitlement', function() {
             req.user.entitlements.directEditCampaigns = true;
-            campModule.statusCheck(permitted, req, nextSpy, doneSpy);
+            campModule.statusCheck(svc, permitted, req, nextSpy, doneSpy);
             expect(nextSpy).toHaveBeenCalled();
             expect(doneSpy).not.toHaveBeenCalled();
+        });
+        
+        describe('if the auto-approve-token query param is set', function() {
+            beforeEach(function() {
+                svc.autoApproveTokens['cam-1'] = '1234';
+                svc.autoApproveTokens['cam-2'] = '5678';
+                req.query['auto-approve-token'] = '1234';
+            });
+            
+            it('should call next if the param matches the token for the campaign in the cache', function() {
+                campModule.statusCheck(svc, permitted, req, nextSpy, doneSpy);
+                expect(nextSpy).toHaveBeenCalled();
+                expect(doneSpy).not.toHaveBeenCalled();
+            });
+            
+            it('should call done if the param does not match the token for the campaign', function() {
+                req.query['auto-approve-token'] = '5678';
+                campModule.statusCheck(svc, permitted, req, nextSpy, doneSpy);
+                expect(nextSpy).not.toHaveBeenCalled();
+                expect(doneSpy).toHaveBeenCalledWith({ code: 400, body: 'Action not permitted on ' + Status.Active + ' campaign' });
+            });
+            
+            it('should call done if there is no token for the campaign in the cache', function() {
+                delete svc.autoApproveTokens['cam-1'];
+                campModule.statusCheck(svc, permitted, req, nextSpy, doneSpy);
+                expect(nextSpy).not.toHaveBeenCalled();
+                expect(doneSpy).toHaveBeenCalledWith({ code: 400, body: 'Action not permitted on ' + Status.Active + ' campaign' });
+            });
         });
     });
     
