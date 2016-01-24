@@ -1713,6 +1713,13 @@ describe('ads campaigns endpoints (E2E):', function() {
                 requestUtils.qRequest('put', options, null, { maxAttempts: 30 }).then(function(resp) {
                     expect(resp.response.statusCode).toBe(400);
                     expect(resp.body).toBe('Action not permitted on active campaign');
+                    
+                    // check that still fails with bogus auto-approve token
+                    options.qs = { 'auto-approve-token': '123456' };
+                    return requestUtils.qRequest('put', options, null, { maxAttempts: 30 });
+                }).then(function(resp) {
+                    expect(resp.response.statusCode).toBe(400);
+                    expect(resp.body).toBe('Action not permitted on active campaign');
                 }).catch(function(error) {
                     expect(util.inspect(error)).not.toBeDefined();
                 }).done(done);

@@ -162,7 +162,7 @@ describe('ads-campaignUpdates (UT)', function() {
             expect(updateModule.handleInitialSubmit.bind).toHaveBeenCalledWith(updateModule, svc);
             expect(updateModule.lockCampaign.bind).toHaveBeenCalledWith(updateModule, svc);
             expect(updateModule.unlockCampaign.bind).toHaveBeenCalledWith(updateModule, svc);
-            expect(updateModule.applyUpdate.bind).toHaveBeenCalledWith(updateModule, svc);
+            expect(updateModule.applyUpdate.bind).toHaveBeenCalledWith(updateModule, campSvc);
             expect(updateModule.notifyOwner.bind).toHaveBeenCalledWith(updateModule, svc);
             expect(CrudSvc.prototype.setupObj.bind).toHaveBeenCalledWith(svc);
             expect(fakeAutoApproveModel.midWare.bind).toHaveBeenCalledWith(fakeAutoApproveModel, 'create');
@@ -1073,26 +1073,31 @@ describe('ads-campaignUpdates (UT)', function() {
     });
 
     describe('applyUpdate', function() {
-        var svc;
+        var campSvc;
         beforeEach(function() {
             req.body = { id: 'ur-1', campaign: 'cam-1', data: { foo: 'bar' }, status: Status.Approved };
             req.origObj = { id: 'ur-1', campaign: 'cam-1', data: { foo: 'baz' }, status: Status.Pending };
             req.campaign = { id: 'cam-1', name: 'camp 1', updateRequest: 'u-1' };
             spyOn(requestUtils, 'qRequest').and.returnValue(q({ response: { statusCode: 200 }, body: { camp: 'yes' } }));
             spyOn(mongoUtils, 'editObject').and.returnValue(q());
-            svc = { _db: mockDb };
+            campSvc = {
+                _coll: 'fakeColl',
+                autoApproveTokens: { 'cam-2': '5678' }
+            };
         });
         
         it('should edit the campaign with a PUT request', function(done) {
-            updateModule.applyUpdate(svc, req, nextSpy, doneSpy).catch(errorSpy).finally(function() {
+            updateModule.applyUpdate(campSvc, req, nextSpy, doneSpy).catch(errorSpy).finally(function() {
                 expect(nextSpy).toHaveBeenCalled();
                 expect(doneSpy).not.toHaveBeenCalled();
                 expect(errorSpy).not.toHaveBeenCalled();
                 expect(requestUtils.qRequest).toHaveBeenCalledWith('put', {
                     url: 'https://test.com/api/campaigns/cam-1',
                     json: { foo: 'bar' },
+                    qs: {},
                     headers: { cookie: 'chocolate' }
                 });
+                expect(campSvc.autoApproveTokens).toEqual({ 'cam-2': '5678' });
                 expect(mongoUtils.editObject).not.toHaveBeenCalled();
                 expect(mockLog.error).not.toHaveBeenCalled();
                 done();
@@ -1101,7 +1106,7 @@ describe('ads-campaignUpdates (UT)', function() {
         
         it('should skip if the update request is not being approved', function(done) {
             req.body.status = Status.Rejected;
-            updateModule.applyUpdate(svc, req, nextSpy, doneSpy).catch(errorSpy).finally(function() {
+            updateModule.applyUpdate(campSvc, req, nextSpy, doneSpy).catch(errorSpy).finally(function() {
                 expect(nextSpy).toHaveBeenCalled();
                 expect(doneSpy).not.toHaveBeenCalled();
                 expect(errorSpy).not.toHaveBeenCalled();
@@ -1115,15 +1120,22 @@ describe('ads-campaignUpdates (UT)', function() {
         it('should still edit the campaign if the request is autoApproved', function(done) {
             delete req.origObj;
             req.body.autoApproved = true;
-            updateModule.applyUpdate(svc, req, nextSpy, doneSpy).catch(errorSpy).finally(function() {
+            requestUtils.qRequest.and.callFake(function(method, opts) {
+                expect(campSvc.autoApproveTokens['cam-1']).toEqual('1234');
+                return q({ response: { statusCode: 200 }, body: { camp: 'yes' } });
+            });
+            
+            updateModule.applyUpdate(campSvc, req, nextSpy, doneSpy).catch(errorSpy).finally(function() {
                 expect(nextSpy).toHaveBeenCalled();
                 expect(doneSpy).not.toHaveBeenCalled();
                 expect(errorSpy).not.toHaveBeenCalled();
                 expect(requestUtils.qRequest).toHaveBeenCalledWith('put', {
                     url: 'https://test.com/api/campaigns/cam-1',
                     json: { foo: 'bar' },
+                    qs: { 'auto-approve-token': '1234' },
                     headers: { cookie: 'chocolate' }
                 });
+                expect(campSvc.autoApproveTokens).toEqual({ 'cam-2': '5678' });
                 expect(mongoUtils.editObject).not.toHaveBeenCalled();
                 expect(mockLog.error).not.toHaveBeenCalled();
                 done();
@@ -1149,12 +1161,12 @@ describe('ads-campaignUpdates (UT)', function() {
                     });
                     
                     it('should attempt to re-lock the campaign and reject', function(done) {
-                        updateModule.applyUpdate(svc, req, nextSpy, doneSpy).catch(errorSpy).finally(function() {
+                        updateModule.applyUpdate(campSvc, req, nextSpy, doneSpy).catch(errorSpy).finally(function() {
                             expect(nextSpy).not.toHaveBeenCalled();
                             expect(doneSpy).not.toHaveBeenCalled();
                             expect(errorSpy).toHaveBeenCalledWith('Failed editing campaign: ' + caseObj.expected);
                             expect(requestUtils.qRequest).toHaveBeenCalled();
-                            expect(mongoUtils.editObject).toHaveBeenCalledWith({ collectionName: 'campaigns' },
+                            expect(mongoUtils.editObject).toHaveBeenCalledWith('fakeColl',
                                 { updateRequest: 'ur-1', status: Status.Error }, 'cam-1');
                             expect(mockLog.error.calls.count()).toBe(1);
                             done();
@@ -1163,14 +1175,29 @@ describe('ads-campaignUpdates (UT)', function() {
                     
                     it('should log an additional error if re-locking the campaign fails', function(done) {
                         mongoUtils.editObject.and.returnValue(q.reject('Oh man everything is breaking'));
-                        updateModule.applyUpdate(svc, req, nextSpy, doneSpy).catch(errorSpy).finally(function() {
+                        updateModule.applyUpdate(campSvc, req, nextSpy, doneSpy).catch(errorSpy).finally(function() {
                             expect(nextSpy).not.toHaveBeenCalled();
                             expect(doneSpy).not.toHaveBeenCalled();
                             expect(errorSpy).toHaveBeenCalledWith('Failed editing campaign: ' + caseObj.expected);
                             expect(requestUtils.qRequest).toHaveBeenCalled();
-                            expect(mongoUtils.editObject).toHaveBeenCalledWith({ collectionName: 'campaigns' },
+                            expect(mongoUtils.editObject).toHaveBeenCalledWith('fakeColl',
                                 { updateRequest: 'ur-1', status: Status.Error }, 'cam-1');
                             expect(mockLog.error.calls.count()).toBe(2);
+                            done();
+                        });
+                    });
+                    
+                    it('should not attempt to re-lock the campaign if the update was auto-approved', function(done) {
+                        delete req.origObj;
+                        req.body.autoApproved = true;
+                        updateModule.applyUpdate(campSvc, req, nextSpy, doneSpy).catch(errorSpy).finally(function() {
+                            expect(nextSpy).not.toHaveBeenCalled();
+                            expect(doneSpy).not.toHaveBeenCalled();
+                            expect(errorSpy).toHaveBeenCalledWith('Failed editing campaign: ' + caseObj.expected);
+                            expect(requestUtils.qRequest).toHaveBeenCalled();
+                            expect(mongoUtils.editObject).not.toHaveBeenCalled();
+                            expect(campSvc.autoApproveTokens).toEqual({ 'cam-2': '5678' });
+                            expect(mockLog.error.calls.count()).toBe(1);
                             done();
                         });
                     });

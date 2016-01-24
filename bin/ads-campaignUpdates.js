@@ -86,7 +86,7 @@
             handleInitialSubmit = updateModule.handleInitialSubmit.bind(updateModule, svc),
             lockCampaign        = updateModule.lockCampaign.bind(updateModule, svc),
             unlockCampaign      = updateModule.unlockCampaign.bind(updateModule, svc),
-            applyUpdate         = updateModule.applyUpdate.bind(updateModule, svc),
+            applyUpdate         = updateModule.applyUpdate.bind(updateModule, campSvc),
             notifyOwner         = updateModule.notifyOwner.bind(updateModule, svc);
             
         svc.use('create', fetchCamp);
@@ -489,10 +489,11 @@
     /* Apply update request to campaign by proxying a PUT request. Assumes the user editing the
      * campaign update request has permission to edit all campaigns. Fails if any non-200 response
      * is returned from the campaign service, and attempts to re-lock the campaign. */
-    updateModule.applyUpdate = function(svc, req, next/*, done*/) {
+    updateModule.applyUpdate = function(campSvc, req, next/*, done*/) {
         var log = logger.getLog(),
             updateId = req.origObj && req.origObj.id || req.body.id,
-            campId = req.campaign.id;
+            campId = req.campaign.id,
+            qps = {};
             
         if (!approvingUpdate(req) && !req.body.autoApproved) {
             return q(next());
@@ -500,9 +501,16 @@
         
         delete req.body.data.updateRequest;
         
+        // Save a token for the campaign svc so it can know to bypass campModule.statusCheck()
+        if (req.body.autoApproved) {
+            campSvc.autoApproveTokens[campId] = req.uuid;
+            qps['auto-approve-token'] = req.uuid;
+        }
+        
         return requestUtils.qRequest('put', {
             url: urlUtils.resolve(updateModule.config.api.campaigns.baseUrl, campId),
             json: req.body.data,
+            qs: qps,
             headers: { cookie: req.headers.cookie }
         })
         .then(function(resp) {
@@ -516,20 +524,28 @@
         .catch(function(error) {
             log.error('[%1] Failed to edit %2 with %3: %4',
                       req.uuid, campId, updateId, util.inspect(error));
+            
+            // Do not re-lock campaign if update is auto-approved, since campaign was not locked
+            if (req.body.autoApproved) {
+                return q.reject('Failed editing campaign: ' + util.inspect(error));
+            }
 
             log.info('[%1] Attempting to re-lock campaign %2', req.uuid, campId);
 
             return mongoUtils.editObject(
-                svc._db.collection('campaigns'),
+                campSvc._coll,
                 { updateRequest: updateId, status: Status.Error },
                 campId
             )
-            .catch(function(error) {
-                log.error('[%1] Failed direct campaign edit: %2', req.uuid, util.inspect(error));
+            .catch(function(err) {
+                log.error('[%1] Failed direct campaign edit: %2', req.uuid, util.inspect(err));
             })
             .then(function() {
                 return q.reject('Failed editing campaign: ' + util.inspect(error));
             });
+        })
+        .finally(function() {
+            delete campSvc.autoApproveTokens[campId];
         });
     };
 

@@ -1,5 +1,7 @@
 # Ads Service Changelog
 
+### 4.2.0: Sun Jan 24 18:25:29 EST 2016
+* [FIX]: Allow non-admins to create auto-approved update requests for active campaigns: [#757](https://github.com/cinema6/cwrx/pull/757)
 * [FEATURE]: Add endpoints for placements: [#732](https://github.com/cinema6/cwrx/issues/732)
 * [FEATURE]: Add endpoints for containers: [#731](https://github.com/cinema6/cwrx/issues/731)
 * Extra deployment steps:
