@@ -968,8 +968,8 @@ describe('AdLoader()', function() {
             });
 
             describe('methods:', function() {
-                describe('fillPlaceholders(experience, categories, campaign, origin, uuid)', function() {
-                    var experience, categories, campaign, origin, uuid;
+                describe('fillPlaceholders(experience, campaign, origin, uuid)', function() {
+                    var experience, campaign, origin, uuid;
                     var success, failure;
                     var findCardsDeferred;
 
@@ -1172,7 +1172,6 @@ describe('AdLoader()', function() {
                                 placement: 'pl-fb664dc7936ca5'
                             }
                         };
-                        categories = ['food', 'gaming', 'tech', 'lifestyle', 'humor'];
                         campaign = 'cam-74cfe164c53fc9';
                         origin = 'https://reelcontent.com/';
                         uuid = 'fj829rhf849';
@@ -1183,7 +1182,7 @@ describe('AdLoader()', function() {
                         findCardsDeferred = q.defer();
                         spyOn(loader, '__findCards__').and.returnValue(findCardsDeferred.promise);
 
-                        loader.fillPlaceholders(experience, categories, campaign, origin, uuid).then(success, failure);
+                        loader.fillPlaceholders(experience, campaign, origin, uuid).then(success, failure);
                     });
 
                     it('should find cards for each placeholder', function() {
@@ -1252,8 +1251,8 @@ describe('AdLoader()', function() {
                     });
                 });
 
-                describe('loadAds(experience, categories, campaignId, origin, uuid)', function() {
-                    var experience, categories, campaignId, uuid;
+                describe('loadAds(experience, campaignId, origin, uuid)', function() {
+                    var experience, campaignId, uuid;
                     var result;
                     var success, failure;
 
@@ -1601,7 +1600,6 @@ describe('AdLoader()', function() {
                             "lastPublished": "2015-03-12T13:55:40.245Z",
                             "type": "minireel"
                         };
-                        categories = ['food', 'tech', 'gaming', 'music', 'auto'];
                         campaignId = 'cam-19849e91e5e46b';
                         origin = 'https://facebook.com/';
                         uuid = 'ufr8934yr849';
@@ -1610,14 +1608,14 @@ describe('AdLoader()', function() {
                             return q(experience);
                         });
 
-                        result = loader.loadAds(experience, categories, campaignId, origin, uuid);
+                        result = loader.loadAds(experience, campaignId, origin, uuid);
                         result.then(success, failure);
 
                         result.finally(done);
                     });
 
                     it('should fill the experience\'s placeholders', function() {
-                        expect(loader.fillPlaceholders).toHaveBeenCalledWith(experience, categories, campaignId, origin, uuid);
+                        expect(loader.fillPlaceholders).toHaveBeenCalledWith(experience, campaignId, origin, uuid);
                     });
 
                     it('should fulfill with the experience', function() {
@@ -1634,7 +1632,7 @@ describe('AdLoader()', function() {
                             success.calls.reset();
                             failure.calls.reset();
 
-                            loader.loadAds(experience, categories, campaignId, origin, uuid).then(success, failure).finally(done);
+                            loader.loadAds(experience, campaignId, origin, uuid).then(success, failure).finally(done);
                         });
 
                         it('should not fill the placeholders', function() {
@@ -1645,47 +1643,15 @@ describe('AdLoader()', function() {
                             expect(success).toHaveBeenCalledWith(experience);
                         });
                     });
-
-                    describe('if no categories are provided', function() {
-                        beforeEach(function(done) {
-                            loader.fillPlaceholders.calls.reset();
-                            success.calls.reset();
-                            failure.calls.reset();
-
-                            loader.loadAds(experience, null, campaignId, origin, uuid).then(success, failure).finally(done);
-                        });
-
-                        it('should call fillPlaceholders() with the experience\'s categories', function() {
-                            expect(loader.fillPlaceholders).toHaveBeenCalledWith(experience, experience.categories, campaignId, origin, uuid);
-                        });
-
-                        describe('and the experience has no categories', function() {
-                            beforeEach(function(done) {
-                                delete experience.categories;
-                                loader.fillPlaceholders.calls.reset();
-                                success.calls.reset();
-                                failure.calls.reset();
-
-                                loader.loadAds(experience, null, campaignId, origin, uuid).then(success, failure).finally(done);
-                            });
-
-                            it('should call fillPlaceholders() with an empty array', function() {
-                                expect(loader.fillPlaceholders).toHaveBeenCalledWith(experience, [], campaignId, origin, uuid);
-                            });
-                        });
-                    });
                 });
 
-                describe('findCard(params, context, origin, uuid)', function() {
-                    var params, context, uuid;
+                describe('findCard(campaign, context, origin, uuid)', function() {
+                    var campaign, context, origin, uuid;
                     var findCardsDeferred;
                     var success, failure;
 
                     beforeEach(function() {
-                        params = {
-                            campaign: 'cam-22c20fc774788d',
-                            categories: ['food', 'tech', 'auto', 'lifestyle', 'music', 'home']
-                        };
+                        campaign = 'cam-22c20fc774788d';
                         context = {
                             container: 'pocketmath',
                             hostApp: 'Ruzzle',
@@ -1704,11 +1670,11 @@ describe('AdLoader()', function() {
 
                         spyOn(loader, '__findCards__').and.returnValue(findCardsDeferred.promise);
 
-                        loader.findCard(params, context, origin, uuid).then(success, failure);
+                        loader.findCard(campaign, context, origin, uuid).then(success, failure);
                     });
 
                     it('should find a single card', function() {
-                        expect(loader.__findCards__).toHaveBeenCalledWith(params.campaign, context, 1, origin, uuid);
+                        expect(loader.__findCards__).toHaveBeenCalledWith(campaign, context, 1, origin, uuid);
                     });
 
                     describe('if no card is found', function() {

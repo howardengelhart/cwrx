@@ -172,7 +172,6 @@ Player.prototype.__loadCard__ = function __loadCard__(params, origin, uuid) {
     var validParams = this.__apiParams__('experience', params);
     var cardId = params.card;
     var campaignId = params.campaign;
-    var categories = params.categories;
     var experienceId = this.config.api.experience.default;
 
     return this.__getExperience__(experienceId, validParams, origin, uuid)
@@ -193,10 +192,9 @@ Player.prototype.__loadCard__ = function __loadCard__(params, origin, uuid) {
                         return adLoader.getCard(cardId, cardParams, origin, uuid);
                     }
 
-                    return adLoader.findCard({
-                        campaign: campaignId,
-                        categories: categories
-                    }, cardParams, origin, uuid).then(function checkForCard(card) {
+                    return adLoader.findCard(
+                        campaignId, cardParams, origin, uuid
+                    ).then(function checkForCard(card) {
                         if (!card) { throw new Error('No cards found.'); }
 
                         return card;
@@ -229,7 +227,6 @@ Player.prototype.__loadExperience__ = function __loadExperience__(id, params, or
     var self = this;
     var log = logger.getLog();
     var preview = params.preview;
-    var categories = params.categories;
     var campaign = params.campaign;
     var validParams = this.__apiParams__('experience', params);
     var adLoader = this.adLoader;
@@ -250,7 +247,7 @@ Player.prototype.__loadExperience__ = function __loadExperience__(id, params, or
             return AdLoader.removePlaceholders(experience);
         }
 
-        return adLoader.loadAds(experience, categories, campaign, origin, uuid)
+        return adLoader.loadAds(experience, campaign, origin, uuid)
             .tap(function sendMetrics() {
                 adLoadTimeReporter.push(Date.now() - start);
             })
