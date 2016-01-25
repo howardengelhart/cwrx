@@ -332,21 +332,21 @@
                  req.uuid, req.campaign.id);
                  
         req.body.initialSubmit = true;
+        
+        if (!req.body.data.paymentMethod && !req.user.entitlements.paymentOptional) {
+            log.info('[%1] Campaign %2 missing required field paymentMethod, cannot submit',
+                     req.uuid, req.campaign.id);
+            return q(done({ code: 400, body: 'Missing required field: paymentMethod' }));
+        }
 
         // check that these required fields are now set
-        var checks = [
-            // { parent: req.body.data, field: 'paymentMethod' }, // not required while in beta
-            { parent: req.body.data, field: 'pricing' },
-            { parent: req.body.data.pricing, field: 'budget' },
-            { parent: req.body.data.pricing, field: 'dailyLimit' },
-            { parent: req.body.data.pricing, field: 'cost' }
-        ];
+        var fields = ['budget', 'dailyLimit', 'cost'];
         
-        for (var i = 0; i < checks.length; i++) {
-            if (!checks[i].parent || !checks[i].parent[checks[i].field]) {
-                log.info('[%1] Campaign %2 missing required field %3, cannot submit',
-                         req.uuid, req.campaign.id, checks[i].field);
-                return q(done({ code: 400, body: 'Missing required field: ' + checks[i].field }));
+        for (var i = 0; i < fields.length; i++) {
+            if (!req.body.data.pricing || !req.body.data.pricing[fields[i]]) {
+                log.info('[%1] Campaign %2 missing required field pricing.%3, cannot submit',
+                         req.uuid, req.campaign.id, fields[i]);
+                return q(done({ code: 400, body: 'Missing required field: pricing.' + fields[i] }));
             }
         }
         

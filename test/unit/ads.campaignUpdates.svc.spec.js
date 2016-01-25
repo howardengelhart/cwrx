@@ -763,6 +763,7 @@ describe('ads-campaignUpdates (UT)', function() {
                 paymentMethod: 'infinite money',
                 status: Status.Active
             } };
+            req.user.entitlements = {};
             spyOn(mongoUtils, 'editObject').and.returnValue(q());
             svc = { _db: mockDb };
         });
@@ -802,8 +803,40 @@ describe('ads-campaignUpdates (UT)', function() {
             });
         });
         
-        it('should call done if the campaign is missing certain required fields', function(done) {
-            q.all([/*'paymentMethod', */'pricing', ['pricing', 'budget'], ['pricing', 'dailyLimit'], ['pricing', 'cost']].map(function(field) {
+        describe('if the paymentMethod is missing', function(done) {
+            beforeEach(function() {
+                delete req.body.data.paymentMethod;
+            });
+            
+            it('should call done if the user does not have the paymentOptional entitlement', function(done) {
+                updateModule.handleInitialSubmit(svc, req, nextSpy, doneSpy).catch(errorSpy).finally(function() {
+                    expect(nextSpy).not.toHaveBeenCalled();
+                    expect(doneSpy).toHaveBeenCalledWith({ code: 400, body: 'Missing required field: paymentMethod' });
+                    expect(errorSpy).not.toHaveBeenCalled();
+                    expect(mongoUtils.editObject).not.toHaveBeenCalled();
+                    done();
+                });
+            });
+
+            it('should pass if the user has the paymentOptional entitlement', function(done) {
+                req.user.entitlements.paymentOptional = true;
+                updateModule.handleInitialSubmit(svc, req, nextSpy, doneSpy).catch(errorSpy).finally(function() {
+                    expect(nextSpy).toHaveBeenCalled();
+                    expect(doneSpy).not.toHaveBeenCalled();
+                    expect(errorSpy).not.toHaveBeenCalled();
+                    expect(req.body.initialSubmit).toBe(true);
+                    expect(req.body.data.statusHistory).toEqual(jasmine.any(Array));
+                    expect(mongoUtils.editObject).toHaveBeenCalledWith({ collectionName: 'campaigns' }, {
+                        status: Status.Pending,
+                        statusHistory: jasmine.any(Array)
+                    }, 'cam-1');
+                    done();
+                });
+            });
+        });
+        
+        it('should call done if the campaign is missing certain pricing fields', function(done) {
+            q.all(['pricing', ['pricing', 'budget'], ['pricing', 'dailyLimit'], ['pricing', 'cost']].map(function(field) {
                 var reqCopy = JSON.parse(JSON.stringify(req));
                 if (field instanceof Array) {
                     delete reqCopy.body.data[field[0]][field[1]];
@@ -814,13 +847,11 @@ describe('ads-campaignUpdates (UT)', function() {
             })).then(function(results) {
                 expect(nextSpy).not.toHaveBeenCalled();
                 expect(errorSpy).not.toHaveBeenCalled();
-                // expect(doneSpy.calls.count()).toBe(5);
                 expect(doneSpy.calls.count()).toBe(4);
-                // expect(doneSpy.calls.argsFor(0)).toEqual([{ code: 400, body: 'Missing required field: paymentMethod' }]);
-                expect(doneSpy.calls.argsFor(0)).toEqual([{ code: 400, body: 'Missing required field: pricing' }]);
-                expect(doneSpy.calls.argsFor(1)).toEqual([{ code: 400, body: 'Missing required field: budget' }]);
-                expect(doneSpy.calls.argsFor(2)).toEqual([{ code: 400, body: 'Missing required field: dailyLimit' }]);
-                expect(doneSpy.calls.argsFor(3)).toEqual([{ code: 400, body: 'Missing required field: cost' }]);
+                expect(doneSpy.calls.argsFor(0)).toEqual([{ code: 400, body: 'Missing required field: pricing.budget' }]);
+                expect(doneSpy.calls.argsFor(1)).toEqual([{ code: 400, body: 'Missing required field: pricing.budget' }]);
+                expect(doneSpy.calls.argsFor(2)).toEqual([{ code: 400, body: 'Missing required field: pricing.dailyLimit' }]);
+                expect(doneSpy.calls.argsFor(3)).toEqual([{ code: 400, body: 'Missing required field: pricing.cost' }]);
                 expect(mongoUtils.editObject).not.toHaveBeenCalled();
             }).done(done, done.fail);
         });

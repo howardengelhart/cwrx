@@ -4,6 +4,8 @@
 * [REMOVAL]: Remove logic to fetch branding from site or org from public experience endpoint: [#721](https://github.com/cinema6/cwrx/issues/721)
 * [REMOVAL]: Stop copying `adtechId` and `bannerId` onto cards in public card endpoints: [#721](https://github.com/cinema6/cwrx/issues/721)
 * Pass `placement` into pixel urls for all public content endpoints: [#734](https://github.com/cinema6/cwrx/issues/734)
+* Extra deployment steps:
+    * Create container entities for each existing container in Cinema6 site
 
 ### 3.5.2: Wed Jan 20 18:24:26 EST 2016
 * [FIX]: Always convert sponsored cards' `links` and `shareLinks` entries to objects: [#752](https://github.com/cinema6/cwrx/pull/752)
