@@ -654,7 +654,7 @@ Player.prototype.middlewareify = function middlewareify(method) {
         var browser = new BrowserInfo(req.get('user-agent'));
         var options = extend(extend({
             uuid: uuid,
-            origin: req.get('origin') || req.get('referer'),
+            origin: stripURL(req.get('origin') || req.get('referer')),
             desktop: browser.isDesktop,
             mobile: browser.isMobile,
             secure: req.secure
@@ -689,7 +689,7 @@ Player.prototype.get = function get(/*options*/) {
     var self = this;
     var type = options.type;
     var desktop = options.desktop;
-    var origin = stripURL(options.origin);
+    var origin = options.origin;
     var uuid = options.uuid;
     var playUrls = options.playUrls;
     var countUrls = options.countUrls;

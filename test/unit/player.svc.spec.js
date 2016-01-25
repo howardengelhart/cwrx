@@ -945,14 +945,14 @@ describe('player service', function() {
             });
 
             describe('methods:', function() {
-                describe('middlewareify(method, optionifier)', function() {
-                    var method, optionifier;
+                describe('middlewareify(method)', function() {
+                    var method;
                     var result;
 
                     beforeEach(function() {
                         method = 'get';
 
-                        result = player.middlewareify(method, optionifier);
+                        result = player.middlewareify(method);
                     });
 
                     it('should return a Function', function() {
@@ -970,7 +970,7 @@ describe('player service', function() {
 
                             headers = {
                                 'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_10_5) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/45.0.2454.99 Safari/537.36',
-                                'origin': 'https://github.com/cinema6/cwrx/pull/504/files'
+                                'origin': 'https://github.com/cinema6/cwrx/pull/504/files?foo=bar&bar=foo#bleh'
                             };
                             req = {
                                 params: { type: 'lightbox' },
@@ -1007,7 +1007,7 @@ describe('player service', function() {
                         it('should [method]() the player, passing in the req.query + some params it creates', function() {
                             expect(player[method]).toHaveBeenCalledWith(extend(extend({
                                 uuid: req.uuid,
-                                origin: req.get('origin'),
+                                origin: 'https://github.com/cinema6/cwrx/pull/504/files',
                                 desktop: browser.isDesktop,
                                 mobile: browser.isMobile,
                                 secure: req.secure
@@ -1118,7 +1118,7 @@ describe('player service', function() {
                                 });
 
                                 it('should set the referer as the origin', function() {
-                                    expect(player[method]).toHaveBeenCalledWith(jasmine.objectContaining({ origin: req.get('referer') }));
+                                    expect(player[method]).toHaveBeenCalledWith(jasmine.objectContaining({ origin: 'https://nodejs.org/api/modules.html' }));
                                 });
                             });
                         });
@@ -1194,7 +1194,7 @@ describe('player service', function() {
                             campaign: 'cam-c3de383f7e37ce',
                             branding: 'cinema6',
                             network: 'mopub',
-                            origin: 'http://cinema6.com/solo?id=e-92160a770b81d5&cb=fu92yr483r76472&foo=wer89437r83947r#foofurief',
+                            origin: 'http://cinema6.com/solo',
                             placementId: '1673285684',
                             container: 'mopub',
                             wildCardPlacement: '238974285',
@@ -1249,7 +1249,7 @@ describe('player service', function() {
                     });
 
                     it('should load the experience', function() {
-                        expect(player.__loadExperience__).toHaveBeenCalledWith(options.experience, options, 'http://cinema6.com/solo', options.uuid);
+                        expect(player.__loadExperience__).toHaveBeenCalledWith(options.experience, options, options.origin, options.uuid);
                     });
 
                     it('should not load a card', function() {
@@ -1546,7 +1546,7 @@ describe('player service', function() {
                             });
 
                             it('should load the card', function() {
-                                expect(player.__loadCard__).toHaveBeenCalledWith(options, 'http://cinema6.com/solo', options.uuid);
+                                expect(player.__loadCard__).toHaveBeenCalledWith(options, options.origin, options.uuid);
                             });
 
                             describe('when the card is loaded', function() {
@@ -1816,7 +1816,7 @@ describe('player service', function() {
                             placement: 'pl-cc39777e109ea2',
                             uuid: 'efh7384ry43785t',
                             branding: 'cinema6',
-                            origin: 'http://cinema6.com/solo?id=e-92160a770b81d5&cb=fu92yr483r76472&foo=wer89437r83947r#foofurief',
+                            origin: 'http://cinema6.com/solo',
                             preview: false,
                             playUrls: ['play1.gif', 'play2.gif'],
                             countUrls: ['count1.gif', 'count2.gif'],
@@ -2189,7 +2189,7 @@ describe('player service', function() {
                             campaign: 'cam-c3de383f7e37ce',
                             branding: 'cinema6',
                             network: 'mopub',
-                            origin: 'http://cinema6.com/solo?id=e-92160a770b81d5&cb=fu92yr483r76472&foo=wer89437r83947r#foofurief',
+                            origin: 'http://cinema6.com/solo',
                             placementId: '1673285684',
                             container: 'mopub',
                             wildCardPlacement: '238974285',
@@ -2247,7 +2247,7 @@ describe('player service', function() {
                             experience: 'e-92160a770b81d5',
                             branding: 'cinema6',
                             network: 'mopub',
-                            origin: 'http://cinema6.com/solo?id=e-92160a770b81d5&cb=fu92yr483r76472&foo=wer89437r83947r#foofurief',
+                            origin: 'http://cinema6.com/solo',
                             placementId: '1673285684',
                             container: 'mopub',
                             wildCardPlacement: '238974285',
