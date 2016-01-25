@@ -189,11 +189,11 @@ Player.prototype.__loadCard__ = function __loadCard__(params, origin, uuid) {
 
                 return (function() {
                     if (cardId) {
-                        return adLoader.getCard(cardId, cardParams, origin, uuid);
+                        return adLoader.getCard(cardId, cardParams, { origin: origin }, uuid);
                     }
 
                     return adLoader.findCard(
-                        campaignId, cardParams, origin, uuid
+                        campaignId, cardParams, { origin: origin }, uuid
                     ).then(function checkForCard(card) {
                         if (!card) { throw new Error('No cards found.'); }
 
@@ -247,7 +247,7 @@ Player.prototype.__loadExperience__ = function __loadExperience__(id, params, or
             return AdLoader.removePlaceholders(experience);
         }
 
-        return adLoader.loadAds(experience, campaign, origin, uuid)
+        return adLoader.loadAds(experience, campaign, { origin: origin }, uuid)
             .tap(function sendMetrics() {
                 adLoadTimeReporter.push(Date.now() - start);
             })
