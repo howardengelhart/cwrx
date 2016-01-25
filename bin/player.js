@@ -173,7 +173,7 @@ Player.prototype.__loadCard__ = function __loadCard__(params) {
     var cardId = params.card;
     var campaignId = params.campaign;
     var origin = params.origin;
-    var uuid = params.uuid;
+    var uuid = params.reqUuid;
     var experienceId = this.config.api.experience.default;
 
     return this.__getExperience__(experienceId, validParams, origin, uuid)
@@ -230,7 +230,7 @@ Player.prototype.__loadExperience__ = function __loadExperience__(params) {
     var log = logger.getLog();
     var id = params.experience;
     var origin = params.origin;
-    var uuid = params.uuid;
+    var uuid = params.reqUuid;
     var preview = params.preview;
     var campaign = params.campaign;
     var validParams = this.__apiParams__('experience', params);
@@ -658,7 +658,7 @@ Player.prototype.middlewareify = function middlewareify(method) {
         var uuid = req.uuid;
         var browser = new BrowserInfo(req.get('user-agent'));
         var options = extend(extend({
-            uuid: uuid,
+            reqUuid: uuid,
             origin: stripURL(req.get('origin') || req.get('referer')),
             desktop: browser.isDesktop,
             mobile: browser.isMobile,
@@ -694,7 +694,7 @@ Player.prototype.get = function get(/*options*/) {
     var self = this;
     var type = options.type;
     var desktop = options.desktop;
-    var uuid = options.uuid;
+    var uuid = options.reqUuid;
     var playUrls = options.playUrls;
     var countUrls = options.countUrls;
     var clickUrls = options.clickUrls;
@@ -818,7 +818,7 @@ Player.prototype.getViaPlacement = function getViaPlacement(options) {
     var log = logger.getLog();
     var self = this;
     var config = this.config;
-    var uuid = options.uuid;
+    var uuid = options.reqUuid;
     var placement = options.placement;
 
     if (!placement) {
