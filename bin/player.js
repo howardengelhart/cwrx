@@ -104,7 +104,8 @@ function Player(config) {
     this.adLoader = new AdLoader({
         envRoot: config.api.root,
         cardEndpoint: config.api.card.endpoint,
-        cardCacheTTLs: config.api.card.cacheTTLs
+        cardCacheTTLs: config.api.card.cacheTTLs,
+        trackingPixel: config.tracking.pixel
     });
     this.adLoadTimeReporter = new CloudWatchReporter(config.cloudwatch.namespace, {
         MetricName: 'AdLoadTime',
@@ -182,20 +183,19 @@ Player.prototype.__loadCard__ = function __loadCard__(params) {
             throw reason;
         })
         .then(function fetch(experience) {
-            var cardParams = extend({
-                experience: experienceId
-            }, self.__apiParams__('card', params));
+            var cardParams = self.__apiParams__('card', params);
+            var cardMeta = extend({ experience: experienceId }, params);
 
             function fetchCard() {
                 var start = Date.now();
 
                 return (function() {
                     if (cardId) {
-                        return adLoader.getCard(cardId, cardParams, params, uuid);
+                        return adLoader.getCard(cardId, cardParams, cardMeta, uuid);
                     }
 
                     return adLoader.findCard(
-                        campaignId, cardParams, params, uuid
+                        campaignId, cardParams, cardMeta, uuid
                     ).then(function checkForCard(card) {
                         if (!card) { throw new Error('No cards found.'); }
 
@@ -474,6 +474,9 @@ Player.startService = function startService() {
                         max: 5
                     }
                 }
+            },
+            tracking: {
+                pixel: '//s3.amazonaws.com/c6.dev/e2e/1x1-pixel.gif'
             },
             app: {
                 version: 'master'

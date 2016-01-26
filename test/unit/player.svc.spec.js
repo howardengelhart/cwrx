@@ -307,6 +307,9 @@ describe('player service', function() {
                                         }
                                     }
                                 },
+                                tracking: {
+                                    pixel: '//s3.amazonaws.com/c6.dev/e2e/1x1-pixel.gif'
+                                },
                                 app: {
                                     version: 'master'
                                 },
@@ -775,6 +778,9 @@ describe('player service', function() {
                         }
                     }
                 },
+                tracking: {
+                    pixel: '//s3.amazonaws.com/c6.dev/e2e/1x1-pixel.gif'
+                },
                 app: {
                     version: 'v2.4.1',
                     staticURL: 'static/player/',
@@ -928,7 +934,8 @@ describe('player service', function() {
                         expect(MockAdLoader).toHaveBeenCalledWith({
                             envRoot: config.api.root,
                             cardEndpoint: config.api.card.endpoint,
-                            cardCacheTTLs: config.api.card.cacheTTLs
+                            cardCacheTTLs: config.api.card.cacheTTLs,
+                            trackingPixel: config.tracking.pixel
                         });
                     });
                 });
@@ -2288,9 +2295,7 @@ describe('player service', function() {
                         });
 
                         it('should get the card', function() {
-                            expect(player.adLoader.getCard).toHaveBeenCalledWith(params.card, extend({
-                                experience: experience.id
-                            }, player.__apiParams__('card', params)), params, params.reqUuid);
+                            expect(player.adLoader.getCard).toHaveBeenCalledWith(params.card, player.__apiParams__('card', params), extend({ experience: experience.id }, params), params.reqUuid);
                         });
 
                         describe('if the card\'s campaign', function() {
@@ -2372,7 +2377,7 @@ describe('player service', function() {
                             });
 
                             it('should find the card', function() {
-                                expect(player.adLoader.findCard).toHaveBeenCalledWith(params.campaign, extend({ experience: experience.id }, player.__apiParams__('card', params)), params, params.reqUuid);
+                                expect(player.adLoader.findCard).toHaveBeenCalledWith(params.campaign, player.__apiParams__('card', params), extend({ experience: experience.id }, params), params.reqUuid);
                             });
 
                             describe('and the card is fetched', function() {
@@ -2508,9 +2513,7 @@ describe('player service', function() {
                             });
 
                             it('should find the card', function() {
-                                expect(player.adLoader.getCard).toHaveBeenCalledWith(params.card, extend({
-                                    experience: experience.id
-                                }, player.__apiParams__('card', params)), params, params.reqUuid);
+                                expect(player.adLoader.getCard).toHaveBeenCalledWith(params.card, player.__apiParams__('card', params), extend({ experience: experience.id }, params), params.reqUuid);
                             });
 
                             describe('and the card is fetched', function() {
