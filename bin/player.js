@@ -309,6 +309,7 @@ Player.prototype.__getExperience__ = function __getExperience__(id, params, orig
         headers: { origin: origin },
         json: true
     })).then(function decorate(experience) {
+        experience.data.campaign.launchUrls = [];
         return extend(experience, { $params: params });
     }).catch(function convertError(reason) {
         var message = reason.message;

@@ -3146,10 +3146,22 @@ describe('player service', function() {
                         var experience;
 
                         beforeEach(function(done) {
-                            experience = { id: 'e-92160a770b81d5' };
+                            experience = {
+                                id: 'e-92160a770b81d5',
+                                data: {
+                                    campaign: {
+                                        launchUrls: ['some-pixel.gif']
+                                    },
+                                    deck: []
+                                }
+                            };
 
                             requestDeferreds[request.get.calls.mostRecent().args[0]].resolve(experience);
                             result.finally(done);
+                        });
+
+                        it('should set the experience\'s launchUrls to an empty Array', function() {
+                            expect(experience.data.campaign.launchUrls).toEqual([]);
                         });
 
                         it('should fulfill with the experience', function() {
