@@ -4,7 +4,6 @@
     var q               = require('q'),
         express         = require('express'),
         urlUtils        = require('url'),
-        querystring     = require('querystring'),
         logger          = require('../lib/logger'),
         uuid            = require('../lib/uuid'),
         mongoUtils      = require('../lib/mongoUtils'),
@@ -149,28 +148,6 @@
         return newQuery;
     };
     
-    // Setup a launchUrls property on exp.data.campaign. trackingPixel should come from config
-    expModule.setupTrackingPixels = function(trackingPixel, exp, req) {
-        exp.data = exp.data || {};
-        exp.data.campaign = exp.data.campaign || {};
-        
-        var qps = {
-            campaign    : req.query.campaign,
-            experience  : exp.id,
-            container   : req.query.container,
-            placement   : req.query.placement,
-            host        : req.query.pageUrl || req.originHost,
-            hostApp     : req.query.hostApp,
-            network     : req.query.network,
-            event       : 'launch'
-        };
-        
-        var url = trackingPixel + '?' + querystring.stringify(qps) +
-            '&cb={cachebreaker}&ld={launchDelay}&d={delay}';
-        
-        (exp.data.campaign.launchUrls || (exp.data.campaign.launchUrls = [])).push(url);
-    };
-    
     /* Swap the placeholder in the exp deck at position idx with the appropriate card, retrieved
      * from the cardSvc. */
     expModule.swapCard = function(cardSvc, camp, exp, idx, req) {
@@ -256,13 +233,8 @@
 
             log.info('[%1] Retrieved experience %2', req.uuid, id);
 
-            if (req.query.preview) {
-                exp.data = exp.data || {};
-                exp.data.campaign = exp.data.campaign || {};
-            } else {
-                expModule.setupTrackingPixels(config.trackingPixel, exp, req);
-            }
-            
+            exp.data = exp.data || {};
+            exp.data.campaign = exp.data.campaign || {};
             exp.data.branding = exp.data.branding || qps.branding || defaultCfg.branding;
 
             return expModule.handleCampaign(cardSvc, caches.campaigns, qps.campaign, exp, req)

@@ -1,9 +1,12 @@
 # Content Service Changelog
 
+### 4.0.0: Tue Jan 26 15:55:08 EST 2016
 * [REMOVAL]: Remove logic to set `placementId` and `wildCardPlacement` from public experience endpoint: [#721](https://github.com/cinema6/cwrx/issues/721)
 * [REMOVAL]: Remove logic to fetch branding from site or org from public experience endpoint: [#721](https://github.com/cinema6/cwrx/issues/721)
 * [REMOVAL]: Stop copying `adtechId` and `bannerId` onto cards in public card endpoints: [#721](https://github.com/cinema6/cwrx/issues/721)
 * Pass `placement` into pixel urls for all public content endpoints: [#734](https://github.com/cinema6/cwrx/issues/734)
+* [REMOVAL]: Stop adding tracking pixels to publicly-fetched experiences
+  and cards: [#764](https://github.com/cinema6/cwrx/pull/764);
 * Extra deployment steps:
     * Create container entities for each existing container in Cinema6 site
 
