@@ -170,55 +170,10 @@ describe('content card endpoints (E2E):', function() {
                         campaignId: 'cam-cards-e2e1',
                         params: { sponsor: 'Heinz' },
                         campaign: {
-                            minViewTime: 3,
-                            bufferUrls: [jasmine.any(String)],
-                            viewUrls: [jasmine.any(String)],
-                            playUrls: [jasmine.any(String)],
-                            loadUrls: [jasmine.any(String)],
-                            countUrls: [jasmine.any(String)],
-                            q1Urls: [jasmine.any(String)],
-                            q2Urls: [jasmine.any(String)],
-                            q3Urls: [jasmine.any(String)],
-                            q4Urls: [jasmine.any(String)]
+                            minViewTime: 3
                         }
                     });
                     
-                    [
-                        { prop: 'bufferUrls', event: 'buffer' },
-                        { prop: 'viewUrls', event: 'cardView' },
-                        { prop: 'playUrls', event: 'play' },
-                        { prop: 'loadUrls', event: 'load' },
-                        { prop: 'countUrls', event: 'completedView' },
-                        { prop: 'q1Urls', event: 'q1' },
-                        { prop: 'q2Urls', event: 'q2' },
-                        { prop: 'q3Urls', event: 'q3' },
-                        { prop: 'q4Urls', event: 'q4' }
-                    ].forEach(function(obj) {
-                        var parsed = urlUtils.parse(resp.body.campaign[obj.prop][0], true, true);
-                        expect(parsed.host).toBeDefined();
-                        expect(parsed.pathname).toBeDefined();
-
-                        var expectedQuery = {
-                            campaign    : 'cam-cards-e2e1',
-                            card        : 'rc-pubget1',
-                            experience  : '',
-                            container   : 'embed',
-                            placement: 'pl-1',
-                            host        : 'test.com',
-                            hostApp     : 'Mapsaurus',
-                            network     : 'pocketmath',
-                            cb          : '{cachebreaker}',
-                            event       : obj.event,
-                            d           : '{delay}'
-                        };
-                        if (obj.prop === 'playUrls') {
-                            expectedQuery.pd = '{playDelay}';
-                        } else if (obj.prop === 'loadUrls') {
-                            expectedQuery.ld = '{loadDelay}';
-                        }
-                        expect(parsed.query).toEqual(expectedQuery);
-                    });
-
                     expect(resp.response.headers['content-type']).toBe('application/json; charset=utf-8');
                     expect(resp.response.headers['cache-control']).toEqual(jasmine.any(String));
                     expect(resp.response.headers['cache-control']).not.toBe('max-age=0');
@@ -240,16 +195,7 @@ describe('content card endpoints (E2E):', function() {
                 requestUtils.qRequest('get', options).then(function(resp) {
                     expect(resp.response.statusCode).toBe(200);
                     expect(resp.body.campaign).toEqual({
-                        minViewTime: 3,
-                        bufferUrls: [jasmine.any(String)],
-                        viewUrls: [jasmine.any(String)],
-                        playUrls: [jasmine.any(String)],
-                        loadUrls: [jasmine.any(String)],
-                        countUrls: [jasmine.any(String)],
-                        q1Urls: [jasmine.any(String)],
-                        q2Urls: [jasmine.any(String)],
-                        q3Urls: [jasmine.any(String)],
-                        q4Urls: [jasmine.any(String)]
+                        minViewTime: 3
                     });
                 }).then(done,done.fail);
             });
@@ -264,11 +210,6 @@ describe('content card endpoints (E2E):', function() {
                         campaignId: 'cam-cards-e2e1',
                         params: { sponsor: 'Heinz' },
                         campaign: jasmine.any(Object)
-                    });
-                    
-                    ['viewUrls', 'playUrls', 'loadUrls', 'countUrls', 'q1Urls', 'q2Urls', 'q3Urls', 'q4Urls'].forEach(function(prop) {
-                        var parsed = urlUtils.parse(resp.body.campaign[prop][0], true, true);
-                        expect(parsed.query.experience).toBe('e-1');
                     });
                 }).catch(function(error) {
                     expect(util.inspect(error)).not.toBeDefined();
@@ -303,7 +244,7 @@ describe('content card endpoints (E2E):', function() {
                     ]).done(function() { done(); });
                 });
                 
-                it('should add tracking pixels for the card\'s links', function(done) {
+                it('should Object-ify the card\'s links', function(done) {
                     requestUtils.qRequest('get', options).then(function(resp) {
                         expect(resp.response.statusCode).toBe(200);
                         expect(resp.body).toEqual({
@@ -315,65 +256,27 @@ describe('content card endpoints (E2E):', function() {
                             links: {
                                 Facebook: {
                                     uri: 'http://facebook.com/foo',
-                                    tracking: [jasmine.any(String)]
+                                    tracking: []
                                 },
                                 Twitter: {
                                     uri: 'http://twitter.com/bar',
-                                    tracking: [jasmine.any(String)]
+                                    tracking: []
                                 }
                             },
                             shareLinks: {
                                 facebook: {
                                     uri: 'http://fb.com',
-                                    tracking: [jasmine.any(String)]
+                                    tracking: []
                                 },
                                 twitter: {
                                     uri: 'http://twttr.com',
-                                    tracking: [jasmine.any(String)]
+                                    tracking: []
                                 },
                                 pinterest: {
                                     uri: 'http://pntrst.com',
-                                    tracking: [jasmine.any(String)]
+                                    tracking: []
                                 }
                             }
-                        });
-
-                        ['Facebook', 'Twitter'].forEach(function(prop) {
-                            var parsed = urlUtils.parse(resp.body.links[prop].tracking[0], true, true);
-                            expect(parsed.host).toBeDefined();
-                            expect(parsed.pathname).toBeDefined();
-                            expect(parsed.query).toEqual({
-                                campaign    : 'cam-links',
-                                card        : 'rc-pubgetlinks',
-                                experience  : '',
-                                container   : 'embed',
-                                placement   : 'pl-1',
-                                host        : 'test.com',
-                                hostApp     : 'Mapsaurus',
-                                network     : 'pocketmath',
-                                cb          : '{cachebreaker}',
-                                event       : 'link.' + prop,
-                                d           : '{delay}'
-                            });
-                        });
-                        
-                        ['facebook', 'twitter', 'pinterest'].forEach(function(prop) {
-                            var parsed = urlUtils.parse(resp.body.shareLinks[prop].tracking[0], true, true);
-                            expect(parsed.host).toBeDefined();
-                            expect(parsed.pathname).toBeDefined();
-                            expect(parsed.query).toEqual({
-                                campaign    : 'cam-links',
-                                card        : 'rc-pubgetlinks',
-                                experience  : '',
-                                container   : 'embed',
-                                placement   : 'pl-1',
-                                host        : 'test.com',
-                                hostApp     : 'Mapsaurus',
-                                network     : 'pocketmath',
-                                cb          : '{cachebreaker}',
-                                event       : 'shareLink.' + prop,
-                                d           : '{delay}'
-                            });
                         });
                     }).catch(function(error) {
                         expect(util.inspect(error)).not.toBeDefined();
@@ -560,44 +463,6 @@ describe('content card endpoints (E2E):', function() {
                     expect(resp.body[1]).toEqual(jasmine.objectContaining({ id: 'rc-pubget3', campaign: jasmine.any(Object) }));
                     expect(resp.body[2]).toEqual(jasmine.objectContaining({ id: 'rc-pubget4', campaign: jasmine.any(Object) }));
                     
-                    resp.body.forEach(function(card) {
-                        [
-                            { prop: 'bufferUrls', event: 'buffer' },
-                            { prop: 'viewUrls', event: 'cardView' },
-                            { prop: 'playUrls', event: 'play' },
-                            { prop: 'loadUrls', event: 'load' },
-                            { prop: 'countUrls', event: 'completedView' },
-                            { prop: 'q1Urls', event: 'q1' },
-                            { prop: 'q2Urls', event: 'q2' },
-                            { prop: 'q3Urls', event: 'q3' },
-                            { prop: 'q4Urls', event: 'q4' }
-                        ].forEach(function(obj) {
-                            var parsed = urlUtils.parse(card.campaign[obj.prop][0], true, true);
-                            expect(parsed.host).toBeDefined();
-                            expect(parsed.pathname).toBeDefined();
-
-                            var expectedQuery = {
-                                campaign    : 'cam-cards-multi',
-                                card        : card.id,
-                                experience  : '',
-                                container   : 'embed',
-                                placement   : 'pl-1',
-                                host        : 'test.com',
-                                hostApp     : 'Mapsaurus',
-                                network     : 'pocketmath',
-                                cb          : '{cachebreaker}',
-                                event       : obj.event,
-                                d           : '{delay}'
-                            };
-                            if (obj.prop === 'playUrls') {
-                                expectedQuery.pd = '{playDelay}';
-                            } else if (obj.prop === 'loadUrls') {
-                                expectedQuery.ld = '{loadDelay}';
-                            }
-                            expect(parsed.query).toEqual(expectedQuery);
-                        });
-                    });
-
                     expect(resp.response.headers['content-type']).toBe('application/json; charset=utf-8');
                     expect(resp.response.headers['content-range']).toBe('items 1-3/3');
                     expect(resp.response.headers['cache-control']).toBe('max-age=0');

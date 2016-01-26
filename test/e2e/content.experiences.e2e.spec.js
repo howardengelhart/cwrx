@@ -118,25 +118,8 @@ describe('content experience endpoints (E2E):', function() {
                     expect(resp.body.data).toEqual({
                         foo: 'bar',
                         title: 'test exp',
-                        campaign: { launchUrls: [ jasmine.any(String) ] },
+                        campaign: {},
                         branding: jasmine.any(String)
-                    });
-
-                    var parsed = urlUtils.parse(resp.body.data.campaign.launchUrls[0], true, true);
-                    expect(parsed.host).toBeDefined();
-                    expect(parsed.pathname).toBeDefined();
-                    expect(parsed.query).toEqual({
-                        campaign    : 'cam-qp1',
-                        experience  : 'e-pubget1',
-                        container   : 'embed',
-                        placement   : 'pl-1',
-                        host        : 'clickhole.com',
-                        hostApp     : 'Mapsaurus',
-                        network     : 'pocketmath',
-                        cb          : '{cachebreaker}',
-                        event       : 'launch',
-                        ld          : '{launchDelay}',
-                        d           : '{delay}'
                     });
 
                     expect(new Date(resp.body.lastStatusChange)).not.toEqual('Invalid Date');
@@ -225,7 +208,7 @@ describe('content experience endpoints (E2E):', function() {
                         expect(resp.body.data).toEqual({
                             foo: 'bar',
                             title: 'test exp',
-                            campaign: { launchUrls: [ jasmine.any(String) ] },
+                            campaign: {},
                             branding: jasmine.any(String)
                         });
                         expect(resp.response.headers['content-type']).toBe('application/json; charset=utf-8');
@@ -388,46 +371,7 @@ describe('content experience endpoints (E2E):', function() {
                     
                     ['rc-sp1', 'rc-sp2'].forEach(function(cardId) {
                         var card = resp.body.data.deck.filter(function(deckCard) { return deckCard.id === cardId; })[0];
-                        if (!card) {
-                            expect(card).toBeDefined();
-                            return;
-                        }
-
-                        [
-                            { prop: 'bufferUrls', event: 'buffer' },
-                            { prop: 'viewUrls', event: 'cardView' },
-                            { prop: 'playUrls', event: 'play' },
-                            { prop: 'loadUrls', event: 'load' },
-                            { prop: 'countUrls', event: 'completedView' },
-                            { prop: 'q1Urls', event: 'q1' },
-                            { prop: 'q2Urls', event: 'q2' },
-                            { prop: 'q3Urls', event: 'q3' },
-                            { prop: 'q4Urls', event: 'q4' }
-                        ].forEach(function(obj) {
-                            var parsed = urlUtils.parse(card.campaign[obj.prop][0], true, true);
-                            expect(parsed.host).toBeDefined();
-                            expect(parsed.pathname).toBeDefined();
-
-                            var expectedQuery = {
-                                campaign    : 'cam-pubexp1',
-                                card        : cardId,
-                                experience  : 'e-getcamps1',
-                                container   : 'embed',
-                                placement   : 'pl-1',
-                                host        : 'clickhole.com',
-                                hostApp     : 'Mapsaurus',
-                                network     : 'pocketmath',
-                                cb          : '{cachebreaker}',
-                                event       : obj.event,
-                                d           : '{delay}'
-                            };
-                            if (obj.prop === 'playUrls') {
-                                expectedQuery.pd = '{playDelay}';
-                            } else if (obj.prop === 'loadUrls') {
-                                expectedQuery.ld = '{loadDelay}';
-                            }
-                            expect(parsed.query).toEqual(expectedQuery);
-                        });
+                        expect(card).toBeDefined();
                     });
                 }).catch(function(error) {
                     expect(util.inspect(error)).not.toBeDefined();
