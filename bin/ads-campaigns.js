@@ -57,7 +57,7 @@
                 __allowed: true,
                 __type: 'number',
                 __min: 50,
-                __max: 20000
+                __max: 50000
             },
             dailyLimit: {
                 __allowed: true,

@@ -885,33 +885,87 @@ describe('ads campaignUpdates endpoints (E2E):', function() {
                     }).done(done);
                 });
             });
-/* paymentMethod not required for demo
-            it('should return a 400 if POSTing an initial submit request but no paymentMethod is set yet', function(done) {
-                mailman.once(msgSubject, function(msg) {
-                    expect(msg).not.toBeDefined();
+            
+            describe('and no paymentMethod is set yet', function() {
+                beforeEach(function(done) {
+                    delete mockCamps[0].paymentMethod;
+                    testUtils.resetCollection('campaigns', mockCamps).done(done);
                 });
                 
-                delete mockCamps[0].paymentMethod;
-                testUtils.resetCollection('campaigns', mockCamps).then(function() {
-                    return requestUtils.qRequest('post', options);
-                }).then(function(resp) {
-                    expect(resp.response.statusCode).toBe(400);
-                    expect(resp.body).toBe('Missing required field: paymentMethod');
-                    
-                    // test campaign not locked
-                    return requestUtils.qRequest('get', {
-                        url: config.adsUrl + '/campaigns/cam-1',
-                        jar: selfieJar
+                it('should return a 400 if the user does not have the paymentOptional entitlement', function(done) {
+                    mailman.once(msgSubject, function(msg) {
+                        expect(msg).not.toBeDefined();
                     });
-                }).then(function(resp) {
-                    expect(resp.response.statusCode).toBe(200);
-                    expect(resp.body.status).toBe('draft');
-                    expect(resp.body.updateRequest).not.toBeDefined();
-                }).catch(function(error) {
-                    expect(util.inspect(error)).not.toBeDefined();
-                }).done(done);
+                    
+                    requestUtils.qRequest('post', options).then(function(resp) {
+                        expect(resp.response.statusCode).toBe(400);
+                        expect(resp.body).toBe('Missing required field: paymentMethod');
+                        
+                        // test campaign not locked
+                        return requestUtils.qRequest('get', {
+                            url: config.adsUrl + '/campaigns/cam-1',
+                            jar: selfieJar
+                        });
+                    }).then(function(resp) {
+                        expect(resp.response.statusCode).toBe(200);
+                        expect(resp.body.status).toBe('draft');
+                        expect(resp.body.updateRequest).not.toBeDefined();
+                    }).catch(function(error) {
+                        expect(util.inspect(error)).not.toBeDefined();
+                    }).done(done);
+                });
+                
+                it('should succeed if the user has the paymentOptional entitlement', function(done) {
+                    testPolicies[0].entitlements = testPolicies[0].entitlements || {};
+                    testPolicies[0].entitlements.paymentOptional = true;
+                    testUtils.resetCollection('policies', testPolicies).then(function() {
+                        var deferred = q.defer();
+                        
+                        var createdUpdate;
+                        requestUtils.qRequest('post', options).then(function(resp) {
+                            expect(resp.response.statusCode).toBe(201);
+                            if (resp.response.statusCode !== 201) {
+                                return q.reject({ code: resp.response.statusCode, body: resp.body });
+                            }
+                            
+                            expect(resp.body.id).toEqual(jasmine.any(String));
+                            expect(resp.body.status).toBe('pending');
+                            expect(resp.body.campaign).toBe('cam-1');
+                            expect(resp.body.autoApproved).toBe(false);
+                            expect(resp.body.data.status).toBe('active');
+                            expect(resp.body.data.paymentMethod).not.toBeDefined();
+                            createdUpdate = resp.body;
+                        }).catch(function(error) {
+                            expect(util.inspect(error)).not.toBeDefined();
+                            deferred.resolve();
+                        });
+                        
+                        mailman.once(msgSubject, function(msg) {
+                            testNewUpdateMsg(msg, mockCamps[0]);
+                            
+                            // test campaign updated successfully
+                            requestUtils.qRequest('get', {
+                                url: config.adsUrl + '/campaigns/cam-1',
+                                jar: selfieJar
+                            }).then(function(resp) {
+                                expect(resp.response.statusCode).toBe(200);
+                                expect(resp.body.status).toBe('pending');
+                                expect(resp.body.updateRequest).toBe(createdUpdate.id);
+                                expect(resp.body.paymentMethod).not.toBeDefined();
+                            }).catch(function(error) {
+                                expect(util.inspect(error)).not.toBeDefined();
+                            }).done(deferred.resolve);
+                        });
+                        
+                        return deferred.promise;
+                    })
+                    .then(function() {
+                        delete testPolicies[0].entitlements.paymentOptional;
+                        return testUtils.resetCollection('policies', testPolicies);
+                    })
+                    .done(done);
+                });
             });
-*/
         });
         
         describe('if creating an update for a campaign with cards', function() {

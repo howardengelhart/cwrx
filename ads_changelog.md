@@ -1,12 +1,16 @@
 # Ads Service Changelog
 
+### 4.2.0: Mon Jan 25 18:03:44 EST 2016
+* Set default max campaign budget to 50000: [#749](https://github.com/cinema6/cwrx/issues/749)
+* Require paymentMethod on campaign submit: [#749](https://github.com/cinema6/cwrx/issues/749)
+* Support `paymentOptional` entitlement to bypass required paymentMethod: [#749](https://github.com/cinema6/cwrx/issues/749)
 * [FEATURE]: Add endpoints for placements: [#732](https://github.com/cinema6/cwrx/issues/732)
 * [FEATURE]: Add endpoints for containers: [#731](https://github.com/cinema6/cwrx/issues/731)
 * Extra deployment steps:
+    * Add + assign policies with `paymentOptional` entitlement appropriately
     * Add policies for managing `placements` and `containers`
     * Update `policyAdmin` policy to allow configuring `permissions` and `fieldValidation` for `placements` and `containers`
     * Setup mongo indexes for `placements` and `containers` collections
-    * Create container entities for each existing container in Cinema6 site
     * Deploy ads cookbook version 2.0.0
 
 ### 4.1.0: Tue Jan 12 11:52:59 EST 2016
