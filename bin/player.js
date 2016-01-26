@@ -44,9 +44,9 @@ var CONTEXTS = {
 };
 
 function stripURL(url) {
-    var parsed = parseURL(url);
+    var parsed = (url && parseURL(url)) || undefined;
 
-    return formatURL({
+    return parsed && formatURL({
         protocol: parsed.protocol,
         host: parsed.host,
         pathname: parsed.pathname

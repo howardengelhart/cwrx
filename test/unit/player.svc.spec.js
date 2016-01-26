@@ -1118,6 +1118,19 @@ describe('player service', function() {
                                     expect(player[method]).toHaveBeenCalledWith(jasmine.objectContaining({ origin: 'https://nodejs.org/api/modules.html' }));
                                 });
                             });
+
+                            describe('and no referer', function() {
+                                beforeEach(function(done) {
+                                    delete headers.referer;
+
+                                    middleware(req, res, next);
+                                    q().finally(done);
+                                });
+
+                                it('should set the origin to undefined', function() {
+                                    expect(player[method]).toHaveBeenCalledWith(jasmine.objectContaining({ origin: undefined }));
+                                });
+                            });
                         });
                     });
                 });

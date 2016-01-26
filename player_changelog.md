@@ -6,6 +6,7 @@
 * Move card tracking pixel insertion into this service: [#759](https://github.com/cinema6/cwrx/pull/759)
 * [FEATURE]: Add session IDs (internal and external) to tracking pixel
   URLs: [#759](https://github.com/cinema6/cwrx/pull/759)
+* [FIX]: Don't break if the request has no referer/origin:[#769](https://github.com/cinema6/cwrx/pull/769)
 
 ### 2.2.1: Thu Jan 21 10:53:29 EST 2016
 * [FIX]: Log errors (and trigger PagerDuty alerts) when requests fail

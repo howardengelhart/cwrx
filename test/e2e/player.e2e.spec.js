@@ -848,6 +848,27 @@ describe('player service', function() {
                 });
             });
 
+            describe('and no Origin', function() {
+                beforeEach(function(done) {
+                    request = request.defaults({
+                        headers: {
+                            'Origin': '',
+                            'Referer': ''
+                        }
+                    });
+
+                    request.get(getURL()).then(getResponse).then(done, done.fail);
+                });
+
+                it('should succeed', function() {
+                    expect(parseResponse('light').seemsValid()).toBe(true);
+                });
+
+                it('should use the default origin', function() {
+                    expect(parseResponse('light').options.origin).toBe('http://www.cinema6.com/');
+                });
+            });
+
             describe('and no countdown configuration', function() {
                 beforeEach(function(done) {
                     delete config.playerUrl.query.countdown;
