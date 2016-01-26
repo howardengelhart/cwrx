@@ -1,6 +1,8 @@
 var host = process.env.host || '33.33.33.10';
 var resetCollection = require('./testUtils').resetCollection;
 var formatURL = require('url').format;
+var parseURL = require('url').parse;
+var querystring = require('querystring');
 var cheerio = require('cheerio');
 var readFileSync = require('fs').readFileSync;
 var q = require('q');
@@ -172,8 +174,8 @@ describe('player service', function() {
 
                 expect(options).toEqual({
                     type: 'lightbox',
-                    uuid: jasmine.any(String),
-                    origin: 'https://imasdk.googleapis.com',
+                    reqUuid: jasmine.any(String),
+                    origin: 'https://imasdk.googleapis.com/',
                     desktop: true,
                     mobile: false,
                     secure: false,
@@ -293,6 +295,112 @@ describe('player service', function() {
                         var types = experience.data.deck.map(function(card) { return card.type; });
 
                         expect(types).not.toContain('wildcard');
+                    });
+
+                    it('should remove launchUrls from the experience', function() {
+                        expect(parseResponse('lightbox').experience.data.campaign.launchUrls).toEqual([]);
+                    });
+
+                    describe('and lots of tracking parameters', function() {
+                        beforeEach(function(done) {
+                            config.playerUrl.query.container = 'beeswax';
+                            config.playerUrl.query.placement = 'pl-7c0f526f86d41f';
+                            config.playerUrl.query.hostApp = 'My Talking Tom';
+                            config.playerUrl.query.network = 'MoPub';
+                            config.playerUrl.query.uuid = 'rd8392eh3';
+
+                            request.get(getURL()).then(getResponse).then(done, done.fail);
+                        });
+
+                        it('should add tracking pixels to the card', function() {
+                            var card = parseResponse('lightbox').experience.data.deck[1];
+
+                            [
+                                { prop: 'bufferUrls', event: 'buffer' },
+                                { prop: 'viewUrls', event: 'cardView' },
+                                { prop: 'playUrls', event: 'play' },
+                                { prop: 'loadUrls', event: 'load' },
+                                { prop: 'launchUrls', event: 'launch' },
+                                { prop: 'countUrls', event: 'completedView' },
+                                { prop: 'q1Urls', event: 'q1' },
+                                { prop: 'q2Urls', event: 'q2' },
+                                { prop: 'q3Urls', event: 'q3' },
+                                { prop: 'q4Urls', event: 'q4' }
+                            ].forEach(function(item) {
+                                var pixels = card.campaign[item.prop];
+
+                                expect(parseURL('https:' + pixels[pixels.length - 1], true)).toEqual(jasmine.objectContaining({
+                                    protocol: 'https:',
+                                    host: 's3.amazonaws.com',
+                                    pathname: '/c6.dev/e2e/1x1-pixel.gif',
+                                    query: {
+                                        campaign: card.campaignId,
+                                        card: card.id,
+                                        experience: experience.id,
+                                        container: config.playerUrl.query.container,
+                                        placement: config.playerUrl.query.placement,
+                                        host: 'imasdk.googleapis.com',
+                                        hostApp: config.playerUrl.query.hostApp,
+                                        network: config.playerUrl.query.network,
+                                        sessionId: jasmine.any(String),
+                                        extSessionId: config.playerUrl.query.uuid,
+                                        event: item.event,
+                                        d: '{delay}',
+                                        cb: '{cachebreaker}'
+                                    }
+                                }));
+                            });
+
+                            Object.keys(card.links).forEach(function(type) {
+                                var pixels = card.links[type].tracking;
+
+                                expect(parseURL('https:' + pixels[pixels.length - 1], true)).toEqual(jasmine.objectContaining({
+                                    protocol: 'https:',
+                                    host: 's3.amazonaws.com',
+                                    pathname: '/c6.dev/e2e/1x1-pixel.gif',
+                                    query: {
+                                        campaign: card.campaignId,
+                                        card: card.id,
+                                        experience: experience.id,
+                                        container: config.playerUrl.query.container,
+                                        placement: config.playerUrl.query.placement,
+                                        host: 'imasdk.googleapis.com',
+                                        hostApp: config.playerUrl.query.hostApp,
+                                        network: config.playerUrl.query.network,
+                                        sessionId: jasmine.any(String),
+                                        extSessionId: config.playerUrl.query.uuid,
+                                        event: 'link.' + type,
+                                        d: '{delay}',
+                                        cb: '{cachebreaker}'
+                                    }
+                                }));
+                            });
+
+                            Object.keys(card.shareLinks).forEach(function(type) {
+                                var pixels = card.shareLinks[type].tracking;
+
+                                expect(parseURL('https:' + pixels[pixels.length - 1], true)).toEqual(jasmine.objectContaining({
+                                    protocol: 'https:',
+                                    host: 's3.amazonaws.com',
+                                    pathname: '/c6.dev/e2e/1x1-pixel.gif',
+                                    query: {
+                                        campaign: card.campaignId,
+                                        card: card.id,
+                                        experience: experience.id,
+                                        container: config.playerUrl.query.container,
+                                        placement: config.playerUrl.query.placement,
+                                        host: 'imasdk.googleapis.com',
+                                        hostApp: config.playerUrl.query.hostApp,
+                                        network: config.playerUrl.query.network,
+                                        sessionId: jasmine.any(String),
+                                        extSessionId: config.playerUrl.query.uuid,
+                                        event: 'shareLink.' + type,
+                                        d: '{delay}',
+                                        cb: '{cachebreaker}'
+                                    }
+                                }));
+                            });
+                        });
                     });
 
                     describe('with user-defined pixels', function() {
@@ -608,6 +716,10 @@ describe('player service', function() {
                 expect(experience.data.deck.length).toBe(1);
             });
 
+            it('should remove launchUrls from the experience', function() {
+                expect(parseResponse('light').experience.data.campaign.launchUrls).toEqual([]);
+            });
+
             it('should set the prebuffer property on the card', function() {
                 var card = parseResponse('light').experience.data.deck[0];
 
@@ -631,6 +743,108 @@ describe('player service', function() {
                         types: ['adUnit'],
                         modules: []
                     }
+                });
+            });
+
+            describe('and lots of tracking parameters', function() {
+                beforeEach(function(done) {
+                    config.playerUrl.query.container = 'beeswax';
+                    config.playerUrl.query.placement = 'pl-7c0f526f86d41f';
+                    config.playerUrl.query.hostApp = 'My Talking Tom';
+                    config.playerUrl.query.network = 'MoPub';
+                    config.playerUrl.query.uuid = 'rd8392eh3';
+
+                    request.get(getURL()).then(getResponse).then(done, done.fail);
+                });
+
+                it('should add tracking pixels to the card', function() {
+                    var card = parseResponse('light').experience.data.deck[0];
+
+                    [
+                        { prop: 'bufferUrls', event: 'buffer' },
+                        { prop: 'viewUrls', event: 'cardView' },
+                        { prop: 'playUrls', event: 'play' },
+                        { prop: 'loadUrls', event: 'load' },
+                        { prop: 'launchUrls', event: 'launch' },
+                        { prop: 'countUrls', event: 'completedView' },
+                        { prop: 'q1Urls', event: 'q1' },
+                        { prop: 'q2Urls', event: 'q2' },
+                        { prop: 'q3Urls', event: 'q3' },
+                        { prop: 'q4Urls', event: 'q4' }
+                    ].forEach(function(item) {
+                        var pixels = card.campaign[item.prop];
+
+                        expect(parseURL('https:' + pixels[pixels.length - 1], true)).toEqual(jasmine.objectContaining({
+                            protocol: 'https:',
+                            host: 's3.amazonaws.com',
+                            pathname: '/c6.dev/e2e/1x1-pixel.gif',
+                            query: {
+                                campaign: card.campaignId,
+                                card: card.id,
+                                experience: 'e-00000000000000',
+                                container: config.playerUrl.query.container,
+                                placement: config.playerUrl.query.placement,
+                                host: 'imasdk.googleapis.com',
+                                hostApp: config.playerUrl.query.hostApp,
+                                network: config.playerUrl.query.network,
+                                sessionId: jasmine.any(String),
+                                extSessionId: config.playerUrl.query.uuid,
+                                event: item.event,
+                                d: '{delay}',
+                                cb: '{cachebreaker}'
+                            }
+                        }), item.prop);
+                    });
+
+                    Object.keys(card.links).forEach(function(type) {
+                        var pixels = card.links[type].tracking;
+
+                        expect(parseURL('https:' + pixels[pixels.length - 1], true)).toEqual(jasmine.objectContaining({
+                            protocol: 'https:',
+                            host: 's3.amazonaws.com',
+                            pathname: '/c6.dev/e2e/1x1-pixel.gif',
+                            query: {
+                                campaign: card.campaignId,
+                                card: card.id,
+                                experience: 'e-00000000000000',
+                                container: config.playerUrl.query.container,
+                                placement: config.playerUrl.query.placement,
+                                host: 'imasdk.googleapis.com',
+                                hostApp: config.playerUrl.query.hostApp,
+                                network: config.playerUrl.query.network,
+                                sessionId: jasmine.any(String),
+                                extSessionId: config.playerUrl.query.uuid,
+                                event: 'link.' + type,
+                                d: '{delay}',
+                                cb: '{cachebreaker}'
+                            }
+                        }));
+                    });
+
+                    Object.keys(card.shareLinks).forEach(function(type) {
+                        var pixels = card.shareLinks[type].tracking;
+
+                        expect(parseURL('https:' + pixels[pixels.length - 1], true)).toEqual(jasmine.objectContaining({
+                            protocol: 'https:',
+                            host: 's3.amazonaws.com',
+                            pathname: '/c6.dev/e2e/1x1-pixel.gif',
+                            query: {
+                                campaign: card.campaignId,
+                                card: card.id,
+                                experience: 'e-00000000000000',
+                                container: config.playerUrl.query.container,
+                                placement: config.playerUrl.query.placement,
+                                host: 'imasdk.googleapis.com',
+                                hostApp: config.playerUrl.query.hostApp,
+                                network: config.playerUrl.query.network,
+                                sessionId: jasmine.any(String),
+                                extSessionId: config.playerUrl.query.uuid,
+                                event: 'shareLink.' + type,
+                                d: '{delay}',
+                                cb: '{cachebreaker}'
+                            }
+                        }));
+                    });
                 });
             });
 
@@ -785,7 +999,7 @@ describe('player service', function() {
                     expect(parsed.experience).toBeNull();
                     expect(parsed.options).toEqual(jasmine.objectContaining({
                         type: 'lightbox',
-                        uuid: jasmine.any(String)
+                        reqUuid: jasmine.any(String)
                     }));
                     expect($('base').attr('href')).toBe('http://localhost/static/player/master/');
                 });
@@ -904,8 +1118,8 @@ describe('player service', function() {
                     card: 'rc-2b278986abacf8',
                     type: 'light',
                     debug: 2,
-                    uuid: jasmine.any(String),
-                    origin: 'https://imasdk.googleapis.com',
+                    reqUuid: jasmine.any(String),
+                    origin: 'https://imasdk.googleapis.com/',
                     desktop: true,
                     mobile: false,
                     secure: false,

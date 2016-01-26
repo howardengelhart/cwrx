@@ -104,7 +104,8 @@ function Player(config) {
     this.adLoader = new AdLoader({
         envRoot: config.api.root,
         cardEndpoint: config.api.card.endpoint,
-        cardCacheTTLs: config.api.card.cacheTTLs
+        cardCacheTTLs: config.api.card.cacheTTLs,
+        trackingPixel: config.tracking.pixel
     });
     this.adLoadTimeReporter = new CloudWatchReporter(config.cloudwatch.namespace, {
         MetricName: 'AdLoadTime',
@@ -164,7 +165,7 @@ Player.prototype.__apiParams__ = function __apiParams__(type, params) {
     return filterObject(params, predicate);
 };
 
-Player.prototype.__loadCard__ = function __loadCard__(params, origin, uuid) {
+Player.prototype.__loadCard__ = function __loadCard__(params) {
     var self = this;
     var log = logger.getLog();
     var adLoader = this.adLoader;
@@ -172,7 +173,8 @@ Player.prototype.__loadCard__ = function __loadCard__(params, origin, uuid) {
     var validParams = this.__apiParams__('experience', params);
     var cardId = params.card;
     var campaignId = params.campaign;
-    var categories = params.categories;
+    var origin = params.origin;
+    var uuid = params.reqUuid;
     var experienceId = this.config.api.experience.default;
 
     return this.__getExperience__(experienceId, validParams, origin, uuid)
@@ -181,22 +183,20 @@ Player.prototype.__loadCard__ = function __loadCard__(params, origin, uuid) {
             throw reason;
         })
         .then(function fetch(experience) {
-            var cardParams = extend({
-                experience: experienceId
-            }, self.__apiParams__('card', params));
+            var cardParams = self.__apiParams__('card', params);
+            var cardMeta = extend({ experience: experienceId }, params);
 
             function fetchCard() {
                 var start = Date.now();
 
                 return (function() {
                     if (cardId) {
-                        return adLoader.getCard(cardId, cardParams, origin, uuid);
+                        return adLoader.getCard(cardId, cardParams, cardMeta, uuid);
                     }
 
-                    return adLoader.findCard({
-                        campaign: campaignId,
-                        categories: categories
-                    }, cardParams, origin, uuid).then(function checkForCard(card) {
+                    return adLoader.findCard(
+                        campaignId, cardParams, cardMeta, uuid
+                    ).then(function checkForCard(card) {
                         if (!card) { throw new Error('No cards found.'); }
 
                         return card;
@@ -225,11 +225,13 @@ Player.prototype.__loadCard__ = function __loadCard__(params, origin, uuid) {
         });
 };
 
-Player.prototype.__loadExperience__ = function __loadExperience__(id, params, origin, uuid) {
+Player.prototype.__loadExperience__ = function __loadExperience__(params) {
     var self = this;
     var log = logger.getLog();
+    var id = params.experience;
+    var origin = params.origin;
+    var uuid = params.reqUuid;
     var preview = params.preview;
-    var categories = params.categories;
     var campaign = params.campaign;
     var validParams = this.__apiParams__('experience', params);
     var adLoader = this.adLoader;
@@ -250,7 +252,7 @@ Player.prototype.__loadExperience__ = function __loadExperience__(id, params, or
             return AdLoader.removePlaceholders(experience);
         }
 
-        return adLoader.loadAds(experience, categories, campaign, origin, uuid)
+        return adLoader.loadAds(experience, campaign, params, uuid)
             .tap(function sendMetrics() {
                 adLoadTimeReporter.push(Date.now() - start);
             })
@@ -307,6 +309,7 @@ Player.prototype.__getExperience__ = function __getExperience__(id, params, orig
         headers: { origin: origin },
         json: true
     })).then(function decorate(experience) {
+        experience.data.campaign.launchUrls = [];
         return extend(experience, { $params: params });
     }).catch(function convertError(reason) {
         var message = reason.message;
@@ -446,10 +449,7 @@ Player.startService = function startService() {
                 experience: {
                     endpoint: 'api/public/content/experience/',
                     validParams: [
-                        'campaign', 'branding', 'placementId',
-                        'container', 'wildCardPlacement',
-                        'pageUrl', 'hostApp', 'network',
-                        'preview', 'placement'
+                        'campaign', 'branding', 'preview'
                     ],
                     cacheTTLs: {
                         fresh: 1,
@@ -460,9 +460,7 @@ Player.startService = function startService() {
                 card: {
                     endpoint: 'api/public/content/cards/',
                     validParams: [
-                        'container', 'pageUrl',
-                        'hostApp', 'network', 'experience',
-                        'preview', 'placement'
+                        'preview'
                     ],
                     cacheTTLs: {
                         fresh: 1,
@@ -477,6 +475,9 @@ Player.startService = function startService() {
                         max: 5
                     }
                 }
+            },
+            tracking: {
+                pixel: '//s3.amazonaws.com/c6.dev/e2e/1x1-pixel.gif'
             },
             app: {
                 version: 'master'
@@ -656,8 +657,8 @@ Player.prototype.middlewareify = function middlewareify(method) {
         var uuid = req.uuid;
         var browser = new BrowserInfo(req.get('user-agent'));
         var options = extend(extend({
-            uuid: uuid,
-            origin: req.get('origin') || req.get('referer'),
+            reqUuid: uuid,
+            origin: stripURL(req.get('origin') || req.get('referer')),
             desktop: browser.isDesktop,
             mobile: browser.isMobile,
             secure: req.secure
@@ -692,8 +693,7 @@ Player.prototype.get = function get(/*options*/) {
     var self = this;
     var type = options.type;
     var desktop = options.desktop;
-    var origin = stripURL(options.origin);
-    var uuid = options.uuid;
+    var uuid = options.reqUuid;
     var playUrls = options.playUrls;
     var countUrls = options.countUrls;
     var clickUrls = options.clickUrls;
@@ -791,9 +791,8 @@ Player.prototype.get = function get(/*options*/) {
         ));
     }
 
-    return (experience ?
-        this.__loadExperience__(experience, options, origin, uuid) :
-        this.__loadCard__(options, origin, uuid)
+    return (
+        experience ? this.__loadExperience__(options) : this.__loadCard__(options)
     ).then(function processExperience(experience) {
         var branding = experience.data.branding;
 
@@ -818,7 +817,7 @@ Player.prototype.getViaPlacement = function getViaPlacement(options) {
     var log = logger.getLog();
     var self = this;
     var config = this.config;
-    var uuid = options.uuid;
+    var uuid = options.reqUuid;
     var placement = options.placement;
 
     if (!placement) {

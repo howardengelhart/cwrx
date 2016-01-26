@@ -280,10 +280,7 @@ describe('player service', function() {
                                     experience: {
                                         endpoint: 'api/public/content/experience/',
                                         validParams: [
-                                            'campaign', 'branding', 'placementId',
-                                            'container', 'wildCardPlacement',
-                                            'pageUrl', 'hostApp', 'network',
-                                            'preview', 'placement'
+                                            'campaign', 'branding', 'preview'
                                         ],
                                         cacheTTLs: {
                                             fresh: 1,
@@ -294,9 +291,7 @@ describe('player service', function() {
                                     card: {
                                         endpoint: 'api/public/content/cards/',
                                         validParams: [
-                                            'container', 'pageUrl',
-                                            'hostApp', 'network', 'experience',
-                                            'preview', 'placement'
+                                            'preview'
                                         ],
                                         cacheTTLs: {
                                             fresh: 1,
@@ -311,6 +306,9 @@ describe('player service', function() {
                                             max: 5
                                         }
                                     }
+                                },
+                                tracking: {
+                                    pixel: '//s3.amazonaws.com/c6.dev/e2e/1x1-pixel.gif'
                                 },
                                 app: {
                                     version: 'master'
@@ -753,10 +751,7 @@ describe('player service', function() {
                     experience: {
                         endpoint: 'api/public/content/experience/',
                         validParams: [
-                            'campaign', 'branding', 'placementId',
-                            'container', 'wildCardPlacement',
-                            'pageUrl', 'hostApp', 'network',
-                            'preview', 'placement'
+                            'campaign', 'branding', 'preview'
                         ],
                         cacheTTLs: {
                             fresh: 1,
@@ -767,9 +762,7 @@ describe('player service', function() {
                     card: {
                         endpoint: 'api/public/content/cards/',
                         validParams: [
-                            'container', 'pageUrl',
-                            'hostApp', 'network', 'experience',
-                            'preview', 'placement'
+                            'preview'
                         ],
                         cacheTTLs: {
                             fresh: 1,
@@ -784,6 +777,9 @@ describe('player service', function() {
                             max: 5
                         }
                     }
+                },
+                tracking: {
+                    pixel: '//s3.amazonaws.com/c6.dev/e2e/1x1-pixel.gif'
                 },
                 app: {
                     version: 'v2.4.1',
@@ -938,21 +934,22 @@ describe('player service', function() {
                         expect(MockAdLoader).toHaveBeenCalledWith({
                             envRoot: config.api.root,
                             cardEndpoint: config.api.card.endpoint,
-                            cardCacheTTLs: config.api.card.cacheTTLs
+                            cardCacheTTLs: config.api.card.cacheTTLs,
+                            trackingPixel: config.tracking.pixel
                         });
                     });
                 });
             });
 
             describe('methods:', function() {
-                describe('middlewareify(method, optionifier)', function() {
-                    var method, optionifier;
+                describe('middlewareify(method)', function() {
+                    var method;
                     var result;
 
                     beforeEach(function() {
                         method = 'get';
 
-                        result = player.middlewareify(method, optionifier);
+                        result = player.middlewareify(method);
                     });
 
                     it('should return a Function', function() {
@@ -970,7 +967,7 @@ describe('player service', function() {
 
                             headers = {
                                 'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_10_5) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/45.0.2454.99 Safari/537.36',
-                                'origin': 'https://github.com/cinema6/cwrx/pull/504/files'
+                                'origin': 'https://github.com/cinema6/cwrx/pull/504/files?foo=bar&bar=foo#bleh'
                             };
                             req = {
                                 params: { type: 'lightbox' },
@@ -1006,8 +1003,8 @@ describe('player service', function() {
 
                         it('should [method]() the player, passing in the req.query + some params it creates', function() {
                             expect(player[method]).toHaveBeenCalledWith(extend(extend({
-                                uuid: req.uuid,
-                                origin: req.get('origin'),
+                                reqUuid: req.uuid,
+                                origin: 'https://github.com/cinema6/cwrx/pull/504/files',
                                 desktop: browser.isDesktop,
                                 mobile: browser.isMobile,
                                 secure: req.secure
@@ -1118,7 +1115,7 @@ describe('player service', function() {
                                 });
 
                                 it('should set the referer as the origin', function() {
-                                    expect(player[method]).toHaveBeenCalledWith(jasmine.objectContaining({ origin: req.get('referer') }));
+                                    expect(player[method]).toHaveBeenCalledWith(jasmine.objectContaining({ origin: 'https://nodejs.org/api/modules.html' }));
                                 });
                             });
                         });
@@ -1189,12 +1186,12 @@ describe('player service', function() {
 
                         options = {
                             type: 'lightbox',
-                            uuid: 'efh7384ry43785t',
+                            reqUuid: 'efh7384ry43785t',
                             experience: 'e-92160a770b81d5',
                             campaign: 'cam-c3de383f7e37ce',
                             branding: 'cinema6',
                             network: 'mopub',
-                            origin: 'http://cinema6.com/solo?id=e-92160a770b81d5&cb=fu92yr483r76472&foo=wer89437r83947r#foofurief',
+                            origin: 'http://cinema6.com/solo',
                             placementId: '1673285684',
                             container: 'mopub',
                             wildCardPlacement: '238974285',
@@ -1249,7 +1246,7 @@ describe('player service', function() {
                     });
 
                     it('should load the experience', function() {
-                        expect(player.__loadExperience__).toHaveBeenCalledWith(options.experience, options, 'http://cinema6.com/solo', options.uuid);
+                        expect(player.__loadExperience__).toHaveBeenCalledWith(options);
                     });
 
                     it('should not load a card', function() {
@@ -1275,11 +1272,11 @@ describe('player service', function() {
                         });
 
                         it('should fetch the player', function() {
-                            expect(player.__getPlayer__).toHaveBeenCalledWith(player.__getBuildProfile__(experience, options), true, options.uuid);
+                            expect(player.__getPlayer__).toHaveBeenCalledWith(player.__getBuildProfile__(experience, options), true, options.reqUuid);
                         });
 
                         it('should loading brandings for the player', function() {
-                            expect(player.__getBranding__).toHaveBeenCalledWith(experience.data.branding, options.type, options.desktop, options.uuid);
+                            expect(player.__getBranding__).toHaveBeenCalledWith(experience.data.branding, options.type, options.desktop, options.reqUuid);
                         });
 
                         it('should add the launchUrls to the experience', function() {
@@ -1467,7 +1464,7 @@ describe('player service', function() {
                                 });
 
                                 it('should call __getPlayer__()', function() {
-                                    expect(player.__getPlayer__).toHaveBeenCalledWith(player.__getBuildProfile__(null, options), false, options.uuid);
+                                    expect(player.__getPlayer__).toHaveBeenCalledWith(player.__getBuildProfile__(null, options), false, options.reqUuid);
                                 });
 
                                 it('should add the options as a resource', function() {
@@ -1507,11 +1504,11 @@ describe('player service', function() {
                                     });
 
                                     it('should call __getPlayer__()', function() {
-                                        expect(player.__getPlayer__).toHaveBeenCalledWith(player.__getBuildProfile__(null, options), false, options.uuid);
+                                        expect(player.__getPlayer__).toHaveBeenCalledWith(player.__getBuildProfile__(null, options), false, options.reqUuid);
                                     });
 
                                     it('should loading brandings for the player', function() {
-                                        expect(player.__getBranding__).toHaveBeenCalledWith(options.branding, options.type, options.desktop, options.uuid);
+                                        expect(player.__getBranding__).toHaveBeenCalledWith(options.branding, options.type, options.desktop, options.reqUuid);
                                     });
 
                                     it('should add the brandings as a resource', function() {
@@ -1546,7 +1543,7 @@ describe('player service', function() {
                             });
 
                             it('should load the card', function() {
-                                expect(player.__loadCard__).toHaveBeenCalledWith(options, 'http://cinema6.com/solo', options.uuid);
+                                expect(player.__loadCard__).toHaveBeenCalledWith(options);
                             });
 
                             describe('when the card is loaded', function() {
@@ -1577,11 +1574,11 @@ describe('player service', function() {
                                 });
 
                                 it('should load the player', function() {
-                                    expect(player.__getPlayer__).toHaveBeenCalledWith(player.__getBuildProfile__(experience, options), true, options.uuid);
+                                    expect(player.__getPlayer__).toHaveBeenCalledWith(player.__getBuildProfile__(experience, options), true, options.reqUuid);
                                 });
 
                                 it('should loading brandings for the player', function() {
-                                    expect(player.__getBranding__).toHaveBeenCalledWith(experience.data.branding, options.type, options.desktop, options.uuid);
+                                    expect(player.__getBranding__).toHaveBeenCalledWith(experience.data.branding, options.type, options.desktop, options.reqUuid);
                                 });
 
                                 it('should add the launchUrls to the experience', function() {
@@ -1645,7 +1642,7 @@ describe('player service', function() {
                         });
 
                         it('should use the default origin', function() {
-                            expect(player.__loadExperience__).toHaveBeenCalledWith(jasmine.any(String), jasmine.any(Object), config.defaults.origin, jasmine.any(String));
+                            expect(player.__loadExperience__).toHaveBeenCalledWith(options);
                         });
                     });
 
@@ -1814,9 +1811,9 @@ describe('player service', function() {
                     beforeEach(function(done) {
                         options = {
                             placement: 'pl-cc39777e109ea2',
-                            uuid: 'efh7384ry43785t',
+                            reqUuid: 'efh7384ry43785t',
                             branding: 'cinema6',
-                            origin: 'http://cinema6.com/solo?id=e-92160a770b81d5&cb=fu92yr483r76472&foo=wer89437r83947r#foofurief',
+                            origin: 'http://cinema6.com/solo',
                             preview: false,
                             playUrls: ['play1.gif', 'play2.gif'],
                             countUrls: ['count1.gif', 'count2.gif'],
@@ -1844,7 +1841,7 @@ describe('player service', function() {
                     });
 
                     it('should get the placement', function() {
-                        expect(player.__getPlacement__).toHaveBeenCalledWith(options.placement, {}, options.uuid);
+                        expect(player.__getPlacement__).toHaveBeenCalledWith(options.placement, {}, options.reqUuid);
                     });
 
                     describe('when the placement is fetched', function() {
@@ -2184,12 +2181,12 @@ describe('player service', function() {
                         type = 'experience';
                         params = {
                             type: 'lightbox',
-                            uuid: 'efh7384ry43785t',
+                            reqUuid: 'efh7384ry43785t',
                             experience: 'e-92160a770b81d5',
                             campaign: 'cam-c3de383f7e37ce',
                             branding: 'cinema6',
                             network: 'mopub',
-                            origin: 'http://cinema6.com/solo?id=e-92160a770b81d5&cb=fu92yr483r76472&foo=wer89437r83947r#foofurief',
+                            origin: 'http://cinema6.com/solo',
                             placementId: '1673285684',
                             container: 'mopub',
                             wildCardPlacement: '238974285',
@@ -2211,12 +2208,6 @@ describe('player service', function() {
                         expect(result).toEqual({
                             campaign: 'cam-c3de383f7e37ce',
                             branding: 'cinema6',
-                            network: 'mopub',
-                            placementId: '1673285684',
-                            container: 'mopub',
-                            wildCardPlacement: '238974285',
-                            pageUrl: 'http://www.foo.com/bar',
-                            hostApp: 'My Talking Tom',
                             preview: false
                         });
                     });
@@ -2235,19 +2226,19 @@ describe('player service', function() {
                     });
                 });
 
-                describe('__loadCard__(params, origin, uuid)', function() {
-                    var params, origin, uuid;
+                describe('__loadCard__(params)', function() {
+                    var params;
                     var getExperienceDeferred;
                     var success, failure;
 
                     beforeEach(function() {
                         params = {
                             type: 'lightbox',
-                            uuid: 'efh7384ry43785t',
+                            reqUuid: 'efh7384ry43785t',
                             experience: 'e-92160a770b81d5',
                             branding: 'cinema6',
                             network: 'mopub',
-                            origin: 'http://cinema6.com/solo?id=e-92160a770b81d5&cb=fu92yr483r76472&foo=wer89437r83947r#foofurief',
+                            origin: 'http://cinema6.com/solo',
                             placementId: '1673285684',
                             container: 'mopub',
                             wildCardPlacement: '238974285',
@@ -2260,8 +2251,6 @@ describe('player service', function() {
                             launchUrls: ['launch1.gif', 'launch2.gif'],
                             desktop: true
                         };
-                        origin = 'http://cinema6.com/solo';
-                        uuid = params.uuid;
 
                         getExperienceDeferred = q.defer();
                         player.__getExperience__.and.returnValue(getExperienceDeferred.promise);
@@ -2297,18 +2286,16 @@ describe('player service', function() {
                             };
                             player.__getExperience__.and.returnValue(q(experience));
 
-                            result = player.__loadCard__(params, origin, uuid).then(success, failure);
+                            result = player.__loadCard__(params).then(success, failure);
                             setTimeout(done, 1);
                         });
 
                         it('should fetch the default experience', function() {
-                            expect(player.__getExperience__).toHaveBeenCalledWith(config.api.experience.default, player.__apiParams__('experience', params), origin, uuid);
+                            expect(player.__getExperience__).toHaveBeenCalledWith(config.api.experience.default, player.__apiParams__('experience', params), params.origin, params.reqUuid);
                         });
 
                         it('should get the card', function() {
-                            expect(player.adLoader.getCard).toHaveBeenCalledWith(params.card, extend({
-                                experience: experience.id
-                            }, player.__apiParams__('card', params)), origin, uuid);
+                            expect(player.adLoader.getCard).toHaveBeenCalledWith(params.card, player.__apiParams__('card', params), extend({ experience: experience.id }, params), params.reqUuid);
                         });
 
                         describe('if the card\'s campaign', function() {
@@ -2354,16 +2341,15 @@ describe('player service', function() {
                         });
                     });
 
-                    describe('with a campaign id or categories', function() {
+                    describe('with a campaign id', function() {
                         beforeEach(function() {
                             params.campaign = 'cam-dd8f7c06153451';
-                            params.categories = ['food', 'tech'];
 
-                            player.__loadCard__(params, origin, uuid).then(success, failure);
+                            player.__loadCard__(params).then(success, failure);
                         });
 
                         it('should fetch the default experience', function() {
-                            expect(player.__getExperience__).toHaveBeenCalledWith(config.api.experience.default, player.__apiParams__('experience', params), origin, uuid);
+                            expect(player.__getExperience__).toHaveBeenCalledWith(config.api.experience.default, player.__apiParams__('experience', params), params.origin, params.reqUuid);
                         });
 
                         describe('when the default experience is fetched', function() {
@@ -2391,10 +2377,7 @@ describe('player service', function() {
                             });
 
                             it('should find the card', function() {
-                                expect(player.adLoader.findCard).toHaveBeenCalledWith({
-                                    campaign: params.campaign,
-                                    categories: params.categories
-                                }, extend({ experience: experience.id }, player.__apiParams__('card', params)), origin, uuid);
+                                expect(player.adLoader.findCard).toHaveBeenCalledWith(params.campaign, player.__apiParams__('card', params), extend({ experience: experience.id }, params), params.reqUuid);
                             });
 
                             describe('and the card is fetched', function() {
@@ -2498,11 +2481,11 @@ describe('player service', function() {
                         beforeEach(function() {
                             params.card = 'rc-4a51653fcd65ac';
 
-                            player.__loadCard__(params, origin, uuid).then(success, failure);
+                            player.__loadCard__(params).then(success, failure);
                         });
 
                         it('should fetch the default experience', function() {
-                            expect(player.__getExperience__).toHaveBeenCalledWith(config.api.experience.default, player.__apiParams__('experience', params), origin, uuid);
+                            expect(player.__getExperience__).toHaveBeenCalledWith(config.api.experience.default, player.__apiParams__('experience', params), params.origin, params.reqUuid);
                         });
 
                         describe('when the default experience is fetched', function() {
@@ -2530,9 +2513,7 @@ describe('player service', function() {
                             });
 
                             it('should find the card', function() {
-                                expect(player.adLoader.getCard).toHaveBeenCalledWith(params.card, extend({
-                                    experience: experience.id
-                                }, player.__apiParams__('card', params)), origin, uuid);
+                                expect(player.adLoader.getCard).toHaveBeenCalledWith(params.card, player.__apiParams__('card', params), extend({ experience: experience.id }, params), params.reqUuid);
                             });
 
                             describe('and the card is fetched', function() {
@@ -2615,14 +2596,13 @@ describe('player service', function() {
                 });
 
                 describe('__loadExperience__(id, params, origin, uuid)', function() {
-                    var id, params, origin, uuid;
+                    var params;
                     var experience;
                     var getExperienceDeferred;
 
                     var success, failure;
 
                     beforeEach(function() {
-                        id = 'e-e2614b1f75c418';
                         params = {
                             campaign: 'cam-c3de383f7e37ce',
                             branding: 'cinema6',
@@ -2632,13 +2612,13 @@ describe('player service', function() {
                             pageUrl: 'http://www.foo.com/bar',
                             hostApp: 'My Talking Tom',
                             network: 'mopub',
-                            id: id,
+                            experience: 'e-e2614b1f75c418',
                             mobileMode: 'swipe',
                             preview: false,
-                            categories: ['foo', 'bar']
+                            categories: ['foo', 'bar'],
+                            origin: 'jsfiddle.net',
+                            reqUuid: 'w9hf493rh8439r'
                         };
-                        origin = 'jsfiddle.net';
-                        uuid = 'w9hf493rh8439r';
 
                         success = jasmine.createSpy('success()');
                         failure = jasmine.createSpy('failure()');
@@ -2657,11 +2637,11 @@ describe('player service', function() {
                         getExperienceDeferred = q.defer();
                         player.__getExperience__.and.returnValue(getExperienceDeferred.promise);
 
-                        player.__loadExperience__(id, params, origin, uuid).then(success, failure);
+                        player.__loadExperience__(params).then(success, failure);
                     });
 
                     it('should get the experience', function() {
-                        expect(player.__getExperience__).toHaveBeenCalledWith(id, player.__apiParams__('experience', params), origin, uuid);
+                        expect(player.__getExperience__).toHaveBeenCalledWith(params.experience, player.__apiParams__('experience', params), params.origin, params.reqUuid);
                     });
 
                     describe('when the experience is fetched', function() {
@@ -2681,7 +2661,7 @@ describe('player service', function() {
                         });
 
                         it('should load ads for the experience', function() {
-                            expect(player.adLoader.loadAds).toHaveBeenCalledWith(experience, params.categories, params.campaign, origin, uuid);
+                            expect(player.adLoader.loadAds).toHaveBeenCalledWith(experience, params.campaign, params, params.reqUuid);
                         });
 
                         describe('if loading the ads', function() {
@@ -2745,17 +2725,17 @@ describe('player service', function() {
                             spyOn(MockAdLoader, 'addTrackingPixels').and.callThrough();
                             params.preview = true;
 
-                            player.__loadExperience__(id, params, origin, uuid).then(success, failure).finally(done);
+                            player.__loadExperience__(params).then(success, failure).finally(done);
                         });
 
                         it('should call the uncached version of __getExperience__()', function() {
-                            expect(Player.prototype.__getExperience__).toHaveBeenCalledWith(id, player.__apiParams__('experience', params), origin, uuid);
+                            expect(Player.prototype.__getExperience__).toHaveBeenCalledWith(params.experience, player.__apiParams__('experience', params), params.origin, params.reqUuid);
                             expect(Player.prototype.__getExperience__.calls.mostRecent().object).toBe(player);
                             expect(player.__getExperience__).not.toHaveBeenCalled();
                         });
 
                         it('should load ads for the experience', function() {
-                            expect(player.adLoader.loadAds).toHaveBeenCalledWith(experience, params.categories, params.campaign, origin, uuid);
+                            expect(player.adLoader.loadAds).toHaveBeenCalledWith(experience, params.campaign, params, params.reqUuid);
                         });
 
                         it('should not removePlaceholders() from the experience', function() {
@@ -2785,7 +2765,7 @@ describe('player service', function() {
                                 return !(card.type === 'wildcard' || typeof card.campaignId === 'string');
                             });
 
-                            player.__loadExperience__(id, params, origin, uuid).then(success, failure).finally(done);
+                            player.__loadExperience__(params).then(success, failure).finally(done);
                         });
 
                         it('should not loadAds()', function() {
@@ -3166,10 +3146,22 @@ describe('player service', function() {
                         var experience;
 
                         beforeEach(function(done) {
-                            experience = { id: 'e-92160a770b81d5' };
+                            experience = {
+                                id: 'e-92160a770b81d5',
+                                data: {
+                                    campaign: {
+                                        launchUrls: ['some-pixel.gif']
+                                    },
+                                    deck: []
+                                }
+                            };
 
                             requestDeferreds[request.get.calls.mostRecent().args[0]].resolve(experience);
                             result.finally(done);
+                        });
+
+                        it('should set the experience\'s launchUrls to an empty Array', function() {
+                            expect(experience.data.campaign.launchUrls).toEqual([]);
                         });
 
                         it('should fulfill with the experience', function() {
