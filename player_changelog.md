@@ -2,6 +2,9 @@
 
 * [FEATURE]: Add [GET /api/public/player] endpoint to return a player
   configured via a placement: [#756](https://github.com/cinema6/cwrx/pull/756)
+* Move card tracking pixel insertion into this service: [#759](https://github.com/cinema6/cwrx/pull/759)
+* [FEATURE]: Add session IDs (internal and external) to tracking pixel
+  URLs: [#759](https://github.com/cinema6/cwrx/pull/759)
 
 ### 2.2.1: Thu Jan 21 10:53:29 EST 2016
 * [FIX]: Log errors (and trigger PagerDuty alerts) when requests fail
