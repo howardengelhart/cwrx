@@ -1060,175 +1060,6 @@ describe('content-cards (UT)', function() {
         });
     });
     
-    describe('setupTrackingPixels', function() {
-        var card;
-        beforeEach(function() {
-            card = { id: 'rc-1', campaignId: 'cam-1', campaign: {} };
-        
-            spyOn(cardModule, 'formatUrl').and.callFake(function(card, req, event) {
-                return 'track.png?event=' + event;
-            });
-        });
-        
-        it('should setup a bunch of tracking pixel arrays on the card', function() {
-            cardModule.setupTrackingPixels(card, req);
-            expect(card).toEqual({
-                id          : 'rc-1',
-                campaignId  : 'cam-1',
-                campaign    : {
-                    bufferUrls  : [ 'track.png?event=buffer' ],
-                    viewUrls    : [ 'track.png?event=cardView' ],
-                    playUrls    : [ 'track.png?event=play' ],
-                    loadUrls    : [ 'track.png?event=load' ],
-                    countUrls   : [ 'track.png?event=completedView' ],
-                    q1Urls      : [ 'track.png?event=q1' ],
-                    q2Urls      : [ 'track.png?event=q2' ],
-                    q3Urls      : [ 'track.png?event=q3' ],
-                    q4Urls      : [ 'track.png?event=q4' ]
-                }
-            });
-        });
-        
-        it('should not overwrite any existing pixels', function() {
-            card.campaign = {
-                viewUrls    : [ 'view.me' ],
-                playUrls    : [ 'play.me' ],
-                loadUrls    : [ 'load.me' ],
-                countUrls   : [ 'count.me' ],
-                q1Urls      : [ 'q1.me' ],
-                q2Urls      : [ 'q2.me' ],
-                q3Urls      : [ 'q3.me' ]
-            };
-            
-            cardModule.setupTrackingPixels(card, req);
-            expect(card).toEqual({
-                id          : 'rc-1',
-                campaignId  : 'cam-1',
-                campaign    : {
-                    bufferUrls  : [ 'track.png?event=buffer' ],
-                    viewUrls    : [ 'view.me', 'track.png?event=cardView' ],
-                    playUrls    : [ 'play.me', 'track.png?event=play' ],
-                    loadUrls    : [ 'load.me', 'track.png?event=load' ],
-                    countUrls   : [ 'count.me', 'track.png?event=completedView' ],
-                    q1Urls      : [ 'q1.me', 'track.png?event=q1' ],
-                    q2Urls      : [ 'q2.me', 'track.png?event=q2' ],
-                    q3Urls      : [ 'q3.me', 'track.png?event=q3' ],
-                    q4Urls      : [ 'track.png?event=q4' ]
-                }
-            });
-        });
-        
-        describe('if there are links on the card', function() {
-            beforeEach(function() {
-                card.links = {
-                    Facebook: {
-                        uri: 'http://facebook.com/foo',
-                        tracking: []
-                    },
-                    Twitter: {
-                        uri: 'http://twitter.com/bar',
-                        tracking: []
-                    }
-                };
-            });
-            
-            it('should also create tracking pixels for the links', function() {
-                cardModule.setupTrackingPixels(card, req);
-                expect(card.links).toEqual({
-                    Facebook: {
-                        uri: 'http://facebook.com/foo',
-                        tracking: [ 'track.png?event=link.Facebook' ]
-                    },
-                    Twitter: {
-                        uri: 'http://twitter.com/bar',
-                        tracking: [ 'track.png?event=link.Twitter' ]
-                    }
-                });
-            });
-            
-            it('should not overwrite existing tracking pixels for the links', function() {
-                card.links.Facebook = {
-                    uri: 'http://facebook.com/foo',
-                    tracking: ['track.facebook']
-                };
-
-                cardModule.setupTrackingPixels(card, req);
-                expect(card.links).toEqual({
-                    Facebook: {
-                        uri: 'http://facebook.com/foo',
-                        tracking: [ 'track.facebook', 'track.png?event=link.Facebook' ]
-                    },
-                    Twitter: {
-                        uri: 'http://twitter.com/bar',
-                        tracking: [ 'track.png?event=link.Twitter' ]
-                    }
-                });
-            });
-            
-            it('should do nothing if the links prop is empty', function() {
-                card.links = {};
-
-                cardModule.setupTrackingPixels(card, req);
-                expect(card.links).toEqual({});
-            });
-        });
-
-        describe('if there are shareLinks on the card', function() {
-            beforeEach(function() {
-                card.shareLinks = {
-                    Facebook: {
-                        uri: 'http://facebook.com/foo',
-                        tracking: []
-                    },
-                    Twitter: {
-                        uri: 'http://twitter.com/bar',
-                        tracking: []
-                    }
-                };
-            });
-            
-            it('should also create tracking pixels for the links', function() {
-                cardModule.setupTrackingPixels(card, req);
-                expect(card.shareLinks).toEqual({
-                    Facebook: {
-                        uri: 'http://facebook.com/foo',
-                        tracking: [ 'track.png?event=shareLink.Facebook' ]
-                    },
-                    Twitter: {
-                        uri: 'http://twitter.com/bar',
-                        tracking: [ 'track.png?event=shareLink.Twitter' ]
-                    }
-                });
-            });
-            
-            it('should not overwrite existing tracking pixels for the links', function() {
-                card.shareLinks.Facebook = {
-                    uri: 'http://facebook.com/foo',
-                    tracking: ['track.facebook']
-                };
-
-                cardModule.setupTrackingPixels(card, req);
-                expect(card.shareLinks).toEqual({
-                    Facebook: {
-                        uri: 'http://facebook.com/foo',
-                        tracking: [ 'track.facebook', 'track.png?event=shareLink.Facebook' ]
-                    },
-                    Twitter: {
-                        uri: 'http://twitter.com/bar',
-                        tracking: [ 'track.png?event=shareLink.Twitter' ]
-                    }
-                });
-            });
-            
-            it('should do nothing if the links prop is empty', function() {
-                card.shareLinks = {};
-
-                cardModule.setupTrackingPixels(card, req);
-                expect(card.shareLinks).toEqual({});
-            });
-        });
-    });
-    
     describe('getPublicCard', function() {
         var cardSvc, mockCard, mockCamp, caches;
         beforeEach(function() {
@@ -1269,9 +1100,6 @@ describe('content-cards (UT)', function() {
                     return newCard;
                 })
             };
-            spyOn(cardModule, 'setupTrackingPixels').and.callFake(function(card, req) {
-                card.campaign.pixels = 'setup';
-            });
         });
         
         it('should retrieve a card from the cache', function(done) {
@@ -1279,13 +1107,12 @@ describe('content-cards (UT)', function() {
                 expect(resp).toEqual({
                     id: 'rc-1',
                     campaignId: 'cam-1',
-                    campaign: { pixels: 'setup' },
+                    campaign: {},
                     status: Status.Active,
                     params: { sponsor: 'Heinz' },
                     formatted: true
                 });
                 expect(cardSvc.formatOutput).toHaveBeenCalled();
-                expect(cardModule.setupTrackingPixels).toHaveBeenCalledWith(resp, req);
                 expect(caches.cards.getPromise).toHaveBeenCalledWith({id: 'rc-1'});
                 expect(caches.campaigns.getPromise).toHaveBeenCalledWith({id: 'cam-1'});
                 expect(mockLog.warn).not.toHaveBeenCalled();
@@ -1315,21 +1142,6 @@ describe('content-cards (UT)', function() {
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
             }).done(done);
-        });
-        
-        it('should not setup tracking pixels if request is a preview', function(done) {
-            req.query.preview = 'true';
-            cardModule.getPublicCard(cardSvc, caches, 'rc-1', req).then(function(resp) {
-                expect(resp).toEqual(jasmine.objectContaining({ campaign: { } }));
-                expect(cardModule.setupTrackingPixels).not.toHaveBeenCalled();
-            }).then(done,done.fail);
-        });
-
-        it('should setup tracking pixels if request is not a preview', function(done) {
-            req.query.preview = 'false';
-            cardModule.getPublicCard(cardSvc, caches, 'rc-1', req).then(function(resp) {
-                expect(cardModule.setupTrackingPixels).toHaveBeenCalledWith(jasmine.any(Object), req);
-            }).then(done,done.fail);
         });
         
         describe('if there are links or shareLinks on the card', function() {
@@ -1362,9 +1174,7 @@ describe('content-cards (UT)', function() {
                             }
                         }));
                     });
-                })).then(function() {
-                    expect(cardModule.setupTrackingPixels.calls.count()).toBe(1);
-                }).catch(function(error) {
+                })).catch(function(error) {
                     expect(error.toString()).not.toBeDefined();
                 }).done(done);
             });
@@ -1377,7 +1187,6 @@ describe('content-cards (UT)', function() {
                 expect(caches.cards.getPromise).toHaveBeenCalledWith({id: 'rc-1'});
                 expect(caches.campaigns.getPromise).not.toHaveBeenCalled();
                 expect(cardSvc.formatOutput).not.toHaveBeenCalled();
-                expect(cardModule.setupTrackingPixels).not.toHaveBeenCalled();
                 expect(mockLog.warn).not.toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
@@ -1391,7 +1200,6 @@ describe('content-cards (UT)', function() {
                 expect(caches.cards.getPromise).toHaveBeenCalledWith({id: 'rc-1'});
                 expect(caches.campaigns.getPromise).not.toHaveBeenCalled();
                 expect(cardSvc.formatOutput).not.toHaveBeenCalled();
-                expect(cardModule.setupTrackingPixels).not.toHaveBeenCalled();
                 expect(mockLog.warn).not.toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
@@ -1405,7 +1213,6 @@ describe('content-cards (UT)', function() {
                 expect(caches.cards.getPromise).toHaveBeenCalledWith({id: 'rc-1'});
                 expect(caches.campaigns.getPromise).toHaveBeenCalledWith({id: 'cam-1'});
                 expect(cardSvc.formatOutput).toHaveBeenCalled();
-                expect(cardModule.setupTrackingPixels).toHaveBeenCalled();
                 expect(mockLog.warn).toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
@@ -1450,7 +1257,6 @@ describe('content-cards (UT)', function() {
                 expect(caches.cards.getPromise).toHaveBeenCalledWith({id: 'rc-1'});
                 expect(caches.campaigns.getPromise).not.toHaveBeenCalled();
                 expect(cardSvc.formatOutput).not.toHaveBeenCalled();
-                expect(cardModule.setupTrackingPixels).not.toHaveBeenCalled();
             }).done(done);
         });
         
@@ -1464,7 +1270,6 @@ describe('content-cards (UT)', function() {
                 expect(caches.cards.getPromise).toHaveBeenCalledWith({id: 'rc-1'});
                 expect(caches.campaigns.getPromise).toHaveBeenCalled();
                 expect(cardSvc.formatOutput).toHaveBeenCalled();
-                expect(cardModule.setupTrackingPixels).toHaveBeenCalled();
             }).done(done);
         });
     });

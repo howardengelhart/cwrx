@@ -347,33 +347,6 @@
         });
     };
     
-    // Adds tracking pixels to card.campaign, initializing arrays if needed
-    cardModule.setupTrackingPixels = function(card, req) {
-        function ensureList(prop) {
-            return card.campaign[prop] || (card.campaign[prop] = []);
-        }
-
-        ensureList('bufferUrls').push(cardModule.formatUrl(card, req, 'buffer'));
-        ensureList('viewUrls').push(cardModule.formatUrl(card, req, 'cardView'));
-        ensureList('playUrls').push(cardModule.formatUrl(card, req, 'play'));
-        ensureList('loadUrls').push(cardModule.formatUrl(card, req, 'load'));
-        ensureList('countUrls').push(cardModule.formatUrl(card, req, 'completedView'));
-        ensureList('q1Urls').push(cardModule.formatUrl(card, req, 'q1'));
-        ensureList('q2Urls').push(cardModule.formatUrl(card, req, 'q2'));
-        ensureList('q3Urls').push(cardModule.formatUrl(card, req, 'q3'));
-        ensureList('q4Urls').push(cardModule.formatUrl(card, req, 'q4'));
-        
-        // This code assumes cardModule.objectifyLinks() has already been called
-        ['links', 'shareLinks'].forEach(function(prop) {
-            var singular = prop.replace(/s$/, '');
-            
-            Object.keys(card[prop] || {}).forEach(function(linkName) {
-                var pixelUrl = cardModule.formatUrl(card, req, singular + '.' + linkName);
-                card[prop][linkName].tracking.push(pixelUrl);
-            });
-        });
-    };
-
     // Get a card, using internal cache. Can be used across modules when 1st two args bound in
     cardModule.getPublicCard = function(cardSvc, caches, id, req) {
         var log = logger.getLog(),
@@ -395,10 +368,6 @@
             card.campaign = card.campaign || {};
             cardModule.objectifyLinks(card);
             
-            if (req.query.preview !== 'true') {
-                cardModule.setupTrackingPixels(card, req);
-            }
-
             // fetch card's campaign so important props can be copied over
             return caches.campaigns.getPromise({ id: card.campaignId })
             .spread(function(camp) {
