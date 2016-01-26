@@ -448,10 +448,7 @@ Player.startService = function startService() {
                 experience: {
                     endpoint: 'api/public/content/experience/',
                     validParams: [
-                        'campaign', 'branding', 'placementId',
-                        'container', 'wildCardPlacement',
-                        'pageUrl', 'hostApp', 'network',
-                        'preview', 'placement'
+                        'campaign', 'branding', 'preview'
                     ],
                     cacheTTLs: {
                         fresh: 1,
@@ -462,9 +459,7 @@ Player.startService = function startService() {
                 card: {
                     endpoint: 'api/public/content/cards/',
                     validParams: [
-                        'container', 'pageUrl',
-                        'hostApp', 'network', 'experience',
-                        'preview', 'placement'
+                        'preview'
                     ],
                     cacheTTLs: {
                         fresh: 1,

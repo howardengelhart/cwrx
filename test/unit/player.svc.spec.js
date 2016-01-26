@@ -280,10 +280,7 @@ describe('player service', function() {
                                     experience: {
                                         endpoint: 'api/public/content/experience/',
                                         validParams: [
-                                            'campaign', 'branding', 'placementId',
-                                            'container', 'wildCardPlacement',
-                                            'pageUrl', 'hostApp', 'network',
-                                            'preview', 'placement'
+                                            'campaign', 'branding', 'preview'
                                         ],
                                         cacheTTLs: {
                                             fresh: 1,
@@ -294,9 +291,7 @@ describe('player service', function() {
                                     card: {
                                         endpoint: 'api/public/content/cards/',
                                         validParams: [
-                                            'container', 'pageUrl',
-                                            'hostApp', 'network', 'experience',
-                                            'preview', 'placement'
+                                            'preview'
                                         ],
                                         cacheTTLs: {
                                             fresh: 1,
@@ -753,10 +748,7 @@ describe('player service', function() {
                     experience: {
                         endpoint: 'api/public/content/experience/',
                         validParams: [
-                            'campaign', 'branding', 'placementId',
-                            'container', 'wildCardPlacement',
-                            'pageUrl', 'hostApp', 'network',
-                            'preview', 'placement'
+                            'campaign', 'branding', 'preview'
                         ],
                         cacheTTLs: {
                             fresh: 1,
@@ -767,9 +759,7 @@ describe('player service', function() {
                     card: {
                         endpoint: 'api/public/content/cards/',
                         validParams: [
-                            'container', 'pageUrl',
-                            'hostApp', 'network', 'experience',
-                            'preview', 'placement'
+                            'preview'
                         ],
                         cacheTTLs: {
                             fresh: 1,
@@ -2211,12 +2201,6 @@ describe('player service', function() {
                         expect(result).toEqual({
                             campaign: 'cam-c3de383f7e37ce',
                             branding: 'cinema6',
-                            network: 'mopub',
-                            placementId: '1673285684',
-                            container: 'mopub',
-                            wildCardPlacement: '238974285',
-                            pageUrl: 'http://www.foo.com/bar',
-                            hostApp: 'My Talking Tom',
                             preview: false
                         });
                     });
