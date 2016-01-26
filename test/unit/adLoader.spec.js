@@ -728,6 +728,7 @@ describe('AdLoader()', function() {
                             network: 'MoPub',
                             secure: true,
                             reqUuid: '87r893434',
+                            uuid: 'wr98y3498f3r4',
                             preview: false,
                             debug: 2
                         };
@@ -768,6 +769,8 @@ describe('AdLoader()', function() {
                                 host: 'reelcontent.com',
                                 hostApp: meta.hostApp,
                                 network: meta.network,
+                                sessionId: meta.reqUuid,
+                                extSessionId: meta.uuid,
                                 event: item.event
                             }) + '&d={delay}&cb={cachebreaker}');
                         });
@@ -785,6 +788,8 @@ describe('AdLoader()', function() {
                                 host: 'reelcontent.com',
                                 hostApp: meta.hostApp,
                                 network: meta.network,
+                                sessionId: meta.reqUuid,
+                                extSessionId: meta.uuid,
                                 event: 'link.' + type
                             }) + '&d={delay}&cb={cachebreaker}');
                         });
@@ -802,6 +807,8 @@ describe('AdLoader()', function() {
                                 host: 'reelcontent.com',
                                 hostApp: meta.hostApp,
                                 network: meta.network,
+                                sessionId: meta.reqUuid,
+                                extSessionId: meta.uuid,
                                 event: 'shareLink.' + type
                             }) + '&d={delay}&cb={cachebreaker}');
                         });
@@ -843,6 +850,8 @@ describe('AdLoader()', function() {
                                     host: 'reelcontent.com',
                                     hostApp: meta.hostApp,
                                     network: meta.network,
+                                    sessionId: meta.reqUuid,
+                                    extSessionId: meta.uuid,
                                     event: item.event
                                 }) + '&d={delay}&cb={cachebreaker}'];
 
@@ -1028,6 +1037,8 @@ describe('AdLoader()', function() {
                                         host: 'reelcontent.com',
                                         hostApp: meta.hostApp,
                                         network: meta.network,
+                                        sessionId: meta.reqUuid,
+                                        extSessionId: meta.uuid,
                                         event: item.event
                                     }) + '&d={delay}&cb={cachebreaker}'
                                 ]);
@@ -1048,6 +1059,8 @@ describe('AdLoader()', function() {
                                         host: 'reelcontent.com',
                                         hostApp: meta.hostApp,
                                         network: meta.network,
+                                        sessionId: meta.reqUuid,
+                                        extSessionId: meta.uuid,
                                         event: 'link.' + type
                                     }) + '&d={delay}&cb={cachebreaker}'
                                 ]);
@@ -1068,6 +1081,8 @@ describe('AdLoader()', function() {
                                         host: 'reelcontent.com',
                                         hostApp: meta.hostApp,
                                         network: meta.network,
+                                        sessionId: meta.reqUuid,
+                                        extSessionId: meta.uuid,
                                         event: 'shareLink.' + type
                                     }) + '&d={delay}&cb={cachebreaker}'
                                 ]);
@@ -1114,6 +1129,8 @@ describe('AdLoader()', function() {
                                     host: undefined,
                                     hostApp: meta.hostApp,
                                     network: meta.network,
+                                    sessionId: meta.reqUuid,
+                                    extSessionId: meta.uuid,
                                     event: item.event
                                 }) + '&d={delay}&cb={cachebreaker}');
                             });
@@ -1128,6 +1145,8 @@ describe('AdLoader()', function() {
                                     host: undefined,
                                     hostApp: meta.hostApp,
                                     network: meta.network,
+                                    sessionId: meta.reqUuid,
+                                    extSessionId: meta.uuid,
                                     event: 'link.' + type
                                 }) + '&d={delay}&cb={cachebreaker}');
                             });
@@ -1142,6 +1161,8 @@ describe('AdLoader()', function() {
                                     host: undefined,
                                     hostApp: meta.hostApp,
                                     network: meta.network,
+                                    sessionId: meta.reqUuid,
+                                    extSessionId: meta.uuid,
                                     event: 'shareLink.' + type
                                 }) + '&d={delay}&cb={cachebreaker}');
                             });
