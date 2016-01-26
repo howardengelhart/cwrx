@@ -43,9 +43,6 @@ describe('content (UT)', function() {
                 newExp.formatted = true;
                 return newExp;
             });
-            spyOn(expModule, 'setupTrackingPixels').and.callFake(function(pixel, exp, req) {
-                exp.withPixels = true;
-            });
             spyOn(expModule, 'handleCampaign').and.callFake(function(cardSvc, cache, campId, exp, req) {
                 exp.withCampSwaps = true;
                 return q(exp);
@@ -74,13 +71,11 @@ describe('content (UT)', function() {
                     id: 'e-1',
                     data: { campaign: {}, branding: 'brandA' },
                     formatted: true,
-                    withPixels: true,
                     withCampSwaps: true
                 });
                 expect(caches.experiences.getPromise).toHaveBeenCalledWith({ id: 'e-1' });
                 expect(expModule.formatOutput).toHaveBeenCalledWith(mockExp, true);
                 expect(expModule.canGetExperience).toHaveBeenCalledWith(resp.body, null, false);
-                expect(expModule.setupTrackingPixels).toHaveBeenCalledWith('track.me', resp.body, req);
                 expect(expModule.handleCampaign).toHaveBeenCalledWith('fakeCardSvc', 'fakeCampCache', undefined, resp.body, req);
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
@@ -97,7 +92,6 @@ describe('content (UT)', function() {
                     formatted: true,
                     withCampSwaps: true
                 });
-                expect(expModule.setupTrackingPixels).not.toHaveBeenCalled();
             }).then(done,done.fail);
         });
         
@@ -121,7 +115,6 @@ describe('content (UT)', function() {
                         id: 'e-1',
                         data: { campaign: {}, branding: 'brandB' },
                         formatted: true,
-                        withPixels: true,
                         withCampSwaps: true
                     });
                 }).catch(function(error) {
@@ -138,7 +131,6 @@ describe('content (UT)', function() {
                         id: 'e-1',
                         data: { campaign: {}, branding: 'default' },
                         formatted: true,
-                        withPixels: true,
                         withCampSwaps: true
                     });
                 }).catch(function(error) {
@@ -154,7 +146,6 @@ describe('content (UT)', function() {
                 expect(resp.body).toBe('Experience not found');
                 expect(caches.experiences.getPromise).toHaveBeenCalled();
                 expect(expModule.formatOutput).not.toHaveBeenCalled();
-                expect(expModule.setupTrackingPixels).not.toHaveBeenCalled();
                 expect(expModule.canGetExperience).not.toHaveBeenCalled();
                 expect(expModule.handleCampaign).not.toHaveBeenCalled();
             }).catch(function(error) {
@@ -170,7 +161,6 @@ describe('content (UT)', function() {
                 expect(caches.experiences.getPromise).toHaveBeenCalled();
                 expect(expModule.formatOutput).toHaveBeenCalled();
                 expect(expModule.canGetExperience).toHaveBeenCalled();
-                expect(expModule.setupTrackingPixels).not.toHaveBeenCalled();
                 expect(expModule.handleCampaign).not.toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
@@ -187,7 +177,6 @@ describe('content (UT)', function() {
                 expect(caches.experiences.getPromise).toHaveBeenCalled();
                 expect(expModule.formatOutput).not.toHaveBeenCalled();
                 expect(expModule.canGetExperience).not.toHaveBeenCalled();
-                expect(expModule.setupTrackingPixels).not.toHaveBeenCalled();
                 expect(expModule.handleCampaign).not.toHaveBeenCalled();
             }).done(done);
         });
@@ -202,7 +191,6 @@ describe('content (UT)', function() {
                 expect(caches.experiences.getPromise).toHaveBeenCalled();
                 expect(expModule.formatOutput).toHaveBeenCalled();
                 expect(expModule.canGetExperience).toHaveBeenCalled();
-                expect(expModule.setupTrackingPixels).toHaveBeenCalled();
                 expect(expModule.handleCampaign).toHaveBeenCalled();
             }).done(done);
         });
