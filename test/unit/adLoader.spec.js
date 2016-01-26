@@ -8,6 +8,7 @@ describe('AdLoader()', function() {
     var resolveURL;
     var clonePromise;
     var _;
+    var extend;
 
     var MockFunctionCache;
     var fnCache;
@@ -24,6 +25,7 @@ describe('AdLoader()', function() {
         clonePromise = require('../../lib/promise').clone;
         logger = require('../../lib/logger');
         _ = require('lodash');
+        extend = require('../../lib/objUtils').extend;
 
         jasmine.clock().install();
 
@@ -568,7 +570,8 @@ describe('AdLoader()', function() {
                     max: 10
                 },
                 envRoot: 'https://staging.cinema6.com/',
-                cardEndpoint: '/api/public/content/cards/'
+                cardEndpoint: '/api/public/content/cards/',
+                trackingPixel: '//s3.amazonaws.com/c6.dev/e2e/1x1-pixel.gif'
             };
 
             loader = new AdLoader(config);
@@ -604,10 +607,610 @@ describe('AdLoader()', function() {
             it('should set the cardEndpoint to a default', function() {
                 expect(loader.cardEndpoint).toBe('/api/public/content/cards/');
             });
+
+            it('should set the trackingPixel to null', function() {
+                expect(loader.trackingPixel).toBeNull();
+            });
         });
 
         describe('@private', function() {
             describe('methods:', function() {
+                describe('__addTrackingPixels__(card, meta)', function() {
+                    var card, meta;
+                    var result;
+                    var originalCard;
+
+                    beforeEach(function() {
+                        card = {
+                            "campaign": {
+                                "campaignId": null,
+                                "advertiserId": null,
+                                "minViewTime": -1,
+                                "countUrls": [],
+                                "clickUrls": [],
+                                "loadUrls": [],
+                                "q1Urls": ["http://www.example.com/pixel.gif?event=q1"],
+                                "q3Urls": [],
+                                "q4Urls": []
+                            },
+                            "campaignId": "cam-19849e91e5e46b",
+                            "collateral": {
+                                "logo": ""
+                            },
+                            "created": "2015-03-09T20:57:45.262Z",
+                            "data": {
+                                "hideSource": true,
+                                "controls": true,
+                                "autoadvance": false,
+                                "skip": true,
+                                "modestbranding": 0,
+                                "rel": 0,
+                                "videoid": "M7FIvfx5J10",
+                                "href": "https://www.youtube.com/watch?v=M7FIvfx5J10",
+                                "thumbs": {
+                                    "small": "//img.youtube.com/vi/M7FIvfx5J10/2.jpg",
+                                    "large": "//img.youtube.com/vi/M7FIvfx5J10/0.jpg"
+                                }
+                            },
+                            "id": "rc-7a28568c31b689",
+                            "lastUpdated": "2015-09-17T14:49:27.324Z",
+                            "links": {
+                                "Action": {
+                                    "uri": "http://www.smashingmagazine.com",
+                                    "tracking": []
+                                },
+                                "Facebook": {
+                                    "uri": "https://www.facebook.com/dannon",
+                                    "tracking": []
+                                },
+                                "Twitter": {
+                                    "uri": "https://www.twitter.com/Dannon",
+                                    "tracking": []
+                                },
+                                "Website": {
+                                    "uri": "http://www.dannon.com",
+                                    "tracking": ['http://www.example.com/pixel.gif?event=link.Website']
+                                },
+                                "Instagram": {
+                                    "uri": "http://instagram.com/dannon",
+                                    "tracking": []
+                                },
+                                "YouTube": {
+                                    "uri": "http://www.youtube.com/user/dannon",
+                                    "tracking": []
+                                },
+                                "Pinterest": {
+                                    "uri": "http://www.pinterest.com/dannonyogurt/",
+                                    "tracking": []
+                                }
+                            },
+                            "modules": [],
+                            "note": "",
+                            "params": {
+                                "sponsor": "Diageo Staging",
+                                "action": null,
+                                "ad": false
+                            },
+                            "placementId": null,
+                            "shareLinks": {
+                                "facebook": {
+                                    "uri": "http://www.smashingmagazine.com",
+                                    "tracking": []
+                                },
+                                "twitter": {
+                                    "uri": "http://www.smashingmagazine.com",
+                                    "tracking": ['http://www.example.com/pixel.gif?event=shareLink.twitter']
+                                },
+                                "pinterest": {
+                                    "uri": "http://www.smashingmagazine.com",
+                                    "tracking": []
+                                }
+                            },
+                            "source": "YouTube",
+                            "sponsored": true,
+                            "status": "active",
+                            "templateUrl": null,
+                            "thumbs": null,
+                            "title": "",
+                            "type": "youtube",
+                            "advertiserId": "a-274d023a4fd14d",
+                            "adtechId": 6593565,
+                            "bannerId": 1
+                        };
+                        meta = {
+                            campaign: 'cam-585f78a09b4cf6',
+                            card: 'rc-7e95af1d928a17',
+                            experience: 'e-00000000000000',
+                            container: 'beeswax',
+                            placement: 'pl-1e5878cf989cbd',
+                            origin: 'http://reelcontent.com/',
+                            hostApp: 'My Talking Tom',
+                            network: 'MoPub',
+                            secure: true,
+                            reqUuid: '87r893434',
+                            preview: false,
+                            debug: 2
+                        };
+
+                        originalCard = JSON.parse(JSON.stringify(card));
+
+                        result = loader.__addTrackingPixels__(card, meta);
+                    });
+
+                    it('should return the card', function() {
+                        expect(result).toBe(card);
+                    });
+
+                    it('should add tracking pixels to the card\'s campaign', function() {
+                        var pixel = require('url').parse(loader.trackingPixel);
+
+                        [
+                            { prop: 'bufferUrls', event: 'buffer' },
+                            { prop: 'viewUrls', event: 'cardView' },
+                            { prop: 'playUrls', event: 'play' },
+                            { prop: 'loadUrls', event: 'load' },
+                            { prop: 'launchUrls', event: 'launch' },
+                            { prop: 'countUrls', event: 'completedView' },
+                            { prop: 'q1Urls', event: 'q1' },
+                            { prop: 'q2Urls', event: 'q2' },
+                            { prop: 'q3Urls', event: 'q3' },
+                            { prop: 'q4Urls', event: 'q4' }
+                        ].forEach(function(item) {
+                            var urls = card.campaign[item.prop];
+
+                            expect(urls).toEqual((originalCard.campaign[item.prop] || []).concat([jasmine.any(String)]));
+                            expect(card.campaign[item.prop][card.campaign[item.prop].length - 1]).toBe(loader.trackingPixel + '?' + require('querystring').stringify({
+                                campaign: card.campaignId,
+                                card: card.id,
+                                experience: meta.experience,
+                                container: meta.container,
+                                placement: meta.placement,
+                                host: 'reelcontent.com',
+                                hostApp: meta.hostApp,
+                                network: meta.network,
+                                event: item.event
+                            }) + '&d={delay}&cb={cachebreaker}');
+                        });
+                    });
+
+                    it('should add tracking pixels to the card\'s links', function() {
+                        Object.keys(card.links).forEach(function(type) {
+                            expect(card.links[type].tracking).toEqual(originalCard.links[type].tracking.concat([jasmine.any(String)]));
+                            expect(card.links[type].tracking[card.links[type].tracking.length - 1]).toBe(loader.trackingPixel + '?' + require('querystring').stringify({
+                                campaign: card.campaignId,
+                                card: card.id,
+                                experience: meta.experience,
+                                container: meta.container,
+                                placement: meta.placement,
+                                host: 'reelcontent.com',
+                                hostApp: meta.hostApp,
+                                network: meta.network,
+                                event: 'link.' + type
+                            }) + '&d={delay}&cb={cachebreaker}');
+                        });
+                    });
+
+                    it('should add tracking pixels to the card\'s shareLinks', function() {
+                        Object.keys(card.shareLinks).forEach(function(type) {
+                            expect(card.shareLinks[type].tracking).toEqual(originalCard.shareLinks[type].tracking.concat([jasmine.any(String)]));
+                            expect(card.shareLinks[type].tracking[card.shareLinks[type].tracking.length - 1]).toBe(loader.trackingPixel + '?' + require('querystring').stringify({
+                                campaign: card.campaignId,
+                                card: card.id,
+                                experience: meta.experience,
+                                container: meta.container,
+                                placement: meta.placement,
+                                host: 'reelcontent.com',
+                                hostApp: meta.hostApp,
+                                network: meta.network,
+                                event: 'shareLink.' + type
+                            }) + '&d={delay}&cb={cachebreaker}');
+                        });
+                    });
+
+                    describe('if the card has no campaign', function() {
+                        beforeEach(function() {
+                            result = undefined;
+                            card = JSON.parse(JSON.stringify(originalCard));
+                            delete card.campaign;
+                            originalCard = JSON.parse(JSON.stringify(card));
+
+                            result = loader.__addTrackingPixels__(card, meta);
+                        });
+
+                        it('should return the card', function() {
+                            expect(result).toBe(card);
+                        });
+
+                        it('should give the card a campaign', function() {
+                            expect(card.campaign).toEqual([
+                                { prop: 'bufferUrls', event: 'buffer' },
+                                { prop: 'viewUrls', event: 'cardView' },
+                                { prop: 'playUrls', event: 'play' },
+                                { prop: 'loadUrls', event: 'load' },
+                                { prop: 'launchUrls', event: 'launch' },
+                                { prop: 'countUrls', event: 'completedView' },
+                                { prop: 'q1Urls', event: 'q1' },
+                                { prop: 'q2Urls', event: 'q2' },
+                                { prop: 'q3Urls', event: 'q3' },
+                                { prop: 'q4Urls', event: 'q4' }
+                            ].reduce(function(campaign, item) {
+                                campaign[item.prop] = [loader.trackingPixel + '?' + require('querystring').stringify({
+                                    campaign: card.campaignId,
+                                    card: card.id,
+                                    experience: meta.experience,
+                                    container: meta.container,
+                                    placement: meta.placement,
+                                    host: 'reelcontent.com',
+                                    hostApp: meta.hostApp,
+                                    network: meta.network,
+                                    event: item.event
+                                }) + '&d={delay}&cb={cachebreaker}'];
+
+                                return campaign;
+                            }, {}));
+                        });
+                    });
+
+                    describe('if the card already has tracking pixels', function() {
+                        beforeEach(function() {
+                            result = undefined;
+                            card = JSON.parse(JSON.stringify(originalCard));
+                            originalCard = JSON.parse(JSON.stringify(card));
+
+                            [
+                                { prop: 'bufferUrls', event: 'buffer' },
+                                { prop: 'viewUrls', event: 'cardView' },
+                                { prop: 'playUrls', event: 'play' },
+                                { prop: 'loadUrls', event: 'load' },
+                                { prop: 'launchUrls', event: 'launch' },
+                                { prop: 'countUrls', event: 'completedView' },
+                                { prop: 'q1Urls', event: 'q1' },
+                                { prop: 'q2Urls', event: 'q2' },
+                                { prop: 'q3Urls', event: 'q3' },
+                                { prop: 'q4Urls', event: 'q4' }
+                            ].forEach(function(item) {
+                                card.campaign[item.prop] = [
+                                    '//audit-staging.cinema6.com/pixel.gif?' + require('querystring').stringify({
+                                        campaign: card.campaignId,
+                                        card: card.id,
+                                        experience: meta.experience,
+                                        container: meta.container,
+                                        placement: meta.placement,
+                                        host: meta.origin,
+                                        hostApp: meta.hostApp,
+                                        network: meta.network,
+                                        event: item.event
+                                    }) + '&d={delay}&cb={cachebreaker}',
+
+                                    '//s3.amazonaws.com/c6.dev/e2e/1x1-pixel.gif?' + require('querystring').stringify({
+                                        campaign: card.campaignId,
+                                        card: card.id,
+                                        experience: meta.experience,
+                                        container: meta.container,
+                                        placement: meta.placement,
+                                        host: meta.origin,
+                                        hostApp: meta.hostApp,
+                                        network: meta.network,
+                                        event: item.event
+                                    }) + '&d={delay}&cb={cachebreaker}',
+
+                                    '//tracking.pocketmath.com/px.gif?id=urfh934r&event=' + item.event,
+
+                                    '//audit-staging.cinema6.com/pixel.gif?' + require('querystring').stringify({
+                                        campaign: card.campaignId,
+                                        card: card.id,
+                                        experience: meta.experience,
+                                        container: meta.container,
+                                        placement: meta.placement,
+                                        host: meta.origin,
+                                        hostApp: meta.hostApp,
+                                        network: meta.network,
+                                        event: item.event
+                                    }) + '&d={delay}&cb={cachebreaker}',
+
+                                    '//track.com/pix.gif?id=wue9ru3849&cb={cachebreaker}&event=' + item.event,
+                                ];
+                            });
+
+                            Object.keys(card.links).forEach(function(type) {
+                                card.links[type].tracking = [
+                                    '//audit-staging.cinema6.com/pixel.gif?' + require('querystring').stringify({
+                                        campaign: card.campaignId,
+                                        card: card.id,
+                                        experience: meta.experience,
+                                        container: meta.container,
+                                        placement: meta.placement,
+                                        host: meta.origin,
+                                        hostApp: meta.hostApp,
+                                        network: meta.network,
+                                        event: 'link.' + type
+                                    }) + '&d={delay}&cb={cachebreaker}',
+
+                                    '//s3.amazonaws.com/c6.dev/e2e/1x1-pixel.gif?' + require('querystring').stringify({
+                                        campaign: card.campaignId,
+                                        card: card.id,
+                                        experience: meta.experience,
+                                        container: meta.container,
+                                        placement: meta.placement,
+                                        host: meta.origin,
+                                        hostApp: meta.hostApp,
+                                        network: meta.network,
+                                        event: 'link.' + type
+                                    }) + '&d={delay}&cb={cachebreaker}',
+
+                                    '//tracking.pocketmath.com/px.gif?id=urfh934r&event=link.' + type,
+
+                                    '//audit-staging.cinema6.com/pixel.gif?' + require('querystring').stringify({
+                                        campaign: card.campaignId,
+                                        card: card.id,
+                                        experience: meta.experience,
+                                        container: meta.container,
+                                        placement: meta.placement,
+                                        host: meta.origin,
+                                        hostApp: meta.hostApp,
+                                        network: meta.network,
+                                        event: 'link.' + type
+                                    }) + '&d={delay}&cb={cachebreaker}',
+
+                                    '//track.com/pix.gif?id=wue9ru3849&cb={cachebreaker}&event=link.' + type
+                                ];
+                            });
+
+                            Object.keys(card.shareLinks).forEach(function(type) {
+                                card.shareLinks[type].tracking = [
+                                    '//audit-staging.cinema6.com/pixel.gif?' + require('querystring').stringify({
+                                        campaign: card.campaignId,
+                                        card: card.id,
+                                        experience: meta.experience,
+                                        container: meta.container,
+                                        placement: meta.placement,
+                                        host: meta.origin,
+                                        hostApp: meta.hostApp,
+                                        network: meta.network,
+                                        event: 'shareLink.' + type
+                                    }) + '&d={delay}&cb={cachebreaker}',
+
+                                    '//s3.amazonaws.com/c6.dev/e2e/1x1-pixel.gif?' + require('querystring').stringify({
+                                        campaign: card.campaignId,
+                                        card: card.id,
+                                        experience: meta.experience,
+                                        container: meta.container,
+                                        placement: meta.placement,
+                                        host: meta.origin,
+                                        hostApp: meta.hostApp,
+                                        network: meta.network,
+                                        event: 'shareLink.' + type
+                                    }) + '&d={delay}&cb={cachebreaker}',
+
+                                    '//tracking.pocketmath.com/px.gif?id=urfh934r&event=shareLink.' + type,
+
+                                    '//audit-staging.cinema6.com/pixel.gif?' + require('querystring').stringify({
+                                        campaign: card.campaignId,
+                                        card: card.id,
+                                        experience: meta.experience,
+                                        container: meta.container,
+                                        placement: meta.placement,
+                                        host: meta.origin,
+                                        hostApp: meta.hostApp,
+                                        network: meta.network,
+                                        event: 'shareLink.' + type
+                                    }) + '&d={delay}&cb={cachebreaker}',
+
+                                    '//track.com/pix.gif?id=wue9ru3849&cb={cachebreaker}&event=shareLink.' + type
+                                ];
+                            });
+
+                            result = loader.__addTrackingPixels__(card, meta);
+                        });
+
+                        it('should remove the existing tracking pixels from the campaign', function() {
+                            [
+                                { prop: 'bufferUrls', event: 'buffer' },
+                                { prop: 'viewUrls', event: 'cardView' },
+                                { prop: 'playUrls', event: 'play' },
+                                { prop: 'loadUrls', event: 'load' },
+                                { prop: 'launchUrls', event: 'launch' },
+                                { prop: 'countUrls', event: 'completedView' },
+                                { prop: 'q1Urls', event: 'q1' },
+                                { prop: 'q2Urls', event: 'q2' },
+                                { prop: 'q3Urls', event: 'q3' },
+                                { prop: 'q4Urls', event: 'q4' }
+                            ].forEach(function(item) {
+                                expect(card.campaign[item.prop]).toEqual([
+                                    '//tracking.pocketmath.com/px.gif?id=urfh934r&event=' + item.event,
+                                    '//track.com/pix.gif?id=wue9ru3849&cb={cachebreaker}&event=' + item.event,
+                                    loader.trackingPixel + '?' + require('querystring').stringify({
+                                        campaign: card.campaignId,
+                                        card: card.id,
+                                        experience: meta.experience,
+                                        container: meta.container,
+                                        placement: meta.placement,
+                                        host: 'reelcontent.com',
+                                        hostApp: meta.hostApp,
+                                        network: meta.network,
+                                        event: item.event
+                                    }) + '&d={delay}&cb={cachebreaker}'
+                                ]);
+                            });
+                        });
+
+                        it('should remove the existing tracking pixels from the links', function() {
+                            Object.keys(card.links).forEach(function(type) {
+                                expect(card.links[type].tracking).toEqual([
+                                    '//tracking.pocketmath.com/px.gif?id=urfh934r&event=link.' + type,
+                                    '//track.com/pix.gif?id=wue9ru3849&cb={cachebreaker}&event=link.' + type,
+                                    loader.trackingPixel + '?' + require('querystring').stringify({
+                                        campaign: card.campaignId,
+                                        card: card.id,
+                                        experience: meta.experience,
+                                        container: meta.container,
+                                        placement: meta.placement,
+                                        host: 'reelcontent.com',
+                                        hostApp: meta.hostApp,
+                                        network: meta.network,
+                                        event: 'link.' + type
+                                    }) + '&d={delay}&cb={cachebreaker}'
+                                ]);
+                            });
+                        });
+
+                        it('should remove the existing tracking pixels from the shareLinks', function() {
+                            Object.keys(card.shareLinks).forEach(function(type) {
+                                expect(card.shareLinks[type].tracking).toEqual([
+                                    '//tracking.pocketmath.com/px.gif?id=urfh934r&event=shareLink.' + type,
+                                    '//track.com/pix.gif?id=wue9ru3849&cb={cachebreaker}&event=shareLink.' + type,
+                                    loader.trackingPixel + '?' + require('querystring').stringify({
+                                        campaign: card.campaignId,
+                                        card: card.id,
+                                        experience: meta.experience,
+                                        container: meta.container,
+                                        placement: meta.placement,
+                                        host: 'reelcontent.com',
+                                        hostApp: meta.hostApp,
+                                        network: meta.network,
+                                        event: 'shareLink.' + type
+                                    }) + '&d={delay}&cb={cachebreaker}'
+                                ]);
+                            });
+                        });
+                    });
+
+                    describe('if there is no origin', function() {
+                        beforeEach(function() {
+                            result = undefined;
+                            card = JSON.parse(JSON.stringify(originalCard));
+                            originalCard = JSON.parse(JSON.stringify(card));
+
+                            delete meta.origin;
+
+                            result = loader.__addTrackingPixels__(card, meta);
+                        });
+
+                        it('should return the card', function() {
+                            expect(result).toBe(card);
+                        });
+
+                        it('should not set the host param', function() {
+                            [
+                                { prop: 'bufferUrls', event: 'buffer' },
+                                { prop: 'viewUrls', event: 'cardView' },
+                                { prop: 'playUrls', event: 'play' },
+                                { prop: 'loadUrls', event: 'load' },
+                                { prop: 'launchUrls', event: 'launch' },
+                                { prop: 'countUrls', event: 'completedView' },
+                                { prop: 'q1Urls', event: 'q1' },
+                                { prop: 'q2Urls', event: 'q2' },
+                                { prop: 'q3Urls', event: 'q3' },
+                                { prop: 'q4Urls', event: 'q4' }
+                            ].forEach(function(item) {
+                                var urls = card.campaign[item.prop];
+
+                                expect(card.campaign[item.prop][card.campaign[item.prop].length - 1]).toBe(loader.trackingPixel + '?' + require('querystring').stringify({
+                                    campaign: card.campaignId,
+                                    card: card.id,
+                                    experience: meta.experience,
+                                    container: meta.container,
+                                    placement: meta.placement,
+                                    host: undefined,
+                                    hostApp: meta.hostApp,
+                                    network: meta.network,
+                                    event: item.event
+                                }) + '&d={delay}&cb={cachebreaker}');
+                            });
+
+                            Object.keys(card.links).forEach(function(type) {
+                                expect(card.links[type].tracking[card.links[type].tracking.length - 1]).toBe(loader.trackingPixel + '?' + require('querystring').stringify({
+                                    campaign: card.campaignId,
+                                    card: card.id,
+                                    experience: meta.experience,
+                                    container: meta.container,
+                                    placement: meta.placement,
+                                    host: undefined,
+                                    hostApp: meta.hostApp,
+                                    network: meta.network,
+                                    event: 'link.' + type
+                                }) + '&d={delay}&cb={cachebreaker}');
+                            });
+
+                            Object.keys(card.shareLinks).forEach(function(type) {
+                                expect(card.shareLinks[type].tracking[card.shareLinks[type].tracking.length - 1]).toBe(loader.trackingPixel + '?' + require('querystring').stringify({
+                                    campaign: card.campaignId,
+                                    card: card.id,
+                                    experience: meta.experience,
+                                    container: meta.container,
+                                    placement: meta.placement,
+                                    host: undefined,
+                                    hostApp: meta.hostApp,
+                                    network: meta.network,
+                                    event: 'shareLink.' + type
+                                }) + '&d={delay}&cb={cachebreaker}');
+                            });
+                        });
+                    });
+
+                    describe('if the card has no links or shareLinks', function() {
+                        beforeEach(function() {
+                            result = undefined;
+                            card = JSON.parse(JSON.stringify(originalCard));
+                            originalCard = JSON.parse(JSON.stringify(card));
+
+                            delete card.links;
+                            delete card.shareLinks;
+
+                            result = loader.__addTrackingPixels__(card, meta);
+                        });
+
+                        it('should return the card', function() {
+                            expect(result).toBe(card);
+                        });
+
+                        it('should give the card links and shareLinks', function() {
+                            expect(card.links).toEqual({});
+                            expect(card.shareLinks).toEqual({});
+                        });
+                    });
+
+                    describe('if meta.preview is true', function() {
+                        beforeEach(function() {
+                            result = undefined;
+                            card = JSON.parse(JSON.stringify(originalCard));
+                            originalCard = JSON.parse(JSON.stringify(card));
+
+                            meta.preview = true;
+
+                            result = loader.__addTrackingPixels__(card, meta);
+                        });
+
+                        it('should return the card', function() {
+                            expect(result).toBe(card);
+                        });
+
+                        it('should not mutate the card', function() {
+                            expect(card).toEqual(originalCard);
+                        });
+                    });
+
+                    describe('if there is no trackingPixel', function() {
+                        beforeEach(function() {
+                            result = undefined;
+                            card = JSON.parse(JSON.stringify(originalCard));
+                            originalCard = JSON.parse(JSON.stringify(card));
+
+                            loader.trackingPixel = null;
+
+                            result = loader.__addTrackingPixels__(card, meta);
+                        });
+
+                        it('should return the card', function() {
+                            expect(result).toBe(card);
+                        });
+
+                        it('should not mutate the card', function() {
+                            expect(card).toEqual(originalCard);
+                        });
+                    });
+                });
+
                 describe('__getCard__(id, params, origin, uuid)', function() {
                     var id, params, origin, uuid;
                     var success, failure;
@@ -965,6 +1568,12 @@ describe('AdLoader()', function() {
                         expect(loader.cardEndpoint).toBe(config.cardEndpoint);
                     });
                 });
+
+                describe('trackingPixel', function() {
+                    it('should be the provided trackingPixel', function() {
+                        expect(loader.trackingPixel).toBe(config.trackingPixel);
+                    });
+                });
             });
 
             describe('methods:', function() {
@@ -1188,15 +1797,7 @@ describe('AdLoader()', function() {
                     });
 
                     it('should find cards for each placeholder', function() {
-                        expect(loader.__findCards__).toHaveBeenCalledWith(campaign, {
-                            container: experience.$params.container,
-                            hostApp: experience.$params.hostApp,
-                            network: experience.$params.network,
-                            pageUrl: experience.$params.pageUrl,
-                            experience: experience.id,
-                            preview: experience.$params.preview,
-                            placement: experience.$params.placement
-                        }, 3, meta.origin, uuid);
+                        expect(loader.__findCards__).toHaveBeenCalledWith(campaign, {}, 3, meta.origin, uuid);
                     });
 
                     describe('if getting cards succeeds', function() {
@@ -1228,9 +1829,16 @@ describe('AdLoader()', function() {
                             originalDeck = experience.data.deck.slice();
 
                             spyOn(AdLoader, 'removePlaceholders').and.callThrough();
+                            spyOn(loader, '__addTrackingPixels__').and.callThrough();
 
                             findCardsDeferred.fulfill(cards);
                             findCardsDeferred.promise.finally(done);
+                        });
+
+                        it('should add tracking pixels to the sponsored cards', function() {
+                            expect(loader.__addTrackingPixels__.calls.count()).toBe(2);
+                            expect(loader.__addTrackingPixels__).toHaveBeenCalledWith(cards[0], extend({ experience: experience.id }, meta));
+                            expect(loader.__addTrackingPixels__).toHaveBeenCalledWith(cards[2], extend({ experience: experience.id }, meta));
                         });
 
                         it('should replace the wildcard placeholders with actual sponsored cards', function() {
@@ -1706,8 +2314,14 @@ describe('AdLoader()', function() {
                                 data: {}
                             };
 
+                            spyOn(loader, '__addTrackingPixels__').and.callThrough();
+
                             findCardsDeferred.fulfill([card]);
                             process.nextTick(done);
+                        });
+
+                        it('should add tracking pixels', function() {
+                            expect(loader.__addTrackingPixels__).toHaveBeenCalledWith(card, meta);
                         });
 
                         it('should be fulfilled with the card', function() {
@@ -1759,8 +2373,14 @@ describe('AdLoader()', function() {
                                 campaign: {}
                             };
 
+                            spyOn(loader, '__addTrackingPixels__').and.callThrough();
+
                             getCardDeferred.fulfill(card);
                             process.nextTick(done);
+                        });
+
+                        it('should add tracking pixels to the card', function() {
+                            expect(loader.__addTrackingPixels__).toHaveBeenCalledWith(card, meta);
                         });
 
                         it('should fulfill with the card', function() {
@@ -1796,6 +2416,7 @@ describe('AdLoader()', function() {
                             };
                             loader.__getCard__.and.returnValue(q.when(card));
                             spyOn(AdLoader.prototype, '__getCard__').and.returnValue(q.when(card));
+                            spyOn(loader, '__addTrackingPixels__').and.callThrough();
 
                             params.preview = true;
 
@@ -1806,6 +2427,10 @@ describe('AdLoader()', function() {
                             expect(AdLoader.prototype.__getCard__).toHaveBeenCalledWith(id, params, meta.origin, uuid);
                             expect(AdLoader.prototype.__getCard__.calls.mostRecent().object).toBe(loader);
                             expect(loader.__getCard__).not.toHaveBeenCalled();
+                        });
+
+                        it('should add tracking pixels to the card', function() {
+                            expect(loader.__addTrackingPixels__).toHaveBeenCalledWith(card, meta);
                         });
 
                         it('should fulfill with the card', function() {
