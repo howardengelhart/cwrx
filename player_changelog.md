@@ -1,5 +1,6 @@
 # Player Service Changelog
 
+### 2.3.0: Tue Jan 26 15:01:40 EST 2016
 * [FEATURE]: Add [GET /api/public/player] endpoint to return a player
   configured via a placement: [#756](https://github.com/cinema6/cwrx/pull/756)
 * Move card tracking pixel insertion into this service: [#759](https://github.com/cinema6/cwrx/pull/759)
