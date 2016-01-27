@@ -54,7 +54,6 @@ describe('ads-campaigns (UT)', function() {
         req = {
             uuid: '1234',
             _advertiserId: 987,
-            _customerId: 876,
             headers: { cookie: 'chocolate' },
             user: { id: 'u-1', email: 'selfie@c6.com' },
             params: {}, query: {}
@@ -405,6 +404,13 @@ describe('ads-campaigns (UT)', function() {
         
         it('should call next if the user has the directEditCampaigns entitlement', function() {
             req.user.entitlements.directEditCampaigns = true;
+            campModule.statusCheck(permitted, req, nextSpy, doneSpy);
+            expect(nextSpy).toHaveBeenCalled();
+            expect(doneSpy).not.toHaveBeenCalled();
+        });
+        
+        it('should call next if there\'s an application with the directEditCampaigns entitlement', function() {
+            req.application = { key: 'app 1', entitlements: { directEditCampaigns: true } };
             campModule.statusCheck(permitted, req, nextSpy, doneSpy);
             expect(nextSpy).toHaveBeenCalled();
             expect(doneSpy).not.toHaveBeenCalled();

@@ -388,8 +388,10 @@ describe('expressUtils', function() {
                 );
             });
             
-            it('should not log the cookie header if defined', function() {
+            it('should not log sensitive headers that are defined', function() {
                 req.headers.cookie = 'thisissosecret';
+                req.headers['x-rc-auth-nonce'] = 'morelikenoncenseamirite';
+                req.headers['x-rc-auth-signature'] = 'johnhancock';
                 midware(req, res, next);
                 expect(next).toHaveBeenCalled();
                 expect(res.send).not.toHaveBeenCalled();
