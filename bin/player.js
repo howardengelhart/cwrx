@@ -34,8 +34,6 @@ var concatStream = require('concat-stream');
 var dirname = require('path').dirname;
 var _ = require('lodash');
 
-var push = Array.prototype.push;
-
 var CONTEXTS = {
     STANDALONE: 'standalone',
     MRAID: 'mraid',
@@ -309,7 +307,6 @@ Player.prototype.__getExperience__ = function __getExperience__(id, params, orig
         headers: { origin: origin },
         json: true
     })).then(function decorate(experience) {
-        experience.data.campaign.launchUrls = [];
         return extend(experience, { $params: params });
     }).catch(function convertError(reason) {
         var message = reason.message;
@@ -718,16 +715,13 @@ Player.prototype.get = function get(/*options*/) {
     }
 
     function setupExperience(experience) {
-        var campaign = experience.data.campaign;
-
-        push.apply(campaign.launchUrls || (campaign.launchUrls = []), launchUrls);
-
         experience.data.deck.forEach(function setupCard(card) {
             if (AdLoader.isSponsored(card)) {
                 AdLoader.addTrackingPixels({
                     playUrls: playUrls,
                     countUrls: countUrls,
-                    clickUrls: clickUrls
+                    clickUrls: clickUrls,
+                    launchUrls: launchUrls
                 }, card);
 
                 if (countdown !== undefined) {
