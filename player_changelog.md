@@ -1,5 +1,8 @@
 # Player Service Changelog
 
+### 2.3.1: Wed Jan 27 13:05:33 EST 2016
+* Remove pixel-tracking compatibility hacks: [#770](https://github.com/cinema6/cwrx/pull/770)
+
 ### 2.3.0: Tue Jan 26 15:01:40 EST 2016
 * [FEATURE]: Add [GET /api/public/player] endpoint to return a player
   configured via a placement: [#756](https://github.com/cinema6/cwrx/pull/756)
