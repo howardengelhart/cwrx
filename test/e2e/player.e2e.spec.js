@@ -297,10 +297,6 @@ describe('player service', function() {
                         expect(types).not.toContain('wildcard');
                     });
 
-                    it('should remove launchUrls from the experience', function() {
-                        expect(parseResponse('lightbox').experience.data.campaign.launchUrls).toEqual([]);
-                    });
-
                     describe('and lots of tracking parameters', function() {
                         beforeEach(function(done) {
                             config.playerUrl.query.container = 'beeswax';
@@ -418,7 +414,7 @@ describe('player service', function() {
                             var experience = JSON.parse($experience.text());
                             var card = experience.data.deck[1];
 
-                            expect(experience.data.campaign.launchUrls).toEqual(jasmine.arrayContaining(config.playerUrl.query.launchUrls.split(',')));
+                            expect(card.campaign.launchUrls).toEqual(jasmine.arrayContaining(config.playerUrl.query.launchUrls.split(',')));
                             expect(card.campaign.countUrls).toEqual(jasmine.arrayContaining(config.playerUrl.query.countUrls.split(',')));
                             expect(card.campaign.playUrls).toEqual(jasmine.arrayContaining(config.playerUrl.query.playUrls.split(',')));
 
@@ -498,7 +494,7 @@ describe('player service', function() {
                             var experience = JSON.parse($experience.text());
                             var card = experience.data.deck[1];
 
-                            expect(experience.data.campaign.launchUrls).toEqual(jasmine.arrayContaining(config.playerUrl.query.launchUrls.split(',')));
+                            expect(card.campaign.launchUrls).toEqual(jasmine.arrayContaining(config.playerUrl.query.launchUrls.split(',')));
                             expect(card.campaign.countUrls).toEqual(jasmine.arrayContaining(config.playerUrl.query.countUrls.split(',')));
                             expect(card.campaign.playUrls).toEqual(jasmine.arrayContaining(config.playerUrl.query.playUrls.split(',')));
 
@@ -714,10 +710,6 @@ describe('player service', function() {
                 expect(experience.data.title).toBe(cards[0].title);
                 expect(experience.data.deck[0].id).toBe(cards[0].id);
                 expect(experience.data.deck.length).toBe(1);
-            });
-
-            it('should remove launchUrls from the experience', function() {
-                expect(parseResponse('light').experience.data.campaign.launchUrls).toEqual([]);
             });
 
             it('should set the prebuffer property on the card', function() {

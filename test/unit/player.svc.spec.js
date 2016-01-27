@@ -1292,16 +1292,13 @@ describe('player service', function() {
                             expect(player.__getBranding__).toHaveBeenCalledWith(experience.data.branding, options.type, options.desktop, options.reqUuid);
                         });
 
-                        it('should add the launchUrls to the experience', function() {
-                            expect(experience.data.campaign.launchUrls).toEqual(['launch.gif'].concat(options.launchUrls));
-                        });
-
                         it('should add the custom tracking pixels to each sponsored card', function() {
                             sponsoredCards.forEach(function(card) {
                                 expect(MockAdLoader.addTrackingPixels).toHaveBeenCalledWith({
                                     playUrls: options.playUrls,
                                     countUrls: options.countUrls,
-                                    clickUrls: options.clickUrls
+                                    clickUrls: options.clickUrls,
+                                    launchUrls: options.launchUrls
                                 }, card);
                             });
                             expect(MockAdLoader.addTrackingPixels.calls.count()).toBe(sponsoredCards.length);
@@ -1594,15 +1591,12 @@ describe('player service', function() {
                                     expect(player.__getBranding__).toHaveBeenCalledWith(experience.data.branding, options.type, options.desktop, options.reqUuid);
                                 });
 
-                                it('should add the launchUrls to the experience', function() {
-                                    expect(experience.data.campaign.launchUrls).toEqual(['launch.gif'].concat(options.launchUrls));
-                                });
-
                                 it('should add the custom tracking pixels to each sponsored card', function() {
                                     expect(MockAdLoader.addTrackingPixels).toHaveBeenCalledWith({
                                         playUrls: options.playUrls,
                                         countUrls: options.countUrls,
-                                        clickUrls: options.clickUrls
+                                        clickUrls: options.clickUrls,
+                                        launchUrls: options.launchUrls
                                     }, experience.data.deck[0]);
                                 });
 
@@ -1659,21 +1653,6 @@ describe('player service', function() {
                         });
                     });
 
-                    describe('if the experience has no launchUrls', function() {
-                        beforeEach(function(done) {
-                            player.__getBranding__.and.returnValue(q([]));
-                            player.__loadExperience__.and.returnValue(q(experience));
-                            player.__getPlayer__.and.returnValue(q(document));
-                            delete experience.data.campaign.launchUrls;
-
-                            player.get(options).finally(done);
-                        });
-
-                        it('should copy the launchUrls', function() {
-                            expect(experience.data.campaign.launchUrls).toEqual(options.launchUrls);
-                        });
-                    });
-
                     describe('if the experience has no cards', function() {
                         beforeEach(function(done) {
                             success.calls.reset();
@@ -1696,21 +1675,6 @@ describe('player service', function() {
                             expect(error.constructor.name).toBe('ServiceError');
                             expect(error.message).toBe('Experience {' + experience.id + '} has no cards.');
                             expect(error.status).toBe(409);
-                        });
-                    });
-
-                    describe('if called with no launchUrls', function() {
-                        beforeEach(function(done) {
-                            player.__getBranding__.and.returnValue(q([]));
-                            player.__loadExperience__.and.returnValue(q(experience));
-                            player.__getPlayer__.and.returnValue(q(document));
-                            options.launchUrls = null;
-
-                            player.get(options).finally(done);
-                        });
-
-                        it('should leave the experience\'s launchUrls alone', function() {
-                            expect(experience.data.campaign.launchUrls).toEqual(['launch.gif']);
                         });
                     });
 
@@ -3171,10 +3135,6 @@ describe('player service', function() {
 
                             requestDeferreds[request.get.calls.mostRecent().args[0]].resolve(experience);
                             result.finally(done);
-                        });
-
-                        it('should set the experience\'s launchUrls to an empty Array', function() {
-                            expect(experience.data.campaign.launchUrls).toEqual([]);
                         });
 
                         it('should fulfill with the experience', function() {
