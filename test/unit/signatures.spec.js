@@ -129,7 +129,7 @@ describe('signatures', function() {
                 var authenticator = new signatures.Authenticator(creds);
                 expect(authenticator._creds).toEqual({ key: 'ads-service', secret: 'ipoopmypants' });
                 expect(authenticator.appKey).toBe('ads-service');
-                expect(authenticator.hmacAlgorithm).toBe('RSA-SHA256');
+                expect(authenticator.hashAlgorithm).toBe('SHA256');
             });
             
             it('should throw an error if the creds object is incomplete', function() {
@@ -162,7 +162,7 @@ describe('signatures', function() {
                         'x-rc-auth-signature'   : 'johnhancock'
                     }
                 });
-                expect(uuid.hashText).toHaveBeenCalledWith('{}');
+                expect(uuid.hashText).toHaveBeenCalledWith('{}', 'SHA256');
                 expect(signatures.signData).toHaveBeenCalledWith({
                     appKey      : 'ads-service',
                     bodyHash    : 'hashbrowns',
@@ -170,7 +170,7 @@ describe('signatures', function() {
                     nonce       : 'uuuuuuuuuuuuuuuuuuid',
                     qs          : null,
                     timestamp   : 1453929767464
-                }, 'RSA-SHA256', 'ipoopmypants');
+                }, 'SHA256', 'ipoopmypants');
             });
             
             it('should not overwrite any existing headers', function() {
@@ -208,7 +208,7 @@ describe('signatures', function() {
                     expect(signatures.signData).toHaveBeenCalledWith(jasmine.objectContaining({
                         endpoint    : 'GET /api/campaigns/cam-1234',
                         qs          : 'decorated=true&a=1&foo=bar',
-                    }), 'RSA-SHA256', 'ipoopmypants');
+                    }), 'SHA256', 'ipoopmypants');
                 });
                 
                 it('should be able to use the query string in the url', function() {
@@ -224,7 +224,7 @@ describe('signatures', function() {
                     expect(signatures.signData).toHaveBeenCalledWith(jasmine.objectContaining({
                         endpoint    : 'POST /api/account/user',
                         qs          : 'decorated=false&orgs=o-1,o-2,o-3&status=active',
-                    }), 'RSA-SHA256', 'ipoopmypants');
+                    }), 'SHA256', 'ipoopmypants');
                 });
             });
 
@@ -235,7 +235,7 @@ describe('signatures', function() {
 
                     expect(reqOpts.body).toEqual('dis body is hot');
                     expect(reqOpts.headers['x-rc-auth-signature']).toBe('johnhancock');
-                    expect(uuid.hashText).toHaveBeenCalledWith('dis body is hot');
+                    expect(uuid.hashText).toHaveBeenCalledWith('dis body is hot', 'SHA256');
                 });
                 
                 it('should stringify and hash the body if it is an object', function() {
@@ -244,7 +244,7 @@ describe('signatures', function() {
 
                     expect(reqOpts.body).toEqual({ foo: 'bar', num: 123, nest: { birds: 'yes' }, arr: [1,3] });
                     expect(reqOpts.headers['x-rc-auth-signature']).toBe('johnhancock');
-                    expect(uuid.hashText).toHaveBeenCalledWith('{"foo":"bar","num":123,"nest":{"birds":"yes"},"arr":[1,3]}');
+                    expect(uuid.hashText).toHaveBeenCalledWith('{"foo":"bar","num":123,"nest":{"birds":"yes"},"arr":[1,3]}', 'SHA256');
                 });
                 
                 it('should be able to take the body from the json prop', function() {
@@ -254,7 +254,7 @@ describe('signatures', function() {
                     expect(reqOpts.json).toEqual({ foo: 'bar' });
                     expect(reqOpts.body).not.toBeDefined();
                     expect(reqOpts.headers['x-rc-auth-signature']).toBe('johnhancock');
-                    expect(uuid.hashText).toHaveBeenCalledWith('{"foo":"bar"}');
+                    expect(uuid.hashText).toHaveBeenCalledWith('{"foo":"bar"}', 'SHA256');
                 });
                 
                 it('should ignore the json prop if it is not an object', function() {
@@ -264,7 +264,7 @@ describe('signatures', function() {
                     expect(reqOpts.json).toEqual(true);
                     expect(reqOpts.body).not.toBeDefined();
                     expect(reqOpts.headers['x-rc-auth-signature']).toBe('johnhancock');
-                    expect(uuid.hashText).toHaveBeenCalledWith('{}');
+                    expect(uuid.hashText).toHaveBeenCalledWith('{}', 'SHA256');
                 });
             });
         });
@@ -363,7 +363,7 @@ describe('signatures', function() {
             it('should save the db and other variables internally', function() {
                 var verifier = new signatures.Verifier(mockDb, 8000);
                 expect(verifier.db).toBe(mockDb);
-                expect(verifier.hmacAlgorithm).toBe('RSA-SHA256');
+                expect(verifier.hashAlgorithm).toBe('SHA256');
                 expect(verifier.tsGracePeriod).toBe(8000);
             });
             
@@ -476,7 +476,7 @@ describe('signatures', function() {
                             entitlements: { foo: true }
                         });
                         expect(verifier._fetchApplication).toHaveBeenCalledWith('ads-service', req);
-                        expect(uuid.hashText).toHaveBeenCalledWith('{}');
+                        expect(uuid.hashText).toHaveBeenCalledWith('{}', 'SHA256');
                         expect(signatures.signData).toHaveBeenCalledWith({
                             appKey: 'ads-service',
                             bodyHash: 'hashbrownies',
@@ -484,7 +484,7 @@ describe('signatures', function() {
                             nonce: 'morelikenoncenseamirite',
                             qs: null,
                             timestamp: 1453929767464
-                        }, 'RSA-SHA256', 'supersecret');
+                        }, 'SHA256', 'supersecret');
                         expect(mockLog.error).not.toHaveBeenCalled();
                     }).done(done);
                 });
@@ -554,7 +554,7 @@ describe('signatures', function() {
                         expect(nextSpy).toHaveBeenCalled();
                         expect(res.send).not.toHaveBeenCalled();
                         expect(req.application).toEqual(jasmine.objectContaining({ id: 'app-1' }));
-                        expect(uuid.hashText).toHaveBeenCalledWith('{}');
+                        expect(uuid.hashText).toHaveBeenCalledWith('{}', 'SHA256');
                         expect(signatures.signData).toHaveBeenCalledWith({
                             appKey: 'ads-service',
                             bodyHash: 'hashbrownies',
@@ -562,7 +562,7 @@ describe('signatures', function() {
                             nonce: 'morelikenoncenseamirite',
                             qs: 'foo=bar&orgs=o-1,o-2',
                             timestamp: 1453929767464
-                        }, 'RSA-SHA256', 'supersecret');
+                        }, 'SHA256', 'supersecret');
                         expect(mockLog.error).not.toHaveBeenCalled();
                     }).done(done);
                 });
@@ -573,7 +573,7 @@ describe('signatures', function() {
                         expect(nextSpy).toHaveBeenCalled();
                         expect(res.send).not.toHaveBeenCalled();
                         expect(req.application).toEqual(jasmine.objectContaining({ id: 'app-1' }));
-                        expect(uuid.hashText).toHaveBeenCalledWith('{"foo":"bar","arr":[3,1],"d":"2016-01-27T23:51:08.000Z"}');
+                        expect(uuid.hashText).toHaveBeenCalledWith('{"foo":"bar","arr":[3,1],"d":"2016-01-27T23:51:08.000Z"}', 'SHA256');
                         expect(signatures.signData).toHaveBeenCalledWith({
                             appKey: 'ads-service',
                             bodyHash: 'hashbrownies',
@@ -581,7 +581,7 @@ describe('signatures', function() {
                             nonce: 'morelikenoncenseamirite',
                             qs: null,
                             timestamp: 1453929767464
-                        }, 'RSA-SHA256', 'supersecret');
+                        }, 'SHA256', 'supersecret');
                         expect(mockLog.error).not.toHaveBeenCalled();
                     }).done(done);
                 });
@@ -592,7 +592,7 @@ describe('signatures', function() {
                         expect(nextSpy).toHaveBeenCalled();
                         expect(res.send).not.toHaveBeenCalled();
                         expect(req.application).toEqual(jasmine.objectContaining({ id: 'app-1' }));
-                        expect(uuid.hashText).toHaveBeenCalledWith('yo body is ridiculous');
+                        expect(uuid.hashText).toHaveBeenCalledWith('yo body is ridiculous', 'SHA256');
                         expect(signatures.signData).toHaveBeenCalledWith({
                             appKey: 'ads-service',
                             bodyHash: 'hashbrownies',
@@ -600,7 +600,7 @@ describe('signatures', function() {
                             nonce: 'morelikenoncenseamirite',
                             qs: null,
                             timestamp: 1453929767464
-                        }, 'RSA-SHA256', 'supersecret');
+                        }, 'SHA256', 'supersecret');
                         expect(mockLog.error).not.toHaveBeenCalled();
                     }).done(done);
                 });

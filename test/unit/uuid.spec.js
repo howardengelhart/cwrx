@@ -29,6 +29,14 @@ describe('uuid', function() {
 
             expect(hash1).not.toEqual(hash2);
         });
+        
+        it('should be able to use different hashing algorithms', function() {
+            var txt = 'abc123',
+                hash1 = uuid.hashText(txt),
+                hash2 = uuid.hashText(txt, 'sha256');
+                
+            expect(hash1).not.toEqual(hash2);
+        });
     });
     
     describe('hashFile', function() {
