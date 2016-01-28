@@ -7,9 +7,9 @@
         express         = require('express'),
         Status          = require('../lib/enums').Status,
         campaignUtils   = require('../lib/campaignUtils'),
-        appAuthUtils    = require('../lib/appAuthUtils'),
         requestUtils    = require('../lib/requestUtils'),
         mongoUtils      = require('../lib/mongoUtils'),
+        signatures      = require('../lib/signatures'),
         authUtils       = require('../lib/authUtils'),
         objUtils        = require('../lib/objUtils'),
         CrudSvc         = require('../lib/crudSvc'),
@@ -74,7 +74,7 @@
             );
         });
 
-        var authenticator = new appAuthUtils.Authenticator(appCreds),
+        var authenticator = new signatures.Authenticator(appCreds),
             coll = db.collection('campaignUpdates'),
             svc = new CrudSvc(coll, 'ur', { statusHistory: true }, updateModule.updateSchema);
         svc._db = db;

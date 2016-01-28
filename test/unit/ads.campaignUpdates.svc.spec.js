@@ -2,7 +2,7 @@ var flush = true;
 var q = require('q');
 
 describe('ads-campaignUpdates (UT)', function() {
-    var mockLog, CrudSvc, Model, logger, updateModule, campaignUtils, requestUtils, appAuthUtils, Status,
+    var mockLog, CrudSvc, Model, logger, updateModule, campaignUtils, requestUtils, signatures, Status,
         mongoUtils, campModule, email, nextSpy, doneSpy, errorSpy, req, mockDb, appCreds;
 
     beforeEach(function() {
@@ -13,7 +13,7 @@ describe('ads-campaignUpdates (UT)', function() {
         campModule      = require('../../bin/ads-campaigns');
         campaignUtils   = require('../../lib/campaignUtils');
         mongoUtils      = require('../../lib/mongoUtils');
-        appAuthUtils    = require('../../lib/appAuthUtils');
+        signatures      = require('../../lib/signatures');
         CrudSvc         = require('../../lib/crudSvc');
         Model           = require('../../lib/model');
         email           = require('../../lib/email');
@@ -167,7 +167,7 @@ describe('ads-campaignUpdates (UT)', function() {
             expect(updateModule.handleInitialSubmit.bind).toHaveBeenCalledWith(updateModule, svc);
             expect(updateModule.lockCampaign.bind).toHaveBeenCalledWith(updateModule, svc);
             expect(updateModule.unlockCampaign.bind).toHaveBeenCalledWith(updateModule, svc);
-            expect(updateModule.applyUpdate.bind).toHaveBeenCalledWith(updateModule, svc, jasmine.any(appAuthUtils.Authenticator));
+            expect(updateModule.applyUpdate.bind).toHaveBeenCalledWith(updateModule, svc, jasmine.any(signatures.Authenticator));
             expect(updateModule.applyUpdate.bind.calls.argsFor(0)[2]._creds).toBe(appCreds);
             expect(updateModule.notifyOwner.bind).toHaveBeenCalledWith(updateModule, svc);
             expect(CrudSvc.prototype.setupObj.bind).toHaveBeenCalledWith(svc);

@@ -1,6 +1,6 @@
 var flush = true;
-describe('appAuthUtils', function() {
-    var q, mockLog, logger, appAuthUtils, crypto, mongoUtils, requestUtils, Status, uuid, req, nextSpy;
+describe('signatures', function() {
+    var q, mockLog, logger, signatures, crypto, mongoUtils, requestUtils, Status, uuid, req, nextSpy;
     
     beforeEach(function() {
         jasmine.clock().install();
@@ -9,7 +9,7 @@ describe('appAuthUtils', function() {
         if (flush){ for (var m in require.cache){ delete require.cache[m]; } flush = false; }
         q               = require('q');
         crypto          = require('crypto');
-        appAuthUtils    = require('../../lib/appAuthUtils');
+        signatures      = require('../../lib/signatures');
         logger          = require('../../lib/logger');
         uuid            = require('../../lib/uuid');
         Status          = require('../../lib/enums').Status;
@@ -41,15 +41,15 @@ describe('appAuthUtils', function() {
     
     describe('formatEndpoint', function() {
         it('should return an endpoint string', function() {
-            expect(appAuthUtils.formatEndpoint('get', '/api/campaign/cam-1234')).toEqual('GET /api/campaign/cam-1234');
-            expect(appAuthUtils.formatEndpoint('GET', 'http://staging.cinema6.com/api/campaign/cam-1234')).toEqual('GET /api/campaign/cam-1234');
-            expect(appAuthUtils.formatEndpoint('POST', 'https://platform.reelcontent.com/api/content/experience/')).toEqual('POST /api/content/experience/');
+            expect(signatures.formatEndpoint('get', '/api/campaign/cam-1234')).toEqual('GET /api/campaign/cam-1234');
+            expect(signatures.formatEndpoint('GET', 'http://staging.cinema6.com/api/campaign/cam-1234')).toEqual('GET /api/campaign/cam-1234');
+            expect(signatures.formatEndpoint('POST', 'https://platform.reelcontent.com/api/content/experience/')).toEqual('POST /api/content/experience/');
         });
         
         it('should handle query strings correctly', function() {
-            expect(appAuthUtils.formatEndpoint('GET', '/api/campaigns/cam-1234?decorated=true')).toEqual('GET /api/campaigns/cam-1234');
-            expect(appAuthUtils.formatEndpoint('GET', 'http://staging.cinema6.com/api/campaigns/?foo=bar&blah=bloop')).toEqual('GET /api/campaigns/');
-            expect(appAuthUtils.formatEndpoint('PUT', '/api/campaigns/cam-1234?decorated=true')).toEqual('PUT /api/campaigns/cam-1234');
+            expect(signatures.formatEndpoint('GET', '/api/campaigns/cam-1234?decorated=true')).toEqual('GET /api/campaigns/cam-1234');
+            expect(signatures.formatEndpoint('GET', 'http://staging.cinema6.com/api/campaigns/?foo=bar&blah=bloop')).toEqual('GET /api/campaigns/');
+            expect(signatures.formatEndpoint('PUT', '/api/campaigns/cam-1234?decorated=true')).toEqual('PUT /api/campaigns/cam-1234');
         });
     });
     
@@ -74,7 +74,7 @@ describe('appAuthUtils', function() {
         describe('if the data is a string', function() {
             it('should return an HMAC digest of the string + secret', function() {
                 data = 'This is some data';
-                expect(appAuthUtils.signData(data, hmacAlg, secret)).toBe('RSA-SHAwesome:supersecret:17:');
+                expect(signatures.signData(data, hmacAlg, secret)).toBe('RSA-SHAwesome:supersecret:17:');
                 expect(crypto.createHmac).toHaveBeenCalledWith('RSA-SHAwesome', 'supersecret');
                 expect(mockHmac.update).toHaveBeenCalledWith('This is some data');
                 expect(mockHmac.digest).toHaveBeenCalledWith('hex');
@@ -90,7 +90,7 @@ describe('appAuthUtils', function() {
                     d: new Date('Wed Jan 27 2016 15:50:21 GMT-0500 (EST)')
                 };
                 
-                expect(appAuthUtils.signData(data, hmacAlg, secret)).toBe('RSA-SHAwesome:supersecret:64:');
+                expect(signatures.signData(data, hmacAlg, secret)).toBe('RSA-SHAwesome:supersecret:64:');
                 expect(crypto.createHmac).toHaveBeenCalledWith('RSA-SHAwesome', 'supersecret');
                 expect(mockHmac.update).toHaveBeenCalledWith('{"a":1,"d":"2016-01-27T20:50:21.000Z","foo":"bar","guh":[1,3,2]}');
                 expect(mockHmac.digest).toHaveBeenCalledWith('hex');
@@ -110,7 +110,7 @@ describe('appAuthUtils', function() {
                     }
                 };
                 
-                expect(appAuthUtils.signData(data, hmacAlg, secret)).toBe('RSA-SHAwesome:supersecret:98:');
+                expect(signatures.signData(data, hmacAlg, secret)).toBe('RSA-SHAwesome:supersecret:98:');
                 expect(crypto.createHmac).toHaveBeenCalledWith('RSA-SHAwesome', 'supersecret');
                 expect(mockHmac.update).toHaveBeenCalledWith('{"foo":"bar","nest":{"bar":"no","deeper":{"inception":"very","movie":"indeed"},"foo":"yes"},"z":1}');
                 expect(mockHmac.digest).toHaveBeenCalledWith('hex');
@@ -126,7 +126,7 @@ describe('appAuthUtils', function() {
 
         describe('initialization', function() {
             it('should save the creds and other values internally', function() {
-                var authenticator = new appAuthUtils.Authenticator(creds);
+                var authenticator = new signatures.Authenticator(creds);
                 expect(authenticator._creds).toEqual({ key: 'ads-service', secret: 'ipoopmypants' });
                 expect(authenticator.appKey).toBe('ads-service');
                 expect(authenticator.hmacAlgorithm).toBe('RSA-SHA256');
@@ -134,7 +134,7 @@ describe('appAuthUtils', function() {
             
             it('should throw an error if the creds object is incomplete', function() {
                 [null, {}, { key: 'foo' }, { secret: 'bar' }].forEach(function(obj) {
-                    expect(function() { var a = new appAuthUtils.Authenticator(obj); }).toThrow(new Error('Must provide creds object with key + secret'));
+                    expect(function() { var a = new signatures.Authenticator(obj); }).toThrow(new Error('Must provide creds object with key + secret'));
                 });
             });
         });
@@ -142,10 +142,10 @@ describe('appAuthUtils', function() {
         describe('setHeaders', function() {
             var authenticator, reqOpts;
             beforeEach(function() {
-                authenticator = new appAuthUtils.Authenticator(creds);
+                authenticator = new signatures.Authenticator(creds);
                 spyOn(uuid, 'hashText').and.returnValue('hashbrowns');
                 spyOn(uuid, 'createUuid').and.returnValue('uuuuuuuuuuuuuuuuuuid');
-                spyOn(appAuthUtils, 'signData').and.returnValue('johnhancock');
+                spyOn(signatures, 'signData').and.returnValue('johnhancock');
                 reqOpts = {
                     url: 'http://staging.cinema6.com/api/campaigns/cam-1234',
                 };
@@ -163,7 +163,7 @@ describe('appAuthUtils', function() {
                     }
                 });
                 expect(uuid.hashText).toHaveBeenCalledWith('{}');
-                expect(appAuthUtils.signData).toHaveBeenCalledWith({
+                expect(signatures.signData).toHaveBeenCalledWith({
                     appKey      : 'ads-service',
                     bodyHash    : 'hashbrowns',
                     endpoint    : 'GET /api/campaigns/cam-1234',
@@ -205,7 +205,7 @@ describe('appAuthUtils', function() {
                             'x-rc-auth-signature'   : 'johnhancock'
                         })
                     });
-                    expect(appAuthUtils.signData).toHaveBeenCalledWith(jasmine.objectContaining({
+                    expect(signatures.signData).toHaveBeenCalledWith(jasmine.objectContaining({
                         endpoint    : 'GET /api/campaigns/cam-1234',
                         qs          : 'decorated=true&a=1&foo=bar',
                     }), 'RSA-SHA256', 'ipoopmypants');
@@ -221,7 +221,7 @@ describe('appAuthUtils', function() {
                             'x-rc-auth-signature'   : 'johnhancock'
                         })
                     });
-                    expect(appAuthUtils.signData).toHaveBeenCalledWith(jasmine.objectContaining({
+                    expect(signatures.signData).toHaveBeenCalledWith(jasmine.objectContaining({
                         endpoint    : 'POST /api/account/user',
                         qs          : 'decorated=false&orgs=o-1,o-2,o-3&status=active',
                     }), 'RSA-SHA256', 'ipoopmypants');
@@ -272,11 +272,11 @@ describe('appAuthUtils', function() {
         describe('request', function() {
             var authenticator, opts, files, jobPolling;
             beforeEach(function() {
-                authenticator = new appAuthUtils.Authenticator(creds);
+                authenticator = new signatures.Authenticator(creds);
                 spyOn(authenticator, 'setHeaders').and.callThrough();
                 spyOn(uuid, 'hashText').and.returnValue('hashbrowns');
                 spyOn(uuid, 'createUuid').and.returnValue('uuuuuuuuuuuuuuuuuuid');
-                spyOn(appAuthUtils, 'signData').and.returnValue('johnhancock');
+                spyOn(signatures, 'signData').and.returnValue('johnhancock');
                 spyOn(requestUtils, 'qRequest').and.returnValue(q({
                     response: { statusCode: 200 },
                     body: 'marvelous authentication, good sir. 10/10'
@@ -361,14 +361,14 @@ describe('appAuthUtils', function() {
     
         describe('initialization', function() {
             it('should save the db and other variables internally', function() {
-                var verifier = new appAuthUtils.Verifier(mockDb, 8000);
+                var verifier = new signatures.Verifier(mockDb, 8000);
                 expect(verifier.db).toBe(mockDb);
                 expect(verifier.hmacAlgorithm).toBe('RSA-SHA256');
                 expect(verifier.tsGracePeriod).toBe(8000);
             });
             
             it('should have a default for the tsGracePeriod', function() {
-                var verifier = new appAuthUtils.Verifier(mockDb);
+                var verifier = new signatures.Verifier(mockDb);
                 expect(verifier.tsGracePeriod).toBe(5000);
             });
         });
@@ -376,7 +376,7 @@ describe('appAuthUtils', function() {
         describe('_fetchApplication', function() {
             var verifier;
             beforeEach(function() {
-                verifier = new appAuthUtils.Verifier(mockDb);
+                verifier = new signatures.Verifier(mockDb);
                 spyOn(mongoUtils, 'findObject').and.returnValue(q({
                     id: 'app-1',
                     key: 'ads-service',
@@ -430,7 +430,7 @@ describe('appAuthUtils', function() {
         describe('middlewarify', function() {
             var verifier;
             beforeEach(function() {
-                verifier = new appAuthUtils.Verifier(mockDb, 5000);
+                verifier = new signatures.Verifier(mockDb, 5000);
             });
             
             it('should return a function', function() {
@@ -441,7 +441,7 @@ describe('appAuthUtils', function() {
                 var midWare, res;
                 beforeEach(function() {
                     spyOn(uuid, 'hashText').and.returnValue('hashbrownies');
-                    spyOn(appAuthUtils, 'signData').and.returnValue('johnhancock');
+                    spyOn(signatures, 'signData').and.returnValue('johnhancock');
                     spyOn(verifier, '_fetchApplication').and.returnValue(q({
                         _id: 'mongoid',
                         id: 'app-1',
@@ -477,7 +477,7 @@ describe('appAuthUtils', function() {
                         });
                         expect(verifier._fetchApplication).toHaveBeenCalledWith('ads-service', req);
                         expect(uuid.hashText).toHaveBeenCalledWith('{}');
-                        expect(appAuthUtils.signData).toHaveBeenCalledWith({
+                        expect(signatures.signData).toHaveBeenCalledWith({
                             appKey: 'ads-service',
                             bodyHash: 'hashbrownies',
                             endpoint: 'GET /api/campaigns/cam-1',
@@ -502,7 +502,7 @@ describe('appAuthUtils', function() {
                                 expect(req.application).not.toBeDefined();
                                 expect(verifier._fetchApplication).not.toHaveBeenCalled();
                                 expect(uuid.hashText).not.toHaveBeenCalled();
-                                expect(appAuthUtils.signData).not.toHaveBeenCalled();
+                                expect(signatures.signData).not.toHaveBeenCalled();
                                 expect(mockLog.error).not.toHaveBeenCalled();
                             }).done(done);
                         });
@@ -515,7 +515,7 @@ describe('appAuthUtils', function() {
                                 expect(req.application).not.toBeDefined();
                                 expect(verifier._fetchApplication).not.toHaveBeenCalled();
                                 expect(uuid.hashText).not.toHaveBeenCalled();
-                                expect(appAuthUtils.signData).not.toHaveBeenCalled();
+                                expect(signatures.signData).not.toHaveBeenCalled();
                                 expect(mockLog.error).not.toHaveBeenCalled();
                             }).done(done);
                         });
@@ -530,7 +530,7 @@ describe('appAuthUtils', function() {
                         expect(req.application).not.toBeDefined();
                         expect(verifier._fetchApplication).not.toHaveBeenCalled();
                         expect(uuid.hashText).not.toHaveBeenCalled();
-                        expect(appAuthUtils.signData).not.toHaveBeenCalled();
+                        expect(signatures.signData).not.toHaveBeenCalled();
                         expect(mockLog.error).not.toHaveBeenCalled();
                     }).done(done);
                 });
@@ -543,7 +543,7 @@ describe('appAuthUtils', function() {
                         expect(req.application).not.toBeDefined();
                         expect(verifier._fetchApplication).toHaveBeenCalled();
                         expect(uuid.hashText).not.toHaveBeenCalled();
-                        expect(appAuthUtils.signData).not.toHaveBeenCalled();
+                        expect(signatures.signData).not.toHaveBeenCalled();
                         expect(mockLog.error).not.toHaveBeenCalled();
                     }).done(done);
                 });
@@ -555,7 +555,7 @@ describe('appAuthUtils', function() {
                         expect(res.send).not.toHaveBeenCalled();
                         expect(req.application).toEqual(jasmine.objectContaining({ id: 'app-1' }));
                         expect(uuid.hashText).toHaveBeenCalledWith('{}');
-                        expect(appAuthUtils.signData).toHaveBeenCalledWith({
+                        expect(signatures.signData).toHaveBeenCalledWith({
                             appKey: 'ads-service',
                             bodyHash: 'hashbrownies',
                             endpoint: 'GET /api/campaigns',
@@ -574,7 +574,7 @@ describe('appAuthUtils', function() {
                         expect(res.send).not.toHaveBeenCalled();
                         expect(req.application).toEqual(jasmine.objectContaining({ id: 'app-1' }));
                         expect(uuid.hashText).toHaveBeenCalledWith('{"foo":"bar","arr":[3,1],"d":"2016-01-27T23:51:08.000Z"}');
-                        expect(appAuthUtils.signData).toHaveBeenCalledWith({
+                        expect(signatures.signData).toHaveBeenCalledWith({
                             appKey: 'ads-service',
                             bodyHash: 'hashbrownies',
                             endpoint: 'GET /api/campaigns/cam-1',
@@ -593,7 +593,7 @@ describe('appAuthUtils', function() {
                         expect(res.send).not.toHaveBeenCalled();
                         expect(req.application).toEqual(jasmine.objectContaining({ id: 'app-1' }));
                         expect(uuid.hashText).toHaveBeenCalledWith('yo body is ridiculous');
-                        expect(appAuthUtils.signData).toHaveBeenCalledWith({
+                        expect(signatures.signData).toHaveBeenCalledWith({
                             appKey: 'ads-service',
                             bodyHash: 'hashbrownies',
                             endpoint: 'GET /api/campaigns/cam-1',
@@ -612,7 +612,7 @@ describe('appAuthUtils', function() {
                         expect(res.send).toHaveBeenCalledWith(401, 'Invalid signature');
                         expect(req.application).not.toBeDefined();
                         expect(verifier._fetchApplication).toHaveBeenCalled();
-                        expect(appAuthUtils.signData).toHaveBeenCalled();
+                        expect(signatures.signData).toHaveBeenCalled();
                         expect(mockLog.error).not.toHaveBeenCalled();
                     }).done(done);
                 });
@@ -625,7 +625,7 @@ describe('appAuthUtils', function() {
                         expect(req.application).not.toBeDefined();
                         expect(verifier._fetchApplication).toHaveBeenCalled();
                         expect(uuid.hashText).not.toHaveBeenCalled();
-                        expect(appAuthUtils.signData).not.toHaveBeenCalled();
+                        expect(signatures.signData).not.toHaveBeenCalled();
                         expect(mockLog.error).toHaveBeenCalled();
                     }).done(done);
                 });

@@ -6,8 +6,8 @@
         util            = require('util'),
         express         = require('express'),
         campaignUtils   = require('../lib/campaignUtils'),
-        appAuthUtils    = require('../lib/appAuthUtils'),
         requestUtils    = require('../lib/requestUtils'),
+        signatures      = require('../lib/signatures'),
         mongoUtils      = require('../lib/mongoUtils'),
         authUtils       = require('../lib/authUtils'),
         objUtils        = require('../lib/objUtils'),
@@ -653,7 +653,7 @@
         
         router.use(jobManager.setJobTimeout.bind(jobManager));
         
-        var appAuthVerifier = new appAuthUtils.Verifier(svc._db),
+        var appAuthVerifier = new signatures.Verifier(svc._db),
             optAppAuth = appAuthVerifier.middlewarify();
         
         var authGetSchema = authUtils.middlewarify({});

@@ -9,7 +9,7 @@ var apps = [
         created: new Date(),
         lastUpdates: new Date(),
         status: 'active',
-        key: '_internal-ads-service',
+        key: 'internal-ads-service',
         secret: '4cd371bf665c20f4fc1f0f4d9a1db851a28cfeec',
         entitlements: {
             directEditCampaigns: true
