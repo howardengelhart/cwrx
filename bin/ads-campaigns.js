@@ -697,6 +697,9 @@
             if ('pendingUpdate' in req.query) {
                 query.updateRequest = { $exists: req.query.pendingUpdate === 'true' };
             }
+            if ('hasRejection' in req.query) {
+                query.rejectionReason = { $exists: req.query.hasRejection === 'true' };
+            }
 
             var promise = svc.getObjs(query, req, true).then(function(resp) {
                 return campModule.decorateWithCards(req, resp);

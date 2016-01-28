@@ -328,6 +328,7 @@ describe('ads campaigns endpoints (E2E):', function() {
                     name: 'camp 2 is great',
                     advertiserDisplayName: 'Heinz Ketchup',
                     cards: [{ id: 'e2e-rc-2' }],
+                    rejectionReason: 'you got a problem crosby',
                     status: 'inactive',
                     user: 'not-e2e-user',
                     org: 'o-selfie',
@@ -492,6 +493,18 @@ describe('ads campaigns endpoints (E2E):', function() {
                 expect(resp.body[0].id).toBe('e2e-getquery3');
                 expect(resp.body[1].id).toBe('e2e-getquery5');
                 expect(resp.response.headers['content-range']).toBe('items 1-2/2');
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
+
+        it('should get campaigns with a rejection reason', function(done) {
+            options.qs.hasRejection = 'true';
+            requestUtils.qRequest('get', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.body.length).toBe(1);
+                expect(resp.body[0].id).toBe('e2e-getquery2');
+                expect(resp.response.headers['content-range']).toBe('items 1-1/1');
             }).catch(function(error) {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
