@@ -29,7 +29,7 @@ describe('expressUtils', function() {
             log   : jasmine.createSpy('log.log()')
         };
         spyOn(logger, 'createLog').and.returnValue(mockLog);
-        spyOn(logger, 'getLog').and.returnValue(mockLog)
+        spyOn(logger, 'getLog').and.returnValue(mockLog);
 
         delete require.cache[require.resolve('../../lib/cloudWatchReporter')];
         CloudWatchReporter = require('../../lib/cloudWatchReporter');
@@ -187,7 +187,7 @@ describe('expressUtils', function() {
         });
 
         describe('when called', function() {
-            var namespace, autoflush, data;
+            var namespace, autoflush, data, options;
             var middleware;
 
             beforeEach(function() {
@@ -446,7 +446,7 @@ describe('expressUtils', function() {
                     header: jasmine.createSpy('res.header()')
                 };
                 next = jasmine.createSpy('next()');
-                spyOn(uuid, 'createUuid').and.returnValue('abcdefghijklmnopqrstuvwxyz')
+                spyOn(uuid, 'createUuid').and.returnValue('abcdefghijklmnopqrstuvwxyz');
                 spyOn(expressUtils, 'setUuid').and.callThrough();
                 spyOn(expressUtils, 'setBasicHeaders').and.callThrough();
                 spyOn(expressUtils, 'handleOptions').and.callThrough();

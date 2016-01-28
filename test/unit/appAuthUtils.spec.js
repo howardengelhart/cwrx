@@ -59,7 +59,7 @@ describe('appAuthUtils', function() {
             mockHmac = {
                 _value: '',
                 update: jasmine.createSpy('hmac.update()').and.callFake(function(text) {
-                    mockHmac._value += text.length + ':'
+                    mockHmac._value += text.length + ':';
                 }),
                 digest: jasmine.createSpy('hmac.digest()').and.callFake(function() { return mockHmac._value; })
             };
