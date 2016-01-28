@@ -791,7 +791,7 @@ describe('ads campaignUpdates endpoints (E2E):', function() {
 
             it('should immediately apply', function(done) {
                 mailman.once(msgSubject, function(msg) {
-                    expect(msg).not.toBeDefined();
+                    expect(util.inspect(msg).substring(0, 200)).not.toBeDefined();
                 });
                 requestUtils.qRequest('post', options).then(function(resp) {
                     expect(resp.response.statusCode).toBe(201);
@@ -827,7 +827,7 @@ describe('ads campaignUpdates endpoints (E2E):', function() {
 
             it('should still succeed if the campaign is active', function(done) {
                 mailman.once(msgSubject, function(msg) {
-                    expect(msg).not.toBeDefined();
+                    expect(util.inspect(msg).substring(0, 200)).not.toBeDefined();
                 });
                 options.url = config.adsUrl + '/campaigns/cam-active/updates/';
                 requestUtils.qRequest('post', options).then(function(resp) {
@@ -925,7 +925,7 @@ describe('ads campaignUpdates endpoints (E2E):', function() {
                 
                 it('should return a 400 if the user does not have the paymentOptional entitlement', function(done) {
                     mailman.once(msgSubject, function(msg) {
-                        expect(msg).not.toBeDefined();
+                        expect(util.inspect(msg).substring(0, 200)).not.toBeDefined();
                     });
                     
                     requestUtils.qRequest('post', options).then(function(resp) {
@@ -1108,7 +1108,7 @@ describe('ads campaignUpdates endpoints (E2E):', function() {
             it('should prevent selfie users from adding a second card', function(done) {
                 options.json.data = { cards: [{ id: createdCampDecorated.cards[0].id }, { title: 'my new card' }] };
                 mailman.once(msgSubject, function(msg) {
-                    expect(msg).not.toBeDefined();
+                    expect(util.inspect(msg).substring(0, 200)).not.toBeDefined();
                 });
                 requestUtils.qRequest('post', options).then(function(resp) {
                     expect(resp.response.statusCode).toBe(400);
@@ -1132,7 +1132,7 @@ describe('ads campaignUpdates endpoints (E2E):', function() {
         it('should return a 400 for invalid pricing opts', function(done) {
             options.json.data = { pricing: { budget: 999999999999999999999999999999 } };
             mailman.once(msgSubject, function(msg) {
-                expect(msg).not.toBeDefined();
+                expect(util.inspect(msg).substring(0, 200)).not.toBeDefined();
             });
             requestUtils.qRequest('post', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(400);
@@ -1198,7 +1198,7 @@ describe('ads campaignUpdates endpoints (E2E):', function() {
         
         it('should prevent creating updates for a campaign the user cannot see', function(done) {
             mailman.once(msgSubject, function(msg) {
-                expect(msg).not.toBeDefined();
+                expect(util.inspect(msg).substring(0, 200)).not.toBeDefined();
             });
             options.url = config.adsUrl + '/campaigns/cam-other/updates/';
             requestUtils.qRequest('post', options).then(function(resp) {
@@ -1211,7 +1211,7 @@ describe('ads campaignUpdates endpoints (E2E):', function() {
 
         it('should prevent creating updates for a deleted campaign', function(done) {
             mailman.once(msgSubject, function(msg) {
-                expect(msg).not.toBeDefined();
+                expect(util.inspect(msg).substring(0, 200)).not.toBeDefined();
             });
             options.url = config.adsUrl + '/campaigns/cam-deleted/updates/';
             requestUtils.qRequest('post', options).then(function(resp) {
@@ -1224,7 +1224,7 @@ describe('ads campaignUpdates endpoints (E2E):', function() {
         
         it('should prevent creating updates for a nonexistent campaign', function(done) {
             mailman.once(msgSubject, function(msg) {
-                expect(msg).not.toBeDefined();
+                expect(util.inspect(msg).substring(0, 200)).not.toBeDefined();
             });
             options.url = config.adsUrl + '/campaigns/cam-fake/updates/';
             requestUtils.qRequest('post', options).then(function(resp) {
@@ -1237,7 +1237,7 @@ describe('ads campaignUpdates endpoints (E2E):', function() {
 
         it('should return a 401 if the user is not authenticated', function(done) {
             mailman.once(msgSubject, function(msg) {
-                expect(msg).not.toBeDefined();
+                expect(util.inspect(msg).substring(0, 200)).not.toBeDefined();
             });
             delete options.jar;
             requestUtils.qRequest('post', options).then(function(resp) {
@@ -1316,8 +1316,8 @@ describe('ads campaignUpdates endpoints (E2E):', function() {
         });
 
         it('should be able to edit the data of an update', function(done) {
-            mailman.once(approveSubject, function(msg) { expect(msg).not.toBeDefined(); });
-            mailman.once(rejectSubject, function(msg) { expect(msg).not.toBeDefined(); });
+            mailman.once(approveSubject, function(msg) { expect(util.inspect(msg).substring(0, 200)).not.toBeDefined(); });
+            mailman.once(rejectSubject, function(msg) { expect(util.inspect(msg).substring(0, 200)).not.toBeDefined(); });
 
             requestUtils.qRequest('put', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
@@ -1351,7 +1351,7 @@ describe('ads campaignUpdates endpoints (E2E):', function() {
         
         it('should be able to approve an update and notify the campaign owner', function(done) {
             options.json.status = 'approved';
-            mailman.once(rejectSubject, function(msg) { expect(msg).not.toBeDefined(); });
+            mailman.once(rejectSubject, function(msg) { expect(util.inspect(msg).substring(0, 200)).not.toBeDefined(); });
 
             requestUtils.qRequest('put', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
@@ -1411,7 +1411,7 @@ describe('ads campaignUpdates endpoints (E2E):', function() {
 
         it('should be able to reject an update and notify the campaign owner', function(done) {
             options.json = { status: 'rejected', rejectionReason: 'yo campaign stinks' };
-            mailman.once(approveSubject, function(msg) { expect(msg).not.toBeDefined(); });
+            mailman.once(approveSubject, function(msg) { expect(util.inspect(msg).substring(0, 200)).not.toBeDefined(); });
 
             requestUtils.qRequest('put', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
@@ -1448,7 +1448,7 @@ describe('ads campaignUpdates endpoints (E2E):', function() {
         
         it('should return a 400 if attempting to reject an update without a reason', function(done) {
             options.json = { status: 'rejected' };
-            mailman.once(rejectSubject, function(msg) { expect(msg).not.toBeDefined(); });
+            mailman.once(rejectSubject, function(msg) { expect(util.inspect(msg).substring(0, 200)).not.toBeDefined(); });
 
             requestUtils.qRequest('put', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(400);
@@ -1481,7 +1481,7 @@ describe('ads campaignUpdates endpoints (E2E):', function() {
             
             it('should switch the campaign to active if approving the update', function(done) {
                 options.json.status = 'approved';
-                mailman.once(rejectSubject, function(msg) { expect(msg).not.toBeDefined(); });
+                mailman.once(rejectSubject, function(msg) { expect(util.inspect(msg).substring(0, 200)).not.toBeDefined(); });
 
                 requestUtils.qRequest('put', options).then(function(resp) {
                     expect(resp.response.statusCode).toBe(200);
@@ -1516,7 +1516,7 @@ describe('ads campaignUpdates endpoints (E2E):', function() {
             it('should switch the campaign back to draft if rejecting the update', function(done) {
                 options.json.status = 'rejected';
                 options.json.rejectionReason = 'I got a problem with YOU';
-                mailman.once(approveSubject, function(msg) { expect(msg).not.toBeDefined(); });
+                mailman.once(approveSubject, function(msg) { expect(util.inspect(msg).substring(0, 200)).not.toBeDefined(); });
 
                 requestUtils.qRequest('put', options).then(function(resp) {
                     expect(resp.response.statusCode).toBe(200);
@@ -1576,7 +1576,7 @@ describe('ads campaignUpdates endpoints (E2E):', function() {
             });
 
             it('should apply edits to the cards as well', function(done) {
-                mailman.once(rejectSubject, function(msg) { expect(msg).not.toBeDefined(); });
+                mailman.once(rejectSubject, function(msg) { expect(util.inspect(msg).substring(0, 200)).not.toBeDefined(); });
 
                 options = {
                     url: config.adsUrl + '/campaigns/' + createdCampDecorated.id + '/updates/ur-cards',
@@ -1633,8 +1633,8 @@ describe('ads campaignUpdates endpoints (E2E):', function() {
             options.json.status = 'approved';
             options.json.data.pricing.cost = 0.000000001;
 
-            mailman.once(approveSubject, function(msg) { expect(msg).not.toBeDefined(); });
-            mailman.once(rejectSubject, function(msg) { expect(msg).not.toBeDefined(); });
+            mailman.once(approveSubject, function(msg) { expect(util.inspect(msg).substring(0, 200)).not.toBeDefined(); });
+            mailman.once(rejectSubject, function(msg) { expect(util.inspect(msg).substring(0, 200)).not.toBeDefined(); });
 
             requestUtils.qRequest('put', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);

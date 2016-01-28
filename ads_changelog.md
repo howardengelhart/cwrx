@@ -1,5 +1,10 @@
 # Ads Service Changelog
 
+* [FIX]: Implement app auth system to allow non-admins to create auto-approved update requests for active campaigns: [#773](https://github.com/cinema6/cwrx/pull/773)
+* Extra deployment steps:
+    * Deploy ads cookbook version 2.1.0
+    * Create ads service application in db
+
 ### 4.2.0: Mon Jan 25 18:03:44 EST 2016
 * Set default max campaign budget to 50000: [#749](https://github.com/cinema6/cwrx/issues/749)
 * Require paymentMethod on campaign submit: [#749](https://github.com/cinema6/cwrx/issues/749)
