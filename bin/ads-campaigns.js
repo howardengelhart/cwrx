@@ -64,8 +64,7 @@
                 __allowed: true,
                 __type: 'number',
                 __percentMin: 0.015,    // used internally, not in model.validate()
-                __percentMax: 1,        // used internally, not in model.validate()
-                __percentDefault: 1.00  // used internally, not in model.validate()
+                __percentMax: 1        // used internally, not in model.validate()
             },
             model: {
                 __allowed: false,

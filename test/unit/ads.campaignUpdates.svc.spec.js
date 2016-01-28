@@ -842,7 +842,7 @@ describe('ads-campaignUpdates (UT)', function() {
         });
         
         it('should call done if the campaign is missing certain pricing fields', function(done) {
-            q.all(['pricing', ['pricing', 'budget'], ['pricing', 'dailyLimit'], ['pricing', 'cost']].map(function(field) {
+            q.all(['pricing', ['pricing', 'budget'], ['pricing', 'cost']].map(function(field) {
                 var reqCopy = JSON.parse(JSON.stringify(req));
                 if (field instanceof Array) {
                     delete reqCopy.body.data[field[0]][field[1]];
@@ -853,11 +853,10 @@ describe('ads-campaignUpdates (UT)', function() {
             })).then(function(results) {
                 expect(nextSpy).not.toHaveBeenCalled();
                 expect(errorSpy).not.toHaveBeenCalled();
-                expect(doneSpy.calls.count()).toBe(4);
+                expect(doneSpy.calls.count()).toBe(3);
                 expect(doneSpy.calls.argsFor(0)).toEqual([{ code: 400, body: 'Missing required field: pricing.budget' }]);
                 expect(doneSpy.calls.argsFor(1)).toEqual([{ code: 400, body: 'Missing required field: pricing.budget' }]);
-                expect(doneSpy.calls.argsFor(2)).toEqual([{ code: 400, body: 'Missing required field: pricing.dailyLimit' }]);
-                expect(doneSpy.calls.argsFor(3)).toEqual([{ code: 400, body: 'Missing required field: pricing.cost' }]);
+                expect(doneSpy.calls.argsFor(2)).toEqual([{ code: 400, body: 'Missing required field: pricing.cost' }]);
                 expect(mongoUtils.editObject).not.toHaveBeenCalled();
             }).done(done, done.fail);
         });
