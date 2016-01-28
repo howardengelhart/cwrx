@@ -7,6 +7,7 @@
         express         = require('express'),
         campaignUtils   = require('../lib/campaignUtils'),
         requestUtils    = require('../lib/requestUtils'),
+        signatures      = require('../lib/signatures'),
         mongoUtils      = require('../lib/mongoUtils'),
         authUtils       = require('../lib/authUtils'),
         objUtils        = require('../lib/objUtils'),
@@ -274,10 +275,12 @@
 
     // Check and 400 if req.origObj.status is not one of the statuses in permitted
     campModule.statusCheck = function(permitted, req, next, done) {
-        var log = logger.getLog();
+        var log = logger.getLog(),
+            appEntitlements = (req.application && req.application.entitlements) || {};
 
         if (permitted.indexOf(req.origObj.status) !== -1 ||
-            !!req.user.entitlements.directEditCampaigns) {
+            !!req.user.entitlements.directEditCampaigns ||
+            !!appEntitlements.directEditCampaigns) {
             return q(next());
         } else {
             log.info('[%1] This action not permitted on %2 campaign', req.uuid, req.origObj.status);
@@ -650,6 +653,9 @@
         
         router.use(jobManager.setJobTimeout.bind(jobManager));
         
+        var appAuthVerifier = new signatures.Verifier(svc._db),
+            optAppAuth = appAuthVerifier.middlewarify();
+        
         var authGetSchema = authUtils.middlewarify({});
         router.get('/schema', sessions, authGetSchema, function(req, res) {
             var promise = svc.getSchema(req);
@@ -717,7 +723,7 @@
         });
 
         var authPutCamp = authUtils.middlewarify({campaigns: 'edit'});
-        router.put('/:id', sessions, authPutCamp, audit, function(req, res) {
+        router.put('/:id', sessions, authPutCamp, optAppAuth, audit, function(req, res) {
             var promise = svc.editObj(req).then(function(resp) {
                 return campModule.decorateWithCards(req, resp);
             });

@@ -118,14 +118,14 @@ describe('mongoUtils', function() {
         });
     });
 
-    describe('safe user', function() {
+    describe('safeUser', function() {
         beforeEach(function() {
             spyOn(mongoUtils, 'unescapeKeys').and.callThrough();
         });
 
         it('should create a new user object without any sensitive fields', function() {
             var user = {
-                _id: "thisisamongo_id",
+                _id: 'thisisamongo_id',
                 email: 'johnnyTestmonkey',
                 resetToken: { token: 'hashToken', expires: new Date() },
                 password: 'hashofasecret',
@@ -152,6 +152,41 @@ describe('mongoUtils', function() {
             expect(mongoUtils.safeUser(null)).toBe(null);
             expect(mongoUtils.safeUser(undefined)).toBe(undefined);
             expect(mongoUtils.safeUser('fake')).toBe('fake');
+        });
+    });
+
+    describe('safeApplication', function() {
+        beforeEach(function() {
+            spyOn(mongoUtils, 'unescapeKeys').and.callThrough();
+        });
+
+        it('should create a new user object without any sensitive fields', function() {
+            var app = {
+                _id: 'thisisamongo_id',
+                id: 'app-1',
+                key: 'app 1',
+                secret: 'supersecret'
+            };
+            var newApp = mongoUtils.safeApplication(app);
+            expect(newApp).toEqual({
+                id: 'app-1',
+                key: 'app 1'
+            });
+
+            // shouldn't edit existing user object
+            expect(app).toEqual({
+                _id: 'thisisamongo_id',
+                id: 'app-1',
+                key: 'app 1',
+                secret: 'supersecret'
+            });
+            expect(mongoUtils.unescapeKeys).toHaveBeenCalled();
+        });
+
+        it('should just return the app if the app is not a proper object', function() {
+            expect(mongoUtils.safeApplication(null)).toBe(null);
+            expect(mongoUtils.safeApplication(undefined)).toBe(undefined);
+            expect(mongoUtils.safeApplication('fake')).toBe('fake');
         });
     });
 

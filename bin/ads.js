@@ -110,10 +110,11 @@
         log.info('Running as cluster worker, proceed with setting up web server.');
 
         var app          = express(),
+            appCreds     = state.secrets.rcAppCredentials,
             jobManager   = new JobManager(state.cache, state.config.jobTimeouts),
             advertSvc    = advertModule.setupSvc(state.dbs.c6Db.collection('advertisers')),
             campSvc      = campModule.setupSvc(state.dbs.c6Db, state.config),
-            updateSvc    = updateModule.setupSvc(state.dbs.c6Db, campSvc, state.config),
+            updateSvc    = updateModule.setupSvc(state.dbs.c6Db, campSvc, state.config, appCreds),
             siteSvc      = siteModule.setupSvc(state.dbs.c6Db.collection('sites')),
             conSvc       = conModule.setupSvc(state.dbs.c6Db),
             placeSvc     = placeModule.setupSvc(state.dbs.c6Db, state.config),

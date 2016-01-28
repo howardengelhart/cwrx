@@ -29,7 +29,7 @@ describe('expressUtils', function() {
             log   : jasmine.createSpy('log.log()')
         };
         spyOn(logger, 'createLog').and.returnValue(mockLog);
-        spyOn(logger, 'getLog').and.returnValue(mockLog)
+        spyOn(logger, 'getLog').and.returnValue(mockLog);
 
         delete require.cache[require.resolve('../../lib/cloudWatchReporter')];
         CloudWatchReporter = require('../../lib/cloudWatchReporter');
@@ -187,7 +187,7 @@ describe('expressUtils', function() {
         });
 
         describe('when called', function() {
-            var namespace, autoflush, data;
+            var namespace, autoflush, data, options;
             var middleware;
 
             beforeEach(function() {
@@ -388,8 +388,10 @@ describe('expressUtils', function() {
                 );
             });
             
-            it('should not log the cookie header if defined', function() {
+            it('should not log sensitive headers that are defined', function() {
                 req.headers.cookie = 'thisissosecret';
+                req.headers['x-rc-auth-nonce'] = 'morelikenoncenseamirite';
+                req.headers['x-rc-auth-signature'] = 'johnhancock';
                 midware(req, res, next);
                 expect(next).toHaveBeenCalled();
                 expect(res.send).not.toHaveBeenCalled();
@@ -444,7 +446,7 @@ describe('expressUtils', function() {
                     header: jasmine.createSpy('res.header()')
                 };
                 next = jasmine.createSpy('next()');
-                spyOn(uuid, 'createUuid').and.returnValue('abcdefghijklmnopqrstuvwxyz')
+                spyOn(uuid, 'createUuid').and.returnValue('abcdefghijklmnopqrstuvwxyz');
                 spyOn(expressUtils, 'setUuid').and.callThrough();
                 spyOn(expressUtils, 'setBasicHeaders').and.callThrough();
                 spyOn(expressUtils, 'handleOptions').and.callThrough();

@@ -1,3 +1,5 @@
+var q = require('q');
+
 module.exports = function(grunt) {
     function lookupIp(ec2Data, host,iface){
         var inst;
@@ -16,6 +18,8 @@ module.exports = function(grunt) {
 
     grunt.registerTask('e2e_tests', 'Run jasmine end-to-end tests', function(svc) {
         var ec2Data = grunt.config.get('ec2Data'),
+            opts = this.options(),
+            done = this.async(),
             cacheCfgHost, cacheHost;
 
         if (svc) {
@@ -60,31 +64,38 @@ module.exports = function(grunt) {
                 process.env[key] = cfgObj[key];
             }
         }
+        
+        grunt.log.writeln('Starting e2e tests' + (svc ? ' for ' + svc : '') + ':');
 
-        grunt.log.writeln('Running e2e tests' + (svc ? ' for ' + svc : '') + ':');
-        var sixxyDependentSvcs = ['userSvc'];
-        var done = this.async();
-        if(sixxyDependentSvcs.indexOf(svc) !== -1) {
-            grunt.log.writeln('Ensuring the existance of the sixxy system user');
-            var args = ['./scripts/sixxyUser.js'];
-            var dbHost = grunt.option('dbHost');
-            if(dbHost) {
-                args = args.concat(['--dbHost', dbHost]);
-            }
-            console.log(args);
-            grunt.util.spawn({
-                cmd: 'node',
-                args: args,
-                opts: {
-                    stdio: 'inherit'
-                }
-            }, function(error, result, code) {
-                grunt.task.run('jasmine:e2e');
-                done(true);
-            });
-        } else {
+        var svcOpts = opts[svc.match(/^[^\.]+/)[0]],
+            promise = q();
+
+        if (svcOpts && svcOpts.preScripts) {
+            promise = svcOpts.preScripts.reduce(function(prom, scriptCfg) {
+                return prom.then(function() {
+                    grunt.log.writeln('Running preliminary script ' + scriptCfg.name);
+
+                    var args = [];
+                    scriptCfg.forwardedArgs.forEach(function(argName) {
+                        if (grunt.option(argName)) {
+                            args = args.concat(['--' + argName, grunt.option(argName)]);
+                        }
+                    });
+                    
+                    return q.npost(grunt.util, 'spawn', [{
+                        cmd: scriptCfg.path,
+                        args: args,
+                        opts: {
+                            stdio: 'inherit'
+                        }
+                    }]);
+                });
+            }, q());
+        }
+        
+        promise.then(function() {
             grunt.task.run('jasmine:e2e');
             done(true);
-        }
+        });
     });
 };

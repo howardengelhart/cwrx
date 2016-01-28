@@ -2,8 +2,8 @@ var flush = true;
 var q = require('q');
 
 describe('ads-campaignUpdates (UT)', function() {
-    var mockLog, CrudSvc, Model, logger, updateModule, campaignUtils, requestUtils, Status,
-        mongoUtils, campModule, email, nextSpy, doneSpy, errorSpy, req, mockDb;
+    var mockLog, CrudSvc, Model, logger, updateModule, campaignUtils, requestUtils, signatures, Status,
+        mongoUtils, campModule, email, nextSpy, doneSpy, errorSpy, req, mockDb, appCreds;
 
     beforeEach(function() {
         if (flush) { for (var m in require.cache){ delete require.cache[m]; } flush = false; }
@@ -13,6 +13,7 @@ describe('ads-campaignUpdates (UT)', function() {
         campModule      = require('../../bin/ads-campaigns');
         campaignUtils   = require('../../lib/campaignUtils');
         mongoUtils      = require('../../lib/mongoUtils');
+        signatures      = require('../../lib/signatures');
         CrudSvc         = require('../../lib/crudSvc');
         Model           = require('../../lib/model');
         email           = require('../../lib/email');
@@ -60,6 +61,10 @@ describe('ads-campaignUpdates (UT)', function() {
             reviewLink: 'http://selfie.com/campaigns/:campId/admin',
             dashboardLink: 'http://seflie.c6.com/review/campaigns'
         };
+        appCreds = {
+            key: 'ads-service',
+            secret: 'supersecret'
+        };
         
         req = {
             uuid: '1234',
@@ -94,7 +99,7 @@ describe('ads-campaignUpdates (UT)', function() {
             
             campSvc = { model: new Model('campaigns', {}) };
             
-            svc = updateModule.setupSvc(mockDb, campSvc, config);
+            svc = updateModule.setupSvc(mockDb, campSvc, config, appCreds);
         });
         
         it('should return a CrudSvc', function() {
@@ -162,7 +167,8 @@ describe('ads-campaignUpdates (UT)', function() {
             expect(updateModule.handleInitialSubmit.bind).toHaveBeenCalledWith(updateModule, svc);
             expect(updateModule.lockCampaign.bind).toHaveBeenCalledWith(updateModule, svc);
             expect(updateModule.unlockCampaign.bind).toHaveBeenCalledWith(updateModule, svc);
-            expect(updateModule.applyUpdate.bind).toHaveBeenCalledWith(updateModule, svc);
+            expect(updateModule.applyUpdate.bind).toHaveBeenCalledWith(updateModule, svc, jasmine.any(signatures.Authenticator));
+            expect(updateModule.applyUpdate.bind.calls.argsFor(0)[2]._creds).toBe(appCreds);
             expect(updateModule.notifyOwner.bind).toHaveBeenCalledWith(updateModule, svc);
             expect(CrudSvc.prototype.setupObj.bind).toHaveBeenCalledWith(svc);
             expect(fakeAutoApproveModel.midWare.bind).toHaveBeenCalledWith(fakeAutoApproveModel, 'create');
@@ -172,7 +178,7 @@ describe('ads-campaignUpdates (UT)', function() {
     describe('campaignUpdate validation', function() {
         var svc, newObj, origObj, requester;
         beforeEach(function() {
-            svc = updateModule.setupSvc(mockDb, campModule.setupSvc(mockDb, updateModule.config), updateModule.config);
+            svc = updateModule.setupSvc(mockDb, campModule.setupSvc(mockDb, updateModule.config), updateModule.config, appCreds);
             newObj = { data: {} };
             origObj = {};
             requester = { fieldValidation: { campaignUpdates: {} } };
@@ -1104,22 +1110,24 @@ describe('ads-campaignUpdates (UT)', function() {
     });
 
     describe('applyUpdate', function() {
-        var svc;
+        var svc, authenticator;
         beforeEach(function() {
             req.body = { id: 'ur-1', campaign: 'cam-1', data: { foo: 'bar' }, status: Status.Approved };
             req.origObj = { id: 'ur-1', campaign: 'cam-1', data: { foo: 'baz' }, status: Status.Pending };
             req.campaign = { id: 'cam-1', name: 'camp 1', updateRequest: 'u-1' };
-            spyOn(requestUtils, 'qRequest').and.returnValue(q({ response: { statusCode: 200 }, body: { camp: 'yes' } }));
+            authenticator = {
+                request: jasmine.createSpy('authenticator.request()').and.returnValue(q({ response: { statusCode: 200 }, body: { camp: 'yes' } }))
+            };
             spyOn(mongoUtils, 'editObject').and.returnValue(q());
             svc = { _db: mockDb };
         });
         
         it('should edit the campaign with a PUT request', function(done) {
-            updateModule.applyUpdate(svc, req, nextSpy, doneSpy).catch(errorSpy).finally(function() {
+            updateModule.applyUpdate(svc, authenticator, req, nextSpy, doneSpy).catch(errorSpy).finally(function() {
                 expect(nextSpy).toHaveBeenCalled();
                 expect(doneSpy).not.toHaveBeenCalled();
                 expect(errorSpy).not.toHaveBeenCalled();
-                expect(requestUtils.qRequest).toHaveBeenCalledWith('put', {
+                expect(authenticator.request).toHaveBeenCalledWith('put', {
                     url: 'https://test.com/api/campaigns/cam-1',
                     json: { foo: 'bar' },
                     headers: { cookie: 'chocolate' }
@@ -1132,11 +1140,11 @@ describe('ads-campaignUpdates (UT)', function() {
         
         it('should skip if the update request is not being approved', function(done) {
             req.body.status = Status.Rejected;
-            updateModule.applyUpdate(svc, req, nextSpy, doneSpy).catch(errorSpy).finally(function() {
+            updateModule.applyUpdate(svc, authenticator, req, nextSpy, doneSpy).catch(errorSpy).finally(function() {
                 expect(nextSpy).toHaveBeenCalled();
                 expect(doneSpy).not.toHaveBeenCalled();
                 expect(errorSpy).not.toHaveBeenCalled();
-                expect(requestUtils.qRequest).not.toHaveBeenCalled();
+                expect(authenticator.request).not.toHaveBeenCalled();
                 expect(mongoUtils.editObject).not.toHaveBeenCalled();
                 expect(mockLog.error).not.toHaveBeenCalled();
                 done();
@@ -1146,11 +1154,11 @@ describe('ads-campaignUpdates (UT)', function() {
         it('should still edit the campaign if the request is autoApproved', function(done) {
             delete req.origObj;
             req.body.autoApproved = true;
-            updateModule.applyUpdate(svc, req, nextSpy, doneSpy).catch(errorSpy).finally(function() {
+            updateModule.applyUpdate(svc, authenticator, req, nextSpy, doneSpy).catch(errorSpy).finally(function() {
                 expect(nextSpy).toHaveBeenCalled();
                 expect(doneSpy).not.toHaveBeenCalled();
                 expect(errorSpy).not.toHaveBeenCalled();
-                expect(requestUtils.qRequest).toHaveBeenCalledWith('put', {
+                expect(authenticator.request).toHaveBeenCalledWith('put', {
                     url: 'https://test.com/api/campaigns/cam-1',
                     json: { foo: 'bar' },
                     headers: { cookie: 'chocolate' }
@@ -1176,15 +1184,15 @@ describe('ads-campaignUpdates (UT)', function() {
             ].forEach(function(caseObj) {
                 describe(caseObj.description, function() {
                     beforeEach(function() {
-                        requestUtils.qRequest.and.returnValue(caseObj.respValue);
+                        authenticator.request.and.returnValue(caseObj.respValue);
                     });
                     
                     it('should attempt to re-lock the campaign and reject', function(done) {
-                        updateModule.applyUpdate(svc, req, nextSpy, doneSpy).catch(errorSpy).finally(function() {
+                        updateModule.applyUpdate(svc, authenticator, req, nextSpy, doneSpy).catch(errorSpy).finally(function() {
                             expect(nextSpy).not.toHaveBeenCalled();
                             expect(doneSpy).not.toHaveBeenCalled();
                             expect(errorSpy).toHaveBeenCalledWith('Failed editing campaign: ' + caseObj.expected);
-                            expect(requestUtils.qRequest).toHaveBeenCalled();
+                            expect(authenticator.request).toHaveBeenCalled();
                             expect(mongoUtils.editObject).toHaveBeenCalledWith({ collectionName: 'campaigns' },
                                 { updateRequest: 'ur-1', status: Status.Error }, 'cam-1');
                             expect(mockLog.error.calls.count()).toBe(1);
@@ -1194,14 +1202,28 @@ describe('ads-campaignUpdates (UT)', function() {
                     
                     it('should log an additional error if re-locking the campaign fails', function(done) {
                         mongoUtils.editObject.and.returnValue(q.reject('Oh man everything is breaking'));
-                        updateModule.applyUpdate(svc, req, nextSpy, doneSpy).catch(errorSpy).finally(function() {
+                        updateModule.applyUpdate(svc, authenticator, req, nextSpy, doneSpy).catch(errorSpy).finally(function() {
                             expect(nextSpy).not.toHaveBeenCalled();
                             expect(doneSpy).not.toHaveBeenCalled();
                             expect(errorSpy).toHaveBeenCalledWith('Failed editing campaign: ' + caseObj.expected);
-                            expect(requestUtils.qRequest).toHaveBeenCalled();
+                            expect(authenticator.request).toHaveBeenCalled();
                             expect(mongoUtils.editObject).toHaveBeenCalledWith({ collectionName: 'campaigns' },
                                 { updateRequest: 'ur-1', status: Status.Error }, 'cam-1');
                             expect(mockLog.error.calls.count()).toBe(2);
+                            done();
+                        });
+                    });
+
+                    it('should not attempt to re-lock the campaign if the update was auto-approved', function(done) {
+                        delete req.origObj;
+                        req.body.autoApproved = true;
+                        updateModule.applyUpdate(svc, authenticator, req, nextSpy, doneSpy).catch(errorSpy).finally(function() {
+                            expect(nextSpy).not.toHaveBeenCalled();
+                            expect(doneSpy).not.toHaveBeenCalled();
+                            expect(errorSpy).toHaveBeenCalledWith('Failed editing campaign: ' + caseObj.expected);
+                            expect(authenticator.request).toHaveBeenCalled();
+                            expect(mongoUtils.editObject).not.toHaveBeenCalled();
+                            expect(mockLog.error.calls.count()).toBe(1);
                             done();
                         });
                     });

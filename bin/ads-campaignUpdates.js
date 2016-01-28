@@ -9,6 +9,7 @@
         campaignUtils   = require('../lib/campaignUtils'),
         requestUtils    = require('../lib/requestUtils'),
         mongoUtils      = require('../lib/mongoUtils'),
+        signatures      = require('../lib/signatures'),
         authUtils       = require('../lib/authUtils'),
         objUtils        = require('../lib/objUtils'),
         CrudSvc         = require('../lib/crudSvc'),
@@ -61,7 +62,7 @@
                req.body && req.body.status === Status.Rejected;
     }
 
-    updateModule.setupSvc = function(db, campSvc, config) {
+    updateModule.setupSvc = function(db, campSvc, config, appCreds) {
         updateModule.config.emails = config.emails;
         updateModule.config.api = config.api;
         Object.keys(updateModule.config.api)
@@ -73,7 +74,8 @@
             );
         });
 
-        var coll = db.collection('campaignUpdates'),
+        var authenticator = new signatures.Authenticator(appCreds),
+            coll = db.collection('campaignUpdates'),
             svc = new CrudSvc(coll, 'ur', { statusHistory: true }, updateModule.updateSchema);
         svc._db = db;
         
@@ -86,7 +88,7 @@
             handleInitialSubmit = updateModule.handleInitialSubmit.bind(updateModule, svc),
             lockCampaign        = updateModule.lockCampaign.bind(updateModule, svc),
             unlockCampaign      = updateModule.unlockCampaign.bind(updateModule, svc),
-            applyUpdate         = updateModule.applyUpdate.bind(updateModule, svc),
+            applyUpdate         = updateModule.applyUpdate.bind(updateModule, svc, authenticator),
             notifyOwner         = updateModule.notifyOwner.bind(updateModule, svc);
             
         svc.use('create', fetchCamp);
@@ -489,7 +491,7 @@
     /* Apply update request to campaign by proxying a PUT request. Assumes the user editing the
      * campaign update request has permission to edit all campaigns. Fails if any non-200 response
      * is returned from the campaign service, and attempts to re-lock the campaign. */
-    updateModule.applyUpdate = function(svc, req, next/*, done*/) {
+    updateModule.applyUpdate = function(svc, authenticator, req, next/*, done*/) {
         var log = logger.getLog(),
             updateId = req.origObj && req.origObj.id || req.body.id,
             campId = req.campaign.id;
@@ -500,7 +502,7 @@
         
         delete req.body.data.updateRequest;
         
-        return requestUtils.qRequest('put', {
+        return authenticator.request('put', {
             url: urlUtils.resolve(updateModule.config.api.campaigns.baseUrl, campId),
             json: req.body.data,
             headers: { cookie: req.headers.cookie }
@@ -517,6 +519,11 @@
             log.error('[%1] Failed to edit %2 with %3: %4',
                       req.uuid, campId, updateId, util.inspect(error));
 
+            // Do not re-lock campaign if update is auto-approved, since campaign was not locked
+            if (req.body.autoApproved) {
+                return q.reject('Failed editing campaign: ' + util.inspect(error));
+            }
+
             log.info('[%1] Attempting to re-lock campaign %2', req.uuid, campId);
 
             return mongoUtils.editObject(
@@ -524,8 +531,8 @@
                 { updateRequest: updateId, status: Status.Error },
                 campId
             )
-            .catch(function(error) {
-                log.error('[%1] Failed direct campaign edit: %2', req.uuid, util.inspect(error));
+            .catch(function(err) {
+                log.error('[%1] Failed direct campaign edit: %2', req.uuid, util.inspect(err));
             })
             .then(function() {
                 return q.reject('Failed editing campaign: ' + util.inspect(error));
