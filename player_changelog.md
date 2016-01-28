@@ -1,5 +1,9 @@
 # Player Service Changelog
 
+### 2.4.0: Thu Jan 28 10:02:35 EST 2016
+* Add `branding`, `ex` and `vr` query params to tracking pixel URLs:
+  [#772](https://github.com/cinema6/cwrx/pull/772)
+
 ### 2.3.1: Wed Jan 27 13:05:33 EST 2016
 * Remove pixel-tracking compatibility hacks: [#770](https://github.com/cinema6/cwrx/pull/770)
 
