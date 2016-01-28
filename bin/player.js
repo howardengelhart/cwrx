@@ -658,7 +658,8 @@ Player.prototype.middlewareify = function middlewareify(method) {
             origin: stripURL(req.get('origin') || req.get('referer')),
             desktop: browser.isDesktop,
             mobile: browser.isMobile,
-            secure: req.secure
+            secure: req.secure,
+            $params: req.query
         }, req.query), req.params);
 
         self[method](options).then(function sendResponse(result) {

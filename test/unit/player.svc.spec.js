@@ -1007,7 +1007,8 @@ describe('player service', function() {
                                 origin: 'https://github.com/cinema6/cwrx/pull/504/files',
                                 desktop: browser.isDesktop,
                                 mobile: browser.isMobile,
-                                secure: req.secure
+                                secure: req.secure,
+                                $params: req.query
                             }, req.query), req.params));
                         });
 
