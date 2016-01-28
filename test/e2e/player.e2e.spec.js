@@ -304,6 +304,9 @@ describe('player service', function() {
                             config.playerUrl.query.hostApp = 'My Talking Tom';
                             config.playerUrl.query.network = 'MoPub';
                             config.playerUrl.query.uuid = 'rd8392eh3';
+                            config.playerUrl.query.branding = 'rcplatform';
+                            config.playerUrl.query.ex = 'My Awesome Experiment';
+                            config.playerUrl.query.vr = 'The Great Variant';
 
                             request.get(getURL()).then(getResponse).then(done, done.fail);
                         });
@@ -340,6 +343,9 @@ describe('player service', function() {
                                         network: config.playerUrl.query.network,
                                         sessionId: jasmine.any(String),
                                         extSessionId: config.playerUrl.query.uuid,
+                                        branding: config.playerUrl.query.branding,
+                                        ex: config.playerUrl.query.ex,
+                                        vr: config.playerUrl.query.vr,
                                         event: item.event,
                                         d: '{delay}',
                                         cb: '{cachebreaker}'
@@ -365,6 +371,9 @@ describe('player service', function() {
                                         network: config.playerUrl.query.network,
                                         sessionId: jasmine.any(String),
                                         extSessionId: config.playerUrl.query.uuid,
+                                        branding: config.playerUrl.query.branding,
+                                        ex: config.playerUrl.query.ex,
+                                        vr: config.playerUrl.query.vr,
                                         event: 'link.' + type,
                                         d: '{delay}',
                                         cb: '{cachebreaker}'
@@ -390,6 +399,9 @@ describe('player service', function() {
                                         network: config.playerUrl.query.network,
                                         sessionId: jasmine.any(String),
                                         extSessionId: config.playerUrl.query.uuid,
+                                        branding: config.playerUrl.query.branding,
+                                        ex: config.playerUrl.query.ex,
+                                        vr: config.playerUrl.query.vr,
                                         event: 'shareLink.' + type,
                                         d: '{delay}',
                                         cb: '{cachebreaker}'
@@ -745,6 +757,9 @@ describe('player service', function() {
                     config.playerUrl.query.hostApp = 'My Talking Tom';
                     config.playerUrl.query.network = 'MoPub';
                     config.playerUrl.query.uuid = 'rd8392eh3';
+                    config.playerUrl.query.branding = 'rcplatform';
+                    config.playerUrl.query.ex = 'My Awesome Experiment';
+                    config.playerUrl.query.vr = 'The Great Variant';
 
                     request.get(getURL()).then(getResponse).then(done, done.fail);
                 });
@@ -781,6 +796,9 @@ describe('player service', function() {
                                 network: config.playerUrl.query.network,
                                 sessionId: jasmine.any(String),
                                 extSessionId: config.playerUrl.query.uuid,
+                                branding: config.playerUrl.query.branding,
+                                ex: config.playerUrl.query.ex,
+                                vr: config.playerUrl.query.vr,
                                 event: item.event,
                                 d: '{delay}',
                                 cb: '{cachebreaker}'
@@ -806,6 +824,9 @@ describe('player service', function() {
                                 network: config.playerUrl.query.network,
                                 sessionId: jasmine.any(String),
                                 extSessionId: config.playerUrl.query.uuid,
+                                branding: config.playerUrl.query.branding,
+                                ex: config.playerUrl.query.ex,
+                                vr: config.playerUrl.query.vr,
                                 event: 'link.' + type,
                                 d: '{delay}',
                                 cb: '{cachebreaker}'
@@ -831,6 +852,9 @@ describe('player service', function() {
                                 network: config.playerUrl.query.network,
                                 sessionId: jasmine.any(String),
                                 extSessionId: config.playerUrl.query.uuid,
+                                branding: config.playerUrl.query.branding,
+                                ex: config.playerUrl.query.ex,
+                                vr: config.playerUrl.query.vr,
                                 event: 'shareLink.' + type,
                                 d: '{delay}',
                                 cb: '{cachebreaker}'

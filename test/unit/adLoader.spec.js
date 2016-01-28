@@ -730,7 +730,10 @@ describe('AdLoader()', function() {
                             reqUuid: '87r893434',
                             uuid: 'wr98y3498f3r4',
                             preview: false,
-                            debug: 2
+                            debug: 2,
+                            branding: 'rcplatform',
+                            ex: 'my-experiment',
+                            vr: 'my-variant'
                         };
 
                         originalCard = JSON.parse(JSON.stringify(card));
@@ -771,6 +774,9 @@ describe('AdLoader()', function() {
                                 network: meta.network,
                                 sessionId: meta.reqUuid,
                                 extSessionId: meta.uuid,
+                                branding: meta.branding,
+                                ex: meta.ex,
+                                vr: meta.vr,
                                 event: item.event
                             }) + '&d={delay}&cb={cachebreaker}');
                         });
@@ -790,6 +796,9 @@ describe('AdLoader()', function() {
                                 network: meta.network,
                                 sessionId: meta.reqUuid,
                                 extSessionId: meta.uuid,
+                                branding: meta.branding,
+                                ex: meta.ex,
+                                vr: meta.vr,
                                 event: 'link.' + type
                             }) + '&d={delay}&cb={cachebreaker}');
                         });
@@ -809,6 +818,9 @@ describe('AdLoader()', function() {
                                 network: meta.network,
                                 sessionId: meta.reqUuid,
                                 extSessionId: meta.uuid,
+                                branding: meta.branding,
+                                ex: meta.ex,
+                                vr: meta.vr,
                                 event: 'shareLink.' + type
                             }) + '&d={delay}&cb={cachebreaker}');
                         });
@@ -852,6 +864,9 @@ describe('AdLoader()', function() {
                                     network: meta.network,
                                     sessionId: meta.reqUuid,
                                     extSessionId: meta.uuid,
+                                    branding: meta.branding,
+                                    ex: meta.ex,
+                                    vr: meta.vr,
                                     event: item.event
                                 }) + '&d={delay}&cb={cachebreaker}'];
 
@@ -901,6 +916,9 @@ describe('AdLoader()', function() {
                                     network: meta.network,
                                     sessionId: meta.reqUuid,
                                     extSessionId: meta.uuid,
+                                    branding: meta.branding,
+                                    ex: meta.ex,
+                                    vr: meta.vr,
                                     event: item.event
                                 }) + '&d={delay}&cb={cachebreaker}');
                             });
@@ -917,6 +935,9 @@ describe('AdLoader()', function() {
                                     network: meta.network,
                                     sessionId: meta.reqUuid,
                                     extSessionId: meta.uuid,
+                                    branding: meta.branding,
+                                    ex: meta.ex,
+                                    vr: meta.vr,
                                     event: 'link.' + type
                                 }) + '&d={delay}&cb={cachebreaker}');
                             });
@@ -933,6 +954,9 @@ describe('AdLoader()', function() {
                                     network: meta.network,
                                     sessionId: meta.reqUuid,
                                     extSessionId: meta.uuid,
+                                    branding: meta.branding,
+                                    ex: meta.ex,
+                                    vr: meta.vr,
                                     event: 'shareLink.' + type
                                 }) + '&d={delay}&cb={cachebreaker}');
                             });
