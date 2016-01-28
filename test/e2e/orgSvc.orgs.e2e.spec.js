@@ -851,7 +851,8 @@ describe('orgSvc orgs (E2E):', function() {
             var camps = [
                 { id: 'cam-e2e-1', status: 'active', org: 'org1' },
                 { id: 'cam-e2e-2', status: 'canceled', org: 'org2' },
-                { id: 'cam-e2e-3', status: 'expired', org: 'org2' }
+                { id: 'cam-e2e-3', status: 'expired', org: 'org2' },
+                { id: 'cam-e2e-4', status: 'completed', org: 'org2' },
             ];
             testUtils.resetCollection('campaigns', camps).then(function() {
                 return requestUtils.qRequest('delete', options);

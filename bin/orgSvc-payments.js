@@ -162,7 +162,7 @@
         var log = logger.getLog(),
             query = {
                 paymentMethod: req.params.token,
-                status: { $nin: [Status.Deleted, Status.Expired, Status.Canceled] }
+                status: { $nin: [Status.Deleted, Status.Expired, Status.Canceled, Status.Completed]}
             };
             
         return q(orgSvc._db.collection('campaigns').count(query))

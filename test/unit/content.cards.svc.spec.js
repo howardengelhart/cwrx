@@ -120,7 +120,7 @@ describe('content-cards (UT)', function() {
         it('should check the campaign\'s status on edit + delete', function() {
             expect(svc._middleware.edit).toContain(getBoundFn(cardModule.campStatusCheck, [cardModule, [Status.Draft]]));
             expect(svc._middleware.delete).toContain(getBoundFn(cardModule.campStatusCheck,
-                [cardModule, [Status.Draft, Status.Pending, Status.Canceled, Status.Expired]]));
+                [cardModule, [Status.Draft, Status.Pending, Status.Canceled, Status.Completed, Status.Expired]]));
         });
         
         it('should prevent editing cards if the campaign has an update request', function() {
@@ -1220,14 +1220,14 @@ describe('content-cards (UT)', function() {
         });
 
         it('should return nothing if the card\'s campaign is not running', function(done) {
-            q.all([Status.Canceled, Status.Expired, Status.Deleted].map(function(status) {
+            q.all([Status.Canceled, Status.Expired, Status.Deleted, Status.Completed].map(function(status) {
                 mockCamp.status = status;
                 return cardModule.getPublicCard(cardSvc, caches, 'rc-1', req).then(function(resp) {
                     expect(resp).not.toBeDefined();
                 });
             })).then(function(results) {
                 expect(mockLog.warn).not.toHaveBeenCalled();
-                expect(caches.campaigns.getPromise.calls.count()).toBe(3);
+                expect(caches.campaigns.getPromise.calls.count()).toBe(4);
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
             }).done(done);
@@ -1487,7 +1487,7 @@ describe('content-cards (UT)', function() {
         });
         
         it('should return a 400 if the campaign is not running', function(done) {
-            q.all([Status.Canceled, Status.Expired, Status.Deleted].map(function(status) {
+            q.all([Status.Canceled, Status.Expired, Status.Completed, Status.Deleted].map(function(status) {
                 mockCamp.status = status;
                 return cardModule.chooseCards(cardSvc, caches, req).then(function(resp) {
                     expect(resp).toEqual({ code: 400, body: 'Campaign not running' });

@@ -175,6 +175,7 @@
             enums.Status.Draft,
             enums.Status.Pending,
             enums.Status.Canceled,
+            enums.Status.Completed,
             enums.Status.Expired
         ]));
         svc.use('delete', campModule.fetchCards);

@@ -325,7 +325,10 @@ describe('ads-placements (UT)', function() {
                 expect(doneSpy).not.toHaveBeenCalled();
                 expect(errorSpy).not.toHaveBeenCalled();
                 expect(collections.containers.count).toHaveBeenCalledWith({ name: 'box', status: { $ne: Status.Deleted } });
-                expect(collections.campaigns.count).toHaveBeenCalledWith({ id: 'cam-1', status: { $nin: [Status.Deleted, Status.Canceled, Status.Expired] } });
+                expect(collections.campaigns.count).toHaveBeenCalledWith({
+                    id: 'cam-1',
+                    status: { $nin: [Status.Deleted, Status.Canceled, Status.Expired, Status.Completed] }
+                });
                 expect(collections.experiences.count).toHaveBeenCalledWith({ id: 'e-1', 'status.0.status': { $ne: Status.Deleted } });
                 expect(collections.cards.count).toHaveBeenCalledWith({ id: 'rc-1', campaignId: 'cam-1', status: { $ne: Status.Deleted } });
                 expect(mockLog.error).not.toHaveBeenCalled();

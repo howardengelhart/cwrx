@@ -1745,6 +1745,7 @@ describe('ads campaigns endpoints (E2E):', function() {
                 { id: 'e2e-pending', status: 'pending', user: 'e2e-user', org: 'o-selfie' },
                 { id: 'e2e-canceled', status: 'canceled', user: 'e2e-user', org: 'o-selfie' },
                 { id: 'e2e-expired', status: 'expired', user: 'e2e-user', org: 'o-selfie' },
+                { id: 'e2e-completed', status: 'completed', user: 'e2e-user', org: 'o-selfie' },
                 { id: 'e2e-deleted', status: 'deleted', user: 'e2e-user', org: 'o-selfie' }
             ];
             
@@ -1881,8 +1882,8 @@ describe('ads campaigns endpoints (E2E):', function() {
                 }).done(done);
             });
             
-            it('should allow a user to delete pending, canceled, or expired campaigns', function(done) {
-                q.all(['e2e-pending', 'e2e-canceled', 'e2e-expired'].map(function(id) {
+            it('should allow a user to delete pending, canceled, expired, or completed campaigns', function(done) {
+                q.all(['e2e-pending', 'e2e-canceled', 'e2e-expired', 'e2e-completed'].map(function(id) {
                     return requestUtils.qRequest('delete', { url: config.adsUrl + '/campaigns/' + id, jar: selfieJar });
                 })).then(function(results) {
                     expect(results[0].response.statusCode).toBe(204);

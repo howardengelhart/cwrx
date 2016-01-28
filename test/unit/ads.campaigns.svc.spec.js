@@ -160,7 +160,7 @@ describe('ads-campaigns (UT)', function() {
         it('should prevent editing + deleting campaigns while in certain statuses', function() {
             expect(svc._middleware.edit).toContain(getBoundFn(campModule.statusCheck, [campModule, [Status.Draft]]));
             expect(svc._middleware.delete).toContain(getBoundFn(campModule.statusCheck,
-                [campModule, [Status.Draft, Status.Pending, Status.Canceled, Status.Expired]]));
+                [campModule, [Status.Draft, Status.Pending, Status.Canceled, Status.Completed, Status.Expired]]));
         });
         
         it('should prevent editing locked campaigns on edit', function() {

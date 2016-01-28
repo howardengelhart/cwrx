@@ -118,7 +118,8 @@ describe('content card endpoints (E2E):', function() {
                 { id: 'rc-draftCamp', campaign: { minViewTime: 3 }, campaignId: 'cam-cards-e2e2', status: 'active', user: 'e2e-user', org: 'e2e-org' },
                 { id: 'rc-canceledCamp', campaign: { minViewTime: 3 }, campaignId: 'cam-cards-e2e3', status: 'active', user: 'e2e-user', org: 'e2e-org' },
                 { id: 'rc-expiredCamp', campaign: { minViewTime: 3 }, campaignId: 'cam-cards-e2e4', status: 'active', user: 'e2e-user', org: 'e2e-org' },
-                { id: 'rc-deletedCamp', campaign: { minViewTime: 3 }, campaignId: 'cam-cards-e2e5', status: 'active', user: 'e2e-user', org: 'e2e-org' },
+                { id: 'rc-completedCamp', campaign: { minViewTime: 3 }, campaignId: 'cam-cards-e2e5', status: 'active', user: 'e2e-user', org: 'e2e-org' },
+                { id: 'rc-deletedCamp', campaign: { minViewTime: 3 }, campaignId: 'cam-cards-e2e6', status: 'active', user: 'e2e-user', org: 'e2e-org' },
             ];
             mockCamps = [
                 {
@@ -138,7 +139,8 @@ describe('content card endpoints (E2E):', function() {
                 { id: 'cam-cards-e2e2', status: 'draft', user: 'e2e-user', org: 'e2e-org' },
                 { id: 'cam-cards-e2e3', status: 'canceled', user: 'e2e-user', org: 'e2e-org' },
                 { id: 'cam-cards-e2e4', status: 'expired', user: 'e2e-user', org: 'e2e-org' },
-                { id: 'cam-cards-e2e5', status: 'deleted', user: 'e2e-user', org: 'e2e-org' }
+                { id: 'cam-cards-e2e5', status: 'completed', user: 'e2e-user', org: 'e2e-org' },
+                { id: 'cam-cards-e2e6', status: 'deleted', user: 'e2e-user', org: 'e2e-org' }
             ];
             
             q.all([
@@ -337,7 +339,7 @@ describe('content card endpoints (E2E):', function() {
             });
             
             it('should not show cards with campaigns that are not running', function(done) {
-                q.all(['rc-canceledCamp', 'rc-expiredCamp', 'rc-deletedCamp'].map(function(id) {
+                q.all(['rc-canceledCamp', 'rc-expiredCamp', 'rc-completedCamp', 'rc-deletedCamp'].map(function(id) {
                     var opts = JSON.parse(JSON.stringify(options));
                     opts.url = opts.url.replace('rc-pubget1', id);
                     return requestUtils.qRequest('get', opts);
@@ -1493,7 +1495,7 @@ describe('content card endpoints (E2E):', function() {
             ];
             
             // add cards + campaigns for other statuses
-            ['pending', 'canceled', 'expired', 'active', 'paused'].forEach(function(status) {
+            ['pending', 'canceled', 'expired', 'completed', 'active', 'paused'].forEach(function(status) {
                 var camp = { id: 'cam-' + status, status: status, user: 'e2e-user', org: 'e2e-org' };
                 var card = { id: 'rc-' + camp.id, status: 'active', campaignId: camp.id, user: 'e2e-user', org: 'e2e-org' };
                 mockCamps.push(camp);
@@ -1545,8 +1547,8 @@ describe('content card endpoints (E2E):', function() {
             }).done(done);
         });
         
-        it('should allow deleting cards whose campaign is canceled, expired, or pending', function(done) {
-            q.all(['canceled', 'expired', 'pending'].map(function(status) {
+        it('should allow deleting cards whose campaign is canceled, expired, completed, or pending', function(done) {
+            q.all(['canceled', 'expired', 'completed', 'pending'].map(function(status) {
                 options.url = config.contentUrl + '/content/cards/rc-cam-' + status;
                 return requestUtils.qRequest('delete', options).then(function(resp) {
                     expect(resp.response.statusCode).toBe(204);
