@@ -557,6 +557,82 @@ describe('player service', function() {
                         });
                     });
 
+                    describe('route: GET /api/public/vast/2.0/tag', function() {
+                        var middlewareify;
+
+                        beforeEach(function() {
+                            middlewareify = _.find(player.middlewareify.calls.all(), function(call) {
+                                return call.args[0] === 'getVAST';
+                            });
+                            expect(middlewareify).toBeDefined();
+                        });
+
+                        it('should exist', function() {
+                            expect(expressApp.get).toHaveBeenCalledWith('/api/public/vast/2.0/tag', expressUtils.cloudwatchMetrics.calls.mostRecent().returnValue, jasmine.any(Function), middlewareify.returnValue);
+                        });
+
+                        describe('the headers middleware', function() {
+                            var setHeaders;
+
+                            beforeEach(function() {
+                                setHeaders = expressRoutes.get['/api/public/vast/2.0/tag'][0][expressRoutes.get['/api/public/vast/2.0/tag'][0].length - 2];
+                                expect(setHeaders).toEqual(jasmine.any(Function));
+                            });
+
+                            describe('when invoked', function() {
+                                var req, res, next;
+
+                                beforeEach(function() {
+                                    req = {
+                                        query: {}
+                                    };
+                                    res = {
+                                        set: jasmine.createSpy('res.set()')
+                                    };
+                                    next = jasmine.createSpy('next()');
+                                });
+
+                                describe('if there is a card id in the query', function() {
+                                    beforeEach(function() {
+                                        req.query.card = 'rc-a5c299a6330c6d';
+
+                                        setHeaders(req, res, next);
+                                    });
+
+                                    it('should set the cache-control to the card freshTTL', function() {
+                                        expect(res.set).toHaveBeenCalledWith('Cache-Control', 'max-age=' + player.config.api.card.cacheTTLs.fresh * 60);
+                                    });
+
+                                    it('should set the Content-Type to "application/xml"', function() {
+                                        expect(res.set).toHaveBeenCalledWith('Content-Type', 'application/xml');
+                                    });
+
+                                    it('should call next()', function() {
+                                        expect(next).toHaveBeenCalled();
+                                    });
+                                });
+
+                                describe('if there is no card id in the query', function() {
+                                    beforeEach(function() {
+                                        setHeaders(req, res, next);
+                                    });
+
+                                    it('should not set the cache-control to the card freshTTL', function() {
+                                        expect(res.set.calls.count()).toBe(1);
+                                    });
+
+                                    it('should set the Content-Type to "application/xml"', function() {
+                                        expect(res.set).toHaveBeenCalledWith('Content-Type', 'application/xml');
+                                    });
+
+                                    it('should call next()', function() {
+                                        expect(next).toHaveBeenCalled();
+                                    });
+                                });
+                            });
+                        });
+                    });
+
                     describe('route: GET /api/public/players/:type', function() {
                         var middlewareify;
 

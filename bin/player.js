@@ -635,6 +635,18 @@ Player.startService = function startService() {
             res.send(200, state.config.appVersion);
         });
 
+        app.get('/api/public/vast/2.0/tag', sendMetrics, function setHeaders(req, res, next) {
+            var maxAge = player.config.api.card.cacheTTLs.fresh * 60;
+
+            res.set('Content-Type', 'application/xml');
+
+            if (req.query.card) {
+                res.set('Cache-Control', 'max-age=' + maxAge);
+            }
+
+            next();
+        }, player.middlewareify('getVAST'));
+
         app.get(
             '/api/public/player',
             parsePlayerQuery, sendMetrics, player.middlewareify('getViaPlacement')
