@@ -7,6 +7,7 @@ var cheerio = require('cheerio');
 var readFileSync = require('fs').readFileSync;
 var q = require('q');
 var readJSONSync = require('fs-extra').readJSONSync;
+var VAST = require('vastacular').VAST;
 
 function find(array, predicate) {
     var length = array.length;
@@ -22,10 +23,16 @@ describe('player service', function() {
     var request;
     var config;
     var systemExperience;
-    var response, body, $;
+    var response, body, vast, $;
 
     function getResponse(/*response*/) {
         response = arguments[0];
+
+        try {
+            vast = VAST.pojoFromXML(response.body.toString());
+        } catch(e) {
+            vast = null;
+        }
 
         try {
             body = JSON.parse(response.body.toString());
@@ -92,6 +99,7 @@ describe('player service', function() {
     afterEach(function() {
         response = undefined;
         body = undefined;
+        vast = undefined;
         $ = undefined;
     });
 
@@ -1202,6 +1210,367 @@ describe('player service', function() {
                         type: 'mobile'
                     }));
                 });
+            });
+        });
+    });
+
+    describe('[GET] /api/public/vast/2.0/tag', function() {
+        var placement, campaign, cards;
+
+        beforeEach(function(done) {
+            placement = require('./helpers/player/placement.json');
+            campaign = require('./helpers/player/campaign_with_static_map.json');
+            cards = require('./helpers/player/cards.json').filter(function(card) {
+                return card.campaignId === campaign.id;
+            });
+
+            config.playerUrl.pathname = '/api/public/vast/2.0/tag';
+            config.playerUrl.query.playUrls = ['http://www.tracker.com/play', 'http://www.track.er/player'].join(',');
+            config.playerUrl.query.uuid = 'fio43ur894';
+
+            q.all([
+                resetCollection('placements', [placement]),
+                resetCollection('campaigns', [campaign]),
+                resetCollection('cards', cards)
+            ]).then(done, done.fail);
+        });
+
+        describe('with a placement', function() {
+            var card;
+
+            beforeEach(function(done) {
+                card = cards.filter(function(card) {
+                    return card.id === placement.tagParams.card;
+                })[0];
+
+                config.playerUrl.query.placement = placement.id;
+
+                request.get(getURL()).then(getResponse).then(done, done.fail);
+            });
+
+            it('should respond with VAST for the card', function() {
+                expect(vast).toEqual({
+                    version: '2.0',
+                    ads: [
+                        {
+                            id: card.id,
+                            system: {
+                                name: 'Reelcontent Player Service',
+                                version: jasmine.any(String)
+                            },
+                            errors: [],
+                            impressions: [
+                                {
+                                    uri: '//s3.amazonaws.com/c6.dev/e2e/1x1-pixel.gif?' + querystring.stringify({
+                                        campaign: campaign.id,
+                                        card: card.id,
+                                        experience: undefined,
+                                        container: 'reactx',
+                                        placement: placement.id,
+                                        host: 'imasdk.googleapis.com',
+                                        hostApp: undefined,
+                                        network: undefined,
+                                        sessionId: undefined,
+                                        extSessionId: config.playerUrl.query.uuid,
+                                        branding: undefined,
+                                        ex: undefined,
+                                        vr: undefined,
+                                        event: 'impression'
+                                    }) + '&d={delay}&cb={cachebreaker}'
+                                }
+                            ],
+                            creatives: [
+                                {
+                                    id: card.id,
+                                    type: 'linear',
+                                    duration: 77,
+                                    trackingEvents: [],
+                                    parameters: querystring.stringify({
+                                        apiRoot: 'http://localhost/',
+                                        container: 'reactx',
+                                        campaign: campaign.id,
+                                        card: 'rc-2b278986abacf8',
+                                        type: 'light',
+                                        debug: 1,
+                                        playUrls: config.playerUrl.query.playUrls,
+                                        uuid: config.playerUrl.query.uuid,
+                                        placement: config.playerUrl.query.placement
+                                    }),
+                                    mediaFiles: [
+                                        {
+                                            id: card.id + '--swf',
+                                            delivery: 'progressive',
+                                            type: 'application/x-shockwave-flash',
+                                            uri: 'https://s3.amazonaws.com/c6.dev/ext/c6embed/v1/vpaid.swf?' + querystring.stringify({
+                                                js: 'https://s3.amazonaws.com/c6.dev/ext/c6embed/v1/vpaid.min.js',
+                                                apiRoot: 'http://localhost/',
+                                                container: 'reactx',
+                                                campaign: campaign.id,
+                                                card: card.id,
+                                                type: 'light',
+                                                debug: 1,
+                                                playUrls: config.playerUrl.query.playUrls,
+                                                uuid: config.playerUrl.query.uuid,
+                                                placement: config.playerUrl.query.placement
+                                            }),
+                                            width: 640,
+                                            height: 480,
+                                            scalable: true,
+                                            maintainAspectRatio: true,
+                                            apiFramework: 'VPAID'
+                                        },
+                                        {
+                                            id: card.id + '--js',
+                                            delivery: 'progressive',
+                                            type: 'application/javascript',
+                                            uri: 'https://s3.amazonaws.com/c6.dev/ext/c6embed/v1/vpaid.min.js',
+                                            width: 640,
+                                            height: 480,
+                                            scalable: true,
+                                            maintainAspectRatio: true,
+                                            apiFramework: 'VPAID'
+                                        }
+                                    ]
+                                }
+                            ],
+                            type: 'inline',
+                            title: card.title,
+                            description: card.note
+                        }
+                    ]
+                });
+            });
+
+            it('should set the cache control to max-age=0', function() {
+                expect(response.headers['cache-control']).toBe('max-age=0');
+            });
+        });
+
+        describe('with a campaign', function() {
+            beforeEach(function(done) {
+                config.playerUrl.query.campaign = campaign.id;
+
+                request.get(getURL()).then(getResponse).then(done, done.fail);
+            });
+
+            it('should respond with VAST for the card', function() {
+                expect(vast).toEqual({
+                    version: '2.0',
+                    ads: [
+                        {
+                            id: jasmine.stringMatching(/^rc-/),
+                            system: {
+                                name: 'Reelcontent Player Service',
+                                version: jasmine.any(String)
+                            },
+                            errors: [],
+                            impressions: [
+                                {
+                                    uri: jasmine.any(String)
+                                }
+                            ],
+                            creatives: [
+                                {
+                                    id: jasmine.stringMatching(/^rc-/),
+                                    type: 'linear',
+                                    duration: jasmine.any(Number),
+                                    trackingEvents: [],
+                                    parameters: jasmine.any(String),
+                                    mediaFiles: [
+                                        {
+                                            id: jasmine.stringMatching(/--swf$/),
+                                            delivery: 'progressive',
+                                            type: 'application/x-shockwave-flash',
+                                            uri: jasmine.any(String),
+                                            width: 640,
+                                            height: 480,
+                                            scalable: true,
+                                            maintainAspectRatio: true,
+                                            apiFramework: 'VPAID'
+                                        },
+                                        {
+                                            id: jasmine.stringMatching(/--js$/),
+                                            delivery: 'progressive',
+                                            type: 'application/javascript',
+                                            uri: 'https://s3.amazonaws.com/c6.dev/ext/c6embed/v1/vpaid.min.js',
+                                            width: 640,
+                                            height: 480,
+                                            scalable: true,
+                                            maintainAspectRatio: true,
+                                            apiFramework: 'VPAID'
+                                        }
+                                    ]
+                                }
+                            ],
+                            type: 'inline',
+                            title: jasmine.any(String),
+                            description: jasmine.any(String)
+                        }
+                    ]
+                });
+            });
+
+            it('should return VAST for one of the sponsored cards', function() {
+                var cardIds = campaign.cards.map(function(card) { return card.id; });
+
+                expect(cardIds).toContain(vast.ads[0].id);
+                expect(cardIds).toContain(vast.ads[0].creatives[0].id);
+                expect(cardIds).toContain(querystring.parse(vast.ads[0].creatives[0].parameters).card);
+                expect(cardIds).toContain(parseURL(vast.ads[0].creatives[0].mediaFiles[0].uri, true).query.card);
+            });
+
+            it('should set the ad parameters', function() {
+                expect(querystring.parse(vast.ads[0].creatives[0].parameters)).toEqual({
+                    apiRoot: 'http://localhost/',
+                    playUrls: config.playerUrl.query.playUrls,
+                    uuid: config.playerUrl.query.uuid,
+                    campaign: config.playerUrl.query.campaign,
+                    card: jasmine.any(String)
+                });
+
+                expect(parseURL(vast.ads[0].creatives[0].mediaFiles[0].uri, true).query).toEqual({
+                    js: 'https://s3.amazonaws.com/c6.dev/ext/c6embed/v1/vpaid.min.js',
+                    apiRoot: 'http://localhost/',
+                    playUrls: config.playerUrl.query.playUrls,
+                    uuid: config.playerUrl.query.uuid,
+                    campaign: config.playerUrl.query.campaign,
+                    card: jasmine.any(String)
+                });
+            });
+
+            it('should set the cache control to max-age=0', function() {
+                expect(response.headers['cache-control']).toBe('max-age=0');
+            });
+        });
+
+        describe('with a card', function() {
+            var card;
+
+            beforeEach(function(done) {
+                card = cards[0];
+
+                config.playerUrl.query.card = card.id;
+                config.playerUrl.query.campaign = card.campaignId;
+
+                request.get(getURL()).then(getResponse).then(done, done.fail);
+            });
+
+            it('should respond with VAST for the card', function() {
+                expect(vast).toEqual({
+                    version: '2.0',
+                    ads: [
+                        {
+                            id: card.id,
+                            system: {
+                                name: 'Reelcontent Player Service',
+                                version: jasmine.any(String)
+                            },
+                            errors: [],
+                            impressions: [
+                                {
+                                    uri: '//s3.amazonaws.com/c6.dev/e2e/1x1-pixel.gif?' + querystring.stringify({
+                                        campaign: campaign.id,
+                                        card: card.id,
+                                        experience: undefined,
+                                        container: undefined,
+                                        placement: undefined,
+                                        host: 'imasdk.googleapis.com',
+                                        hostApp: undefined,
+                                        network: undefined,
+                                        sessionId: undefined,
+                                        extSessionId: config.playerUrl.query.uuid,
+                                        branding: undefined,
+                                        ex: undefined,
+                                        vr: undefined,
+                                        event: 'impression'
+                                    }) + '&d={delay}&cb={cachebreaker}'
+                                }
+                            ],
+                            creatives: [
+                                {
+                                    id: card.id,
+                                    type: 'linear',
+                                    duration: card.data.duration,
+                                    trackingEvents: [],
+                                    parameters: querystring.stringify({
+                                        apiRoot: 'http://localhost/',
+                                        playUrls: config.playerUrl.query.playUrls,
+                                        uuid: config.playerUrl.query.uuid,
+                                        card: card.id,
+                                        campaign: campaign.id
+                                    }),
+                                    mediaFiles: [
+                                        {
+                                            id: card.id + '--swf',
+                                            delivery: 'progressive',
+                                            type: 'application/x-shockwave-flash',
+                                            uri: 'https://s3.amazonaws.com/c6.dev/ext/c6embed/v1/vpaid.swf?' + querystring.stringify({
+                                                js: 'https://s3.amazonaws.com/c6.dev/ext/c6embed/v1/vpaid.min.js',
+                                                apiRoot: 'http://localhost/',
+                                                playUrls: config.playerUrl.query.playUrls,
+                                                uuid: config.playerUrl.query.uuid,
+                                                card: card.id,
+                                                campaign: campaign.id
+                                            }),
+                                            width: 640,
+                                            height: 480,
+                                            scalable: true,
+                                            maintainAspectRatio: true,
+                                            apiFramework: 'VPAID'
+                                        },
+                                        {
+                                            id: card.id + '--js',
+                                            delivery: 'progressive',
+                                            type: 'application/javascript',
+                                            uri: 'https://s3.amazonaws.com/c6.dev/ext/c6embed/v1/vpaid.min.js',
+                                            width: 640,
+                                            height: 480,
+                                            scalable: true,
+                                            maintainAspectRatio: true,
+                                            apiFramework: 'VPAID'
+                                        }
+                                    ]
+                                }
+                            ],
+                            type: 'inline',
+                            title: card.title,
+                            description: card.note
+                        }
+                    ]
+                });
+            });
+
+            it('should set the cache control to max-age=60', function() {
+                expect(response.headers['cache-control']).toBe('max-age=60');
+            });
+
+            describe('without a duration', function() {
+                beforeEach(function(done) {
+                    card.id = 'rc-1610d18e79dbca';
+                    card.data.duration = -1;
+
+                    config.playerUrl.query.card = card.id;
+
+                    resetCollection('cards', [card]).then(function() {
+                        return request.get(getURL()).then(getResponse);
+                    }).then(done, done.fail);
+                });
+
+                it('should [409]', function() {
+                    expect(response.statusCode).toBe(409);
+                    expect(body).toBe('The duration of card {rc-1610d18e79dbca} is unknown.');
+                });
+            });
+        });
+
+        describe('without a campaign, card or placement', function() {
+            beforeEach(function(done) {
+                request.get(getURL()).then(getResponse).then(done, done.fail);
+            });
+
+            it('should [400]', function() {
+                expect(response.statusCode).toBe(400);
+                expect(body).toBe('You must specify a placement, card or campaign.');
             });
         });
     });
