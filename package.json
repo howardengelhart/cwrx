@@ -42,7 +42,8 @@
     "replacestream": "^4.0.0",
     "request": "~2.27.0",
     "request-promise": "~0.4.2",
-    "spidey.js": "git+ssh://git@github.com:cinema6/spidey.js#v0.2.0"
+    "spidey.js": "git+ssh://git@github.com:cinema6/spidey.js#v0.2.0",
+    "vastacular": "^0.1.0"
   },
   "devDependencies": {
     "bluebird": "^2.10.0",

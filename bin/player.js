@@ -33,6 +33,8 @@ var replaceStream = require('replacestream');
 var concatStream = require('concat-stream');
 var dirname = require('path').dirname;
 var _ = require('lodash');
+var VAST = require('vastacular').VAST;
+var querystring = require('querystring');
 
 var CONTEXTS = {
     STANDALONE: 'standalone',
@@ -93,6 +95,11 @@ function Player(config) {
         maxTTL: config.api.placement.cacheTTLs.max,
         extractor: clonePromise
     });
+    var vastCache = new FunctionCache({
+        freshTTL: Infinity,
+        maxTTL: Infinity,
+        gcInterval: Infinity
+    });
 
     this.config = extend({
         app: {
@@ -126,6 +133,8 @@ function Player(config) {
     this.__getBranding__ = brandingCache.add(this.__getBranding__.bind(this), -1);
     // Memoize Player.prototype.__getPlacement__() method.
     this.__getPlacement__ = placementCache.add(this.__getPlacement__.bind(this), -1);
+    // Memoize Player.prototype.__createVAST__() method.
+    this.__createVAST__ = vastCache.add(this.__createVAST__.bind(this), -1);
 
     //Cache the initial player version.
     this.getVersion();
@@ -418,6 +427,73 @@ Player.prototype.__getPlayer__ = function __getPlayer__(profile, conditional, uu
     });
 };
 
+Player.prototype.__createVAST__ = function __createVAST__(card, params, origin, uuid) {
+    var log = logger.getLog();
+    var jsURL = this.config.vast.js;
+    var swfURL = this.config.vast.swf;
+    var adParams = extend({ apiRoot: this.config.api.root }, params);
+    var swfParams = extend({ js: jsURL }, adParams);
+
+    if (card.data.duration < 0) {
+        throw new ServiceError('The duration of card {' + card.id + '} is unknown.', 409);
+    }
+
+    log.trace('[%1] Creating VAST for card {%2} with params: %3.', uuid, card.id, inspect(params));
+
+    return new VAST({
+        version: '2.0',
+        ads: [
+            {
+                id: card.id,
+                type: 'inline',
+                system: {
+                    name: 'Reelcontent Player Service',
+                    version: this.config.appVersion
+                },
+                title: card.title,
+                description: card.note,
+                impressions: [{
+                    uri: this.adLoader.pixelFactory(card, extend({
+                        origin: origin
+                    }, params))('impression')
+                }],
+                creatives: [
+                    {
+                        id: card.id,
+                        type: 'linear',
+                        duration: card.data.duration,
+                        parameters: querystring.stringify(adParams),
+                        mediaFiles: [
+                            {
+                                type: 'swf',
+                                uri: swfURL + '?' + querystring.stringify(swfParams),
+                                mime: 'application/x-shockwave-flash'
+                            },
+                            {
+                                type: 'js',
+                                uri: jsURL,
+                                mime: 'application/javascript'
+                            }
+                        ].map(function(config) {
+                            return {
+                                id: card.id + '--' + config.type,
+                                delivery: 'progressive',
+                                type: config.mime,
+                                uri: config.uri,
+                                width: 640,
+                                height: 480,
+                                scalable: true,
+                                maintainAspectRatio: true,
+                                apiFramework: 'VPAID'
+                            };
+                        })
+                    }
+                ]
+            }
+        ]
+    }).toXML();
+};
+
 /***************************************************************************************************
  * @public methods * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  **************************************************************************************************/
@@ -475,6 +551,10 @@ Player.startService = function startService() {
             },
             tracking: {
                 pixel: '//s3.amazonaws.com/c6.dev/e2e/1x1-pixel.gif'
+            },
+            vast: {
+                js: 'https://s3.amazonaws.com/c6.dev/ext/c6embed/v1/vpaid.min.js',
+                swf: 'https://s3.amazonaws.com/c6.dev/ext/c6embed/v1/vpaid.swf'
             },
             app: {
                 version: 'master'

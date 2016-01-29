@@ -24,6 +24,7 @@ describe('player service', function() {
     var AppBuilder;
     var streamToPromise;
     var _;
+    var VAST;
 
     var requestDeferreds;
     var fnCaches;
@@ -64,6 +65,7 @@ describe('player service', function() {
         MockReadable = require('./helpers/MockReadable');
         streamToPromise = require('stream-to-promise');
         _ = require('lodash');
+        VAST = require('vastacular').VAST;
 
         playerHTML = require('fs').readFileSync(require.resolve('./helpers/player.html')).toString();
         builtPlayerHTML = require('fs').readFileSync(require.resolve('./helpers/player--built.html')).toString();
@@ -309,6 +311,10 @@ describe('player service', function() {
                                 },
                                 tracking: {
                                     pixel: '//s3.amazonaws.com/c6.dev/e2e/1x1-pixel.gif'
+                                },
+                                vast: {
+                                    js: 'https://s3.amazonaws.com/c6.dev/ext/c6embed/v1/vpaid.min.js',
+                                    swf: 'https://s3.amazonaws.com/c6.dev/ext/c6embed/v1/vpaid.swf'
                                 },
                                 app: {
                                     version: 'master'
@@ -736,6 +742,7 @@ describe('player service', function() {
 
         beforeEach(function() {
             config = {
+                appVersion: '2.0.0',
                 api: {
                     root: 'http://localhost/',
                     branding: {
@@ -780,6 +787,10 @@ describe('player service', function() {
                 },
                 tracking: {
                     pixel: '//s3.amazonaws.com/c6.dev/e2e/1x1-pixel.gif'
+                },
+                vast: {
+                    js: 'https://s3.amazonaws.com/c6.dev/ext/c6embed/v1/vpaid.min.js',
+                    swf: 'https://s3.amazonaws.com/c6.dev/ext/c6embed/v1/vpaid.swf'
                 },
                 app: {
                     version: 'v2.4.1',
@@ -883,8 +894,16 @@ describe('player service', function() {
             });
         });
 
-        it('should create 5 FunctionCaches', function() {
-            expect(MockFunctionCache.calls.count()).toBe(5);
+        it('should create a FunctionCache for the VAST', function() {
+            expect(MockFunctionCache).toHaveBeenCalledWith({
+                freshTTL: Infinity,
+                maxTTL: Infinity,
+                gcInterval: Infinity
+            });
+        });
+
+        it('should create 6 FunctionCaches', function() {
+            expect(MockFunctionCache.calls.count()).toBe(6);
         });
 
         describe('@public', function() {
@@ -3444,6 +3463,118 @@ describe('player service', function() {
                                 expect(error.status).toBe(404);
                                 expect(error.toString()).toBe('[404] Unknown player type: ' + type);
                             });
+                        });
+                    });
+                });
+
+                describe('__createVAST__(card, params, origin, uuid)', function() {
+                    var card, params, origin, uuid;
+                    var result;
+
+                    beforeEach(function() {
+                        card = {
+                            id: 'rc-9c7601a608a42d',
+                            title: 'This is My Awesome Card!',
+                            note: 'Let me tell you a little something about this card.',
+                            campaignId: 'cam-bba22919ac1d98',
+                            data: {
+                                duration: 176
+                            }
+                        };
+                        params = {
+                            card: card.id,
+                            campaign: card.campaignId,
+                            debug: 1,
+                            container: 'adaptv'
+                        };
+                        origin = 'https://imasdk.googleapis.com';
+                        uuid = 'fiu3hf489';
+
+                        result = player.__createVAST__(card, params, origin, uuid);
+                    });
+
+                    it('should be cached', function() {
+                        expect(fnCaches[5].add.calls.all().map(function(call) { return call.returnValue; })).toContain(player.__createVAST__);
+                        fnCaches[5].add.calls.all().forEach(function(call) {
+                            if (call.returnValue === player.__createVAST__) {
+                                expect(call.args).toEqual([jasmine.any(Function), -1]);
+                            }
+                        });
+                    });
+
+                    it('should return some VAST representing the card', function() {
+                        expect(result).toBe(new VAST({
+                            version: '2.0',
+                            ads: [
+                                {
+                                    id: card.id,
+                                    type: 'inline',
+                                    system: {
+                                        name: 'Reelcontent Player Service',
+                                        version: player.config.appVersion
+                                    },
+                                    title: card.title,
+                                    description: card.note,
+                                    impressions: [
+                                        {
+                                            uri: player.adLoader.pixelFactory(card, extend({ origin: origin }, params))('impression')
+                                        }
+                                    ],
+                                    creatives: [
+                                        {
+                                            id: card.id,
+                                            type: 'linear',
+                                            duration: card.data.duration,
+                                            parameters: require('querystring').stringify(extend({ apiRoot: player.config.api.root }, params)),
+                                            mediaFiles: [
+                                                {
+                                                    id: card.id + '--swf',
+                                                    delivery: 'progressive',
+                                                    type: 'application/x-shockwave-flash',
+                                                    uri: player.config.vast.swf + '?' + require('querystring').stringify(extend({ js: player.config.vast.js, apiRoot: player.config.api.root }, params)),
+                                                    width: 640,
+                                                    height: 480,
+                                                    scalable: true,
+                                                    maintainAspectRatio: true,
+                                                    apiFramework: 'VPAID'
+                                                },
+                                                {
+                                                    id: card.id + '--js',
+                                                    delivery: 'progressive',
+                                                    type: 'application/javascript',
+                                                    uri: player.config.vast.js,
+                                                    width: 640,
+                                                    height: 480,
+                                                    scalable: true,
+                                                    maintainAspectRatio: true,
+                                                    apiFramework: 'VPAID'
+                                                }
+                                            ]
+                                        }
+                                    ]
+                                }
+                            ]
+                        }).toXML());
+                    });
+
+                    describe('if the card\'s duration is unknown', function() {
+                        var error;
+
+                        beforeEach(function() {
+                            card.data.duration = -1;
+
+                            try {
+                                result = player.__createVAST__(card, params, origin, uuid);
+                            } catch(e) {
+                                error = e;
+                            }
+                        });
+
+                        it('should throw an error', function() {
+                            expect(error).toEqual(jasmine.any(Error));
+                            expect(error.constructor.name).toBe('ServiceError');
+                            expect(error.message).toBe('The duration of card {' + card.id + '} is unknown.');
+                            expect(error.status).toBe(409);
                         });
                     });
                 });
