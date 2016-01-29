@@ -7,13 +7,13 @@
         express         = require('express'),
         campaignUtils   = require('../lib/campaignUtils'),
         requestUtils    = require('../lib/requestUtils'),
+        Status          = require('../lib/enums').Status,
         signatures      = require('../lib/signatures'),
         mongoUtils      = require('../lib/mongoUtils'),
         authUtils       = require('../lib/authUtils'),
         objUtils        = require('../lib/objUtils'),
         CrudSvc         = require('../lib/crudSvc'),
         logger          = require('../lib/logger'),
-        enums           = require('../lib/enums'),
         
         campModule = { config: {} };
         
@@ -21,9 +21,9 @@
         status: {
             __allowed: false,
             __type: 'string',
-            __default: enums.Status.Draft,
-            __acceptableValues: Object.keys(enums.Status).map(function(key) {
-                return enums.Status[key];
+            __default: Status.Draft,
+            __acceptableValues: Object.keys(Status).map(function(key) {
+                return Status[key];
             })
         },
         application: {
@@ -64,8 +64,7 @@
                 __allowed: true,
                 __type: 'number',
                 __percentMin: 0.015,    // used internally, not in model.validate()
-                __percentMax: 1,        // used internally, not in model.validate()
-                __percentDefault: 1.00  // used internally, not in model.validate()
+                __percentMax: 1        // used internally, not in model.validate()
             },
             model: {
                 __allowed: false,
@@ -158,24 +157,27 @@
         svc.use('create', campModule.fetchCards);
         svc.use('create', extraValidation);
         svc.use('create', campModule.defaultReportingId);
+        svc.use('create', campModule.setCardDates);
         svc.use('create', campModule.updateCards);
         svc.use('create', campModule.handlePricingHistory);
 
-        svc.use('edit', campModule.statusCheck.bind(campModule, [enums.Status.Draft]));
+        svc.use('edit', campModule.statusCheck.bind(campModule, [Status.Draft]));
         svc.use('edit', campModule.enforceLock);
         svc.use('edit', campModule.fetchCards);
         svc.use('edit', extraValidation);
         svc.use('edit', campModule.defaultReportingId);
         svc.use('edit', campModule.cleanCards);
         svc.use('edit', campModule.cleanMiniReels);
+        svc.use('edit', campModule.setCardDates);
         svc.use('edit', campModule.updateCards);
         svc.use('edit', campModule.handlePricingHistory);
 
         svc.use('delete', campModule.statusCheck.bind(campModule, [
-            enums.Status.Draft,
-            enums.Status.Pending,
-            enums.Status.Canceled,
-            enums.Status.Expired
+            Status.Draft,
+            Status.Pending,
+            Status.Canceled,
+            Status.Completed,
+            Status.Expired
         ]));
         svc.use('delete', campModule.fetchCards);
         svc.use('delete', campModule.deleteContent);
@@ -529,6 +531,53 @@
         });
     };
     
+    // Set startDate on cards if campaign is starting, or endDate if campaign is ending
+    campModule.setCardDates = function(req, next/*, done*/) {
+        var log = logger.getLog(),
+            now = new Date(),
+            id = req.body.id || (req.origObj && req.origObj.id),
+            origStatus = req.origObj && req.origObj.status || null,
+            origCards = req.origObj && req.origObj.cards || null,
+            finished = [Status.Expired, Status.Canceled, Status.Completed];
+        
+        var isStarting = (req.body.status === Status.Active) &&
+                         (!origStatus || origStatus === Status.Pending);
+
+        var isEnding = (finished.indexOf(req.body.status) !== -1) &&
+                       (origStatus && finished.indexOf(origStatus) === -1);
+        
+        if (!isStarting && !isEnding) {
+            return next();
+        }
+        
+        log.info('[%1] Campaign %2 is %3', req.uuid, id, isStarting ? 'starting' : 'ending');
+
+        if (!req.body.cards) {
+            if (!origCards) { // If no cards now or previously, nothing to do
+                return next();
+            }
+            
+            // Otherwise, need to copy over original cards array so we can update them
+            req.body.cards = origCards;
+            req._cards = req._origCards;
+        }
+        
+        req.body.cards.forEach(function(cardEntry) {
+            if (!cardEntry.campaign) {
+                cardEntry.campaign = req._cards[cardEntry.id].campaign || {};
+            }
+            
+            if (isStarting && !cardEntry.campaign.startDate) {
+                cardEntry.campaign.startDate = now.toISOString();
+            }
+            if (isEnding && !cardEntry.campaign.endDate) {
+                cardEntry.campaign.endDate = now.toISOString();
+            }
+        });
+        
+        return next();
+    };
+    
     /* For each entry in req.body.cards, create/edit the card through the content service.
      * Saves updated card to req._cards, and replaces entry in array with { id: 'rc-...' } */
     campModule.updateCards = function(req, next, done) {
@@ -618,7 +667,7 @@
                 date    : new Date()
             };
             
-            if (status === enums.Status.Draft) {
+            if (status === Status.Draft) {
                 req.body.pricingHistory[0] = wrapper;
             } else {
                 req.body.pricingHistory.unshift(wrapper);
@@ -696,6 +745,9 @@
             }
             if ('pendingUpdate' in req.query) {
                 query.updateRequest = { $exists: req.query.pendingUpdate === 'true' };
+            }
+            if ('hasRejection' in req.query) {
+                query.rejectionReason = { $exists: req.query.hasRejection === 'true' };
             }
 
             var promise = svc.getObjs(query, req, true).then(function(resp) {

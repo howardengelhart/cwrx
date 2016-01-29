@@ -78,6 +78,7 @@ describe('ads placements endpoints (E2E):', function() {
             { id: 'cam-paused', status: 'paused', cards: [{ id: 'rc-paused' }], user: 'e2e-user', org: 'e2e-org' },
             { id: 'cam-deleted', status: 'deleted', cards: [{ id: 'rc-deleted' }], user: 'e2e-user', org: 'e2e-org' },
             { id: 'cam-canceled', status: 'canceled', cards: [], user: 'e2e-user', org: 'e2e-org' },
+            { id: 'cam-completed', status: 'completed', cards: [], user: 'e2e-user', org: 'e2e-org' },
             { id: 'cam-expired', status: 'expired', cards: [], user: 'e2e-user', org: 'e2e-org' },
         ];
 
@@ -641,9 +642,10 @@ describe('ads placements endpoints (E2E):', function() {
                 }).done(done);
             });
             
-            it('should return a 400 if the campaign is canceled or expired', function(done) {
+            it('should return a 400 if the campaign is canceled, completed, or expired', function(done) {
                 q.all([
                     ['campaign', 'cam-expired'],
+                    ['campaign', 'cam-completed'],
                     ['campaign', 'cam-canceled'],
                 ].map(function(arr) {
                     var newOpts = JSON.parse(JSON.stringify(options));

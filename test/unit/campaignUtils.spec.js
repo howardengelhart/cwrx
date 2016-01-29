@@ -277,18 +277,6 @@ describe('campaignUtils', function() {
             expect(campaignUtils.computeCost).toHaveBeenCalledWith(body, origObj, actingSchema);
         });
 
-        it('should be able to set a default dailyLimit', function() {
-            delete body.pricing.dailyLimit;
-            var resp = campaignUtils.validatePricing(body, origObj, requester, model);
-            expect(resp).toEqual({ isValid: true });
-            expect(body.pricing).toEqual({
-                budget: 1000,
-                dailyLimit: 1000,
-                model: 'cpv',
-                cost: 0.05
-            });
-        });
-        
         it('should copy missing props from the original object', function() {
             delete body.pricing.dailyLimit;
             delete body.pricing.model;
@@ -345,7 +333,6 @@ describe('campaignUtils', function() {
                 requester.fieldValidation.campaigns = {
                     pricing: {
                         dailyLimit: {
-                            __percentDefault: 0.75,
                             __percentMin: 0.5,
                             __percentMax: 0.8
                         }
@@ -360,18 +347,6 @@ describe('campaignUtils', function() {
 
                     var resp = campaignUtils.validatePricing(bodyCopy, origObj, requester, model);
                     expect(resp).toEqual({ isValid: false, reason: 'dailyLimit must be between 0.5 and 0.8 of budget 1000' });
-                });
-            });
-            
-            it('should use the custom default if no dailyLimit is set', function() {
-                delete body.pricing.dailyLimit;
-                var resp = campaignUtils.validatePricing(body, origObj, requester, model);
-                expect(resp).toEqual({ isValid: true });
-                expect(body.pricing).toEqual({
-                    budget: 1000,
-                    dailyLimit: 750,
-                    model: 'cpv',
-                    cost: 0.05
                 });
             });
         });

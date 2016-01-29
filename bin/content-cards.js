@@ -109,6 +109,7 @@
             Status.Draft,
             Status.Pending,
             Status.Canceled,
+            Status.Completed,
             Status.Expired
         ]));
         
@@ -378,7 +379,8 @@
                 }
 
                 // don't show card if campaign is canceled, expired, or deleted
-                if ([Status.Canceled, Status.Expired, Status.Deleted].indexOf(camp.status) !== -1) {
+                var statuses = [Status.Canceled, Status.Expired, Status.Deleted, Status.Completed];
+                if (statuses.indexOf(camp.status) !== -1) {
                     log.info('[%1] Campaign %2 is %3, not showing card',
                              req.uuid, camp.id, camp.status);
                     return q();
@@ -463,7 +465,8 @@
                 log.info('[%1] Campaign %2 not found', req.uuid, campId);
                 return q({ code: 404, body: 'Campaign not found' });
             }
-            if ([Status.Canceled, Status.Expired, Status.Deleted].indexOf(camp.status) !== -1) {
+            var statuses = [Status.Canceled, Status.Expired, Status.Deleted, Status.Completed];
+            if (statuses.indexOf(camp.status) !== -1) {
                 log.info('[%1] Campaign %2 is %3, not getting cards',req.uuid, campId, camp.status);
                 return q({ code: 400, body: 'Campaign not running' });
             }

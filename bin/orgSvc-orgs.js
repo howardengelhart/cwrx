@@ -136,7 +136,7 @@
         var log = logger.getLog(),
             query = {
                 org: req.params.id,
-                status: { $nin: [Status.Deleted, Status.Expired, Status.Canceled] }
+                status: { $nin: [Status.Deleted, Status.Expired, Status.Canceled, Status.Completed]}
             };
             
         return q(orgSvc._db.collection('campaigns').count(query))

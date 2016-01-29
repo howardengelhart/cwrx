@@ -16,6 +16,7 @@ describe('enums', function() {
         expect(enums.Status.Paused).toBe('paused');
         expect(enums.Status.Inactive).toBe('inactive');
         expect(enums.Status.Expired).toBe('expired');
+        expect(enums.Status.Completed).toBe('completed');
         expect(enums.Status.Canceled).toBe('canceled');
         expect(enums.Status.Deleted).toBe('deleted');
         expect(enums.Status.Error).toBe('error');

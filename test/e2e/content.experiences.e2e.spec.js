@@ -316,7 +316,8 @@ describe('content experience endpoints (E2E):', function() {
                     { id: 'rc-sp4', campaign: { minViewTime: 4 }, campaignId: 'cam-pubexp2', status: 'active', foo: 'buz' },
                     { id: 'rc-sp5', campaign: { minViewTime: 5 }, campaignId: 'cam-canceled', status: 'active', foo: 'buz' },
                     { id: 'rc-sp6', campaign: { minViewTime: 6 }, campaignId: 'cam-expired', status: 'active', foo: 'buz' },
-                    { id: 'rc-sp7', campaign: { minViewTime: 7 }, campaignId: 'cam-deleted', status: 'active', foo: 'buz' },
+                    { id: 'rc-sp7', campaign: { minViewTime: 6 }, campaignId: 'cam-completed', status: 'active', foo: 'buz' },
+                    { id: 'rc-sp8', campaign: { minViewTime: 7 }, campaignId: 'cam-deleted', status: 'active', foo: 'buz' },
                 ];
                 mockCampaigns = [
                     {
@@ -336,7 +337,8 @@ describe('content experience endpoints (E2E):', function() {
                     { id: 'cam-pubexp2', status: 'active', cards: [{ id: 'rc-sp4' }], staticCardMap: { 'e-getcamps2': { 'rc-p1': 'rc-sp1' } } },
                     { id: 'cam-canceled', status: 'canceled', cards: [{ id: 'rc-sp5' }], staticCardMap: { 'e-getcamps1': { 'rc-p1': 'rc-sp5' } } },
                     { id: 'cam-expired', status: 'expired', cards: [{ id: 'rc-sp6' }], staticCardMap: { 'e-getcamps1': { 'rc-p1': 'rc-sp6' } } },
-                    { id: 'cam-deleted', status: 'deleted', cards: [{ id: 'rc-sp7' }], staticCardMap: { 'e-getcamps1': { 'rc-p1': 'rc-sp7' } } },
+                    { id: 'cam-completed', status: 'completed', cards: [{ id: 'rc-sp7' }], staticCardMap: { 'e-getcamps1': { 'rc-p1': 'rc-sp7' } } },
+                    { id: 'cam-deleted', status: 'deleted', cards: [{ id: 'rc-sp8' }], staticCardMap: { 'e-getcamps1': { 'rc-p1': 'rc-sp8' } } },
                 ];
                 q.all([testUtils.resetCollection('experiences', mockExps),
                        testUtils.resetCollection('cards', mockCards),
@@ -411,7 +413,7 @@ describe('content experience endpoints (E2E):', function() {
             });
             
             it('should not alter the deck if the campaign is not running', function(done) {
-                q.all(['cam-canceled', 'cam-expired', 'cam-deleted'].map(function(campId) {
+                q.all(['cam-canceled', 'cam-expired', 'cam-completed', 'cam-deleted'].map(function(campId) {
                     options.qs.campaign = campId;
                     return requestUtils.qRequest('get', options);
                 })).then(function(results) {

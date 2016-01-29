@@ -584,7 +584,7 @@ describe('content (UT)', function() {
         });
         
         it('should return nothing if the campaign is not running', function(done) {
-            q.all([Status.Canceled, Status.Expired, Status.Deleted].map(function(status) {
+            q.all([Status.Canceled, Status.Expired, Status.Completed, Status.Deleted].map(function(status) {
                 mockCamp.status = status;
                 return expModule.handleCampaign(cardSvc, campCache, 'cam-1', exp, req).then(function(resp) {
                     expect(resp).toBe(exp);
@@ -592,7 +592,7 @@ describe('content (UT)', function() {
             })).then(function(results) {
                 expect(mockLog.warn).not.toHaveBeenCalled();
                 expect(expModule.swapCard).not.toHaveBeenCalled();
-                expect(campCache.getPromise.calls.count()).toBe(3);
+                expect(campCache.getPromise.calls.count()).toBe(4);
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
             }).done(done);

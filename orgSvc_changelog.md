@@ -1,5 +1,10 @@
 # Org Service Changelog
 
+### 1.5.1: Fri Jan 29 15:28:10 EST 2016
+* Treat 'completed' campaign status like 'expired' for deleting orgs: [#766](https://github.com/cinema6/cwrx/issues/766)
+* Treat 'completed' campaign status like 'expired' for deleting paymentMethods: [#766](https://github.com/cinema6/cwrx/issues/766)
+* Extra deployment steps: None
+
 ### 1.5.0: Thu Jan 14 17:49:00 EST 2016
 * [FEATURE]: Add endpoints for new `referralCode` entities: [#737](https://github.com/cinema6/cwrx/issues/737)
 * Extra deployment steps:

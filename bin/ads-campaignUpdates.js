@@ -342,7 +342,7 @@
         }
 
         // check that these required fields are now set
-        var fields = ['budget', 'dailyLimit', 'cost'];
+        var fields = ['budget', 'cost'];
         
         for (var i = 0; i < fields.length; i++) {
             if (!req.body.data.pricing || !req.body.data.pricing[fields[i]]) {

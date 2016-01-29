@@ -155,7 +155,7 @@
             }),
             checkExistence('campaign', {
                 id: req.body.tagParams.campaign,
-                status: { $nin: [Status.Deleted, Status.Canceled, Status.Expired] }
+                status: { $nin: [Status.Deleted, Status.Canceled, Status.Expired, Status.Completed]}
             }),
             checkExistence('experience', {
                 id: req.body.tagParams.experience,
