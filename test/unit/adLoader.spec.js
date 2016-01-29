@@ -763,66 +763,21 @@ describe('AdLoader()', function() {
                             var urls = card.campaign[item.prop];
 
                             expect(urls).toEqual((originalCard.campaign[item.prop] || []).concat([jasmine.any(String)]));
-                            expect(card.campaign[item.prop][card.campaign[item.prop].length - 1]).toBe(loader.trackingPixel + '?' + require('querystring').stringify({
-                                campaign: card.campaignId,
-                                card: card.id,
-                                experience: meta.experience,
-                                container: meta.container,
-                                placement: meta.placement,
-                                host: 'reelcontent.com',
-                                hostApp: meta.hostApp,
-                                network: meta.network,
-                                sessionId: meta.reqUuid,
-                                extSessionId: meta.uuid,
-                                branding: meta.branding,
-                                ex: meta.ex,
-                                vr: meta.vr,
-                                event: item.event
-                            }) + '&d={delay}&cb={cachebreaker}');
+                            expect(card.campaign[item.prop][card.campaign[item.prop].length - 1]).toBe(loader.pixelFactory(card, meta)(item.event));
                         });
                     });
 
                     it('should add tracking pixels to the card\'s links', function() {
                         Object.keys(card.links).forEach(function(type) {
                             expect(card.links[type].tracking).toEqual(originalCard.links[type].tracking.concat([jasmine.any(String)]));
-                            expect(card.links[type].tracking[card.links[type].tracking.length - 1]).toBe(loader.trackingPixel + '?' + require('querystring').stringify({
-                                campaign: card.campaignId,
-                                card: card.id,
-                                experience: meta.experience,
-                                container: meta.container,
-                                placement: meta.placement,
-                                host: 'reelcontent.com',
-                                hostApp: meta.hostApp,
-                                network: meta.network,
-                                sessionId: meta.reqUuid,
-                                extSessionId: meta.uuid,
-                                branding: meta.branding,
-                                ex: meta.ex,
-                                vr: meta.vr,
-                                event: 'link.' + type
-                            }) + '&d={delay}&cb={cachebreaker}');
+                            expect(card.links[type].tracking[card.links[type].tracking.length - 1]).toBe(loader.pixelFactory(card, meta)('link.' + type));
                         });
                     });
 
                     it('should add tracking pixels to the card\'s shareLinks', function() {
                         Object.keys(card.shareLinks).forEach(function(type) {
                             expect(card.shareLinks[type].tracking).toEqual(originalCard.shareLinks[type].tracking.concat([jasmine.any(String)]));
-                            expect(card.shareLinks[type].tracking[card.shareLinks[type].tracking.length - 1]).toBe(loader.trackingPixel + '?' + require('querystring').stringify({
-                                campaign: card.campaignId,
-                                card: card.id,
-                                experience: meta.experience,
-                                container: meta.container,
-                                placement: meta.placement,
-                                host: 'reelcontent.com',
-                                hostApp: meta.hostApp,
-                                network: meta.network,
-                                sessionId: meta.reqUuid,
-                                extSessionId: meta.uuid,
-                                branding: meta.branding,
-                                ex: meta.ex,
-                                vr: meta.vr,
-                                event: 'shareLink.' + type
-                            }) + '&d={delay}&cb={cachebreaker}');
+                            expect(card.shareLinks[type].tracking[card.shareLinks[type].tracking.length - 1]).toBe(loader.pixelFactory(card, meta)('shareLink.' + type));
                         });
                     });
 
@@ -853,113 +808,10 @@ describe('AdLoader()', function() {
                                 { prop: 'q3Urls', event: 'q3' },
                                 { prop: 'q4Urls', event: 'q4' }
                             ].reduce(function(campaign, item) {
-                                campaign[item.prop] = [loader.trackingPixel + '?' + require('querystring').stringify({
-                                    campaign: card.campaignId,
-                                    card: card.id,
-                                    experience: meta.experience,
-                                    container: meta.container,
-                                    placement: meta.placement,
-                                    host: 'reelcontent.com',
-                                    hostApp: meta.hostApp,
-                                    network: meta.network,
-                                    sessionId: meta.reqUuid,
-                                    extSessionId: meta.uuid,
-                                    branding: meta.branding,
-                                    ex: meta.ex,
-                                    vr: meta.vr,
-                                    event: item.event
-                                }) + '&d={delay}&cb={cachebreaker}'];
+                                campaign[item.prop] = [loader.pixelFactory(card, meta)(item.event)];
 
                                 return campaign;
                             }, {}));
-                        });
-                    });
-
-                    describe('if there is no origin', function() {
-                        beforeEach(function() {
-                            result = undefined;
-                            card = JSON.parse(JSON.stringify(originalCard));
-                            originalCard = JSON.parse(JSON.stringify(card));
-
-                            delete meta.origin;
-
-                            result = loader.__addTrackingPixels__(card, meta);
-                        });
-
-                        it('should return the card', function() {
-                            expect(result).toBe(card);
-                        });
-
-                        it('should not set the host param', function() {
-                            [
-                                { prop: 'bufferUrls', event: 'buffer' },
-                                { prop: 'viewUrls', event: 'cardView' },
-                                { prop: 'playUrls', event: 'play' },
-                                { prop: 'loadUrls', event: 'load' },
-                                { prop: 'launchUrls', event: 'launch' },
-                                { prop: 'countUrls', event: 'completedView' },
-                                { prop: 'q1Urls', event: 'q1' },
-                                { prop: 'q2Urls', event: 'q2' },
-                                { prop: 'q3Urls', event: 'q3' },
-                                { prop: 'q4Urls', event: 'q4' }
-                            ].forEach(function(item) {
-                                var urls = card.campaign[item.prop];
-
-                                expect(card.campaign[item.prop][card.campaign[item.prop].length - 1]).toBe(loader.trackingPixel + '?' + require('querystring').stringify({
-                                    campaign: card.campaignId,
-                                    card: card.id,
-                                    experience: meta.experience,
-                                    container: meta.container,
-                                    placement: meta.placement,
-                                    host: undefined,
-                                    hostApp: meta.hostApp,
-                                    network: meta.network,
-                                    sessionId: meta.reqUuid,
-                                    extSessionId: meta.uuid,
-                                    branding: meta.branding,
-                                    ex: meta.ex,
-                                    vr: meta.vr,
-                                    event: item.event
-                                }) + '&d={delay}&cb={cachebreaker}');
-                            });
-
-                            Object.keys(card.links).forEach(function(type) {
-                                expect(card.links[type].tracking[card.links[type].tracking.length - 1]).toBe(loader.trackingPixel + '?' + require('querystring').stringify({
-                                    campaign: card.campaignId,
-                                    card: card.id,
-                                    experience: meta.experience,
-                                    container: meta.container,
-                                    placement: meta.placement,
-                                    host: undefined,
-                                    hostApp: meta.hostApp,
-                                    network: meta.network,
-                                    sessionId: meta.reqUuid,
-                                    extSessionId: meta.uuid,
-                                    branding: meta.branding,
-                                    ex: meta.ex,
-                                    vr: meta.vr,
-                                    event: 'link.' + type
-                                }) + '&d={delay}&cb={cachebreaker}');
-                            });
-
-                            Object.keys(card.shareLinks).forEach(function(type) {
-                                expect(card.shareLinks[type].tracking[card.shareLinks[type].tracking.length - 1]).toBe(loader.trackingPixel + '?' + require('querystring').stringify({
-                                    campaign: card.campaignId,
-                                    card: card.id,
-                                    experience: meta.experience,
-                                    container: meta.container,
-                                    placement: meta.placement,
-                                    host: undefined,
-                                    hostApp: meta.hostApp,
-                                    network: meta.network,
-                                    sessionId: meta.reqUuid,
-                                    extSessionId: meta.uuid,
-                                    branding: meta.branding,
-                                    ex: meta.ex,
-                                    vr: meta.vr,
-                                    event: 'shareLink.' + type
-                                }) + '&d={delay}&cb={cachebreaker}');
-                            });
                         });
                     });
 
@@ -1392,6 +1244,108 @@ describe('AdLoader()', function() {
             });
 
             describe('methods:', function() {
+                describe('pixelFactory(card, meta)', function() {
+                    var card, meta;
+                    var result;
+
+                    beforeEach(function() {
+                        card = {
+                            id: 'rc-9c7601a608a42d',
+                            campaignId: 'cam-bba22919ac1d98'
+                        };
+                        meta = {
+                            experience: 'e-28ab2f470f043e',
+                            container: 'beeswax',
+                            placement: 'pl-7dc9b856f3affe',
+                            origin: 'https://www.reelcontent.com/preview',
+                            hostApp: 'Words with Friends',
+                            network: 'MoPub',
+                            reqUuid: 'hfuhud4',
+                            uuid: 'd8239ud84',
+                            branding: 'rcplatform',
+                            ex: 'my-experiment',
+                            vr: 'a-variant',
+                            debug: false,
+                            context: 'vpaid',
+                            standalone: false
+                        };
+
+                        result = loader.pixelFactory(card, meta);
+                    });
+
+                    it('should return a Function', function() {
+                        expect(result).toEqual(jasmine.any(Function));
+                    });
+
+                    describe('when the returned Function is called', function() {
+                        var fn;
+
+                        beforeEach(function() {
+                            fn = result;
+
+                            result = fn('play');
+                        });
+
+                        it('should return a pixelURL', function() {
+                            expect(result).toBe(loader.trackingPixel + '?' + require('querystring').stringify({
+                                campaign: card.campaignId,
+                                card: card.id,
+                                experience: meta.experience,
+                                container: meta.container,
+                                placement: meta.placement,
+                                host: 'www.reelcontent.com',
+                                hostApp: meta.hostApp,
+                                network: meta.network,
+                                sessionId: meta.reqUuid,
+                                extSessionId: meta.uuid,
+                                branding: meta.branding,
+                                ex: meta.ex,
+                                vr: meta.vr,
+                                event: 'play'
+                            }) + '&d={delay}&cb={cachebreaker}');
+                        });
+
+                        describe('if there is no trackingPixel', function() {
+                            beforeEach(function() {
+                                loader.trackingPixel = null;
+
+                                result = fn('play');
+                            });
+
+                            it('should return null', function() {
+                                expect(result).toBeNull();
+                            });
+                        });
+
+                        describe('if there is no origin', function() {
+                            beforeEach(function() {
+                                delete meta.origin;
+
+                                result = loader.pixelFactory(card, meta)('q1');
+                            });
+
+                            it('should not set the host', function() {
+                                expect(result).toBe(loader.trackingPixel + '?' + require('querystring').stringify({
+                                    campaign: card.campaignId,
+                                    card: card.id,
+                                    experience: meta.experience,
+                                    container: meta.container,
+                                    placement: meta.placement,
+                                    host: undefined,
+                                    hostApp: meta.hostApp,
+                                    network: meta.network,
+                                    sessionId: meta.reqUuid,
+                                    extSessionId: meta.uuid,
+                                    branding: meta.branding,
+                                    ex: meta.ex,
+                                    vr: meta.vr,
+                                    event: 'q1'
+                                }) + '&d={delay}&cb={cachebreaker}');
+                            });
+                        });
+                    });
+                });
+
                 describe('fillPlaceholders(experience, campaign, meta, uuid)', function() {
                     var experience, campaign, meta, uuid;
                     var success, failure;

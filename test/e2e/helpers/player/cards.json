@@ -24,7 +24,8 @@
                 "campaign": "Drink Guinness Please",
                 "creative": "Transformers Are Really Awesome",
                 "advertiser": "Transformers"
-            }
+            },
+            "duration": 32
         },
         "id": "rc-0a8a41066c1c7b",
         "lastUpdated": "2015-05-11T14:08:26.819Z",
@@ -78,7 +79,8 @@
             "controls": false,
             "autoadvance": false,
             "skip": 8,
-            "vast": "https://staging.cinema6.com/collateral/media/player_service_perf_test/player_service_perf_test.xml"
+            "vast": "https://staging.cinema6.com/collateral/media/player_service_perf_test/player_service_perf_test.xml",
+            "duration": 77
         },
         "id": "rc-2b278986abacf8",
         "lastUpdated": "2015-10-15T15:37:38.300Z",
@@ -140,7 +142,8 @@
             "thumbs": {
                 "small": "//img.youtube.com/vi/kiX4E70xUws/2.jpg",
                 "large": "//img.youtube.com/vi/kiX4E70xUws/0.jpg"
-            }
+            },
+            "duration": 31
         },
         "id": "rc-abaddbbd3e050b",
         "lastUpdated": "2015-08-31T20:29:49.297Z",
@@ -196,7 +199,8 @@
             "skip": true,
             "modestbranding": 0,
             "rel": 0,
-            "videoid": "x4c_wI6kQyE"
+            "videoid": "x4c_wI6kQyE",
+            "duration": 70
         },
         "id": "rc-c89f1a8f5d5af4",
         "lastUpdated": "2015-03-19T18:42:44.802Z",

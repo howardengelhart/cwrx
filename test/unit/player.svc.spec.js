@@ -24,6 +24,7 @@ describe('player service', function() {
     var AppBuilder;
     var streamToPromise;
     var _;
+    var VAST;
 
     var requestDeferreds;
     var fnCaches;
@@ -64,6 +65,7 @@ describe('player service', function() {
         MockReadable = require('./helpers/MockReadable');
         streamToPromise = require('stream-to-promise');
         _ = require('lodash');
+        VAST = require('vastacular').VAST;
 
         playerHTML = require('fs').readFileSync(require.resolve('./helpers/player.html')).toString();
         builtPlayerHTML = require('fs').readFileSync(require.resolve('./helpers/player--built.html')).toString();
@@ -310,6 +312,10 @@ describe('player service', function() {
                                 tracking: {
                                     pixel: '//s3.amazonaws.com/c6.dev/e2e/1x1-pixel.gif'
                                 },
+                                vast: {
+                                    js: 'https://s3.amazonaws.com/c6.dev/ext/c6embed/v1/vpaid.min.js',
+                                    swf: 'https://s3.amazonaws.com/c6.dev/ext/c6embed/v1/vpaid.swf'
+                                },
                                 app: {
                                     version: 'master'
                                 },
@@ -551,6 +557,82 @@ describe('player service', function() {
                         });
                     });
 
+                    describe('route: GET /api/public/vast/2.0/tag', function() {
+                        var middlewareify;
+
+                        beforeEach(function() {
+                            middlewareify = _.find(player.middlewareify.calls.all(), function(call) {
+                                return call.args[0] === 'getVAST';
+                            });
+                            expect(middlewareify).toBeDefined();
+                        });
+
+                        it('should exist', function() {
+                            expect(expressApp.get).toHaveBeenCalledWith('/api/public/vast/2.0/tag', expressUtils.cloudwatchMetrics.calls.mostRecent().returnValue, jasmine.any(Function), middlewareify.returnValue);
+                        });
+
+                        describe('the headers middleware', function() {
+                            var setHeaders;
+
+                            beforeEach(function() {
+                                setHeaders = expressRoutes.get['/api/public/vast/2.0/tag'][0][expressRoutes.get['/api/public/vast/2.0/tag'][0].length - 2];
+                                expect(setHeaders).toEqual(jasmine.any(Function));
+                            });
+
+                            describe('when invoked', function() {
+                                var req, res, next;
+
+                                beforeEach(function() {
+                                    req = {
+                                        query: {}
+                                    };
+                                    res = {
+                                        set: jasmine.createSpy('res.set()')
+                                    };
+                                    next = jasmine.createSpy('next()');
+                                });
+
+                                describe('if there is a card id in the query', function() {
+                                    beforeEach(function() {
+                                        req.query.card = 'rc-a5c299a6330c6d';
+
+                                        setHeaders(req, res, next);
+                                    });
+
+                                    it('should set the cache-control to the card freshTTL', function() {
+                                        expect(res.set).toHaveBeenCalledWith('Cache-Control', 'max-age=' + player.config.api.card.cacheTTLs.fresh * 60);
+                                    });
+
+                                    it('should set the Content-Type to "application/xml"', function() {
+                                        expect(res.set).toHaveBeenCalledWith('Content-Type', 'application/xml');
+                                    });
+
+                                    it('should call next()', function() {
+                                        expect(next).toHaveBeenCalled();
+                                    });
+                                });
+
+                                describe('if there is no card id in the query', function() {
+                                    beforeEach(function() {
+                                        setHeaders(req, res, next);
+                                    });
+
+                                    it('should not set the cache-control to the card freshTTL', function() {
+                                        expect(res.set.calls.count()).toBe(1);
+                                    });
+
+                                    it('should set the Content-Type to "application/xml"', function() {
+                                        expect(res.set).toHaveBeenCalledWith('Content-Type', 'application/xml');
+                                    });
+
+                                    it('should call next()', function() {
+                                        expect(next).toHaveBeenCalled();
+                                    });
+                                });
+                            });
+                        });
+                    });
+
                     describe('route: GET /api/public/players/:type', function() {
                         var middlewareify;
 
@@ -736,6 +818,7 @@ describe('player service', function() {
 
         beforeEach(function() {
             config = {
+                appVersion: '2.0.0',
                 api: {
                     root: 'http://localhost/',
                     branding: {
@@ -780,6 +863,10 @@ describe('player service', function() {
                 },
                 tracking: {
                     pixel: '//s3.amazonaws.com/c6.dev/e2e/1x1-pixel.gif'
+                },
+                vast: {
+                    js: 'https://s3.amazonaws.com/c6.dev/ext/c6embed/v1/vpaid.min.js',
+                    swf: 'https://s3.amazonaws.com/c6.dev/ext/c6embed/v1/vpaid.swf'
                 },
                 app: {
                     version: 'v2.4.1',
@@ -883,8 +970,16 @@ describe('player service', function() {
             });
         });
 
-        it('should create 5 FunctionCaches', function() {
-            expect(MockFunctionCache.calls.count()).toBe(5);
+        it('should create a FunctionCache for the VAST', function() {
+            expect(MockFunctionCache).toHaveBeenCalledWith({
+                freshTTL: Infinity,
+                maxTTL: Infinity,
+                gcInterval: Infinity
+            });
+        });
+
+        it('should create 6 FunctionCaches', function() {
+            expect(MockFunctionCache.calls.count()).toBe(6);
         });
 
         describe('@public', function() {
@@ -1007,7 +1102,8 @@ describe('player service', function() {
                                 origin: 'https://github.com/cinema6/cwrx/pull/504/files',
                                 desktop: browser.isDesktop,
                                 mobile: browser.isMobile,
-                                secure: req.secure
+                                secure: req.secure,
+                                $params: req.query
                             }, req.query), req.params));
                         });
 
@@ -1920,6 +2016,593 @@ describe('player service', function() {
                             expect(error.message).toBe('You must provide a placement.');
                             expect(error.status).toBe(400);
                             expect(error.constructor.name).toBe('ServiceError');
+                        });
+                    });
+                });
+
+                describe('getVAST(options)', function() {
+                    var options;
+                    var originalOptions;
+                    var success, failure;
+                    var getPlacementDeferred;
+                    var result;
+
+                    beforeEach(function() {
+                        var params = {
+                            placement: 'pl-2bc7b4091ffb10',
+                            countUrls: 'http://www.tracking.com/1.gif,http://www.tracking.com/2.gif',
+                            debug: 2
+                        };
+
+                        options = extend({
+                            $params: params,
+                            reqUuid: '283dj9',
+                            origin: 'http://www.my-site.com/foo'
+                        }, params);
+                        originalOptions = JSON.parse(JSON.stringify(options));
+
+                        success = jasmine.createSpy('success()');
+                        failure = jasmine.createSpy('failure()');
+
+                        player.__getPlacement__.and.returnValue((getPlacementDeferred = q.defer()).promise);
+
+                        result = player.getVAST(options);
+                        result.then(success, failure);
+                    });
+
+                    it('should apply the default options', function() {
+                        expect(options).toEqual(_.defaults({}, originalOptions, player.config.defaults));
+                    });
+
+                    it('should get the placement', function() {
+                        expect(player.__getPlacement__).toHaveBeenCalledWith(options.placement, {}, options.origin, options.reqUuid);
+                    });
+
+                    describe('when the placement is fetched', function() {
+                        var placement;
+                        var findCardDeferred, getCardDeferred;
+                        var fullOptions;
+
+                        beforeEach(function() {
+                            placement = {
+                                id: 'pl-2bc7b4091ffb10',
+                                tagParams: {
+                                    type: 'desktop-card',
+                                    container: 'beeswax',
+                                    debug: true,
+                                    prebuffer: true,
+                                    preview: false
+                                }
+                            };
+
+                            spyOn(player.adLoader, 'findCard').and.returnValue((findCardDeferred = q.defer()).promise);
+                            spyOn(player.adLoader, 'getCard').and.returnValue((getCardDeferred = q.defer()).promise);
+                        });
+
+                        describe('with a campaign', function() {
+                            beforeEach(function(done) {
+                                placement.tagParams.campaign = 'cam-1819dc636a0929';
+
+                                fullOptions = _.assign({}, options, {
+                                    $params: _.assign({}, placement.tagParams, options.$params)
+                                });
+
+                                getPlacementDeferred.fulfill(placement);
+                                getPlacementDeferred.promise.finally(done);
+                            });
+
+                            it('should not get a card', function() {
+                                expect(player.adLoader.getCard).not.toHaveBeenCalled();
+                            });
+
+                            it('should find a card with that campaign', function() {
+                                expect(player.adLoader.findCard).toHaveBeenCalledWith(
+                                    placement.tagParams.campaign,
+                                    player.__apiParams__('card', fullOptions.$params),
+                                    fullOptions,
+                                    options.reqUuid
+                                );
+                            });
+
+                            describe('if no card is found', function() {
+                                var error;
+
+                                beforeEach(function(done) {
+                                    findCardDeferred.fulfill(null);
+                                    result.catch(function(/*error*/) { error = arguments[0]; });
+                                    result.finally(done);
+                                });
+
+                                it('should [404]', function() {
+                                    expect(error).toEqual(jasmine.any(Error));
+                                    expect(error.constructor.name).toBe('ServiceError');
+                                    expect(error.message).toBe('No card was found for campaign {' + placement.tagParams.campaign + '}.');
+                                    expect(error.status).toBe(404);
+                                });
+                            });
+
+                            describe('if the call fails', function() {
+                                var reason;
+                                var error;
+
+                                beforeEach(function(done) {
+                                    reason = new Error('404 - Campaign not found.');
+                                    reason.name = 'StatusCodeError';
+                                    reason.statusCode = 404;
+
+                                    findCardDeferred.reject(reason);
+                                    result.catch(function(/*error*/) { error = arguments[0]; });
+                                    result.finally(done);
+                                });
+
+                                it('should [404]', function() {
+                                    expect(error).toEqual(jasmine.any(Error));
+                                    expect(error.constructor.name).toBe('ServiceError');
+                                    expect(error.message).toBe(reason.message);
+                                    expect(error.status).toBe(404);
+                                });
+                            });
+
+                            describe('if a card is found', function() {
+                                var card;
+                                var expected;
+
+                                beforeEach(function(done) {
+                                    card = {
+                                        id: 'rc-9c7601a608a42d',
+                                        title: 'This is My Awesome Card!',
+                                        note: 'Let me tell you a little something about this card.',
+                                        campaignId: placement.tagParams.campaign,
+                                        data: {
+                                            duration: 176
+                                        }
+                                    };
+
+                                    player.__createVAST__.and.callThrough();
+
+                                    findCardDeferred.fulfill(card);
+                                    result.finally(done);
+                                });
+
+                                it('should create VAST for the card', function() {
+                                    expect(player.__createVAST__).toHaveBeenCalledWith(
+                                        card,
+                                        _.assign({}, placement.tagParams, options.$params, { card: card.id }),
+                                        options.origin,
+                                        options.reqUuid
+                                    );
+                                });
+
+                                it('should fulfill with VAST for the card', function() {
+                                    expect(success).toHaveBeenCalledWith(player.__createVAST__.calls.mostRecent().returnValue);
+                                });
+                            });
+
+                            describe('if creating the VAST fails', function() {
+                                var card;
+                                var reason;
+
+                                beforeEach(function(done) {
+                                    card = {
+                                        id: 'rc-9c7601a608a42d',
+                                        title: 'This is My Awesome Card!',
+                                        note: 'Let me tell you a little something about this card.',
+                                        campaignId: 'cam-bba22919ac1d98',
+                                        data: {
+                                            duration: 176
+                                        }
+                                    };
+
+                                    reason = new Error('IT ALL WENT WRONG!');
+
+                                    player.__createVAST__.and.throwError(reason);
+
+                                    findCardDeferred.fulfill(card);
+                                    result.finally(done);
+                                });
+
+                                it('should reject with the reason', function() {
+                                    expect(failure).toHaveBeenCalledWith(reason);
+                                    expect(failure.calls.mostRecent().args[0]).toBe(reason);
+                                });
+                            });
+                        });
+
+                        describe('with a card', function() {
+                            beforeEach(function(done) {
+                                placement.tagParams.campaign = 'cam-1819dc636a0929';
+                                placement.tagParams.card = 'rc-ee624ab4f205cd';
+
+                                fullOptions = _.assign({}, options, {
+                                    $params: _.assign({}, placement.tagParams, options.$params)
+                                });
+
+                                getPlacementDeferred.fulfill(placement);
+                                getPlacementDeferred.promise.finally(done);
+                            });
+
+                            it('should not find a card', function() {
+                                expect(player.adLoader.findCard).not.toHaveBeenCalled();
+                            });
+
+                            it('should get the card', function() {
+                                expect(player.adLoader.getCard).toHaveBeenCalledWith(
+                                    placement.tagParams.card,
+                                    player.__apiParams__('card', fullOptions.$params),
+                                    fullOptions,
+                                    options.reqUuid
+                                );
+                            });
+
+                            describe('if the call fails', function() {
+                                var reason;
+                                var error;
+
+                                beforeEach(function(done) {
+                                    reason = new Error('404 - Card not found.');
+                                    reason.name = 'StatusCodeError';
+                                    reason.statusCode = 404;
+
+                                    getCardDeferred.reject(reason);
+                                    result.catch(function(/*error*/) { error = arguments[0]; });
+                                    result.finally(done);
+                                });
+
+                                it('should [404]', function() {
+                                    expect(error).toEqual(jasmine.any(Error));
+                                    expect(error.constructor.name).toBe('ServiceError');
+                                    expect(error.message).toBe(reason.message);
+                                    expect(error.status).toBe(404);
+                                });
+                            });
+
+                            describe('if a card is found', function() {
+                                var card;
+                                var expected;
+
+                                beforeEach(function(done) {
+                                    card = {
+                                        id: placement.tagParams.card,
+                                        title: 'This is My Awesome Card!',
+                                        note: 'Let me tell you a little something about this card.',
+                                        campaignId: placement.tagParams.campaign,
+                                        data: {
+                                            duration: 176
+                                        }
+                                    };
+
+                                    player.__createVAST__.and.callThrough();
+
+                                    getCardDeferred.fulfill(card);
+                                    result.finally(done);
+                                });
+
+                                it('should create VAST for the card', function() {
+                                    expect(player.__createVAST__).toHaveBeenCalledWith(
+                                        card,
+                                        _.assign({}, placement.tagParams, options.$params),
+                                        options.origin,
+                                        options.reqUuid
+                                    );
+                                });
+
+                                it('should fulfill with VAST for the card', function() {
+                                    expect(success).toHaveBeenCalledWith(player.__createVAST__.calls.mostRecent().returnValue);
+                                });
+                            });
+
+                            describe('if creating the VAST fails', function() {
+                                var card;
+                                var reason;
+
+                                beforeEach(function(done) {
+                                    card = {
+                                        id: placement.tagParams.card,
+                                        title: 'This is My Awesome Card!',
+                                        note: 'Let me tell you a little something about this card.',
+                                        campaignId: placement.tagParams.campaign,
+                                        data: {
+                                            duration: 176
+                                        }
+                                    };
+
+                                    reason = new Error('IT ALL WENT WRONG!');
+
+                                    player.__createVAST__.and.throwError(reason);
+
+                                    getCardDeferred.fulfill(card);
+                                    result.finally(done);
+                                });
+
+                                it('should reject with the reason', function() {
+                                    expect(failure).toHaveBeenCalledWith(reason);
+                                    expect(failure.calls.mostRecent().args[0]).toBe(reason);
+                                });
+                            });
+                        });
+                    });
+
+                    describe('if there is no placement', function() {
+                        var findCardDeferred, getCardDeferred;
+
+                        beforeEach(function() {
+                            player.__getPlacement__.calls.reset();
+                            player.__getPlacement__.and.returnValue((getPlacementDeferred = q.defer()).promise);
+                            success.calls.reset();
+                            failure.calls.reset();
+
+                            options.preview = true;
+                            options.$params.preview = true;
+
+                            spyOn(player.adLoader, 'findCard').and.returnValue((findCardDeferred = q.defer()).promise);
+                            spyOn(player.adLoader, 'getCard').and.returnValue((getCardDeferred = q.defer()).promise);
+
+                            delete options.placement;
+                            delete options.$params.placement;
+                        });
+
+                        describe('but there is a campaign', function() {
+                            beforeEach(function(done) {
+                                options.campaign = 'cam-3127115904ffcd';
+                                options.$params.campaign = options.campaign;
+
+                                result = player.getVAST(options);
+                                result.then(success, failure);
+                                q({}).finally(done);
+                            });
+
+                            it('should not get a placement', function() {
+                                expect(player.__getPlacement__).not.toHaveBeenCalled();
+                            });
+
+                            it('should not get a card', function() {
+                                expect(player.adLoader.getCard).not.toHaveBeenCalled();
+                            });
+
+                            it('should find a card', function() {
+                                expect(player.adLoader.findCard).toHaveBeenCalledWith(
+                                    options.campaign,
+                                    player.__apiParams__('card', options),
+                                    options,
+                                    options.reqUuid
+                                );
+                            });
+
+                            describe('if no card is found', function() {
+                                var error;
+
+                                beforeEach(function(done) {
+                                    findCardDeferred.fulfill(null);
+                                    result.catch(function(/*error*/) { error = arguments[0]; });
+                                    result.finally(done);
+                                });
+
+                                it('should [404]', function() {
+                                    expect(error).toEqual(jasmine.any(Error));
+                                    expect(error.constructor.name).toBe('ServiceError');
+                                    expect(error.message).toBe('No card was found for campaign {' + options.campaign + '}.');
+                                    expect(error.status).toBe(404);
+                                });
+                            });
+
+                            describe('if the call fails', function() {
+                                var reason;
+                                var error;
+
+                                beforeEach(function(done) {
+                                    reason = new Error('404 - Campaign not found.');
+                                    reason.name = 'StatusCodeError';
+                                    reason.statusCode = 404;
+
+                                    findCardDeferred.reject(reason);
+                                    result.catch(function(/*error*/) { error = arguments[0]; });
+                                    result.finally(done);
+                                });
+
+                                it('should [404]', function() {
+                                    expect(error).toEqual(jasmine.any(Error));
+                                    expect(error.constructor.name).toBe('ServiceError');
+                                    expect(error.message).toBe(reason.message);
+                                    expect(error.status).toBe(404);
+                                });
+                            });
+
+                            describe('if a card is found', function() {
+                                var card;
+                                var expected;
+
+                                beforeEach(function(done) {
+                                    card = {
+                                        id: 'rc-9c7601a608a42d',
+                                        title: 'This is My Awesome Card!',
+                                        note: 'Let me tell you a little something about this card.',
+                                        campaignId: options.campaign,
+                                        data: {
+                                            duration: 176
+                                        }
+                                    };
+
+                                    player.__createVAST__.and.callThrough();
+
+                                    findCardDeferred.fulfill(card);
+                                    result.finally(done);
+                                });
+
+                                it('should create VAST for the card', function() {
+                                    expect(player.__createVAST__).toHaveBeenCalledWith(
+                                        card,
+                                        _.assign({}, options.$params, { card: card.id }),
+                                        options.origin,
+                                        options.reqUuid
+                                    );
+                                });
+
+                                it('should fulfill with VAST for the card', function() {
+                                    expect(success).toHaveBeenCalledWith(player.__createVAST__.calls.mostRecent().returnValue);
+                                });
+                            });
+
+                            describe('if creating the VAST fails', function() {
+                                var card;
+                                var reason;
+
+                                beforeEach(function(done) {
+                                    card = {
+                                        id: 'rc-9c7601a608a42d',
+                                        title: 'This is My Awesome Card!',
+                                        note: 'Let me tell you a little something about this card.',
+                                        campaignId: options.campaign,
+                                        data: {
+                                            duration: 176
+                                        }
+                                    };
+
+                                    reason = new Error('IT ALL WENT WRONG!');
+
+                                    player.__createVAST__.and.throwError(reason);
+
+                                    findCardDeferred.fulfill(card);
+                                    result.finally(done);
+                                });
+
+                                it('should reject with the reason', function() {
+                                    expect(failure).toHaveBeenCalledWith(reason);
+                                    expect(failure.calls.mostRecent().args[0]).toBe(reason);
+                                });
+                            });
+                        });
+
+                        describe('but there is a card', function() {
+                            beforeEach(function(done) {
+                                options.campaign = 'cam-50cf514f1d9212';
+                                options.$params.campaign = options.campaign;
+                                options.card = 'rc-f1c3193d76a44b';
+                                options.$params.card = options.card;
+
+                                result = player.getVAST(options);
+                                result.then(success, failure);
+                                q({}).finally(done);
+                            });
+
+                            it('should not find a card', function() {
+                                expect(player.adLoader.findCard).not.toHaveBeenCalled();
+                            });
+
+                            it('should get the card', function() {
+                                expect(player.adLoader.getCard).toHaveBeenCalledWith(
+                                    options.card,
+                                    player.__apiParams__('card', options),
+                                    options,
+                                    options.reqUuid
+                                );
+                            });
+
+                            describe('if the call fails', function() {
+                                var reason;
+                                var error;
+
+                                beforeEach(function(done) {
+                                    reason = new Error('404 - Card not found.');
+                                    reason.name = 'StatusCodeError';
+                                    reason.statusCode = 404;
+
+                                    getCardDeferred.reject(reason);
+                                    result.catch(function(/*error*/) { error = arguments[0]; });
+                                    result.finally(done);
+                                });
+
+                                it('should [404]', function() {
+                                    expect(error).toEqual(jasmine.any(Error));
+                                    expect(error.constructor.name).toBe('ServiceError');
+                                    expect(error.message).toBe(reason.message);
+                                    expect(error.status).toBe(404);
+                                });
+                            });
+
+                            describe('if a card is found', function() {
+                                var card;
+                                var expected;
+
+                                beforeEach(function(done) {
+                                    card = {
+                                        id: options.card,
+                                        title: 'This is My Awesome Card!',
+                                        note: 'Let me tell you a little something about this card.',
+                                        campaignId: options.campaign,
+                                        data: {
+                                            duration: 176
+                                        }
+                                    };
+
+                                    player.__createVAST__.and.callThrough();
+
+                                    getCardDeferred.fulfill(card);
+                                    result.finally(done);
+                                });
+
+                                it('should create VAST for the card', function() {
+                                    expect(player.__createVAST__).toHaveBeenCalledWith(
+                                        card,
+                                        options.$params,
+                                        options.origin,
+                                        options.reqUuid
+                                    );
+                                });
+
+                                it('should fulfill with VAST for the card', function() {
+                                    expect(success).toHaveBeenCalledWith(player.__createVAST__.calls.mostRecent().returnValue);
+                                });
+                            });
+
+                            describe('if creating the VAST fails', function() {
+                                var card;
+                                var reason;
+
+                                beforeEach(function(done) {
+                                    card = {
+                                        id: options.card,
+                                        title: 'This is My Awesome Card!',
+                                        note: 'Let me tell you a little something about this card.',
+                                        campaignId: options.campaign,
+                                        data: {
+                                            duration: 176
+                                        }
+                                    };
+
+                                    reason = new Error('IT ALL WENT WRONG!');
+
+                                    player.__createVAST__.and.throwError(reason);
+
+                                    getCardDeferred.fulfill(card);
+                                    result.finally(done);
+                                });
+
+                                it('should reject with the reason', function() {
+                                    expect(failure).toHaveBeenCalledWith(reason);
+                                    expect(failure.calls.mostRecent().args[0]).toBe(reason);
+                                });
+                            });
+                        });
+
+                        describe('or campaign or card', function() {
+                            var error;
+
+                            beforeEach(function(done) {
+                                success.calls.reset();
+                                failure.calls.reset();
+
+                                result = player.getVAST(options);
+                                result.then(success, failure);
+                                result.catch(function(/*error*/) { error = arguments[0]; });
+                                result.finally(done);
+                            });
+
+                            it('should [400]', function() {
+                                expect(error).toEqual(jasmine.any(Error));
+                                expect(error.constructor.name).toBe('ServiceError');
+                                expect(error.message).toBe('You must specify a placement, card or campaign.');
+                                expect(error.status).toBe(400);
+                            });
                         });
                     });
                 });
@@ -3443,6 +4126,118 @@ describe('player service', function() {
                                 expect(error.status).toBe(404);
                                 expect(error.toString()).toBe('[404] Unknown player type: ' + type);
                             });
+                        });
+                    });
+                });
+
+                describe('__createVAST__(card, params, origin, uuid)', function() {
+                    var card, params, origin, uuid;
+                    var result;
+
+                    beforeEach(function() {
+                        card = {
+                            id: 'rc-9c7601a608a42d',
+                            title: 'This is My Awesome Card!',
+                            note: 'Let me tell you a little something about this card.',
+                            campaignId: 'cam-bba22919ac1d98',
+                            data: {
+                                duration: 176
+                            }
+                        };
+                        params = {
+                            card: card.id,
+                            campaign: card.campaignId,
+                            debug: 1,
+                            container: 'adaptv'
+                        };
+                        origin = 'https://imasdk.googleapis.com';
+                        uuid = 'fiu3hf489';
+
+                        result = player.__createVAST__(card, params, origin, uuid);
+                    });
+
+                    it('should be cached', function() {
+                        expect(fnCaches[5].add.calls.all().map(function(call) { return call.returnValue; })).toContain(player.__createVAST__);
+                        fnCaches[5].add.calls.all().forEach(function(call) {
+                            if (call.returnValue === player.__createVAST__) {
+                                expect(call.args).toEqual([jasmine.any(Function), -1]);
+                            }
+                        });
+                    });
+
+                    it('should return some VAST representing the card', function() {
+                        expect(result).toBe(new VAST({
+                            version: '2.0',
+                            ads: [
+                                {
+                                    id: card.id,
+                                    type: 'inline',
+                                    system: {
+                                        name: 'Reelcontent Player Service',
+                                        version: player.config.appVersion
+                                    },
+                                    title: card.title,
+                                    description: card.note,
+                                    impressions: [
+                                        {
+                                            uri: player.adLoader.pixelFactory(card, extend({ origin: origin }, params))('impression')
+                                        }
+                                    ],
+                                    creatives: [
+                                        {
+                                            id: card.id,
+                                            type: 'linear',
+                                            duration: card.data.duration,
+                                            parameters: require('querystring').stringify(extend({ apiRoot: player.config.api.root }, params)),
+                                            mediaFiles: [
+                                                {
+                                                    id: card.id + '--swf',
+                                                    delivery: 'progressive',
+                                                    type: 'application/x-shockwave-flash',
+                                                    uri: player.config.vast.swf + '?' + require('querystring').stringify(extend({ js: player.config.vast.js, apiRoot: player.config.api.root }, params)),
+                                                    width: 640,
+                                                    height: 480,
+                                                    scalable: true,
+                                                    maintainAspectRatio: true,
+                                                    apiFramework: 'VPAID'
+                                                },
+                                                {
+                                                    id: card.id + '--js',
+                                                    delivery: 'progressive',
+                                                    type: 'application/javascript',
+                                                    uri: player.config.vast.js,
+                                                    width: 640,
+                                                    height: 480,
+                                                    scalable: true,
+                                                    maintainAspectRatio: true,
+                                                    apiFramework: 'VPAID'
+                                                }
+                                            ]
+                                        }
+                                    ]
+                                }
+                            ]
+                        }).toXML());
+                    });
+
+                    describe('if the card\'s duration is unknown', function() {
+                        var error;
+
+                        beforeEach(function() {
+                            card.data.duration = -1;
+
+                            try {
+                                result = player.__createVAST__(card, params, origin, uuid);
+                            } catch(e) {
+                                error = e;
+                            }
+                        });
+
+                        it('should throw an error', function() {
+                            expect(error).toEqual(jasmine.any(Error));
+                            expect(error.constructor.name).toBe('ServiceError');
+                            expect(error.message).toBe('The duration of card {' + card.id + '} is unknown.');
+                            expect(error.status).toBe(409);
                         });
                     });
                 });

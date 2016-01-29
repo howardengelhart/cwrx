@@ -33,6 +33,8 @@ var replaceStream = require('replacestream');
 var concatStream = require('concat-stream');
 var dirname = require('path').dirname;
 var _ = require('lodash');
+var VAST = require('vastacular').VAST;
+var querystring = require('querystring');
 
 var CONTEXTS = {
     STANDALONE: 'standalone',
@@ -93,6 +95,11 @@ function Player(config) {
         maxTTL: config.api.placement.cacheTTLs.max,
         extractor: clonePromise
     });
+    var vastCache = new FunctionCache({
+        freshTTL: Infinity,
+        maxTTL: Infinity,
+        gcInterval: Infinity
+    });
 
     this.config = extend({
         app: {
@@ -126,6 +133,8 @@ function Player(config) {
     this.__getBranding__ = brandingCache.add(this.__getBranding__.bind(this), -1);
     // Memoize Player.prototype.__getPlacement__() method.
     this.__getPlacement__ = placementCache.add(this.__getPlacement__.bind(this), -1);
+    // Memoize Player.prototype.__createVAST__() method.
+    this.__createVAST__ = vastCache.add(this.__createVAST__.bind(this), -1);
 
     //Cache the initial player version.
     this.getVersion();
@@ -418,6 +427,73 @@ Player.prototype.__getPlayer__ = function __getPlayer__(profile, conditional, uu
     });
 };
 
+Player.prototype.__createVAST__ = function __createVAST__(card, params, origin, uuid) {
+    var log = logger.getLog();
+    var jsURL = this.config.vast.js;
+    var swfURL = this.config.vast.swf;
+    var adParams = extend({ apiRoot: this.config.api.root }, params);
+    var swfParams = extend({ js: jsURL }, adParams);
+
+    if (card.data.duration < 0) {
+        throw new ServiceError('The duration of card {' + card.id + '} is unknown.', 409);
+    }
+
+    log.trace('[%1] Creating VAST for card {%2} with params: %3.', uuid, card.id, inspect(params));
+
+    return new VAST({
+        version: '2.0',
+        ads: [
+            {
+                id: card.id,
+                type: 'inline',
+                system: {
+                    name: 'Reelcontent Player Service',
+                    version: this.config.appVersion
+                },
+                title: card.title,
+                description: card.note,
+                impressions: [{
+                    uri: this.adLoader.pixelFactory(card, extend({
+                        origin: origin
+                    }, params))('impression')
+                }],
+                creatives: [
+                    {
+                        id: card.id,
+                        type: 'linear',
+                        duration: card.data.duration,
+                        parameters: querystring.stringify(adParams),
+                        mediaFiles: [
+                            {
+                                type: 'swf',
+                                uri: swfURL + '?' + querystring.stringify(swfParams),
+                                mime: 'application/x-shockwave-flash'
+                            },
+                            {
+                                type: 'js',
+                                uri: jsURL,
+                                mime: 'application/javascript'
+                            }
+                        ].map(function(config) {
+                            return {
+                                id: card.id + '--' + config.type,
+                                delivery: 'progressive',
+                                type: config.mime,
+                                uri: config.uri,
+                                width: 640,
+                                height: 480,
+                                scalable: true,
+                                maintainAspectRatio: true,
+                                apiFramework: 'VPAID'
+                            };
+                        })
+                    }
+                ]
+            }
+        ]
+    }).toXML();
+};
+
 /***************************************************************************************************
  * @public methods * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  **************************************************************************************************/
@@ -475,6 +551,10 @@ Player.startService = function startService() {
             },
             tracking: {
                 pixel: '//s3.amazonaws.com/c6.dev/e2e/1x1-pixel.gif'
+            },
+            vast: {
+                js: 'https://s3.amazonaws.com/c6.dev/ext/c6embed/v1/vpaid.min.js',
+                swf: 'https://s3.amazonaws.com/c6.dev/ext/c6embed/v1/vpaid.swf'
             },
             app: {
                 version: 'master'
@@ -554,6 +634,18 @@ Player.startService = function startService() {
         app.get('/api/players/version', function(req, res) {
             res.send(200, state.config.appVersion);
         });
+
+        app.get('/api/public/vast/2.0/tag', sendMetrics, function setHeaders(req, res, next) {
+            var maxAge = player.config.api.card.cacheTTLs.fresh * 60;
+
+            res.set('Content-Type', 'application/xml');
+
+            if (req.query.card) {
+                res.set('Cache-Control', 'max-age=' + maxAge);
+            }
+
+            next();
+        }, player.middlewareify('getVAST'));
 
         app.get(
             '/api/public/player',
@@ -658,7 +750,8 @@ Player.prototype.middlewareify = function middlewareify(method) {
             origin: stripURL(req.get('origin') || req.get('referer')),
             desktop: browser.isDesktop,
             mobile: browser.isMobile,
-            secure: req.secure
+            secure: req.secure,
+            $params: req.query
         }, req.query), req.params);
 
         self[method](options).then(function sendResponse(result) {
@@ -830,6 +923,69 @@ Player.prototype.getViaPlacement = function getViaPlacement(options) {
         log.trace('[%1] Got placement. Getting player with options: %2.', uuid, inspect(params));
 
         return self.get(params);
+    });
+};
+
+Player.prototype.getVAST = function getVAST(/*options*/) {
+    var options = extend(arguments[0], this.config.defaults);
+    var self = this;
+    var log = logger.getLog();
+    var adLoader = this.adLoader;
+    var uuid = options.reqUuid;
+    var origin = options.origin;
+    var placement = options.placement;
+    var card = options.card;
+    var campaign = options.campaign;
+
+    if (!(placement || card || campaign)) {
+        return q.reject(new ServiceError('You must specify a placement, card or campaign.', 400));
+    }
+
+    log.trace('[%1] Making VAST with options (%2).', uuid, inspect(options));
+
+    return (function getOptions() {
+        if (!placement) {
+            log.trace('[%1] No placement, using only query params.', uuid);
+            return q(options);
+        }
+
+        return self.__getPlacement__(placement, {}, origin, uuid).then(function combine(placement) {
+            var tagParams = placement.tagParams;
+            var queryParams = options.$params;
+
+            log.trace(
+                '[%1] Got placement {%2} with tagParams (%2).',
+                uuid, placement.id, inspect(tagParams)
+            );
+
+            return _.assign({}, options, { $params: _.assign({}, tagParams, queryParams) });
+        });
+    }()).then(function fetchCard(options) {
+        var params = options.$params;
+        var cardParams = self.__apiParams__('card', params);
+        var campaign = params.campaign;
+        var card = params.card;
+
+        return (function getCard() {
+            if (card) {
+                log.trace('[%1] Getting card {%2}.', uuid, card);
+                return adLoader.getCard(card, cardParams, options, uuid);
+            }
+
+            log.trace('[%1] Finding card rom campaign {%2}.', uuid, campaign);
+
+            return adLoader.findCard(campaign, cardParams, options, uuid).then(function(card) {
+                if (!card) {
+                    throw new Error('No card was found for campaign {' + campaign + '}.');
+                } else {
+                    return card;
+                }
+            });
+        }()).catch(function fail(reason) {
+            throw new ServiceError(reason.message, 404);
+        }).then(function createVAST(card) {
+            return self.__createVAST__(card, _.assign({}, params, { card: card.id }), origin, uuid);
+        });
     });
 };
 
