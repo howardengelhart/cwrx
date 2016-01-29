@@ -1,5 +1,11 @@
 # Ads Service Changelog
 
+### 4.3.0: Fri Jan 29 15:28:10 EST 2016
+* Set `endDate` on campaign's cards when it ends: [#762](https://github.com/cinema6/cwrx/issues/762)
+* Set `startDate` on campaign's cards when it starts: [#761](https://github.com/cinema6/cwrx/issues/761)
+* Support `hasRejection` query param for campaigns: [#767](https://github.com/cinema6/cwrx/issues/767)
+* Stop defaulting + requiring campaign `dailyLimit`: [#760](https://github.com/cinema6/cwrx/issues/760)
+* Support 'completed' campaign status: [#766](https://github.com/cinema6/cwrx/issues/766)
 * [FIX]: Implement app auth system to allow non-admins to create auto-approved update requests for active campaigns: [#773](https://github.com/cinema6/cwrx/pull/773)
 * Extra deployment steps:
     * Deploy ads cookbook version 2.1.0

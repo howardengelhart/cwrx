@@ -172,6 +172,11 @@ describe('ads-campaigns (UT)', function() {
             expect(svc._middleware.edit).toContain(campModule.cleanMiniReels);
         });
         
+        it('should set dates on cards on create + edit', function() {
+            expect(svc._middleware.create).toContain(campModule.setCardDates);
+            expect(svc._middleware.edit).toContain(campModule.setCardDates);
+        });
+        
         it('should create/edit C6 card entities on create + edit', function() {
             expect(svc._middleware.create).toContain(campModule.updateCards);
             expect(svc._middleware.edit).toContain(campModule.updateCards);
@@ -905,6 +910,134 @@ describe('ads-campaigns (UT)', function() {
                 expect(errorSpy).toHaveBeenCalledWith(new Error('Request failed'));
                 expect(campModule.sendDeleteRequest.calls.count()).toBe(2);
                 done();
+            });
+        });
+    });
+    
+    describe('setCardDates', function() {
+        beforeEach(function() {
+            req.body = {
+                id: 'cam-1',
+                status: Status.Draft,
+                cards: [
+                    { id: 'rc-1', title: 'new1', campaign: {} },
+                    { id: 'rc-2', title: 'new2', campaign: {} }
+                ]
+            };
+            req.origObj = {
+                id: 'cam-1',
+                status: Status.Draft,
+                cards: [
+                    { id: 'rc-1', title: 'old1', campaign: {} },
+                    { id: 'rc-2', title: 'old2', campaign: {} }
+                ]
+            };
+            req._cards = {
+                'rc-1': { id: 'rc-1', campaign: {}, data: { foo: 'bar' } },
+                'rc-2': { id: 'rc-2', campaign: {}, data: { foo: 'bar' } },
+            };
+            req._origCards = {
+                'rc-1': { id: 'rc-1', campaign: {}, data: { foo: 'bar' } },
+                'rc-2': { id: 'rc-2', campaign: {}, data: { foo: 'bar' } },
+            };
+            
+            jasmine.clock().install();
+            jasmine.clock().mockDate(new Date('2016-01-28T23:32:22.023Z'));
+        });
+        
+        afterEach(function() {
+            jasmine.clock().uninstall();
+        });
+        
+        it('should do nothing if the campaign is not starting or ending', function() {
+            [{ old: Status.Draft, new: Status.Paused  }, { old: Status.Active, new: Status.Active },
+             { old: Status.Expired, new: Status.Active  }, { old: Status.Expired, new: Status.Completed }].forEach(function(obj) {
+                req.body.status = obj.new;
+                req.origObj.status = obj.old;
+                campModule.setCardDates(req, nextSpy, doneSpy);
+            });
+            expect(nextSpy.calls.count()).toBe(4);
+            expect(doneSpy).not.toHaveBeenCalled();
+            expect(req.body.cards[0]).toEqual({ id: 'rc-1', title: 'new1', campaign: {} });
+            expect(req.body.cards[1]).toEqual({ id: 'rc-2', title: 'new2', campaign: {} });
+            expect(mockLog.info).not.toHaveBeenCalled();
+        });
+        
+        ['starting', 'ending'].forEach(function(action) {
+            describe('if the campaign is ' + action, function() {
+                var modProp = action.replace('ing', 'Date');
+                beforeEach(function() {
+                    req.body.status = (action === 'starting') ? Status.Active : Status.Expired;
+                    req.origObj.status = Status.Pending;
+                });
+
+                it('should do nothing if there are no cards', function() {
+                    delete req.body.cards;
+                    delete req.origObj.cards;
+                    campModule.setCardDates(req, nextSpy, doneSpy);
+                    expect(nextSpy).toHaveBeenCalled();
+                    expect(doneSpy).not.toHaveBeenCalled();
+                    expect(req.body.cards).not.toBeDefined();
+                    expect(req.origObj.cards).not.toBeDefined();
+                    expect(mockLog.info).toHaveBeenCalled();
+                });
+                
+                it('should set the ' + modProp + ' on cards', function() {
+                    var expected = {};
+                    expected[modProp] = '2016-01-28T23:32:22.023Z';
+
+                    campModule.setCardDates(req, nextSpy, doneSpy);
+                    expect(nextSpy).toHaveBeenCalled();
+                    expect(doneSpy).not.toHaveBeenCalled();
+                    expect(req.body.cards[0]).toEqual({ id: 'rc-1', title: 'new1', campaign: expected });
+                    expect(req.body.cards[1]).toEqual({ id: 'rc-2', title: 'new2', campaign: expected });
+                    expect(mockLog.info).toHaveBeenCalled();
+                });
+                
+                it('should not modify existing dates', function() {
+                    req.body.cards[0].campaign.startDate = '2016-01-30T23:50:02.000Z';
+                    req.body.cards[1].campaign.endDate = '2016-02-30T23:50:02.000Z';
+
+                    campModule.setCardDates(req, nextSpy, doneSpy);
+                    expect(nextSpy).toHaveBeenCalled();
+                    expect(doneSpy).not.toHaveBeenCalled();
+                    expect(req.body.cards[0].campaign.startDate).toBe('2016-01-30T23:50:02.000Z');
+                    expect(req.body.cards[1].campaign.endDate).toBe('2016-02-30T23:50:02.000Z');
+                    if (action === 'starting') {
+                        expect(req.body.cards[1].campaign.startDate).toBe('2016-01-28T23:32:22.023Z');
+                        expect(req.body.cards[0].endDate).not.toBeDefined();
+                    } else {
+                        expect(req.body.cards[0].campaign.endDate).toBe('2016-01-28T23:32:22.023Z');
+                        expect(req.body.cards[1].startDate).not.toBeDefined();
+                    }
+                    expect(mockLog.info).toHaveBeenCalled();
+                });
+
+                it('should ensure the campaign hash exists', function() {
+                    var expected = {};
+                    expected[modProp] = '2016-01-28T23:32:22.023Z';
+                    req.body.cards = [{ id: 'rc-1' }, { id: 'rc-2' }];
+
+                    campModule.setCardDates(req, nextSpy, doneSpy);
+                    expect(nextSpy).toHaveBeenCalled();
+                    expect(doneSpy).not.toHaveBeenCalled();
+                    expect(req.body.cards[0].campaign).toEqual(expected);
+                    expect(req.body.cards[1].campaign).toEqual(expected);
+                    expect(mockLog.info).toHaveBeenCalled();
+                });
+                
+                it('should copy over the old cards if not defined in req.body', function() {
+                    delete req.body.cards;
+                    var expected = {};
+                    expected[modProp] = '2016-01-28T23:32:22.023Z';
+
+                    campModule.setCardDates(req, nextSpy, doneSpy);
+                    expect(nextSpy).toHaveBeenCalled();
+                    expect(doneSpy).not.toHaveBeenCalled();
+                    expect(req.body.cards[0]).toEqual({ id: 'rc-1', title: 'old1', campaign: expected });
+                    expect(req.body.cards[1]).toEqual({ id: 'rc-2', title: 'old2', campaign: expected });
+                    expect(mockLog.info).toHaveBeenCalled();
+                });
             });
         });
     });
