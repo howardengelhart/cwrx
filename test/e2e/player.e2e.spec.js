@@ -185,7 +185,8 @@ describe('player service', function() {
                     mobileType: 'mobile',
                     standalone: true,
                     interstitial: false,
-                    autoLaunch: true
+                    autoLaunch: true,
+                    $params: config.playerUrl.query
                 });
             });
 
@@ -1166,7 +1167,12 @@ describe('player service', function() {
                     mobileType: 'mobile',
                     standalone: true,
                     interstitial: false,
-                    autoLaunch: true
+                    autoLaunch: true,
+                    $params: {
+                        placement: 'pl-83bc832ca2b056',
+                        playUrls: [ 'https://tracking.com/pixel.gif?event=play' ],
+                        debug: 2
+                    }
                 });
             });
 
