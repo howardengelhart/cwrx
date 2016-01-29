@@ -914,6 +914,69 @@ Player.prototype.getViaPlacement = function getViaPlacement(options) {
     });
 };
 
+Player.prototype.getVAST = function getVAST(/*options*/) {
+    var options = extend(arguments[0], this.config.defaults);
+    var self = this;
+    var log = logger.getLog();
+    var adLoader = this.adLoader;
+    var uuid = options.reqUuid;
+    var origin = options.origin;
+    var placement = options.placement;
+    var card = options.card;
+    var campaign = options.campaign;
+
+    if (!(placement || card || campaign)) {
+        return q.reject(new ServiceError('You must specify a placement, card or campaign.', 400));
+    }
+
+    log.trace('[%1] Making VAST with options (%2).', uuid, inspect(options));
+
+    return (function getOptions() {
+        if (!placement) {
+            log.trace('[%1] No placement, using only query params.', uuid);
+            return q(options);
+        }
+
+        return self.__getPlacement__(placement, {}, origin, uuid).then(function combine(placement) {
+            var tagParams = placement.tagParams;
+            var queryParams = options.$params;
+
+            log.trace(
+                '[%1] Got placement {%2} with tagParams (%2).',
+                uuid, placement.id, inspect(tagParams)
+            );
+
+            return _.assign({}, options, { $params: _.assign({}, tagParams, queryParams) });
+        });
+    }()).then(function fetchCard(options) {
+        var params = options.$params;
+        var cardParams = self.__apiParams__('card', params);
+        var campaign = params.campaign;
+        var card = params.card;
+
+        return (function getCard() {
+            if (card) {
+                log.trace('[%1] Getting card {%2}.', uuid, card);
+                return adLoader.getCard(card, cardParams, options, uuid);
+            }
+
+            log.trace('[%1] Finding card rom campaign {%2}.', uuid, campaign);
+
+            return adLoader.findCard(campaign, cardParams, options, uuid).then(function(card) {
+                if (!card) {
+                    throw new Error('No card was found for campaign {' + campaign + '}.');
+                } else {
+                    return card;
+                }
+            });
+        }()).catch(function fail(reason) {
+            throw new ServiceError(reason.message, 404);
+        }).then(function createVAST(card) {
+            return self.__createVAST__(card, _.assign({}, params, { card: card.id }), origin, uuid);
+        });
+    });
+};
+
 Player.prototype.resetCodeCache = function resetCodeCache() {
     this.__getPlayer__.clear();
     this.getVersion.clear();
