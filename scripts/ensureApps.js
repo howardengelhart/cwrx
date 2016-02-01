@@ -7,7 +7,7 @@ var apps = [
     {
         id: 'app-adsservice',
         created: new Date(),
-        lastUpdates: new Date(),
+        lastUpdated: new Date(),
         status: 'active',
         key: 'internal-ads-service',
         secret: '4cd371bf665c20f4fc1f0f4d9a1db851a28cfeec',
