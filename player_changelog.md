@@ -3,6 +3,7 @@
 ### 2.5.0: Fri Jan 29 15:27:18 EST 2016
 * [FEATURE]: Add [GET /api/public/vast/2.0/tag] endpoint to return VAST
   documents: [#774](https://github.com/cinema6/cwrx/pull/774)
+* [FIX]: Make sure CORS headers are set on VAST responses: [#776](https://github.com/cinema6/cwrx/pull/776)
 
 ### 2.4.0: Thu Jan 28 10:02:35 EST 2016
 * Add `branding`, `ex` and `vr` query params to tracking pixel URLs:
