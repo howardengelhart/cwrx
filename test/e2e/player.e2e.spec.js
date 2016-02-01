@@ -1344,6 +1344,13 @@ describe('player service', function() {
             it('should set the cache control to max-age=0', function() {
                 expect(response.headers['cache-control']).toBe('max-age=0');
             });
+
+            it('should set CORS headers', function() {
+                expect(response.headers).toEqual(jasmine.objectContaining({
+                    'access-control-allow-origin': 'https://imasdk.googleapis.com',
+                    'access-control-allow-credentials': 'true'
+                }));
+            });
         });
 
         describe('with a campaign', function() {
@@ -1440,6 +1447,13 @@ describe('player service', function() {
 
             it('should set the cache control to max-age=0', function() {
                 expect(response.headers['cache-control']).toBe('max-age=0');
+            });
+
+            it('should set CORS headers', function() {
+                expect(response.headers).toEqual(jasmine.objectContaining({
+                    'access-control-allow-origin': 'https://imasdk.googleapis.com',
+                    'access-control-allow-credentials': 'true'
+                }));
             });
         });
 
@@ -1542,6 +1556,13 @@ describe('player service', function() {
 
             it('should set the cache control to max-age=60', function() {
                 expect(response.headers['cache-control']).toBe('max-age=60');
+            });
+
+            it('should set CORS headers', function() {
+                expect(response.headers).toEqual(jasmine.objectContaining({
+                    'access-control-allow-origin': 'https://imasdk.googleapis.com',
+                    'access-control-allow-credentials': 'true'
+                }));
             });
 
             describe('without a duration', function() {
