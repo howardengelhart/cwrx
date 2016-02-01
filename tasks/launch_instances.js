@@ -112,8 +112,8 @@ module.exports = function(grunt) {
         return q.all(config.data.runInstances.map(function(rInst,index){
             var instId, buff;
 
-            return q.ninvoke(config.ec2,'runInstances',rInst.params).delay(3000)
-            .then(function(data){
+            return q.ninvoke(config.ec2,'runInstances',rInst.params)
+            .then(function(data) {
                 instId = data.Instances[0].InstanceId;
                 var tags = [
                     {
@@ -140,14 +140,6 @@ module.exports = function(grunt) {
                 });
                 config.instanceData._instances.push(data.Instances[0]);
 
-                return q.ninvoke(config.ec2,'createTags',{
-                    Resources : [ instId ],
-                    Tags : tags
-                });
-                
-                return {};
-            })
-            .then(function(data){
                 return instId;
             });
         }))
@@ -244,7 +236,7 @@ module.exports = function(grunt) {
             [ config.ec2, config.launchedIds, 'running'],
             config.opts.stateInterval * 1000).timeout(config.opts.stateTimeout * 1000)
             .then(function(result){
-                grunt.log.writelns('Instnces are all running!');
+                grunt.log.writelns('Instances are all running!');
                 return config;
             })
             .progress(function(err){
@@ -254,6 +246,34 @@ module.exports = function(grunt) {
                 err.message = 'checkInstanceStatus: ' + err.message;
                 return q.reject(err);
             });
+    }
+    
+    function tagInstances(config) {
+        grunt.log.writelns('tagInstances');
+        
+        return q.all(config.launchedIds.map(function(id) {
+            var inst = config.instanceData.byId(id);
+            
+            var tags = Object.keys(inst._tagMap).map(function(key) {
+                return {
+                    Key: key,
+                    Value: inst._tagMap[key]
+                };
+            });
+        
+            return q.ninvoke(config.ec2,'createTags', {
+                Resources : [ id ],
+                Tags : tags
+            })
+            .catch(function(err) {
+                grunt.log.errorlns('Failed tagging instance ' + id + ' : ' + util.inspect(err));
+                return q.reject(new Error('tagInstances: Failed tagging instance ' + id));
+            });
+        }))
+        .then(function() {
+            grunt.log.writelns('Successfully tagged instances: ' + config.launchedIds.toString());
+            return config;
+        });
     }
 
     function launchInstances(config){
@@ -336,7 +356,7 @@ module.exports = function(grunt) {
             buff, userData;
 
             if (!config.opts.owner){
-                grunt.log.errorlns('Onwer is required.');
+                grunt.log.errorlns('Owner is required.');
                 return done(false);
             }
 
@@ -390,6 +410,7 @@ module.exports = function(grunt) {
             .then(verifyInstancesAreFree)
             .then(launchInstances)
             .then(checkInstanceStatus)
+            .then(tagInstances)
             .then(refreshInstanceData)
             .then(checkInstanceSsh)
             .then(checkInstanceHttp)
