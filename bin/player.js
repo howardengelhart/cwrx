@@ -637,8 +637,16 @@ Player.startService = function startService() {
 
         app.get('/api/public/vast/2.0/tag', sendMetrics, function setHeaders(req, res, next) {
             var maxAge = player.config.api.card.cacheTTLs.fresh * 60;
+            var origin = req.get('Origin');
 
             res.set('Content-Type', 'application/xml');
+
+            if (origin) {
+                res.set({
+                    'Access-Control-Allow-Origin': origin,
+                    'Access-Control-Allow-Credentials': 'true'
+                });
+            }
 
             if (req.query.card) {
                 res.set('Cache-Control', 'max-age=' + maxAge);

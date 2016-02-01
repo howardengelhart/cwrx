@@ -584,10 +584,25 @@ describe('player service', function() {
 
                                 beforeEach(function() {
                                     req = {
-                                        query: {}
+                                        headers: {},
+                                        query: {},
+
+                                        get: jasmine.createSpy('req.get()').and.callFake(function(header) {
+                                            return this.headers[header.toLowerCase()];
+                                        })
                                     };
                                     res = {
-                                        set: jasmine.createSpy('res.set()')
+                                        headers: {},
+
+                                        set: jasmine.createSpy('res.set()').and.callFake(function(header, value) {
+                                            if (Object(header) === header) {
+                                                Object.keys(header).forEach(function(key) {
+                                                    this.set(key, header[key]);
+                                                }, this);
+                                            } else {
+                                                this.headers[header.toLowerCase()] = value;
+                                            }
+                                        })
                                     };
                                     next = jasmine.createSpy('next()');
                                 });
@@ -600,11 +615,15 @@ describe('player service', function() {
                                     });
 
                                     it('should set the cache-control to the card freshTTL', function() {
-                                        expect(res.set).toHaveBeenCalledWith('Cache-Control', 'max-age=' + player.config.api.card.cacheTTLs.fresh * 60);
+                                        expect(res.headers).toEqual(jasmine.objectContaining({
+                                            'cache-control': 'max-age=' + player.config.api.card.cacheTTLs.fresh * 60
+                                        }));
                                     });
 
                                     it('should set the Content-Type to "application/xml"', function() {
-                                        expect(res.set).toHaveBeenCalledWith('Content-Type', 'application/xml');
+                                        expect(res.headers).toEqual(jasmine.objectContaining({
+                                            'content-type': 'application/xml'
+                                        }));
                                     });
 
                                     it('should call next()', function() {
@@ -618,11 +637,49 @@ describe('player service', function() {
                                     });
 
                                     it('should not set the cache-control to the card freshTTL', function() {
-                                        expect(res.set.calls.count()).toBe(1);
+                                        expect(res.headers['cache-control']).not.toBeDefined();
                                     });
 
                                     it('should set the Content-Type to "application/xml"', function() {
-                                        expect(res.set).toHaveBeenCalledWith('Content-Type', 'application/xml');
+                                        expect(res.headers).toEqual(jasmine.objectContaining({
+                                            'content-type': 'application/xml'
+                                        }));
+                                    });
+
+                                    it('should call next()', function() {
+                                        expect(next).toHaveBeenCalled();
+                                    });
+                                });
+
+                                describe('if there is no Origin request header', function() {
+                                    beforeEach(function() {
+                                        setHeaders(req, res, next);
+                                    });
+
+                                    it('should not set CORS headers', function() {
+                                        expect(res.headers).not.toEqual(jasmine.objectContaining({
+                                            'access-control-allow-origin': jasmine.anything(),
+                                            'access-control-allow-credentials': jasmine.anything()
+                                        }));
+                                    });
+
+                                    it('should call next()', function() {
+                                        expect(next).toHaveBeenCalled();
+                                    });
+                                });
+
+                                describe('if there is an Origin request header', function() {
+                                    beforeEach(function() {
+                                        req.headers.origin = 'https://console.pocketmath.com';
+
+                                        setHeaders(req, res, next);
+                                    });
+
+                                    it('should set CORS headers', function() {
+                                        expect(res.headers).toEqual(jasmine.objectContaining({
+                                            'access-control-allow-origin': req.headers.origin,
+                                            'access-control-allow-credentials': 'true'
+                                        }));
                                     });
 
                                     it('should call next()', function() {
