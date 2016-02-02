@@ -27,7 +27,9 @@
     "glob": "~3.2.9",
     "handlebars": "~1.3.0",
     "html-to-text": "0.1.0",
+    "imap": "~0.8.12",
     "lodash": "^4.0.0",
+    "mailparser": "~0.4.4",
     "memcached": "2.1.0",
     "metagetta": "^0.3.0",
     "mongodb": "~2.0.53",
@@ -53,13 +55,10 @@
     "grunt-contrib-copy": "~0.4.0",
     "grunt-contrib-jshint": "~0.7.1",
     "grunt-contrib-watch": "~0.5.3",
-    "imap": "~0.8.12",
     "jasmine": "~2.3.2",
     "jasmine-reporters": "~2.0.7",
     "jshint": "~2.1.2",
     "load-grunt-config": "~0.7.1",
-    "mailparser": "~0.4.4",
-    "replacestream": "^4.0.0",
     "stream-to-promise": "^1.1.0"
   }
 }
