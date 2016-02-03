@@ -115,6 +115,34 @@ describe('email', function() {
         });
     });
     
+    describe('campaignEnded', function() {
+        it('should correctly call compileAndSend', function(done) {
+            email.campaignEnded('send', 'recip', 'best campaign', 'dash.board').then(function(resp) {
+                expect(resp).toBe('success');
+                expect(email.compileAndSend).toHaveBeenCalledWith(
+                    'send',
+                    'recip',
+                    'Your campaign is over, buddy',
+                    'campaignEnded.html',
+                    { campName: 'best campaign', dashboardLink: 'dash.board' },
+                    [{ filename: 'logo.png', cid: 'reelContentLogo' }]
+                );
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
+        });
+
+        it('should pass along errors from compileAndSend', function(done) {
+            email.compileAndSend.and.returnValue(q.reject('I GOT 99 PROBLEMS AND THIS IS ONE'));
+            email.campaignEnded('send', 'recip', 'best campaign', 'dash.board').then(function(resp) {
+                expect(resp).not.toBeDefined();
+            }).catch(function(error) {
+                expect(error).toBe('I GOT 99 PROBLEMS AND THIS IS ONE');
+                expect(email.compileAndSend).toHaveBeenCalled();
+            }).done(done);
+        });
+    });
+    
     describe('newUpdateRequest', function() {
         it('should correctly call compileAndSend', function(done) {
             email.newUpdateRequest('send', 'recip', 'user@c6.com', 'Heinz', 'ketchupbot', 'review.me').then(function(resp) {

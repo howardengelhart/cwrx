@@ -38,7 +38,7 @@
         },
         emails: {
             awsRegion: 'us-east-1',
-            sender: 'no-reply@cinema6.com',
+            sender: 'no-reply@reelcontent.com',
             supportAddress: 'c6e2eTester@gmail.com',
             reviewLink: 'http://localhost:9000/#/apps/selfie/campaigns/manage/:campId/admin',
             dashboardLink: 'http://localhost:9000/#/apps/selfie/campaigns'

@@ -214,7 +214,7 @@ describe('ads campaignUpdates endpoints (E2E):', function() {
     
     // Performs some checks on a "New update request" email sent to support
     function testNewUpdateMsg(msg, camp) {
-        expect(msg.from[0].address.toLowerCase()).toBe('no-reply@cinema6.com');
+        expect(msg.from[0].address.toLowerCase()).toBe('no-reply@reelcontent.com');
         expect(msg.to[0].address.toLowerCase()).toBe('c6e2etester@gmail.com');
         [
             new RegExp('created\\s*by\\s*c6e2etester@gmail.com\\s*for\\s*campaign.*' + camp.name),
@@ -227,7 +227,7 @@ describe('ads campaignUpdates endpoints (E2E):', function() {
     }
 
     function testApprovalMsg(msg, camp, isInitial) {
-        expect(msg.from[0].address.toLowerCase()).toBe('no-reply@cinema6.com');
+        expect(msg.from[0].address.toLowerCase()).toBe('no-reply@reelcontent.com');
         expect(msg.to[0].address.toLowerCase()).toBe('c6e2etester@gmail.com');
         
         var regex = new RegExp('Your\\s*' + (!isInitial ? 'change\\s*request\\s*to\\s*' : '') +
@@ -238,7 +238,7 @@ describe('ads campaignUpdates endpoints (E2E):', function() {
     }
     
     function testRejectMsg(msg, camp, reason, isInitial) {
-        expect(msg.from[0].address.toLowerCase()).toBe('no-reply@cinema6.com');
+        expect(msg.from[0].address.toLowerCase()).toBe('no-reply@reelcontent.com');
         expect(msg.to[0].address.toLowerCase()).toBe('c6e2etester@gmail.com');
         [
             new RegExp('Your\\s*' + (!isInitial ? 'change\\s*request\\s*to\\s*' : '') +
