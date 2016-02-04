@@ -1,5 +1,9 @@
 # Ads Service Changelog
 
+* Email campaign owners when their campaign ends: [#765](https://github.com/cinema6/cwrx/issues/765)
+* Extra deployment steps:
+    * Add `manageLink` to emails config
+
 ### 4.3.0: Fri Jan 29 15:28:10 EST 2016
 * Set `endDate` on campaign's cards when it ends: [#762](https://github.com/cinema6/cwrx/issues/762)
 * Set `startDate` on campaign's cards when it starts: [#761](https://github.com/cinema6/cwrx/issues/761)

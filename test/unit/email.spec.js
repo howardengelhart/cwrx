@@ -1,6 +1,6 @@
 var flush = true;
 describe('email', function() {
-    var path, email, q, fs, handlebars, nodemailer, sesTransport, htmlToText, logger, mockLog;
+    var path, email, q, fs, handlebars, nodemailer, sesTransport, htmlToText, logger, mockLog, Status;
 
     beforeEach(function() {
         if (flush){ for (var m in require.cache){ delete require.cache[m]; } flush = false; }
@@ -12,6 +12,7 @@ describe('email', function() {
         q               = require('q');
         email           = require('../../lib/email');
         logger          = require('../../lib/logger');
+        Status          = require('../../lib/enums').Status;
 
         mockLog = {
             trace : jasmine.createSpy('log_trace'),
@@ -25,6 +26,14 @@ describe('email', function() {
         spyOn(logger, 'getLog').and.returnValue(mockLog);
         
         spyOn(email, 'compileAndSend').and.returnValue(q('success'));
+    });
+
+    beforeEach(function() {
+        jasmine.clock().install();
+    });
+    
+    afterEach(function() {
+        jasmine.clock().uninstall();
     });
     
     describe('updateApproved', function() {
@@ -107,6 +116,62 @@ describe('email', function() {
         it('should pass along errors from compileAndSend', function(done) {
             email.compileAndSend.and.returnValue(q.reject('I GOT 99 PROBLEMS AND THIS IS ONE'));
             email.updateRejected('send', 'recip', false, 'ketchupbot', 'link', 'you stink').then(function(resp) {
+                expect(resp).not.toBeDefined();
+            }).catch(function(error) {
+                expect(error).toBe('I GOT 99 PROBLEMS AND THIS IS ONE');
+                expect(email.compileAndSend).toHaveBeenCalled();
+            }).done(done);
+        });
+    });
+    
+    describe('campaignEnded', function() {
+        it('should correctly call compileAndSend', function(done) {
+            var now = new Date();
+            email.campaignEnded('send', 'recip', 'best campaign', Status.Expired, 'dash.board', 'manage.this').then(function(resp) {
+                expect(resp).toBe('success');
+                expect(email.compileAndSend).toHaveBeenCalledWith(
+                    'send',
+                    'recip',
+                    'Your Campaign Has Ended',
+                    'campaignExpired.html',
+                    {
+                        campName: 'best campaign',
+                        dashboardLink: 'dash.board',
+                        manageLink: 'manage.this',
+                        date: now.toLocaleDateString()
+                    },
+                    [{ filename: 'logo.png', cid: 'reelContentLogo' }]
+                );
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
+        });
+
+        it('should send a different message if the campaign is completed', function(done) {
+            var now = new Date();
+            email.campaignEnded('send', 'recip', 'best campaign', Status.Completed, 'dash.board', 'manage.this').then(function(resp) {
+                expect(resp).toBe('success');
+                expect(email.compileAndSend).toHaveBeenCalledWith(
+                    'send',
+                    'recip',
+                    'Your Campaign is Out of Budget',
+                    'campaignCompleted.html',
+                    {
+                        campName: 'best campaign',
+                        dashboardLink: 'dash.board',
+                        manageLink: 'manage.this',
+                        date: now.toLocaleDateString()
+                    },
+                    [{ filename: 'logo.png', cid: 'reelContentLogo' }]
+                );
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
+        });
+
+        it('should pass along errors from compileAndSend', function(done) {
+            email.compileAndSend.and.returnValue(q.reject('I GOT 99 PROBLEMS AND THIS IS ONE'));
+            email.campaignEnded('send', 'recip', 'best campaign', Status.Expired, 'dash.board', 'manage.this').then(function(resp) {
                 expect(resp).not.toBeDefined();
             }).catch(function(error) {
                 expect(error).toBe('I GOT 99 PROBLEMS AND THIS IS ONE');
@@ -200,14 +265,6 @@ describe('email', function() {
     });
 
     describe('passwordChanged', function() {
-        beforeEach(function() {
-            jasmine.clock().install();
-        });
-        
-        afterEach(function() {
-            jasmine.clock().uninstall();
-        });
-
         it('should correctly call compileAndSend', function(done) {
             var now = new Date();
             jasmine.clock().mockDate(now);

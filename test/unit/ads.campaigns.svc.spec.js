@@ -1,6 +1,6 @@
 var flush = true;
 describe('ads-campaigns (UT)', function() {
-    var mockLog, CrudSvc, Model, logger, q, campModule, campaignUtils, requestUtils,
+    var mockLog, CrudSvc, Model, logger, q, campModule, campaignUtils, requestUtils, email,
         mongoUtils, objUtils, nextSpy, doneSpy, errorSpy, req, anyNum, mockDb, Status;
 
     beforeEach(function() {
@@ -14,6 +14,7 @@ describe('ads-campaigns (UT)', function() {
         objUtils        = require('../../lib/objUtils');
         CrudSvc         = require('../../lib/crudSvc');
         Model           = require('../../lib/model');
+        email           = require('../../lib/email');
         Status          = require('../../lib/enums').Status;
         anyNum = jasmine.any(Number);
 
@@ -50,6 +51,11 @@ describe('ads-campaigns (UT)', function() {
                 endpoint: '/api/content/experiences/'
             }
         };
+        campModule.config.emails = {
+            sender: 'no-reply@c6.com',
+            manageLink: 'http://selfie.c6.com/manage/:campId/manage',
+            dashboardLink: 'http://selfie.c6.com/review/campaigns'
+        };
 
         req = {
             uuid: '1234',
@@ -76,18 +82,22 @@ describe('ads-campaigns (UT)', function() {
 
         beforeEach(function() {
             var config = {
+                emails: {
+                    sender: 'email.sender',
+                    manageLink: 'manage.this/:campId/manage',
+                    dashboardLink: 'dash.board'
+                },
                 api: {
                     root: 'https://foo.com',
                     cards: { endpoint: '/cards/' },
                     experiences: { endpoint: '/experiences/' },
-                },
-                campaigns: { statusDelay: 100, statusAttempts: 5 }
+                }
             };
 
             boundFns = [];
             var bind = Function.prototype.bind;
             
-            [campModule.extraValidation, campModule.statusCheck].forEach(function(fn) {
+            [campModule.extraValidation, campModule.statusCheck, campModule.notifyEnded].forEach(function(fn) {
                 spyOn(fn, 'bind').and.callFake(function() {
                     var boundFn = bind.apply(fn, arguments);
 
@@ -127,6 +137,11 @@ describe('ads-campaigns (UT)', function() {
                     endpoint: '/experiences/',
                     baseUrl: 'https://foo.com/experiences/'
                 }
+            });
+            expect(campModule.config.emails).toEqual({
+                sender: 'email.sender',
+                manageLink: 'manage.this/:campId/manage',
+                dashboardLink: 'dash.board'
             });
         });
         
@@ -180,6 +195,10 @@ describe('ads-campaigns (UT)', function() {
         it('should create/edit C6 card entities on create + edit', function() {
             expect(svc._middleware.create).toContain(campModule.updateCards);
             expect(svc._middleware.edit).toContain(campModule.updateCards);
+        });
+        
+        it('should potentially notify the owner when the campaign ends', function() {
+            expect(svc._middleware.edit).toContain(getBoundFn(campModule.notifyEnded, [campModule, svc]));
         });
         
         it('should include middleware for handling the pricingHistory', function() {
@@ -1277,6 +1296,119 @@ describe('ads-campaigns (UT)', function() {
             }]);
             expect(req.body.pricingHistory[0].date).toBeGreaterThan(oldDate);
             expect(nextSpy).toHaveBeenCalledWith();
+        });
+    });
+    
+    describe('notifyEnded', function() {
+        var svc, mockColl, mockCursor;
+        beforeEach(function() {
+            mockCursor = {
+                next: jasmine.createSpy('cursor.next()').and.returnValue(q({ id: 'u-2', email: 'owner@c6.com' }))
+            };
+            mockColl = {
+                find: jasmine.createSpy('coll.find()').and.returnValue(mockCursor)
+            };
+            mockDb.collection.and.returnValue(mockColl);
+            req.body = { id: 'cam-1', name: 'best campaign', status: Status.Expired, user: 'u-2' };
+            req.origObj = { id: 'cam-1', name: 'ok campaign', status: Status.Active, user: 'u-2' };
+            spyOn(email, 'campaignEnded').and.returnValue(q());
+            svc = { _db: mockDb };
+        });
+        
+        it('should look up the owner\'s email and send them a notification', function(done) {
+           campModule.notifyEnded(svc, req, nextSpy, doneSpy).catch(errorSpy).finally(function() {
+                expect(nextSpy).toHaveBeenCalled();
+                expect(doneSpy).not.toHaveBeenCalled();
+                expect(errorSpy).not.toHaveBeenCalled();
+                expect(mockDb.collection).toHaveBeenCalledWith('users');
+                expect(mockColl.find).toHaveBeenCalledWith({ id: 'u-2' }, { fields: { id: 1, email: 1 }, limit: 1 });
+                expect(email.campaignEnded).toHaveBeenCalledWith(
+                    'no-reply@c6.com',
+                    'owner@c6.com',
+                    'best campaign',
+                    Status.Expired,
+                    'http://selfie.c6.com/review/campaigns',
+                    'http://selfie.c6.com/manage/cam-1/manage'
+                );
+                expect(mockLog.warn).not.toHaveBeenCalled();
+                done();
+            });
+        });
+        
+        it('should handle any transitions to an end state', function(done) {
+            q.all([{ old: Status.Paused, new: Status.Expired  }, { old: Status.Active, new: Status.Completed },
+                   { old: Status.Error, new: Status.Expired  }, { old: Status.Draft, new: Status.Completed }].map(function(obj) {
+                var reqCopy = JSON.parse(JSON.stringify(req));
+                reqCopy.body.status = obj.new;
+                reqCopy.origObj.status = obj.old;
+                return campModule.notifyEnded(svc, reqCopy, nextSpy, doneSpy);
+            })).then(function(results) {
+                expect(nextSpy.calls.count()).toBe(4);
+                expect(doneSpy).not.toHaveBeenCalled();
+                expect(mockColl.find.calls.count()).toBe(4);
+                expect(email.campaignEnded.calls.count()).toBe(4);
+                expect(email.campaignEnded.calls.argsFor(0)[3]).toBe(Status.Expired);
+                expect(email.campaignEnded.calls.argsFor(1)[3]).toBe(Status.Completed);
+                expect(mockLog.warn).not.toHaveBeenCalled();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should skip if the campaign is not ending', function(done) {
+            q.all([{ old: Status.Active, new: Status.Paused  }, { old: Status.Expired, new: Status.Completed }].map(function(obj) {
+                var reqCopy = JSON.parse(JSON.stringify(req));
+                reqCopy.body.status = obj.new;
+                reqCopy.origObj.status = obj.old;
+                return campModule.notifyEnded(svc, reqCopy, nextSpy, doneSpy);
+            })).then(function(results) {
+                expect(nextSpy.calls.count()).toBe(2);
+                expect(doneSpy).not.toHaveBeenCalled();
+                expect(mockColl.find).not.toHaveBeenCalled();
+                expect(email.campaignEnded).not.toHaveBeenCalled();
+                expect(mockLog.warn).not.toHaveBeenCalled();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should warn and continue if the user is not found', function(done) {
+            mockCursor.next.and.returnValue(q());
+            campModule.notifyEnded(svc, req, nextSpy, doneSpy).catch(errorSpy).finally(function() {
+                expect(nextSpy).toHaveBeenCalled();
+                expect(doneSpy).not.toHaveBeenCalled();
+                expect(errorSpy).not.toHaveBeenCalled();
+                expect(mockColl.find).toHaveBeenCalled();
+                expect(email.campaignEnded).not.toHaveBeenCalled();
+                expect(mockLog.warn).toHaveBeenCalled();
+                done();
+            });
+        });
+
+        
+        it('should warn and continue if looking up the user fails', function(done) {
+            mockCursor.next.and.returnValue(q.reject('I GOT A PROBLEM'));
+            campModule.notifyEnded(svc, req, nextSpy, doneSpy).catch(errorSpy).finally(function() {
+                expect(nextSpy).toHaveBeenCalled();
+                expect(doneSpy).not.toHaveBeenCalled();
+                expect(errorSpy).not.toHaveBeenCalled();
+                expect(mockColl.find).toHaveBeenCalled();
+                expect(email.campaignEnded).not.toHaveBeenCalled();
+                expect(mockLog.warn).toHaveBeenCalled();
+                done();
+            });
+        });
+        
+        it('should warn and continue if emailing the user fails', function(done) {
+            email.campaignEnded.and.returnValue(q.reject('I GOT A PROBLEM'));
+            campModule.notifyEnded(svc, req, nextSpy, doneSpy).catch(errorSpy).finally(function() {
+                expect(nextSpy).toHaveBeenCalled();
+                expect(doneSpy).not.toHaveBeenCalled();
+                expect(errorSpy).not.toHaveBeenCalled();
+                expect(mockColl.find).toHaveBeenCalled();
+                expect(mockLog.warn).toHaveBeenCalled();
+                done();
+            });
         });
     });
 

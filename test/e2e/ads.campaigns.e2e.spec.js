@@ -42,7 +42,7 @@ describe('ads campaigns endpoints (E2E):', function() {
         var adminUser = {
             id: 'admin-e2e-user',
             status: 'active',
-            email : 'adminuser',
+            email : 'c6e2etester@gmail.com',
             password : '$2a$10$XomlyDak6mGSgrC/g1L7FO.4kMRkj4UturtKSzy6mFeL8QWOBmIWq', // hash of 'password'
             org: 'o-admin',
             policies: ['adminCampPolicy']
@@ -125,7 +125,7 @@ describe('ads campaigns endpoints (E2E):', function() {
             url: config.authUrl + '/login',
             jar: adminJar,
             json: {
-                email: 'adminuser',
+                email: 'c6e2etester@gmail.com',
                 password: 'password'
             }
         };
@@ -685,7 +685,7 @@ describe('ads campaigns endpoints (E2E):', function() {
                 expect(resp.body.org).toBe('o-admin');
                 expect(resp.body.status).toBe('draft');
                 expect(resp.body.statusHistory).toEqual([
-                    { status: 'draft', userId: 'admin-e2e-user', user: 'adminuser', date: jasmine.any(String) }
+                    { status: 'draft', userId: 'admin-e2e-user', user: 'c6e2etester@gmail.com', date: jasmine.any(String) }
                 ]);
                 expect(resp.body.name).toBe('my test campaign');
                 expect(resp.body.targeting).toEqual({ interests: ['cat-1', 'cat-2'] });
@@ -795,7 +795,7 @@ describe('ads campaigns endpoints (E2E):', function() {
                 expect(resp.body.pricingHistory).toEqual([{
                     date: jasmine.any(String),
                     userId: 'admin-e2e-user',
-                    user: 'adminuser',
+                    user: 'c6e2etester@gmail.com',
                     pricing: {
                         budget: 1000,
                         dailyLimit: 200,
@@ -1281,7 +1281,7 @@ describe('ads campaigns endpoints (E2E):', function() {
                     {
                         date: jasmine.any(String),
                         userId: 'admin-e2e-user',
-                        user: 'adminuser',
+                        user: 'c6e2etester@gmail.com',
                         pricing: newPricing
                     },
                     {
@@ -1339,7 +1339,7 @@ describe('ads campaigns endpoints (E2E):', function() {
                 expect(resp.body.pricingHistory).toEqual([{
                     date: jasmine.any(String),
                     userId: 'admin-e2e-user',
-                    user: 'adminuser',
+                    user: 'c6e2etester@gmail.com',
                     pricing: newPricing
                 }]);
             }).catch(function(error) {
@@ -1395,21 +1395,95 @@ describe('ads campaigns endpoints (E2E):', function() {
             }).done(done);
         });
         
-        it('should set the endDate on cards if ending the campaign', function(done) {
-            options.url = config.adsUrl + '/campaigns/' + adminCreatedCamp.id;
-            options.json = { status: 'completed' };
-            requestUtils.qRequest('put', options, null, { maxAttempts: 30 }).then(function(resp) {
-                expect(resp.response.statusCode).toBe(200);
-                expect(resp.body.status).toBe('completed');
-
-                expect(new Date(resp.body.cards[0].campaign.endDate).toString()).not.toBe('Invalid Date');
-                expect(resp.body.cards[1].campaign.endDate).toEqual(resp.body.cards[0].campaign.endDate);
+        describe('if ending the campaign', function() {
+            var mailman;
+            beforeEach(function(done) {
+                options.url = config.adsUrl + '/campaigns/' + adminCreatedCamp.id;
+                options.json = { status: 'completed' };
                 
-                adminCreatedCamp = resp.body;
-                return testUtils.checkCardEntities(adminCreatedCamp, adminJar, config.contentUrl);
-            }).catch(function(error) {
-                expect(util.inspect(error)).not.toBeDefined();
-            }).done(done);
+                function ensureMailman() {
+                    if (mailman && mailman.state === 'authenticated') {
+                        mailman.on('error', function(error) { throw new Error(error); });
+                        return q();
+                    }
+                    
+                    mailman = new testUtils.Mailman();
+                    return mailman.start().then(function() {
+                        mailman.on('error', function(error) { throw new Error(error); });
+                    });
+                }
+
+                ensureMailman().then(function() {
+                    adminCreatedCamp.status = 'active';
+                    adminCreatedCamp.cards[0].campaign.endDate = null;
+                    adminCreatedCamp.cards[1].campaign.endDate = null;
+                    return requestUtils.qRequest('put', {
+                        url: options.url,
+                        json: {
+                            status: adminCreatedCamp.status,
+                            cards: adminCreatedCamp.cards
+                        },
+                        jar: options.jar
+                    });
+                }).done(function() { done(); });
+            });
+
+            afterEach(function() {
+                mailman.removeAllListeners();
+            });
+        
+            it('should set the endDate on cards and email the owner', function(done) {
+                requestUtils.qRequest('put', options, null, { maxAttempts: 30 }).then(function(resp) {
+                    expect(resp.response.statusCode).toBe(200);
+                    expect(resp.body.status).toBe('completed');
+
+                    expect(new Date(resp.body.cards[0].campaign.endDate).toString()).not.toBe('Invalid Date');
+                    expect(resp.body.cards[1].campaign.endDate).toEqual(resp.body.cards[0].campaign.endDate);
+                    
+                    adminCreatedCamp = resp.body;
+                    return testUtils.checkCardEntities(adminCreatedCamp, adminJar, config.contentUrl);
+                }).catch(function(error) {
+                    expect(util.inspect(error)).not.toBeDefined();
+                });
+                
+                mailman.once('Your Campaign is Out of Budget', function(msg) {
+                    expect(msg.from[0].address.toLowerCase()).toBe('no-reply@reelcontent.com');
+                    expect(msg.to[0].address.toLowerCase()).toBe('c6e2etester@gmail.com');
+                    
+                    var regex = new RegExp('Your\\s*campaign.*' + adminCreatedCamp.name + '.*is\\s*out\\s*of\\s*budget');
+                    expect(msg.html).toMatch(regex);
+                    expect(msg.text).toMatch(regex);
+                    expect((new Date() - msg.date)).toBeLessThan(30000); // message should be recent
+                    done();
+                });
+            });
+
+            it('should send a different message if expiring the campaign', function(done) {
+                options.json.status = 'expired';
+                requestUtils.qRequest('put', options, null, { maxAttempts: 30 }).then(function(resp) {
+                    expect(resp.response.statusCode).toBe(200);
+                    expect(resp.body.status).toBe('expired');
+
+                    expect(new Date(resp.body.cards[0].campaign.endDate).toString()).not.toBe('Invalid Date');
+                    expect(resp.body.cards[1].campaign.endDate).toEqual(resp.body.cards[0].campaign.endDate);
+                    
+                    adminCreatedCamp = resp.body;
+                    return testUtils.checkCardEntities(adminCreatedCamp, adminJar, config.contentUrl);
+                }).catch(function(error) {
+                    expect(util.inspect(error)).not.toBeDefined();
+                });
+                
+                mailman.once('Your Campaign Has Ended', function(msg) {
+                    expect(msg.from[0].address.toLowerCase()).toBe('no-reply@reelcontent.com');
+                    expect(msg.to[0].address.toLowerCase()).toBe('c6e2etester@gmail.com');
+                    
+                    var regex = new RegExp('Your\\s*campaign.*' + adminCreatedCamp.name + '.*\\s*reached\\s*its\\s*end\\s*date');
+                    expect(msg.html).toMatch(regex);
+                    expect(msg.text).toMatch(regex);
+                    expect((new Date() - msg.date)).toBeLessThan(30000); // message should be recent
+                    done();
+                });
+            });
         });
         
         it('should be able to add+remove sponsored cards', function(done) {
