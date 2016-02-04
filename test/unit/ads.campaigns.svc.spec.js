@@ -53,7 +53,8 @@ describe('ads-campaigns (UT)', function() {
         };
         campModule.config.emails = {
             sender: 'no-reply@c6.com',
-            dashboardLink: 'http://seflie.c6.com/review/campaigns'
+            manageLink: 'http://selfie.c6.com/manage/:campId/manage',
+            dashboardLink: 'http://selfie.c6.com/review/campaigns'
         };
 
         req = {
@@ -83,6 +84,7 @@ describe('ads-campaigns (UT)', function() {
             var config = {
                 emails: {
                     sender: 'email.sender',
+                    manageLink: 'manage.this/:campId/manage',
                     dashboardLink: 'dash.board'
                 },
                 api: {
@@ -138,6 +140,7 @@ describe('ads-campaigns (UT)', function() {
             });
             expect(campModule.config.emails).toEqual({
                 sender: 'email.sender',
+                manageLink: 'manage.this/:campId/manage',
                 dashboardLink: 'dash.board'
             });
         });
@@ -1323,7 +1326,9 @@ describe('ads-campaigns (UT)', function() {
                     'no-reply@c6.com',
                     'owner@c6.com',
                     'best campaign',
-                    'http://seflie.c6.com/review/campaigns'
+                    Status.Expired,
+                    'http://selfie.c6.com/review/campaigns',
+                    'http://selfie.c6.com/manage/cam-1/manage'
                 );
                 expect(mockLog.warn).not.toHaveBeenCalled();
                 done();
@@ -1333,14 +1338,17 @@ describe('ads-campaigns (UT)', function() {
         it('should handle any transitions to an end state', function(done) {
             q.all([{ old: Status.Paused, new: Status.Expired  }, { old: Status.Active, new: Status.Completed },
                    { old: Status.Error, new: Status.Expired  }, { old: Status.Draft, new: Status.Completed }].map(function(obj) {
-                req.body.status = obj.new;
-                req.origObj.status = obj.old;
-                return campModule.notifyEnded(svc, req, nextSpy, doneSpy);
+                var reqCopy = JSON.parse(JSON.stringify(req));
+                reqCopy.body.status = obj.new;
+                reqCopy.origObj.status = obj.old;
+                return campModule.notifyEnded(svc, reqCopy, nextSpy, doneSpy);
             })).then(function(results) {
                 expect(nextSpy.calls.count()).toBe(4);
                 expect(doneSpy).not.toHaveBeenCalled();
                 expect(mockColl.find.calls.count()).toBe(4);
                 expect(email.campaignEnded.calls.count()).toBe(4);
+                expect(email.campaignEnded.calls.argsFor(0)[3]).toBe(Status.Expired);
+                expect(email.campaignEnded.calls.argsFor(1)[3]).toBe(Status.Completed);
                 expect(mockLog.warn).not.toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
@@ -1349,9 +1357,10 @@ describe('ads-campaigns (UT)', function() {
         
         it('should skip if the campaign is not ending', function(done) {
             q.all([{ old: Status.Active, new: Status.Paused  }, { old: Status.Expired, new: Status.Completed }].map(function(obj) {
-                req.body.status = obj.new;
-                req.origObj.status = obj.old;
-                return campModule.notifyEnded(svc, req, nextSpy, doneSpy);
+                var reqCopy = JSON.parse(JSON.stringify(req));
+                reqCopy.body.status = obj.new;
+                reqCopy.origObj.status = obj.old;
+                return campModule.notifyEnded(svc, reqCopy, nextSpy, doneSpy);
             })).then(function(results) {
                 expect(nextSpy.calls.count()).toBe(2);
                 expect(doneSpy).not.toHaveBeenCalled();

@@ -41,6 +41,7 @@
             sender: 'no-reply@reelcontent.com',
             supportAddress: 'c6e2eTester@gmail.com',
             reviewLink: 'http://localhost:9000/#/apps/selfie/campaigns/manage/:campId/admin',
+            manageLink: 'http://localhost:9000/#/apps/selfie/campaigns/manage/:campId/manage',
             dashboardLink: 'http://localhost:9000/#/apps/selfie/campaigns'
         },
         api: {

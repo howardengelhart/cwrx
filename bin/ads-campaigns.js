@@ -688,7 +688,9 @@
                 campModule.config.emails.sender,
                 owner.email,
                 name,
-                campModule.config.emails.dashboardLink
+                req.body.status,
+                campModule.config.emails.dashboardLink,
+                campModule.config.emails.manageLink.replace(':campId', req.origObj.id)
             )
             .thenResolve(next());
         })
