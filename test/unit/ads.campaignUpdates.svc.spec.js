@@ -317,12 +317,29 @@ describe('ads-campaignUpdates (UT)', function() {
     });
     
     describe('canAutoApprove', function() {
-        it('should return true if the paymentMethod is the only thing being changed', function() {
+        beforeEach(function() {
             req.body = { campaign: 'cam-1', data: { paymentMethod: 'infinite money' } };
+            req.user.entitlements = {};
+            req.user.fieldValidation = { campaigns: {} };
+        });
+
+        it('should return true if the paymentMethod is the only thing being changed', function() {
             expect(updateModule.canAutoApprove(req)).toBe(true);
             req.body.data.foo = 'bar';
             expect(updateModule.canAutoApprove(req)).toBe(false);
             req.body.data = { status: 'active' };
+            expect(updateModule.canAutoApprove(req)).toBe(false);
+        });
+
+        it('should also return true if the user has the autoApproveUpdates entitlement and can edit a campaigns\' status', function() {
+            req.body.data.foo = 'bar';
+            req.user.entitlements.autoApproveUpdates = true;
+            expect(updateModule.canAutoApprove(req)).toBe(false);
+
+            req.user.fieldValidation.campaigns.status = { __allowed: true };
+            expect(updateModule.canAutoApprove(req)).toBe(true);
+
+            req.user.entitlements.autoApproveUpdates = false;
             expect(updateModule.canAutoApprove(req)).toBe(false);
         });
     });
