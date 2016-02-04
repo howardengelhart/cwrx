@@ -349,7 +349,7 @@ describe('ads campaigns endpoints (E2E):', function() {
                     name: 'camp 4 is great',
                     status: 'active',
                     user: 'not-e2e-user',
-                    org: 'o-admin',
+                    org: 'o-other',
                     application: 'selfie'
                 },
                 {
@@ -589,6 +589,33 @@ describe('ads campaigns endpoints (E2E):', function() {
                 expect(resp.body[1].id).toBe('e2e-getquery2');
                 expect(resp.body[2].id).toBe('e2e-getquery5');
                 expect(resp.response.headers['content-range']).toBe('items 1-3/3');
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should get campaigns by org exclusion list', function(done) {
+            options.jar = adminJar;
+            options.qs['exclude-orgs'] = 'o-selfie,o-admin';
+            requestUtils.qRequest('get', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.body.length).toBe(1);
+                expect(resp.body[0].id).toBe('e2e-getquery4');
+                expect(resp.response.headers['content-range']).toBe('items 1-1/1');
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
+
+        it('should use the org query param over the exclude-orgs param', function(done) {
+            options.jar = adminJar;
+            options.qs.org = 'o-admin';
+            options.qs['exclude-orgs'] = 'o-selfie,o-admin';
+            requestUtils.qRequest('get', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.body.length).toBe(1);
+                expect(resp.body[0].id).toBe('e2e-getquery3');
+                expect(resp.response.headers['content-range']).toBe('items 1-1/1');
             }).catch(function(error) {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);

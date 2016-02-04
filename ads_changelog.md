@@ -1,5 +1,6 @@
 # Ads Service Changelog
 
+* Support `exclude-orgs` query param for campaigns: [#751](https://github.com/cinema6/cwrx/issues/751)
 * Email campaign owners when their campaign ends: [#765](https://github.com/cinema6/cwrx/issues/765)
 * Extra deployment steps:
     * Add `manageLink` to emails config
