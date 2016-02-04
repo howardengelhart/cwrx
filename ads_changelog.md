@@ -1,10 +1,12 @@
 # Ads Service Changelog
 
+### 4.4.0: Thu Feb  4 17:16:18 EST 2016
 * Support `autoApproveUpdates` entitlement: [#750](https://github.com/cinema6/cwrx/issues/750)
 * Support `exclude-orgs` query param for campaigns: [#751](https://github.com/cinema6/cwrx/issues/751)
 * Email campaign owners when their campaign ends: [#765](https://github.com/cinema6/cwrx/issues/765)
 * Extra deployment steps:
     * Add `manageLink` to emails config
+    * Distribute `autoApproveUpdates` entitlement
 
 ### 4.3.0: Fri Jan 29 15:28:10 EST 2016
 * Set `endDate` on campaign's cards when it ends: [#762](https://github.com/cinema6/cwrx/issues/762)
