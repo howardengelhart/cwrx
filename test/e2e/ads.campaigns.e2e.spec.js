@@ -596,7 +596,7 @@ describe('ads campaigns endpoints (E2E):', function() {
         
         it('should get campaigns by org exclusion list', function(done) {
             options.jar = adminJar;
-            options.qs['exclude-orgs'] = 'o-selfie,o-admin';
+            options.qs.excludeOrgs = 'o-selfie,o-admin';
             requestUtils.qRequest('get', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
                 expect(resp.body.length).toBe(1);
@@ -607,10 +607,10 @@ describe('ads campaigns endpoints (E2E):', function() {
             }).done(done);
         });
 
-        it('should use the org query param over the exclude-orgs param', function(done) {
+        it('should use the org query param over the excludeOrgs param', function(done) {
             options.jar = adminJar;
             options.qs.org = 'o-admin';
-            options.qs['exclude-orgs'] = 'o-selfie,o-admin';
+            options.qs.excludeOrgs = 'o-selfie,o-admin';
             requestUtils.qRequest('get', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
                 expect(resp.body.length).toBe(1);
@@ -1474,7 +1474,7 @@ describe('ads campaigns endpoints (E2E):', function() {
                 });
                 
                 mailman.once('Your Campaign is Out of Budget', function(msg) {
-                    expect(msg.from[0].address.toLowerCase()).toBe('no-reply@reelcontent.com');
+                    expect(msg.from[0].address.toLowerCase()).toBe('no-reply@cinema6.com');
                     expect(msg.to[0].address.toLowerCase()).toBe('c6e2etester@gmail.com');
                     
                     var regex = new RegExp('Your\\s*campaign.*' + adminCreatedCamp.name + '.*is\\s*out\\s*of\\s*budget');
@@ -1501,7 +1501,7 @@ describe('ads campaigns endpoints (E2E):', function() {
                 });
                 
                 mailman.once('Your Campaign Has Ended', function(msg) {
-                    expect(msg.from[0].address.toLowerCase()).toBe('no-reply@reelcontent.com');
+                    expect(msg.from[0].address.toLowerCase()).toBe('no-reply@cinema6.com');
                     expect(msg.to[0].address.toLowerCase()).toBe('c6e2etester@gmail.com');
                     
                     var regex = new RegExp('Your\\s*campaign.*' + adminCreatedCamp.name + '.*\\s*reached\\s*its\\s*end\\s*date');

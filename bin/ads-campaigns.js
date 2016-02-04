@@ -781,8 +781,8 @@
 
         router.get('/', sessions, authGetCamp, audit, function(req, res) {
             var query = {};
-            if ('exclude-orgs' in req.query) {
-                query.org = { $nin: String(req.query['exclude-orgs']).split(',') };
+            if ('excludeOrgs' in req.query) {
+                query.org = { $nin: String(req.query.excludeOrgs).split(',') };
             }
 
             // if req.query.org is set, will override req.query['exclude-orgs']
