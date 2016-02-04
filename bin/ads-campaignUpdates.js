@@ -142,9 +142,16 @@
     
     // Check if we can auto-approve the update request
     updateModule.canAutoApprove = function(req) {
-        // currently, auto-approve if body solely consists of paymentMethod
-        return req.body && req.body.data && !!req.body.data.paymentMethod &&
-               Object.keys(req.body.data).length === 1;
+        return (
+            // Can auto-approve if user has entitlement + ability to set campaign status
+            req.user.entitlements.autoApproveUpdates === true &&
+            req.user.fieldValidation.campaigns && req.user.fieldValidation.campaigns.status &&
+            req.user.fieldValidation.campaigns.status.__allowed === true
+        ) || (
+            // Otherwise, can auto-approve if body solely consists of paymentMethod
+           req.body && req.body.data && !!req.body.data.paymentMethod &&
+           Object.keys(req.body.data).length === 1
+       );
     };
 
 

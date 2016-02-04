@@ -102,7 +102,8 @@ describe('ads campaignUpdates endpoints (E2E):', function() {
                     }
                 },
                 entitlements: {
-                    directEditCampaigns: true
+                    directEditCampaigns: true,
+                    autoApproveUpdates: true
                 }
             },
         ];
@@ -874,6 +875,43 @@ describe('ads campaignUpdates endpoints (E2E):', function() {
                     expect(util.inspect(error)).not.toBeDefined();
                 }).done(done);
             });
+        });
+        
+        it('should immediately apply if the requester has the autoApproveUpdates entitlement', function(done) {
+            options.jar = adminJar;
+            options.json.data = { name: 'auto-approved yo' };
+            mailman.once(msgSubject, function(msg) {
+                expect(util.inspect(msg).substring(0, 200)).not.toBeDefined();
+            });
+            requestUtils.qRequest('post', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(201);
+                if (resp.response.statusCode !== 201) {
+                    return q.reject({ code: resp.response.statusCode, body: resp.body });
+                }
+                
+                expect(resp.body.id).toEqual(jasmine.any(String));
+                expect(resp.body.status).toBe('approved');
+                expect(resp.body.campaign).toBe('cam-1');
+                expect(resp.body.autoApproved).toBe(true);
+                expect(resp.body.user).toBe('admin-e2e-user');
+                expect(resp.body.org).toBe('o-selfie');
+                expect(resp.body.data.name).toEqual('auto-approved yo');
+            
+                // test campaign updated successfully
+                return requestUtils.qRequest('get', {
+                    url: config.adsUrl + '/campaigns/cam-1',
+                    jar: selfieJar
+                });
+            }).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.body.status).toBe('draft');
+                expect(resp.body.updateRequest).not.toBeDefined();
+                expect(resp.body.name).toEqual('auto-approved yo');
+                expect(resp.body.targeting).toEqual(mockCamps[0].targeting);
+                expect(resp.body.pricing).toEqual(mockCamps[0].pricing);
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
         });
 
         describe('if sending an initial submit request', function(done) {

@@ -128,6 +128,7 @@ function setupCampaignSvcFieldVal(policy) {
     policy.entitlements.adminCampaigns = true;
     policy.entitlements.directEditCampaigns = true;
     policy.entitlements.paymentOptional = true;
+    policy.entitlements.autoApproveUpdates = true;
 }
 
 // setup permissive fieldValidation rules for cards, etc.
