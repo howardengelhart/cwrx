@@ -2,7 +2,7 @@
 
 ### 4.4.0: Thu Feb  4 17:16:18 EST 2016
 * Support `autoApproveUpdates` entitlement: [#750](https://github.com/cinema6/cwrx/issues/750)
-* Support `exclude-orgs` query param for campaigns: [#751](https://github.com/cinema6/cwrx/issues/751)
+* Support `excludeOrgs` query param for campaigns: [#751](https://github.com/cinema6/cwrx/issues/751)
 * Email campaign owners when their campaign ends: [#765](https://github.com/cinema6/cwrx/issues/765)
 * Extra deployment steps:
     * Add `manageLink` to emails config
