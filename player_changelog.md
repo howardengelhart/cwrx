@@ -1,5 +1,9 @@
 # Player Service Changelog
 
+### 2.5.1: Fri Feb  5 12:40:13 EST 2016
+* [FIX]: Add tracking pixels to statically-mapped sponsored cards in a
+  MiniReel: [#783](https://github.com/cinema6/cwrx/pull/783)
+
 ### 2.5.0: Fri Jan 29 15:27:18 EST 2016
 * [FEATURE]: Add [GET /api/public/vast/2.0/tag] endpoint to return VAST
   documents: [#774](https://github.com/cinema6/cwrx/pull/774)
