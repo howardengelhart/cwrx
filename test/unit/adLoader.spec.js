@@ -1604,12 +1604,6 @@ describe('AdLoader()', function() {
                             findCardsDeferred.promise.finally(done);
                         });
 
-                        it('should add tracking pixels to the sponsored cards', function() {
-                            expect(loader.__addTrackingPixels__.calls.count()).toBe(2);
-                            expect(loader.__addTrackingPixels__).toHaveBeenCalledWith(cards[0], extend({ experience: experience.id }, meta));
-                            expect(loader.__addTrackingPixels__).toHaveBeenCalledWith(cards[2], extend({ experience: experience.id }, meta));
-                        });
-
                         it('should replace the wildcard placeholders with actual sponsored cards', function() {
                             expect(experience.data.deck).toEqual([
                                 cards[0],
@@ -1988,6 +1982,7 @@ describe('AdLoader()', function() {
                         spyOn(loader, 'fillPlaceholders').and.callFake(function(experience) {
                             return q(experience);
                         });
+                        spyOn(loader, '__addTrackingPixels__').and.callThrough();
 
                         result = loader.loadAds(experience, campaignId, meta, uuid);
                         result.then(success, failure);
@@ -1997,6 +1992,19 @@ describe('AdLoader()', function() {
 
                     it('should fill the experience\'s placeholders', function() {
                         expect(loader.fillPlaceholders).toHaveBeenCalledWith(experience, campaignId, meta, uuid);
+                    });
+
+                    it('should add tracking pixels to all of the sponsored cards', function() {
+                        expect(experience.data.deck.length).toBeGreaterThan(0);
+                        expect(AdLoader.getSponsoredCards(experience).length).toBeGreaterThan(0);
+
+                        experience.data.deck.forEach(function(card) {
+                            if (AdLoader.isSponsored(card)) {
+                                expect(loader.__addTrackingPixels__).toHaveBeenCalledWith(card, extend({ experience: experience.id }, meta));
+                            } else {
+                                expect(loader.__addTrackingPixels__).not.toHaveBeenCalledWith(card, jasmine.anything());
+                            }
+                        });
                     });
 
                     it('should fulfill with the experience', function() {
