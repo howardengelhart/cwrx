@@ -143,6 +143,8 @@
             });
         }
         
+        var campFinished = [Status.Deleted, Status.Canceled, Status.Expired, Status.OutOfBudget];
+        
         return q.all([
             checkExistence('container', {
                 name: req.body.tagParams.container,
@@ -155,7 +157,7 @@
             }),
             checkExistence('campaign', {
                 id: req.body.tagParams.campaign,
-                status: { $nin: [Status.Deleted, Status.Canceled, Status.Expired, Status.Completed]}
+                status: { $nin: campFinished }
             }),
             checkExistence('experience', {
                 id: req.body.tagParams.experience,

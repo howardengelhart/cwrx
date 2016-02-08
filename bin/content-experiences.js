@@ -191,10 +191,9 @@
                 return q();
             }
 
-            // don't show exp if campaign is finished
-            var statuses = [Status.Canceled, Status.Expired, Status.Deleted, Status.Completed];
-            if (statuses.indexOf(camp.status) !== -1) {
-                log.info('[%1] Campaign %2 is %3', req.uuid, camp.id, camp.status);
+            // don't use campaign if it's deleted
+            if (camp.status === Status.Deleted) {
+                log.info('[%1] Not using deleted campaign %2', req.uuid, camp.id);
                 return q();
             }
             

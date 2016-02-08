@@ -3,9 +3,7 @@
 
     var q               = require('q'),
         util            = require('util'),
-        path            = require('path'),
         express         = require('express'),
-        querystring     = require('querystring'),
         logger          = require('../lib/logger'),
         CrudSvc         = require('../lib/crudSvc'),
         authUtils       = require('../lib/authUtils'),
@@ -109,7 +107,6 @@
             Status.Draft,
             Status.Pending,
             Status.Canceled,
-            Status.Completed,
             Status.Expired
         ]));
         
@@ -293,39 +290,6 @@
         return next();
     };
 
-
-    // Format a tracking pixel link, pulling data from query params.
-    cardModule.formatUrl = function(card, req, event) {
-        req.query = req.query || {};
-        
-        // get experience id from path if request for experience; else from query param
-        var expId = (/experience/.test(path.join(req.baseUrl, req.route.path)) && req.params.id) ||
-                    req.query.experience || '';
-
-        var qps = {
-            campaign    : card.campaignId,
-            card        : card.id,
-            experience  : expId,
-            container   : req.query.container,
-            placement   : req.query.placement,
-            host        : req.query.pageUrl || req.originHost,
-            hostApp     : req.query.hostApp,
-            network     : req.query.network,
-            event       : event
-        };
-        
-        var url = cardModule.config.trackingPixel + '?' + querystring.stringify(qps) +
-                                                          '&d={delay}&cb={cachebreaker}';
-                                                          
-        if (event === 'play') {
-            url += '&pd={playDelay}';
-        } else if (event === 'load') {
-            url += '&ld={loadDelay}';
-        }
-        
-        return url;
-    };
-    
     // Convert values in links + shareLinks hashes to objects like { url: '...', tracking: [...] }
     cardModule.objectifyLinks = function(card) {
         ['links', 'shareLinks'].forEach(function(prop) {
@@ -372,17 +336,9 @@
             // fetch card's campaign so important props can be copied over
             return caches.campaigns.getPromise({ id: card.campaignId })
             .spread(function(camp) {
-                if (!camp) {
+                if (!camp || camp.status === Status.Deleted) {
                     log.warn('[%1] Campaign %2 not found for card %3',
                              req.uuid, card.campaignId, card.id);
-                    return q();
-                }
-
-                // don't show card if campaign is canceled, expired, or deleted
-                var statuses = [Status.Canceled, Status.Expired, Status.Deleted, Status.Completed];
-                if (statuses.indexOf(camp.status) !== -1) {
-                    log.info('[%1] Campaign %2 is %3, not showing card',
-                             req.uuid, camp.id, camp.status);
                     return q();
                 }
                 
@@ -461,14 +417,9 @@
         
         return caches.campaigns.getPromise({ id: campId })
         .spread(function(camp) {
-            if (!camp) {
+            if (!camp || camp.status === Status.Deleted) {
                 log.info('[%1] Campaign %2 not found', req.uuid, campId);
                 return q({ code: 404, body: 'Campaign not found' });
-            }
-            var statuses = [Status.Canceled, Status.Expired, Status.Deleted, Status.Completed];
-            if (statuses.indexOf(camp.status) !== -1) {
-                log.info('[%1] Campaign %2 is %3, not getting cards',req.uuid, campId, camp.status);
-                return q({ code: 400, body: 'Campaign not running' });
             }
             if (!camp.cards || camp.cards.length === 0) {
                 log.info('[%1] No cards in campaign %2', req.uuid, campId);

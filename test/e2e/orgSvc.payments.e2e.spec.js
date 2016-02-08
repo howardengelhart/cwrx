@@ -736,7 +736,7 @@ describe('orgSvc payments (E2E):', function() {
                 { id: 'cam-1', status: 'active', paymentMethod: origPaypal.token },
                 { id: 'cam-2', status: 'canceled', paymentMethod: origCard.token },
                 { id: 'cam-3', status: 'expired', paymentMethod: origCard.token },
-                { id: 'cam-4', status: 'completed', paymentMethod: origCard.token },
+                { id: 'cam-4', status: 'deleted', paymentMethod: origCard.token },
             ];
 
             return testUtils.resetCollection('campaigns', mockCamps).done(done);

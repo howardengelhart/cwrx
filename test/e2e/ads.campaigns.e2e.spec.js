@@ -1426,7 +1426,7 @@ describe('ads campaigns endpoints (E2E):', function() {
             var mailman;
             beforeEach(function(done) {
                 options.url = config.adsUrl + '/campaigns/' + adminCreatedCamp.id;
-                options.json = { status: 'completed' };
+                options.json = { status: 'expired' };
                 
                 function ensureMailman() {
                     if (mailman && mailman.state === 'authenticated') {
@@ -1442,8 +1442,8 @@ describe('ads campaigns endpoints (E2E):', function() {
 
                 ensureMailman().then(function() {
                     adminCreatedCamp.status = 'active';
-                    adminCreatedCamp.cards[0].campaign.endDate = null;
-                    adminCreatedCamp.cards[1].campaign.endDate = null;
+                    adminCreatedCamp.cards[0].campaign.endDate = undefined;
+                    adminCreatedCamp.cards[1].campaign.endDate = undefined;
                     return requestUtils.qRequest('put', {
                         url: options.url,
                         json: {
@@ -1462,10 +1462,38 @@ describe('ads campaigns endpoints (E2E):', function() {
             it('should set the endDate on cards and email the owner', function(done) {
                 requestUtils.qRequest('put', options, null, { maxAttempts: 30 }).then(function(resp) {
                     expect(resp.response.statusCode).toBe(200);
-                    expect(resp.body.status).toBe('completed');
+                    expect(resp.body.status).toBe('expired');
 
+                    expect(resp.body.cards[0].campaign.endDate).toBeDefined();
                     expect(new Date(resp.body.cards[0].campaign.endDate).toString()).not.toBe('Invalid Date');
                     expect(resp.body.cards[1].campaign.endDate).toEqual(resp.body.cards[0].campaign.endDate);
+                    
+                    adminCreatedCamp = resp.body;
+                    return testUtils.checkCardEntities(adminCreatedCamp, adminJar, config.contentUrl);
+                }).catch(function(error) {
+                    expect(util.inspect(error)).not.toBeDefined();
+                });
+                
+                mailman.once('Your Campaign Has Ended', function(msg) {
+                    expect(msg.from[0].address.toLowerCase()).toBe('no-reply@cinema6.com');
+                    expect(msg.to[0].address.toLowerCase()).toBe('c6e2etester@gmail.com');
+
+                    var regex = new RegExp('Your\\s*campaign.*' + adminCreatedCamp.name + '.*\\s*reached\\s*its\\s*end\\s*date');
+                    expect(msg.html).toMatch(regex);
+                    expect(msg.text).toMatch(regex);
+                    expect((new Date() - msg.date)).toBeLessThan(30000); // message should be recent
+                    done();
+                });
+            });
+            
+            it('should send a different message but not set endDates if the campaign is outOfBudget', function(done) {
+                options.json.status = 'outOfBudget';
+                requestUtils.qRequest('put', options, null, { maxAttempts: 30 }).then(function(resp) {
+                    expect(resp.response.statusCode).toBe(200);
+                    expect(resp.body.status).toBe('outOfBudget');
+
+                    expect(resp.body.cards[0].campaign.endDate).not.toBeDefined();
+                    expect(resp.body.cards[1].campaign.endDate).not.toBeDefined();
                     
                     adminCreatedCamp = resp.body;
                     return testUtils.checkCardEntities(adminCreatedCamp, adminJar, config.contentUrl);
@@ -1484,13 +1512,17 @@ describe('ads campaigns endpoints (E2E):', function() {
                     done();
                 });
             });
+            
+            it('should set endDates but not send a message if the campaign is canceled', function(done) {
+                mailman.once('Your Campaign is Out of Budget', function(msg) { expect(msg).not.toBeDefined(); });
+                mailman.once('Your Campaign has Ended', function(msg) { expect(msg).not.toBeDefined(); });
 
-            it('should send a different message if expiring the campaign', function(done) {
-                options.json.status = 'expired';
+                options.json.status = 'canceled';
                 requestUtils.qRequest('put', options, null, { maxAttempts: 30 }).then(function(resp) {
                     expect(resp.response.statusCode).toBe(200);
-                    expect(resp.body.status).toBe('expired');
+                    expect(resp.body.status).toBe('canceled');
 
+                    expect(resp.body.cards[0].campaign.endDate).toBeDefined();
                     expect(new Date(resp.body.cards[0].campaign.endDate).toString()).not.toBe('Invalid Date');
                     expect(resp.body.cards[1].campaign.endDate).toEqual(resp.body.cards[0].campaign.endDate);
                     
@@ -1498,18 +1530,7 @@ describe('ads campaigns endpoints (E2E):', function() {
                     return testUtils.checkCardEntities(adminCreatedCamp, adminJar, config.contentUrl);
                 }).catch(function(error) {
                     expect(util.inspect(error)).not.toBeDefined();
-                });
-                
-                mailman.once('Your Campaign Has Ended', function(msg) {
-                    expect(msg.from[0].address.toLowerCase()).toBe('no-reply@cinema6.com');
-                    expect(msg.to[0].address.toLowerCase()).toBe('c6e2etester@gmail.com');
-                    
-                    var regex = new RegExp('Your\\s*campaign.*' + adminCreatedCamp.name + '.*\\s*reached\\s*its\\s*end\\s*date');
-                    expect(msg.html).toMatch(regex);
-                    expect(msg.text).toMatch(regex);
-                    expect((new Date() - msg.date)).toBeLessThan(30000); // message should be recent
-                    done();
-                });
+                }).done(done);
             });
         });
         

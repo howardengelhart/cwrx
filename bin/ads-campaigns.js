@@ -180,7 +180,6 @@
             Status.Draft,
             Status.Pending,
             Status.Canceled,
-            Status.Completed,
             Status.Expired
         ]));
         svc.use('delete', campModule.fetchCards);
@@ -542,7 +541,7 @@
             id = req.body.id || (req.origObj && req.origObj.id),
             origStatus = req.origObj && req.origObj.status || null,
             origCards = req.origObj && req.origObj.cards || null,
-            finished = [Status.Expired, Status.Canceled, Status.Completed];
+            finished = [Status.Expired, Status.Canceled];
         
         var isStarting = (req.body.status === Status.Active) &&
                          (!origStatus || origStatus === Status.Pending);
@@ -662,7 +661,7 @@
             userColl = svc._db.collection('users');
         
         // Notify if camp is transitioning to these statuses. Note this does NOT include Canceled
-        var ended = [Status.Expired, Status.Completed];
+        var ended = [Status.Expired, Status.OutOfBudget];
         var isEnding = (ended.indexOf(req.body.status) !== -1) &&
                        (req.origObj.status && ended.indexOf(req.origObj.status) === -1);
         

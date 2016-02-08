@@ -1,5 +1,9 @@
 # Org Service Changelog
 
+### 1.5.2: Mon Feb  8 13:39:09 EST 2016
+* Do not allow deleting paymentMethods for completed/outOfBudget campaigns: [#784](https://github.com/cinema6/cwrx/issues/784)
+* Extra deployment steps: None
+
 ### 1.5.1: Fri Jan 29 15:28:10 EST 2016
 * Treat 'completed' campaign status like 'expired' for deleting orgs: [#766](https://github.com/cinema6/cwrx/issues/766)
 * Treat 'completed' campaign status like 'expired' for deleting paymentMethods: [#766](https://github.com/cinema6/cwrx/issues/766)
