@@ -4,6 +4,7 @@
     var q               = require('q'),
         util            = require('util'),
         express         = require('express'),
+        uuid            = require('../lib/uuid'),
         logger          = require('../lib/logger'),
         CrudSvc         = require('../lib/crudSvc'),
         authUtils       = require('../lib/authUtils'),
@@ -396,7 +397,7 @@
         function chooseAndFetch(available, fetched, numToFetch) {
             var chosen = [];
             while ((chosen.length + fetched.length) < numToFetch && available.length > 0) {
-                var idx = randomize ? Math.floor(Math.random() * available.length) : 0;
+                var idx = randomize ? uuid.randInt(available.length) : 0;
                 chosen = chosen.concat(available.splice(idx, 1));
             }
             

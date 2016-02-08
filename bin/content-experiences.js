@@ -379,7 +379,7 @@
             return q({code: 400, body: 'Invalid request body'});
         }
 
-        obj.id = 'e-' + uuid.createUuid().substr(0,14);
+        obj.id = 'e-' + uuid.createUuid();
         log.trace('[%1] User %2 is creating experience %3', req.uuid, user.id, obj.id);
 
         delete obj.versionId; // only allow these properties to be set in the data

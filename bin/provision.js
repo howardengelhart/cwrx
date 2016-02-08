@@ -190,7 +190,7 @@ function NewUserController(api){
             {
                 label : 'organization',
                 alias : 'orgId',
-                defaultVal : 'o-' + uuid.createUuid().substr(0,14)
+                defaultVal : 'o-' + uuid.createUuid()
             },
             {
                 label : 'branding'
