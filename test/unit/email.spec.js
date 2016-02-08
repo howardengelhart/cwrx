@@ -147,15 +147,15 @@ describe('email', function() {
             }).done(done);
         });
 
-        it('should send a different message if the campaign is completed', function(done) {
+        it('should send a different message if the campaign is out of budget', function(done) {
             var now = new Date();
-            email.campaignEnded('send', 'recip', 'best campaign', Status.Completed, 'dash.board', 'manage.this').then(function(resp) {
+            email.campaignEnded('send', 'recip', 'best campaign', Status.OutOfBudget, 'dash.board', 'manage.this').then(function(resp) {
                 expect(resp).toBe('success');
                 expect(email.compileAndSend).toHaveBeenCalledWith(
                     'send',
                     'recip',
                     'Your Campaign is Out of Budget',
-                    'campaignCompleted.html',
+                    'campaignOutOfBudget.html',
                     {
                         campName: 'best campaign',
                         dashboardLink: 'dash.board',

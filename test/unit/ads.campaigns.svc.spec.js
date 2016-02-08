@@ -175,7 +175,7 @@ describe('ads-campaigns (UT)', function() {
         it('should prevent editing + deleting campaigns while in certain statuses', function() {
             expect(svc._middleware.edit).toContain(getBoundFn(campModule.statusCheck, [campModule, [Status.Draft]]));
             expect(svc._middleware.delete).toContain(getBoundFn(campModule.statusCheck,
-                [campModule, [Status.Draft, Status.Pending, Status.Canceled, Status.Completed, Status.Expired]]));
+                [campModule, [Status.Draft, Status.Pending, Status.Canceled, Status.Expired]]));
         });
         
         it('should prevent editing locked campaigns on edit', function() {
@@ -969,8 +969,8 @@ describe('ads-campaigns (UT)', function() {
         });
         
         it('should do nothing if the campaign is not starting or ending', function() {
-            [{ old: Status.Draft, new: Status.Paused  }, { old: Status.Active, new: Status.Active },
-             { old: Status.Expired, new: Status.Active  }, { old: Status.Expired, new: Status.Completed }].forEach(function(obj) {
+            [{ old: Status.Draft, new: Status.Paused  }, { old: Status.Active, new: Status.OutOfBudget },
+             { old: Status.Expired, new: Status.Active  }, { old: Status.Expired, new: Status.Canceled }].forEach(function(obj) {
                 req.body.status = obj.new;
                 req.origObj.status = obj.old;
                 campModule.setCardDates(req, nextSpy, doneSpy);
@@ -1336,8 +1336,8 @@ describe('ads-campaigns (UT)', function() {
         });
         
         it('should handle any transitions to an end state', function(done) {
-            q.all([{ old: Status.Paused, new: Status.Expired  }, { old: Status.Active, new: Status.Completed },
-                   { old: Status.Error, new: Status.Expired  }, { old: Status.Draft, new: Status.Completed }].map(function(obj) {
+            q.all([{ old: Status.Paused, new: Status.Expired  }, { old: Status.Active, new: Status.OutOfBudget },
+                   { old: Status.Error, new: Status.Expired  }, { old: Status.Draft, new: Status.OutOfBudget }].map(function(obj) {
                 var reqCopy = JSON.parse(JSON.stringify(req));
                 reqCopy.body.status = obj.new;
                 reqCopy.origObj.status = obj.old;
@@ -1348,7 +1348,7 @@ describe('ads-campaigns (UT)', function() {
                 expect(mockColl.find.calls.count()).toBe(4);
                 expect(email.campaignEnded.calls.count()).toBe(4);
                 expect(email.campaignEnded.calls.argsFor(0)[3]).toBe(Status.Expired);
-                expect(email.campaignEnded.calls.argsFor(1)[3]).toBe(Status.Completed);
+                expect(email.campaignEnded.calls.argsFor(1)[3]).toBe(Status.OutOfBudget);
                 expect(mockLog.warn).not.toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
@@ -1356,7 +1356,7 @@ describe('ads-campaigns (UT)', function() {
         });
         
         it('should skip if the campaign is not ending', function(done) {
-            q.all([{ old: Status.Active, new: Status.Paused  }, { old: Status.Expired, new: Status.Completed }].map(function(obj) {
+            q.all([{ old: Status.Active, new: Status.Paused  }, { old: Status.Expired, new: Status.OutOfBudget }].map(function(obj) {
                 var reqCopy = JSON.parse(JSON.stringify(req));
                 reqCopy.body.status = obj.new;
                 reqCopy.origObj.status = obj.old;

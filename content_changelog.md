@@ -1,5 +1,10 @@
 # Content Service Changelog
 
+### 4.0.2: Mon Feb  8 13:39:09 EST 2016
+* Do not allow deleting cards for completed/outOfBudget campaigns: [#784](https://github.com/cinema6/cwrx/issues/784)
+* Allow returning cards from public endpoints for any non-deleted campaign: [#784](https://github.com/cinema6/cwrx/issues/784)
+* Extra deployment steps: None
+
 ### 4.0.1: Fri Jan 29 15:28:10 EST 2016
 * Treat 'completed' campaign status like 'expired' for fetching cards: [#766](https://github.com/cinema6/cwrx/issues/766)
 * Extra deployment steps: None

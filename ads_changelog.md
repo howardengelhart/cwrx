@@ -1,10 +1,12 @@
 # Ads Service Changelog
 
-### 4.4.0: Thu Feb  4 17:16:18 EST 2016
+### 4.4.0: Mon Feb  8 13:39:09 EST 2016
 * Support `autoApproveUpdates` entitlement: [#750](https://github.com/cinema6/cwrx/issues/750)
 * Support `excludeOrgs` query param for campaigns: [#751](https://github.com/cinema6/cwrx/issues/751)
 * Email campaign owners when their campaign ends: [#765](https://github.com/cinema6/cwrx/issues/765)
+* Rename 'completed' status to 'outOfBudget': [#784](https://github.com/cinema6/cwrx/issues/784)
 * Extra deployment steps:
+    * Convert 'completed' campaigns to 'outOfBudget' (once deepthought changes deployed)
     * Add `manageLink` to emails config
     * Distribute `autoApproveUpdates` entitlement
 

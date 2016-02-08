@@ -120,7 +120,7 @@ describe('content-cards (UT)', function() {
         it('should check the campaign\'s status on edit + delete', function() {
             expect(svc._middleware.edit).toContain(getBoundFn(cardModule.campStatusCheck, [cardModule, [Status.Draft]]));
             expect(svc._middleware.delete).toContain(getBoundFn(cardModule.campStatusCheck,
-                [cardModule, [Status.Draft, Status.Pending, Status.Canceled, Status.Completed, Status.Expired]]));
+                [cardModule, [Status.Draft, Status.Pending, Status.Canceled, Status.Expired]]));
         });
         
         it('should prevent editing cards if the campaign has an update request', function() {
@@ -229,7 +229,7 @@ describe('content-cards (UT)', function() {
                 
                 it('should be able to allow some requesters to set the field', function() {
                     requester.fieldValidation.cards.campaign.minViewTime = { __allowed: true };
-                    newObj.campaign.minViewTime = 666
+                    newObj.campaign.minViewTime = 666;
                     expect(svc.model.validate('create', newObj, origObj, requester))
                         .toEqual({ isValid: true, reason: undefined });
                     expect(newObj.campaign.minViewTime).toBe(666);
@@ -859,124 +859,6 @@ describe('content-cards (UT)', function() {
         });
     });
 
-    describe('formatUrl', function() {
-        var card;
-        beforeEach(function() {
-            card = { id: 'rc-1', campaignId: 'cam-1' };
-            req.originHost = 'cinema6.com';
-            req.route.path = '/api/public/content/experience/:id';
-            req.params.id = 'e-1';
-            req.query = {
-                container: 'embed',
-                placement: 'pl-1',
-                hostApp: 'Mapsaurus',
-                network: 'pocketmath'
-            };
-            cardModule.config.trackingPixel = '//cinema6.com/track.png';
-        });
-        
-        it('should build a tracking pixel url', function() {
-            var url = cardModule.formatUrl(card, req, 'completedView'),
-                parsed = urlUtils.parse(url, true, true);
-                
-            expect(parsed.protocol).toBe(null);
-            expect(parsed.host).toBe('cinema6.com');
-            expect(parsed.pathname).toBe('/track.png');
-            expect(parsed.query).toEqual({
-                campaign: 'cam-1',
-                card: 'rc-1',
-                experience: 'e-1',
-                container: 'embed',
-                placement: 'pl-1',
-                host: 'cinema6.com',
-                hostApp: 'Mapsaurus',
-                network: 'pocketmath',
-                cb: '{cachebreaker}',
-                event: 'completedView',
-                d: '{delay}'
-            });
-        });
-        
-        it('should be able to get the experience id from query params', function() {
-            req.route.path = '/api/public/content/card/:id';
-            req.query.experience = 'e-2';
-            var url = cardModule.formatUrl(card, req, 'load'),
-                parsed = urlUtils.parse(url, true, true);
-            expect(parsed.query.experience).toBe('e-2');
-        });
-        
-        it('should allow overriding the host through the pageUrl param', function() {
-            req.query.pageUrl = 'clickhole.com';
-            var url = cardModule.formatUrl(card, req, 'load'),
-                parsed = urlUtils.parse(url, true, true);
-            expect(parsed.query.host).toBe('clickhole.com');
-        });
-        
-        it('should leave some params blank if they are not provided', function() {
-            req.route.path = '/api/public/content/card/:id';
-            req.query = {};
-            var url = cardModule.formatUrl(card, req, 'completedView'),
-                parsed = urlUtils.parse(url, true, true);
-
-            expect(parsed.protocol).toBe(null);
-            expect(parsed.host).toBe('cinema6.com');
-            expect(parsed.pathname).toBe('/track.png');
-            expect(parsed.query).toEqual({
-                campaign: 'cam-1',
-                card: 'rc-1',
-                experience: '',
-                container: '',
-                placement: '',
-                host: 'cinema6.com',
-                hostApp: '',
-                network: '',
-                cb: '{cachebreaker}',
-                event: 'completedView',
-                d: '{delay}'
-            });
-        });
-        
-        it('should add a playDelay param if the event is play', function() {
-            var url = cardModule.formatUrl(card, req, 'play'),
-                parsed = urlUtils.parse(url, true, true);
-                
-            expect(parsed.query).toEqual({
-                campaign: 'cam-1',
-                card: 'rc-1',
-                experience: 'e-1',
-                container: 'embed',
-                placement: 'pl-1',
-                host: 'cinema6.com',
-                hostApp: 'Mapsaurus',
-                network: 'pocketmath',
-                cb: '{cachebreaker}',
-                d: '{delay}',
-                pd: '{playDelay}',
-                event: 'play'
-            });
-        });
-
-        it('should add a loadDelay param if the event is load', function() {
-            var url = cardModule.formatUrl(card, req, 'load'),
-                parsed = urlUtils.parse(url, true, true);
-                
-            expect(parsed.query).toEqual({
-                campaign: 'cam-1',
-                card: 'rc-1',
-                experience: 'e-1',
-                container: 'embed',
-                placement: 'pl-1',
-                host: 'cinema6.com',
-                hostApp: 'Mapsaurus',
-                network: 'pocketmath',
-                cb: '{cachebreaker}',
-                d: '{delay}',
-                ld: '{loadDelay}',
-                event: 'load'
-            });
-        });
-    });
-    
     describe('objectifyLinks', function() {
         var card;
         beforeEach(function() {
@@ -1219,29 +1101,14 @@ describe('content-cards (UT)', function() {
             }).done(done);
         });
 
-        it('should return nothing if the card\'s campaign is not running', function(done) {
-            q.all([Status.Canceled, Status.Expired, Status.Deleted, Status.Completed].map(function(status) {
-                mockCamp.status = status;
-                return cardModule.getPublicCard(cardSvc, caches, 'rc-1', req).then(function(resp) {
-                    expect(resp).not.toBeDefined();
-                });
-            })).then(function(results) {
-                expect(mockLog.warn).not.toHaveBeenCalled();
-                expect(caches.campaigns.getPromise.calls.count()).toBe(4);
-            }).catch(function(error) {
-                expect(error.toString()).not.toBeDefined();
-            }).done(done);
-        });
-        
-        it('should show a card for a pending, draft, or paused campaign', function(done) {
-            q.all([Status.Pending, Status.Draft, Status.Paused].map(function(status) {
-                mockCamp.status = status;
-                return cardModule.getPublicCard(cardSvc, caches, 'rc-1', req).then(function(resp) {
-                    expect(resp).toEqual(jasmine.objectContaining({ id: 'rc-1' }));
-                });
-            })).then(function(results) {
-                expect(mockLog.warn).not.toHaveBeenCalled();
-                expect(caches.campaigns.getPromise.calls.count()).toBe(3);
+        it('should return nothing if the card\'s campaign was deleted', function(done) {
+            mockCamp.status = Status.Deleted;
+            cardModule.getPublicCard(cardSvc, caches, 'rc-1', req).then(function(resp) {
+                expect(resp).not.toBeDefined();
+                expect(caches.cards.getPromise).toHaveBeenCalledWith({id: 'rc-1'});
+                expect(caches.campaigns.getPromise).toHaveBeenCalledWith({id: 'cam-1'});
+                expect(cardSvc.formatOutput).toHaveBeenCalled();
+                expect(mockLog.warn).toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
             }).done(done);
@@ -1486,13 +1353,10 @@ describe('content-cards (UT)', function() {
             }).done(done);
         });
         
-        it('should return a 400 if the campaign is not running', function(done) {
-            q.all([Status.Canceled, Status.Expired, Status.Completed, Status.Deleted].map(function(status) {
-                mockCamp.status = status;
-                return cardModule.chooseCards(cardSvc, caches, req).then(function(resp) {
-                    expect(resp).toEqual({ code: 400, body: 'Campaign not running' });
-                });
-            })).then(function(results) {
+        it('should return a 400 if the campaign is deleted', function(done) {
+            mockCamp.status = Status.Deleted;
+            cardModule.chooseCards(cardSvc, caches, req).then(function(resp) {
+                expect(resp).toEqual({ code: 404, body: 'Campaign not found' });
                 expect(cardSvc.getPublicCard).not.toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();

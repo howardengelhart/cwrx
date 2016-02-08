@@ -491,7 +491,7 @@ describe('orgSvc-payments (UT)', function() {
                 expect(mockDb.collection).toHaveBeenCalledWith('campaigns');
                 expect(mockColl.count).toHaveBeenCalledWith({
                     paymentMethod: 'asdf1234',
-                    status: { $nin: [Status.Deleted, Status.Expired, Status.Canceled, Status.Completed] },
+                    status: { $nin: [Status.Deleted, Status.Expired, Status.Canceled] },
                 });
                 expect(mockLog.error).not.toHaveBeenCalled();
                 done();

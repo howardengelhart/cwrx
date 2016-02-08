@@ -78,7 +78,7 @@ describe('ads placements endpoints (E2E):', function() {
             { id: 'cam-paused', status: 'paused', cards: [{ id: 'rc-paused' }], user: 'e2e-user', org: 'e2e-org' },
             { id: 'cam-deleted', status: 'deleted', cards: [{ id: 'rc-deleted' }], user: 'e2e-user', org: 'e2e-org' },
             { id: 'cam-canceled', status: 'canceled', cards: [], user: 'e2e-user', org: 'e2e-org' },
-            { id: 'cam-completed', status: 'completed', cards: [], user: 'e2e-user', org: 'e2e-org' },
+            { id: 'cam-outOfBudget', status: 'outOfBudget', cards: [], user: 'e2e-user', org: 'e2e-org' },
             { id: 'cam-expired', status: 'expired', cards: [], user: 'e2e-user', org: 'e2e-org' },
         ];
 
@@ -447,7 +447,6 @@ describe('ads placements endpoints (E2E):', function() {
                         type: 'full',
                         container: 'box-active',
                         campaign: 'cam-active',
-                        type: 'full',
                         branding: 'elitedaily'
                     }
                 }
@@ -642,10 +641,10 @@ describe('ads placements endpoints (E2E):', function() {
                 }).done(done);
             });
             
-            it('should return a 400 if the campaign is canceled, completed, or expired', function(done) {
+            it('should return a 400 if the campaign is canceled, outOfBudget, or expired', function(done) {
                 q.all([
                     ['campaign', 'cam-expired'],
-                    ['campaign', 'cam-completed'],
+                    ['campaign', 'cam-outOfBudget'],
                     ['campaign', 'cam-canceled'],
                 ].map(function(arr) {
                     var newOpts = JSON.parse(JSON.stringify(options));
@@ -1092,12 +1091,14 @@ describe('ads placements endpoints (E2E):', function() {
             }).done(done);
         });
 
-        it('should write and entry to the audit collection', function(done) {
+        it('should write an entry to the audit collection', function(done) {
             requestUtils.qRequest('delete', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(204);
                 expect(resp.body).toBe('');
                 
-                return testUtils.mongoFind('audit', {}, {$natural: -1}, 1, 0, {db: 'c6Journal'});
+                return q.delay(2000).then(function() {
+                    return testUtils.mongoFind('audit', {}, {$natural: -1}, 1, 0, {db: 'c6Journal'});
+                });
             }).then(function(results) {
                 expect(results[0].user).toBe('u-admin');
                 expect(results[0].created).toEqual(jasmine.any(Date));
