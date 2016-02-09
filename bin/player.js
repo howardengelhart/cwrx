@@ -334,12 +334,6 @@ Player.prototype.__getBranding__ = function __getBranding__(branding, type, hove
     var base = resolveURL(this.config.api.root, this.config.api.branding.endpoint);
     var directory = resolveURL(base, branding + '/styles/');
     var typeDirectory = resolveURL(directory, type + '/');
-
-    log.info(
-        '[%1] Fetching {%2} branding for player {%3} with hover: %4.',
-        uuid, branding, type, hover
-    );
-
     var stylesheets = [
         resolveURL(directory, 'core.css'),
         resolveURL(typeDirectory, 'theme.css')
@@ -348,17 +342,30 @@ Player.prototype.__getBranding__ = function __getBranding__(branding, type, hove
         resolveURL(typeDirectory, 'theme--hover.css')
     ] : []);
 
-    return q.all(stylesheets.map(function(src) {
-        return request.get(src).then(function createData(css) {
-            log.trace('[%1] Got stylesheet "%2".', uuid, src);
+    function fetchBranding(type, src) {
+        return request.get(src).then(function createData(contents) {
+            log.trace('[%1] Got branding "%2".', uuid, src);
 
-            return { src: src, styles: css };
+            return { type: type, src: src, contents: contents };
         }).catch(function returnNull(reason) {
             log.trace('[%1] Failed to get stylesheet: %2.', uuid, reason.message);
 
             return null;
         });
-    })).then(function filterNulls(brandings) {
+    }
+
+    log.info(
+        '[%1] Fetching {%2} branding for player {%3} with hover: %4.',
+        uuid, branding, type, hover
+    );
+
+    return q.all(stylesheets.map(function(src) {
+        return q.all([
+            fetchBranding('css', src),
+            fetchBranding('js', src + '.domino.js')
+        ]);
+    })).then(function filterNulls(/*brandings*/) {
+        var brandings = _.flatten(arguments[0]);
         var result = brandings.filter(function(branding) { return branding; });
 
         log.info('[%1] Successfully got %2 branding stylesheets.', uuid, result.length);
@@ -849,15 +856,21 @@ Player.prototype.get = function get(/*options*/) {
         return function inlineBranding(document) {
             return promise.then(function add(items) {
                 items.forEach(function addBrandingCSS(branding) {
+                    var contentType = branding.type;
                     var src = branding.src;
-                    var contents = branding.styles;
+                    var contents = branding.contents;
 
                     log.trace(
-                        '[%1] Inlining branding CSS (%2) into %3 player HTML.',
-                        uuid, src, type
+                        '[%1] Inlining branding %2 (%3) into %4 player HTML.',
+                        uuid, contentType, src, type
                     );
 
-                    document.addCSS(src, contents);
+                    switch (contentType) {
+                    case 'css':
+                        return document.addCSS(src, contents);
+                    case 'js':
+                        return document.addJS(src, contents);
+                    }
                 });
 
                 return document;
