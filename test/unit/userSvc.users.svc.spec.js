@@ -848,7 +848,7 @@ describe('userSvc (UT)', function() {
         var svc, req, next, done;
 
         beforeEach(function() {
-            spyOn(uuid, 'createUuid').and.returnValue('abcdefghijklmnopqrstuvwxyz');
+            spyOn(uuid, 'createUuid').and.returnValue('1234567890abcdef');
             var newUserRoles = ['newUserRole1', 'newUserRole2'];
             var newUserPols = ['newUserPol1', 'newUserPol2'];
             svc = userModule.setupSvc(mockDb, mockConfig, mockCache, appCreds);
@@ -861,7 +861,7 @@ describe('userSvc (UT)', function() {
         });
 
         it('should give the object an id', function() {
-            expect(req.body.id).toBe('u-abcdefghijklmn');
+            expect(req.body.id).toBe('u-1234567890abcdef');
         });
 
         it('should set the created date of the object', function() {

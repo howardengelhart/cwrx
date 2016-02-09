@@ -1,12 +1,11 @@
 var flush = true;
 describe('journal lib: ', function() {
-    var q, mockLog, mockLogger, mockHostname, mongoUtils, logger, mockColl, journal;
+    var q, mockLog, mockLogger, hostUtils, mongoUtils, logger, mockColl, journal;
     
     beforeEach(function() {
         if (flush){ for (var m in require.cache){ delete require.cache[m]; } flush = false; }
         q = require('q');
-        mockHostname = jasmine.createSpy('hostname').and.returnValue(q('fakeHost'));
-        require.cache[require.resolve('../../lib/hostname')] = { exports: mockHostname };
+        hostUtils       = require('../../lib/hostUtils');
         journal         = require('../../lib/journal');
         mongoUtils      = require('../../lib/mongoUtils');
         logger          = require('../../lib/logger');
@@ -28,6 +27,7 @@ describe('journal lib: ', function() {
             insertOne: jasmine.createSpy('coll.insertOne').and.returnValue(q())
         };
 
+        spyOn(hostUtils, 'getHostname').and.returnValue(q('fakeHost'));
         spyOn(mongoUtils, 'escapeKeys').and.callThrough();
     });
     
@@ -47,36 +47,36 @@ describe('journal lib: ', function() {
                 process.nextTick(function() {
                     expect(journ.host).toBe('fakeHost');
                     expect(mockColl.isCapped).toHaveBeenCalled();
-                    expect(mockHostname).toHaveBeenCalledWith(true);
-                    expect(mockHostname.calls.count()).toBe(1);
+                    expect(hostUtils.getHostname).toHaveBeenCalledWith(true);
+                    expect(hostUtils.getHostname.calls.count()).toBe(1);
                     done();
                 });
             });
             
             it('should get the short hostname if it can\'t get the fqdn', function(done) {
-                mockHostname.and.callFake(function(full) {
+                hostUtils.getHostname.and.callFake(function(full) {
                     if (full) return q.reject('i got no fqdn');
                     else return q('short');
                 });
                 var journ = new journal.Journal(mockColl, 'v1', 'ut');
                 process.nextTick(function() {
                     expect(journ.host).toBe('short');
-                    expect(mockHostname).toHaveBeenCalledWith(true);
-                    expect(mockHostname).toHaveBeenCalledWith();
-                    expect(mockHostname.calls.count()).toBe(2);
+                    expect(hostUtils.getHostname).toHaveBeenCalledWith(true);
+                    expect(hostUtils.getHostname).toHaveBeenCalledWith();
+                    expect(hostUtils.getHostname.calls.count()).toBe(2);
                     expect(mockLog.warn).not.toHaveBeenCalled();
                     done();
                 });
             });
             
             it('should log a warning if it can\'t get the hostname at all', function(done) {
-                mockHostname.and.returnValue(q.reject('i got no hostname'));
+                hostUtils.getHostname.and.returnValue(q.reject('i got no hostname'));
                 var journ = new journal.Journal(mockColl, 'v1', 'ut');
                 process.nextTick(function() {
                     expect(journ.host).not.toBeDefined();
-                    expect(mockHostname).toHaveBeenCalledWith(true);
-                    expect(mockHostname).toHaveBeenCalledWith();
-                    expect(mockHostname.calls.count()).toBe(2);
+                    expect(hostUtils.getHostname).toHaveBeenCalledWith(true);
+                    expect(hostUtils.getHostname).toHaveBeenCalledWith();
+                    expect(hostUtils.getHostname.calls.count()).toBe(2);
                     expect(mockLog.warn).toHaveBeenCalled();
                     done();
                 });
@@ -267,8 +267,8 @@ describe('journal lib: ', function() {
                 process.nextTick(function() {
                     expect(journ.host).toBe('fakeHost');
                     expect(mockColl.isCapped).toHaveBeenCalled();
-                    expect(mockHostname).toHaveBeenCalledWith(true);
-                    expect(mockHostname.calls.count()).toBe(1);
+                    expect(hostUtils.getHostname).toHaveBeenCalledWith(true);
+                    expect(hostUtils.getHostname.calls.count()).toBe(1);
                     done();
                 });
             });

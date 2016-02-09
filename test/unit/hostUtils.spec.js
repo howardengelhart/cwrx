@@ -24,11 +24,9 @@ describe('hostUtils', function() {
                 expect(host).toBe('fakeHost');
                 expect(cp.exec).toHaveBeenCalled();
                 expect(cp.exec.calls.all()[0].args[0]).toBe('hostname');
-                done();
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
-                done();
-            });
+            }).done(done)
         });
         
         it('should get the fqdn if called with full = true', function(done) {
@@ -40,11 +38,9 @@ describe('hostUtils', function() {
                 expect(host).toBe('fakeHost.com');
                 expect(cp.exec).toHaveBeenCalled();
                 expect(cp.exec.calls.all()[0].args[0]).toBe('hostname --fqdn');
-                done();
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
-                done();
-            });
+            }).done(done)
         });
         
         it('should handle failures', function(done) {
@@ -62,12 +58,11 @@ describe('hostUtils', function() {
             }).catch(function(error) {
                 expect(error).toBe('Different error');
                 expect(cp.exec.calls.count()).toBe(2);
-                done();
-            });
+            }).done(done);
         });
     });
     
-    describe('getIp', function() { //TODO
-    
+    describe('getIp', function() {
+        
     });
 });

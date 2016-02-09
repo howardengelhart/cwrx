@@ -282,12 +282,12 @@ describe('expressUtils', function() {
                 midware = expressUtils.setUuid();
                 req = {};
                 res = { send: jasmine.createSpy('res.send()') };
-                spyOn(uuid, 'createUuid').and.returnValue('abcdefghijklmnopqrstuvwxyz');
+                spyOn(uuid, 'createUuid').and.returnValue('1234567890abcdef');
             });
 
             it('should set req.uuid', function() {
                 midware(req, res, next);
-                expect(req.uuid).toEqual('abcdefghij');
+                expect(req.uuid).toEqual('1234567890abcdef');
                 expect(next).toHaveBeenCalled();
                 expect(res.send).not.toHaveBeenCalled();
             });
@@ -443,7 +443,7 @@ describe('expressUtils', function() {
                     send: jasmine.createSpy('res.send()'),
                     header: jasmine.createSpy('res.header()')
                 };
-                spyOn(uuid, 'createUuid').and.returnValue('abcdefghijklmnopqrstuvwxyz');
+                spyOn(uuid, 'createUuid').and.returnValue('1234567890abcdef');
                 spyOn(expressUtils, 'setUuid').and.callThrough();
                 spyOn(expressUtils, 'setBasicHeaders').and.callThrough();
                 spyOn(expressUtils, 'handleOptions').and.callThrough();
@@ -456,13 +456,13 @@ describe('expressUtils', function() {
                 midware(req, res, next);
                 expect(next).toHaveBeenCalled();
                 expect(res.send).not.toHaveBeenCalled();
-                expect(req.uuid).toBe('abcdefghij');
+                expect(req.uuid).toBe('1234567890abcdef');
                 expect(res.header.calls.count()).toBe(2);
                 expect(res.header).toHaveBeenCalledWith('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept');
                 expect(res.header).toHaveBeenCalledWith('cache-control', 'max-age=0');
                 expect(mockLog.info).toHaveBeenCalledWith(
                     'REQ: [%1] %2 %3 %4 %5',
-                    'abcdefghij',
+                    '1234567890abcdef',
                     '{"foo":"bar","blah":"bloop","accept":"me, please"}',
                     'GET',
                     '/api/content/meta',
