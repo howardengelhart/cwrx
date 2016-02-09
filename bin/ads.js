@@ -19,7 +19,6 @@
         conModule       = require('./ads-containers'),
         placeModule     = require('./ads-placements'),
         siteModule      = require('./ads-sites'),
-        zipModule       = require('./ads-zipcodes'),
         
         state   = {},
         ads = {}; // for exporting functions to unit tests
@@ -118,7 +117,6 @@
             campSvc      = campModule.setupSvc(state.dbs.c6Db, state.config),
             updateSvc    = updateModule.setupSvc(state.dbs.c6Db, campSvc, state.config, appCreds),
             siteSvc      = siteModule.setupSvc(state.dbs.c6Db.collection('sites')),
-            zipSvc       = zipModule.setupSvc(state.dbs.c6Db.collection('zipcodes')), //TODO: c6Db or geoDb?
             conSvc       = conModule.setupSvc(state.dbs.c6Db),
             placeSvc     = placeModule.setupSvc(state.dbs.c6Db, state.config),
             auditJournal = new journal.AuditJournal(state.dbs.c6Journal.collection('audit'),
@@ -164,7 +162,6 @@
         siteModule.setupEndpoints(app, siteSvc, state.sessions, audit, jobManager);
         conModule.setupEndpoints(app, conSvc, state.sessions, audit, jobManager);
         placeModule.setupEndpoints(app, placeSvc, state.sessions, audit, jobManager);
-        zipModule.setupEndpoints(app, zipSvc, state.sessions, audit, jobManager);
         
         app.use(expressUtils.errorHandler());
         
