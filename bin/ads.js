@@ -19,6 +19,7 @@
         conModule       = require('./ads-containers'),
         placeModule     = require('./ads-placements'),
         siteModule      = require('./ads-sites'),
+        zipModule       = require('./ads-zipcodes'),
         
         state   = {},
         ads = {}; // for exporting functions to unit tests
@@ -117,6 +118,7 @@
             campSvc      = campModule.setupSvc(state.dbs.c6Db, state.config),
             updateSvc    = updateModule.setupSvc(state.dbs.c6Db, campSvc, state.config, appCreds),
             siteSvc      = siteModule.setupSvc(state.dbs.c6Db.collection('sites')),
+            zipSvc       = zipModule.setupSvc(state.dbs.c6Db.collection('zipcodes')), //TODO: c6Db or geoDb?
             conSvc       = conModule.setupSvc(state.dbs.c6Db),
             placeSvc     = placeModule.setupSvc(state.dbs.c6Db, state.config),
             auditJournal = new journal.AuditJournal(state.dbs.c6Journal.collection('audit'),
@@ -162,20 +164,9 @@
         siteModule.setupEndpoints(app, siteSvc, state.sessions, audit, jobManager);
         conModule.setupEndpoints(app, conSvc, state.sessions, audit, jobManager);
         placeModule.setupEndpoints(app, placeSvc, state.sessions, audit, jobManager);
+        zipModule.setupEndpoints(app, zipSvc, state.sessions, audit, jobManager);
         
-        app.use(function(err, req, res, next) {
-            if (err) {
-                if (err.status && err.status < 500) {
-                    log.warn('[%1] Bad Request: %2', req.uuid, err && err.message || err);
-                    res.send(err.status, err.message || 'Bad Request');
-                } else {
-                    log.error('[%1] Internal Error: %2', req.uuid, err && err.message || err);
-                    res.send(err.status || 500, err.message || 'Internal error');
-                }
-            } else {
-                next();
-            }
-        });
+        app.use(expressUtils.errorHandler());
         
         app.listen(state.cmdl.port);
         log.info('Service is listening on port: ' + state.cmdl.port);

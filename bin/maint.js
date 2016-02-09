@@ -12,6 +12,7 @@
         request     = require('request'),
         express     = require('express'),
         bodyParser  = require('body-parser'),
+        expressUtils= require('../lib/expressUtils'),
         logger      = require('../lib/logger'),
         daemon      = require('../lib/daemon'),
         uuid        = require('../lib/uuid'),
@@ -509,19 +510,7 @@
             res.send(200, data);
         });
 
-        app.use(function(err, req, res, next) {
-            if (err) {
-                if (err.status && err.status < 500) {
-                    log.warn('[%1] Bad Request: %2', req.uuid, err && err.message || err);
-                    res.send(err.status, err.message || 'Bad Request');
-                } else {
-                    log.error('[%1] Internal Error: %2', req.uuid, err && err.message || err);
-                    res.send(err.status || 500, err.message || 'Internal error');
-                }
-            } else {
-                next();
-            }
-        });
+        app.use(expressUtils.errorHandler());
 
         app.listen(program.port);
         log.info('Maintenance server is listening on port: ' + program.port);
