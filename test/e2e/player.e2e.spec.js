@@ -150,7 +150,7 @@ describe('player service', function() {
             });
 
             it('should inline the css', function() {
-                var $css = $('style[data-href="./css/lightbox.css"]');
+                var $css = $('style[data-href="../build/css/lightbox.css"]');
 
                 expect($css.length).toBe(1);
                 expect($css.text().length).toBeGreaterThan(1000);
