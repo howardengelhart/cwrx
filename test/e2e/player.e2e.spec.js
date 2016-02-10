@@ -151,10 +151,14 @@ describe('player service', function() {
 
             it('should inline the css', function() {
                 var $css = $('style[data-href="../build/css/lightbox.css"]');
+                var $domino = $('script[data-src="../build/css/lightbox.css.domino.js"]');
 
                 expect($css.length).toBe(1);
                 expect($css.text().length).toBeGreaterThan(1000);
                 expect($css.text()).toContain('url(./img/social-card-sprites.png)'); // Test CSS rebasing
+
+                expect($domino.length).toBe(1);
+                expect($domino.text().length).toBeGreaterThan(50);
             });
 
             it('should inline the JS', function() {
@@ -216,14 +220,23 @@ describe('player service', function() {
                 });
             });
 
-            it('should inline the branding', function() {
-                var $branding = $('head style[data-href="http://localhost/collateral/branding/digitaljournal/styles/lightbox/theme.css"]');
-                var $brandingHover = $('head style[data-href="http://localhost/collateral/branding/digitaljournal/styles/lightbox/theme--hover.css"]');
+            describe('with branding', function() {
+                beforeEach(function(done) {
+                    config.playerUrl.query.branding = 'e2e';
+                    config.playerUrl.pathname = '/api/public/players/light';
 
-                expect($branding.length).toBe(1);
-                expect($branding.text().length).toBeGreaterThan(500);
-                expect($brandingHover.length).toBe(1);
-                expect($brandingHover.text().length).toBeGreaterThan(500);
+                    return request.get(getURL()).then(getResponse).then(done, done.fail);
+                });
+
+                it('should inline the branding', function() {
+                    var $branding = $('head style[data-href="http://localhost/collateral/branding/e2e/styles/light/theme.css"]');
+                    var $domino = $('head script[data-src="http://localhost/collateral/branding/e2e/styles/light/theme.css.domino.js"]');
+
+                    expect($branding.length).toBe(1);
+                    expect($branding.text().length).toBeGreaterThan(500);
+                    expect($domino.length).toBe(1);
+                    expect($domino.text().length).toBeGreaterThan(50);
+                });
             });
 
             ['mraid', 'vpaid', 'embed', 'standalone'].forEach(function(context) {
@@ -780,17 +793,24 @@ describe('player service', function() {
                 describe('for the mobile player', function() {
                     beforeEach(function(done) {
                         config.playerUrl.pathname = '/api/public/players/mobile';
+                        config.playerUrl.query.branding = 'e2e';
 
                         request.get(getURL()).then(getResponse).then(done, done.fail);
                     });
 
                     it('should not inline the hover branding', function() {
-                        var $branding = $('head style[data-href="http://localhost/collateral/branding/digitaljournal/styles/mobile/theme.css"]');
+                        var $branding = $('head style[data-href="http://localhost/collateral/branding/e2e/styles/mobile/theme.css"]');
+                        var $domino = $('head script[data-src="http://localhost/collateral/branding/e2e/styles/mobile/theme.css.domino.js"]');
                         var $brandingHover = $('head style[data-href="http://localhost/collateral/branding/digitaljournal/styles/mobile/theme--hover.css"]');
+                        var $dominoHover = $('head script[data-src="http://localhost/collateral/branding/e2e/styles/mobile/theme--hover.css.domino.js"]');
 
                         expect($branding.length).toBe(1);
                         expect($branding.text().length).toBeGreaterThan(500);
                         expect($brandingHover.length).toBe(0);
+
+                        expect($domino.length).toBe(1);
+                        expect($domino.text().length).toBeGreaterThan(50);
+                        expect($dominoHover.length).toBe(0);
                     });
                 });
             });
@@ -1182,19 +1202,20 @@ describe('player service', function() {
 
                 describe('and a branding', function() {
                     beforeEach(function(done) {
-                        config.playerUrl.query.branding = 'digitaljournal';
+                        config.playerUrl.query.branding = 'e2e';
+                        config.playerUrl.pathname = '/api/public/players/light';
 
                         request.get(getURL()).then(getResponse).then(done, done.fail);
                     });
 
                     it('should inline the branding', function() {
-                        var $branding = $('head style[data-href="http://localhost/collateral/branding/digitaljournal/styles/lightbox/theme.css"]');
-                        var $brandingHover = $('head style[data-href="http://localhost/collateral/branding/digitaljournal/styles/lightbox/theme--hover.css"]');
+                        var $branding = $('head style[data-href="http://localhost/collateral/branding/e2e/styles/light/theme.css"]');
+                        var $domino = $('head script[data-src="http://localhost/collateral/branding/e2e/styles/light/theme.css.domino.js"]');
 
                         expect($branding.length).toBe(1);
                         expect($branding.text().length).toBeGreaterThan(500);
-                        expect($brandingHover.length).toBe(1);
-                        expect($brandingHover.text().length).toBeGreaterThan(500);
+                        expect($domino.length).toBe(1);
+                        expect($domino.text().length).toBeGreaterThan(50);
                     });
                 });
             });
