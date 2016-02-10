@@ -1425,12 +1425,15 @@ describe('player service', function() {
 
                         beforeEach(function(done) {
                             brandings = [
-                                { src: 'theme.css', styles: 'body { padding: 10px; }' },
-                                { src: 'theme--hover.css', styles: 'body { margin: 20px; }' }
+                                { type: 'css', src: 'theme.css', contents: 'body { padding: 10px; }' },
+                                { type: 'js', src: 'theme.css.domino.js', contents: 'window.__dominoCSSRules__=[".foo"];' },
+                                { type: 'css', src: 'theme--hover.css', contents: 'body { margin: 20px; }' },
+                                { type: 'js', src: 'theme--hover.css.domino.js', contents: 'window.__dominoCSSRules__=[".bar"];' }
                             ];
                             player.__getBranding__.and.returnValue(q(brandings));
 
                             spyOn(document, 'addCSS').and.callThrough();
+                            spyOn(document, 'addJS').and.callThrough();
                             spyOn(MockAdLoader, 'addTrackingPixels').and.callThrough();
 
                             loadExperienceDeferred.fulfill(experience);
@@ -1482,10 +1485,13 @@ describe('player service', function() {
                             });
 
                             it('should add the brandings as a resource', function() {
-                                expect(brandings.length).toBeGreaterThan(0);
-                                brandings.forEach(function(branding) {
-                                    expect(document.addCSS).toHaveBeenCalledWith(branding.src, branding.styles);
-                                });
+                                expect(document.addCSS).toHaveBeenCalledWith(brandings[0].src, brandings[0].contents);
+                                expect(document.addJS).toHaveBeenCalledWith(brandings[1].src, brandings[1].contents);
+                                expect(document.addCSS).toHaveBeenCalledWith(brandings[2].src, brandings[2].contents);
+                                expect(document.addJS).toHaveBeenCalledWith(brandings[3].src, brandings[3].contents);
+
+                                expect(document.addCSS.calls.count()).toBe(2);
+                                expect(document.addJS.calls.count()).toBe(2);
                             });
 
                             it('should add the options as a resource', function() {
@@ -1648,10 +1654,13 @@ describe('player service', function() {
                                         player.__loadCard__.calls.reset();
                                         player.__getPlayer__.calls.reset();
                                         spyOn(document, 'addCSS').and.callThrough();
+                                        spyOn(document, 'addJS').and.callThrough();
 
                                         brandings = [
-                                            { src: 'theme.css', styles: 'body { padding: 10px; }' },
-                                            { src: 'theme--hover.css', styles: 'body { margin: 20px; }' }
+                                            { type: 'css', src: 'theme.css', contents: 'body { padding: 10px; }' },
+                                            { type: 'js', src: 'theme.css.domino.js', contents: 'console.log("Some JS")' },
+                                            { type: 'css', src: 'theme--hover.css', contents: 'body { margin: 20px; }' },
+                                            { type: 'js', src: 'theme--hover.css.domino.js', contents: 'console.log("Some CSS")' }
                                         ];
                                         player.__getBranding__.and.returnValue(q(brandings));
 
@@ -1675,10 +1684,13 @@ describe('player service', function() {
                                     });
 
                                     it('should add the brandings as a resource', function() {
-                                        expect(brandings.length).toBeGreaterThan(0);
-                                        brandings.forEach(function(branding) {
-                                            expect(document.addCSS).toHaveBeenCalledWith(branding.src, branding.styles);
-                                        });
+                                        expect(document.addCSS).toHaveBeenCalledWith(brandings[0].src, brandings[0].contents);
+                                        expect(document.addJS).toHaveBeenCalledWith(brandings[1].src, brandings[1].contents);
+                                        expect(document.addCSS).toHaveBeenCalledWith(brandings[2].src, brandings[2].contents);
+                                        expect(document.addJS).toHaveBeenCalledWith(brandings[3].src, brandings[3].contents);
+
+                                        expect(document.addCSS.calls.count()).toBe(2);
+                                        expect(document.addJS.calls.count()).toBe(2);
                                     });
 
                                     it('should resolve to the player as a string of HTML', function() {
@@ -1715,12 +1727,15 @@ describe('player service', function() {
 
                                 beforeEach(function(done) {
                                     brandings = [
-                                        { src: 'theme.css', styles: 'body { padding: 10px; }' },
-                                        { src: 'theme--hover.css', styles: 'body { margin: 20px; }' }
+                                        { type: 'css', src: 'theme.css', contents: 'body { padding: 10px; }' },
+                                        { type: 'js', src: 'theme.css.domino.js', contents: 'console.log("Some JS")' },
+                                        { type: 'css', src: 'theme--hover.css', contents: 'body { margin: 20px; }' },
+                                        { type: 'js', src: 'theme--hover.css.domino.js', contents: 'console.log("Some CSS")' }
                                     ];
                                     player.__getBranding__.and.returnValue(q(brandings));
 
                                     spyOn(document, 'addCSS').and.callThrough();
+                                    spyOn(document, 'addJS').and.callThrough();
                                     spyOn(MockAdLoader, 'addTrackingPixels').and.callThrough();
 
                                     experience.data.deck = [
@@ -1768,10 +1783,13 @@ describe('player service', function() {
                                     });
 
                                     it('should add the brandings as a resource', function() {
-                                        expect(brandings.length).toBeGreaterThan(0);
-                                        brandings.forEach(function(branding) {
-                                            expect(document.addCSS).toHaveBeenCalledWith(branding.src, branding.styles);
-                                        });
+                                        expect(document.addCSS).toHaveBeenCalledWith(brandings[0].src, brandings[0].contents);
+                                        expect(document.addJS).toHaveBeenCalledWith(brandings[1].src, brandings[1].contents);
+                                        expect(document.addCSS).toHaveBeenCalledWith(brandings[2].src, brandings[2].contents);
+                                        expect(document.addJS).toHaveBeenCalledWith(brandings[3].src, brandings[3].contents);
+
+                                        expect(document.addCSS.calls.count()).toBe(2);
+                                        expect(document.addJS.calls.count()).toBe(2);
                                     });
 
                                     it('should add the options as a resource', function() {
@@ -3538,47 +3556,62 @@ describe('player service', function() {
 
                         it('should make a request for just the base branding stylesheets', function() {
                             expect(request.get).toHaveBeenCalledWith(resolveURL(base, branding + '/styles/' + type + '/theme.css'));
+                            expect(request.get).toHaveBeenCalledWith(resolveURL(base, branding + '/styles/' + type + '/theme.css.domino.js'));
                             expect(request.get).toHaveBeenCalledWith(resolveURL(base, branding + '/styles/core.css'));
-                            expect(request.get.calls.count()).toBe(2);
+                            expect(request.get).toHaveBeenCalledWith(resolveURL(base, branding + '/styles/core.css.domino.js'));
+
+                            expect(request.get.calls.count()).toBe(4);
                         });
 
                         describe('when the requests fulfill', function() {
                             var themeCSS, coreCSS;
+                            var themeJS, coreJS;
 
                             beforeEach(function(done) {
                                 themeCSS = 'body { background: black; }';
                                 coreCSS = 'body { background: red; }';
+                                themeJS = '(function(rules){rules.push({"rules":{"order":[],"container":[]},"mediaQueries":[]});}(window.__dominoCSSRules__||(window.__dominoCSSRules__=[])));';
+                                coreJS = '(function(rules){rules.push({"rules":{"order":[{"selector":".foo","value":".bar"}],"container":[]},"mediaQueries":[]});}(window.__dominoCSSRules__||(window.__dominoCSSRules__=[])));';
 
                                 requestDeferreds[resolveURL(base, branding + '/styles/' + type + '/theme.css')].resolve(themeCSS);
+                                requestDeferreds[resolveURL(base, branding + '/styles/' + type + '/theme.css.domino.js')].resolve(themeJS);
                                 requestDeferreds[resolveURL(base, branding + '/styles/core.css')].resolve(coreCSS);
+                                requestDeferreds[resolveURL(base, branding + '/styles/core.css.domino.js')].resolve(coreJS);
 
                                 result.finally(done);
                             });
 
                             it('should fulfill with an Array of css', function() {
-                                expect(success).toHaveBeenCalledWith([jasmine.any(Object), jasmine.any(Object)]);
+                                expect(success).toHaveBeenCalledWith([jasmine.any(Object), jasmine.any(Object), jasmine.any(Object), jasmine.any(Object)]);
                                 expect(success).toHaveBeenCalledWith(jasmine.arrayContaining([
-                                    { src: resolveURL(base, branding + '/styles/' + type + '/theme.css'), styles: themeCSS },
-                                    { src: resolveURL(base, branding + '/styles/core.css'), styles: coreCSS }
+                                    { type: 'css', src: resolveURL(base, branding + '/styles/' + type + '/theme.css'), contents: themeCSS },
+                                    { type: 'js', src: resolveURL(base, branding + '/styles/' + type + '/theme.css.domino.js'), contents: themeJS },
+                                    { type: 'css', src: resolveURL(base, branding + '/styles/core.css'), contents: coreCSS },
+                                    { type: 'js', src: resolveURL(base, branding + '/styles/core.css.domino.js'), contents: coreJS },
                                 ]));
                             });
                         });
 
                         describe('if a request rejects', function() {
                             var themeCSS;
+                            var themeJS;
 
                             beforeEach(function(done) {
                                 themeCSS = 'body { background: black; }';
+                                themeJS = '(function(rules){rules.push({"rules":{"order":[],"container":[]},"mediaQueries":[]});}(window.__dominoCSSRules__||(window.__dominoCSSRules__=[])));';
 
                                 requestDeferreds[resolveURL(base, branding + '/styles/' + type + '/theme.css')].resolve(themeCSS);
+                                requestDeferreds[resolveURL(base, branding + '/styles/' + type + '/theme.css.domino.js')].resolve(themeJS);
                                 requestDeferreds[resolveURL(base, branding + '/styles/core.css')].reject({ statusCode: 404, message: 'NOT FOUND!' });
+                                requestDeferreds[resolveURL(base, branding + '/styles/core.css.domino.js')].reject({ statusCode: 404, message: 'NOT FOUND!' });
 
                                 result.finally(done);
                             });
 
                             it('should fulfill with an Array of the css that was fetched', function() {
                                 expect(success).toHaveBeenCalledWith([
-                                    { src: resolveURL(base, branding + '/styles/' + type + '/theme.css'), styles: themeCSS }
+                                    { type: 'css', src: resolveURL(base, branding + '/styles/' + type + '/theme.css'), contents: themeCSS },
+                                    { type: 'js', src: resolveURL(base, branding + '/styles/' + type + '/theme.css.domino.js'), contents: themeJS }
                                 ]);
                             });
                         });
@@ -3595,59 +3628,85 @@ describe('player service', function() {
 
                         it('should make a request for the base and hover branding stylesheets', function() {
                             expect(request.get).toHaveBeenCalledWith(resolveURL(base, branding + '/styles/' + type + '/theme.css'));
+                            expect(request.get).toHaveBeenCalledWith(resolveURL(base, branding + '/styles/' + type + '/theme.css.domino.js'));
                             expect(request.get).toHaveBeenCalledWith(resolveURL(base, branding + '/styles/core.css'));
+                            expect(request.get).toHaveBeenCalledWith(resolveURL(base, branding + '/styles/core.css.domino.js'));
                             expect(request.get).toHaveBeenCalledWith(resolveURL(base, branding + '/styles/' + type + '/theme--hover.css'));
+                            expect(request.get).toHaveBeenCalledWith(resolveURL(base, branding + '/styles/' + type + '/theme--hover.css.domino.js'));
                             expect(request.get).toHaveBeenCalledWith(resolveURL(base, branding + '/styles/core--hover.css'));
-                            expect(request.get.calls.count()).toBe(4);
+                            expect(request.get).toHaveBeenCalledWith(resolveURL(base, branding + '/styles/core--hover.css.domino.js'));
+                            expect(request.get.calls.count()).toBe(8);
                         });
 
                         describe('when the requests fulfill', function() {
                             var themeCSS, coreCSS, themeHoverCSS, coreHoverCSS;
+                            var themeJS, coreJS, themeHoverJS, coreHoverJS;
 
                             beforeEach(function(done) {
                                 themeCSS = 'body { background: black; }';
                                 coreCSS = 'body { background: red; }';
                                 themeHoverCSS = 'body { background: blue; }';
                                 coreHoverCSS = 'body { background: green; }';
+                                themeJS = '(function(rules){rules.push({"rules":{"order":[],"container":[]},"mediaQueries":[]});}(window.__dominoCSSRules__||(window.__dominoCSSRules__=[])));';
+                                coreJS = '(function(rules){rules.push({"rules":{"order":[{"selector":".foo","value":".bar"}],"container":[]},"mediaQueries":[]});}(window.__dominoCSSRules__||(window.__dominoCSSRules__=[])));';
+                                themeHoverJS = '(function(rules){rules.push({"rules":{"order":[{"selector":".bar","value":"#foo"}],"container":[]},"mediaQueries":[]});}(window.__dominoCSSRules__||(window.__dominoCSSRules__=[])));';
+                                coreHoverJS = '(function(rules){rules.push({"rules":{"order":[{"selector":".foo","value":"body"}],"container":[]},"mediaQueries":[]});}(window.__dominoCSSRules__||(window.__dominoCSSRules__=[])));';
 
                                 requestDeferreds[resolveURL(base, branding + '/styles/' + type + '/theme.css')].resolve(themeCSS);
+                                requestDeferreds[resolveURL(base, branding + '/styles/' + type + '/theme.css.domino.js')].resolve(themeJS);
                                 requestDeferreds[resolveURL(base, branding + '/styles/core.css')].resolve(coreCSS);
+                                requestDeferreds[resolveURL(base, branding + '/styles/core.css.domino.js')].resolve(coreJS);
                                 requestDeferreds[resolveURL(base, branding + '/styles/' + type + '/theme--hover.css')].resolve(themeHoverCSS);
+                                requestDeferreds[resolveURL(base, branding + '/styles/' + type + '/theme--hover.css.domino.js')].resolve(themeHoverJS);
                                 requestDeferreds[resolveURL(base, branding + '/styles/core--hover.css')].resolve(coreHoverCSS);
+                                requestDeferreds[resolveURL(base, branding + '/styles/core--hover.css.domino.js')].resolve(coreHoverJS);
 
                                 result.finally(done);
                             });
 
                             it('should fulfill with an Array of css', function() {
-                                expect(success).toHaveBeenCalledWith([jasmine.any(Object), jasmine.any(Object), jasmine.any(Object), jasmine.any(Object)]);
+                                expect(success).toHaveBeenCalledWith([jasmine.any(Object), jasmine.any(Object), jasmine.any(Object), jasmine.any(Object), jasmine.any(Object), jasmine.any(Object), jasmine.any(Object), jasmine.any(Object)]);
                                 expect(success).toHaveBeenCalledWith(jasmine.arrayContaining([
-                                    { src: resolveURL(base, branding + '/styles/' + type + '/theme.css'), styles: themeCSS },
-                                    { src: resolveURL(base, branding + '/styles/core.css'), styles: coreCSS },
-                                    { src: resolveURL(base, branding + '/styles/' + type + '/theme--hover.css'), styles: themeHoverCSS },
-                                    { src: resolveURL(base, branding + '/styles/core--hover.css'), styles: coreHoverCSS }
+                                    { type: 'css', src: resolveURL(base, branding + '/styles/' + type + '/theme.css'), contents: themeCSS },
+                                    { type: 'js', src: resolveURL(base, branding + '/styles/' + type + '/theme.css.domino.js'), contents: themeJS },
+                                    { type: 'css', src: resolveURL(base, branding + '/styles/core.css'), contents: coreCSS },
+                                    { type: 'js', src: resolveURL(base, branding + '/styles/core.css.domino.js'), contents: coreJS },
+                                    { type: 'css', src: resolveURL(base, branding + '/styles/' + type + '/theme--hover.css'), contents: themeHoverCSS },
+                                    { type: 'js', src: resolveURL(base, branding + '/styles/' + type + '/theme--hover.css.domino.js'), contents: themeHoverJS },
+                                    { type: 'css', src: resolveURL(base, branding + '/styles/core--hover.css'), contents: coreHoverCSS },
+                                    { type: 'js', src: resolveURL(base, branding + '/styles/core--hover.css.domino.js'), contents: coreHoverJS }
                                 ]));
                             });
                         });
 
                         describe('if a request rejects', function() {
                             var themeCSS, themeHoverCSS;
+                            var themeJS, themeHoverJS;
 
                             beforeEach(function(done) {
                                 themeCSS = 'body { background: black; }';
                                 themeHoverCSS = 'body { background: blue; }';
+                                themeJS = '(function(rules){rules.push({"rules":{"order":[],"container":[]},"mediaQueries":[]});}(window.__dominoCSSRules__||(window.__dominoCSSRules__=[])));';
+                                themeHoverJS = '(function(rules){rules.push({"rules":{"order":[{"selector":".bar","value":"#foo"}],"container":[]},"mediaQueries":[]});}(window.__dominoCSSRules__||(window.__dominoCSSRules__=[])));';
 
                                 requestDeferreds[resolveURL(base, branding + '/styles/' + type + '/theme.css')].resolve(themeCSS);
+                                requestDeferreds[resolveURL(base, branding + '/styles/' + type + '/theme.css.domino.js')].resolve(themeJS);
                                 requestDeferreds[resolveURL(base, branding + '/styles/core.css')].reject({ statusCode: 404, message: 'NOT FOUND!' });
+                                requestDeferreds[resolveURL(base, branding + '/styles/core.css.domino.js')].reject({ statusCode: 404, message: 'NOT FOUND!' });
                                 requestDeferreds[resolveURL(base, branding + '/styles/' + type + '/theme--hover.css')].resolve(themeHoverCSS);
+                                requestDeferreds[resolveURL(base, branding + '/styles/' + type + '/theme--hover.css.domino.js')].resolve(themeHoverJS);
                                 requestDeferreds[resolveURL(base, branding + '/styles/core--hover.css')].reject({ statusCode: 404, message: 'NOT FOUND!' });
+                                requestDeferreds[resolveURL(base, branding + '/styles/core--hover.css.domino.js')].reject({ statusCode: 404, message: 'NOT FOUND!' });
 
                                 result.finally(done);
                             });
 
                             it('should fulfill with an Array of the css that was fetched', function() {
                                 expect(success).toHaveBeenCalledWith([
-                                    { src: resolveURL(base, branding + '/styles/' + type + '/theme.css'), styles: themeCSS },
-                                    { src: resolveURL(base, branding + '/styles/' + type + '/theme--hover.css'), styles: themeHoverCSS }
+                                    { type: 'css', src: resolveURL(base, branding + '/styles/' + type + '/theme.css'), contents: themeCSS },
+                                    { type: 'js', src: resolveURL(base, branding + '/styles/' + type + '/theme.css.domino.js'), contents: themeJS },
+                                    { type: 'css', src: resolveURL(base, branding + '/styles/' + type + '/theme--hover.css'), contents: themeHoverCSS },
+                                    { type: 'js', src: resolveURL(base, branding + '/styles/' + type + '/theme--hover.css.domino.js'), contents: themeHoverJS }
                                 ]);
                             });
                         });
