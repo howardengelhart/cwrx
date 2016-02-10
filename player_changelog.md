@@ -1,5 +1,9 @@
 # Player Service Changelog
 
+### 2.6.0: Wed Feb 10 09:50:28 EST 2016
+* Add support for [`domino.css`](https://github.com/cinema6/domino.css)
+  with `branding`
+
 ### 2.5.1: Fri Feb  5 12:40:13 EST 2016
 * [FIX]: Add tracking pixels to statically-mapped sponsored cards in a
   MiniReel: [#783](https://github.com/cinema6/cwrx/pull/783)
