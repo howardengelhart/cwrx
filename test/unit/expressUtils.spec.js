@@ -3,6 +3,7 @@ describe('expressUtils', function() {
     var cloudwatchMetrics;
     var expressUtils;
 
+    var util;
     var EventEmitter;
     var extend;
     var logger;
@@ -13,8 +14,10 @@ describe('expressUtils', function() {
     var reporter;
 
     var mockLog;
+    var next;
 
     beforeEach(function() {
+        util = require('util');
         EventEmitter = require('events').EventEmitter;
         extend = require('../../lib/objUtils').extend;
         logger = require('../../lib/logger');
@@ -30,6 +33,8 @@ describe('expressUtils', function() {
         };
         spyOn(logger, 'createLog').and.returnValue(mockLog);
         spyOn(logger, 'getLog').and.returnValue(mockLog);
+        
+        next = jasmine.createSpy('next()');
 
         delete require.cache[require.resolve('../../lib/cloudWatchReporter')];
         CloudWatchReporter = require('../../lib/cloudWatchReporter');
@@ -68,7 +73,7 @@ describe('expressUtils', function() {
             });
 
             describe('(the middleware)', function() {
-                var request, response, next;
+                var request, response;
 
                 beforeEach(function() {
                     request = {
@@ -90,7 +95,6 @@ describe('expressUtils', function() {
                         }
                     };
                     response = {};
-                    next = jasmine.createSpy('next()');
 
                     middleware(request, response, next);
                 });
@@ -145,7 +149,7 @@ describe('expressUtils', function() {
             });
 
             describe('without configuration', function() {
-                var request, response, next;
+                var request, response;
 
                 beforeEach(function() {
                     request = {
@@ -167,7 +171,6 @@ describe('expressUtils', function() {
                         }
                     };
                     response = {};
-                    next = jasmine.createSpy('next()');
 
                     parseQuery()(request, response, next);
                 });
@@ -216,13 +219,12 @@ describe('expressUtils', function() {
             });
 
             describe('(the middleware)', function() {
-                var req, res, next;
+                var req, res;
                 var headers;
 
                 beforeEach(function() {
                     req = extend(new EventEmitter(), {});
                     res = extend(new EventEmitter(), {});
-                    next = jasmine.createSpy('next()');
 
                     jasmine.clock().install();
                     jasmine.clock().mockDate();
@@ -275,12 +277,11 @@ describe('expressUtils', function() {
         });
         
         describe('returns a function that', function() {
-            var midware, req, res, next;
+            var midware, req, res;
             beforeEach(function() {
                 midware = expressUtils.setUuid();
                 req = {};
                 res = { send: jasmine.createSpy('res.send()') };
-                next = jasmine.createSpy('next()');
                 spyOn(uuid, 'createUuid').and.returnValue('abcdefghijklmnopqrstuvwxyz');
             });
 
@@ -299,7 +300,7 @@ describe('expressUtils', function() {
         });
 
         describe('returns a function that', function() {
-            var midware, req, res, next;
+            var midware, req, res;
             beforeEach(function() {
                 midware = expressUtils.setBasicHeaders();
                 req = {};
@@ -307,7 +308,6 @@ describe('expressUtils', function() {
                     send: jasmine.createSpy('res.send()'),
                     header: jasmine.createSpy('res.header()')
                 };
-                next = jasmine.createSpy('next()');
             });
 
             it('should set some headers on the response', function() {
@@ -327,12 +327,11 @@ describe('expressUtils', function() {
         });
 
         describe('returns a function that', function() {
-            var midware, req, res, next;
+            var midware, req, res;
             beforeEach(function() {
                 midware = expressUtils.handleOptions();
                 req = { method: 'OPTIONS' };
                 res = { send: jasmine.createSpy('res.send()') };
-                next = jasmine.createSpy('next()');
             });
 
             it('should calls res.send() early if the request method is OPTIONS', function() {
@@ -356,7 +355,7 @@ describe('expressUtils', function() {
         });
 
         describe('returns a function that', function() {
-            var midware, req, res, next;
+            var midware, req, res;
             beforeEach(function() {
                 midware = expressUtils.logRequest();
                 req = {
@@ -371,7 +370,6 @@ describe('expressUtils', function() {
                     }
                 };
                 res = { send: jasmine.createSpy('res.send()') };
-                next = jasmine.createSpy('next()');
             });
 
             it('should log basic info about a request', function() {
@@ -429,7 +427,7 @@ describe('expressUtils', function() {
         });
 
         describe('returns a function that', function() {
-            var midware, req, res, next;
+            var midware, req, res;
             beforeEach(function() {
                 req = {
                     method: 'GET',
@@ -445,7 +443,6 @@ describe('expressUtils', function() {
                     send: jasmine.createSpy('res.send()'),
                     header: jasmine.createSpy('res.header()')
                 };
-                next = jasmine.createSpy('next()');
                 spyOn(uuid, 'createUuid').and.returnValue('abcdefghijklmnopqrstuvwxyz');
                 spyOn(expressUtils, 'setUuid').and.callThrough();
                 spyOn(expressUtils, 'setBasicHeaders').and.callThrough();
@@ -476,6 +473,96 @@ describe('expressUtils', function() {
                 expect(expressUtils.handleOptions).toHaveBeenCalled();
                 expect(expressUtils.logRequest).toHaveBeenCalled();
             });
+        });
+    });
+    
+    describe('errorHandler', function() {
+        it('should return a function', function() {
+            expect(expressUtils.errorHandler()).toEqual(jasmine.any(Function));
+        });
+        
+        describe('returns a function that', function() {
+            var req, res, err, midware;
+            beforeEach(function() {
+                req = { uuid: '1234' };
+                res = {
+                    send: jasmine.createSpy('res.send()')
+                };
+                midware = expressUtils.errorHandler();
+            });
+            
+            it('should just call next if no error is passed', function() {
+                err = null;
+                midware(err, req, res, next);
+                expect(next).toHaveBeenCalled();
+                expect(res.send).not.toHaveBeenCalled();
+                expect(mockLog.warn).not.toHaveBeenCalled();
+                expect(mockLog.error).not.toHaveBeenCalled();
+            });
+            
+            it('should log.warn if there is a 4xx status code attached to the error', function() {
+                err = new Error('i dont know what to do with all that body');
+                err.status = 413;
+                midware(err, req, res, next);
+                expect(next).not.toHaveBeenCalled();
+                expect(res.send).toHaveBeenCalledWith(413, 'i dont know what to do with all that body');
+                expect(mockLog.warn).toHaveBeenCalled();
+                expect(mockLog.warn.calls.argsFor(0)).toContain(util.inspect(err));
+                expect(mockLog.error).not.toHaveBeenCalled();
+            });
+            
+            it('should log.error if there is a 5xx status code attached to the error', function() {
+                err = new Error('i got a problem crosby');
+                err.status = 500;
+                midware(err, req, res, next);
+                expect(next).not.toHaveBeenCalled();
+                expect(res.send).toHaveBeenCalledWith(500, 'i got a problem crosby');
+                expect(mockLog.warn).not.toHaveBeenCalled();
+                expect(mockLog.error).toHaveBeenCalled();
+                expect(mockLog.error.calls.argsFor(0)).toContain(err.stack);
+            });
+            
+            it('should log.error if there is no status code attached to the error', function() {
+                err = 'i got a problem crosby';
+                midware(err, req, res, next);
+                expect(next).not.toHaveBeenCalled();
+                expect(res.send).toHaveBeenCalledWith(500, 'Internal error');
+                expect(mockLog.warn).not.toHaveBeenCalled();
+                expect(mockLog.error).toHaveBeenCalled();
+                expect(mockLog.error.calls.argsFor(0)).toContain(util.inspect(err));
+            });
+        });
+    });
+
+    describe('sendResponse', function() {
+        var res;
+        beforeEach(function() {
+            res = {
+                send: jasmine.createSpy('res.send()'),
+                header: jasmine.createSpy('res.header()')
+            };
+        });
+
+        it('should call res.send with the result', function() {
+            expressUtils.sendResponse(res, { code: 200, body: 'ok!' });
+            expect(res.send).toHaveBeenCalledWith(200, 'ok!');
+            expressUtils.sendResponse(res, { code: 500, body: { error: 'Error!', detail: 'Problems!' } });
+            expect(res.send).toHaveBeenCalledWith(500, { error: 'Error!', detail: 'Problems!' });
+            expect(res.header).not.toHaveBeenCalled();
+        });
+        
+        it('should call res.send with a 204 if no result is provided', function() {
+            expressUtils.sendResponse(res);
+            expect(res.send).toHaveBeenCalledWith(204);
+            expect(res.header).not.toHaveBeenCalled();
+        });
+        
+        it('should appropriately set headers if defined', function() {
+            var headers = { 'cache-control': 0, 'content-range': 'items 1-2/2' };
+            expressUtils.sendResponse(res, { code: 200, body: 'ok!', headers: headers });
+            expect(res.send).toHaveBeenCalledWith(200, 'ok!');
+            expect(res.header).toHaveBeenCalledWith('cache-control', 0);
+            expect(res.header).toHaveBeenCalledWith('content-range', 'items 1-2/2');
         });
     });
 });

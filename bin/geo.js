@@ -35,6 +35,7 @@
                 retryConnect : true
             }
         },
+        maxReadLimit: 500,
         secretsPath: path.join(process.env.HOME,'.geo.secrets.json'),
         mongo: {
             c6Db: {
@@ -60,10 +61,15 @@
 - consider adding functionality for creating unique indexes
 */
 
-    geo.setupZipSvc = function(coll) {
-        //TODO: make maxReadLimit configurable?
-        var opts = { userProp: false, orgProp: false, allowPublic: true, maxReadLimit: 500 },
-            svc = new CrudSvc(coll, null, opts); //TODO: this feels...dangerous
+    geo.setupZipSvc = function(coll, config) {
+        var opts = {
+            userProp: false,
+            orgProp: false,
+            allowPublic: true,
+            maxReadLimit: config.maxReadLimit
+        };
+        
+        var svc = new CrudSvc(coll, null, opts, {}); //TODO: this feels...dangerous
             
         return svc;
     };
@@ -79,7 +85,7 @@
         log.info('Running as cluster worker, proceed with setting up web server.');
 
         var app     = express(),
-            zipSvc  = geo.setupZipSvc(state.dbs.geoDb.collection('zipcodes')),
+            zipSvc  = geo.setupZipSvc(state.dbs.geoDb.collection('zipcodes'), state.config),
             auditJournal = new journal.AuditJournal(
                 state.dbs.c6Journal.collection('audit'),
                 state.config.appVersion,
@@ -103,7 +109,7 @@
             res.send(200, data);
         });
 
-        app.get('/api/geo/version',function(req, res) {
+        app.get('/api/geo/version', function(req, res) {
             res.send(200, state.config.appVersion);
         });
         
@@ -111,11 +117,14 @@
         var authGetZip = authUtils.middlewarify({});
         app.get('/api/geo/zipcodes?/:code', state.sessions, authGetZip, audit, function(req, res) {
             zipSvc.getObjs({ zipcode: req.params.code }, req, false).then(function(resp) {
-                res.send(resp.code, resp.body);
+                expressUtils.sendResponse(res, resp);
             }).catch(function(error) {
-                res.send(500, {
-                    error: 'Error retrieving zipcode',
-                    detail: error
+                expressUtils.sendResponse(res, {
+                    code: 500,
+                    body: {
+                        error: 'Error retrieving zipcode',
+                        detail: error
+                    }
                 });
             });
         });
@@ -127,11 +136,14 @@
             }
 
             zipSvc.getObjs(query, req, true).then(function(resp) {
-                res.send(resp.code, resp.body);
+                expressUtils.sendResponse(res, resp);
             }).catch(function(error) {
-                res.send(500, {
-                    error: 'Error retrieving zipcodes',
-                    detail: error
+                expressUtils.sendResponse(res, {
+                    code: 500,
+                    body: {
+                        error: 'Error retrieving zipcodes',
+                        detail: error
+                    }
                 });
             });
         });

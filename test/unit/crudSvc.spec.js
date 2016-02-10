@@ -61,6 +61,7 @@ describe('CrudSvc', function() {
             expect(svc._orgProp).toBe(true);
             expect(svc._allowPublic).toBe(false);
             expect(svc._ownedByUser).toBe(true);
+            expect(svc.maxReadLimit).toBe(null);
 
             expect(svc.createValidator instanceof FieldValidator).toBe(true);
             expect(svc.createValidator._forbidden).toEqual(['id', 'created', '_id']);
@@ -91,12 +92,13 @@ describe('CrudSvc', function() {
 
         it('should allow setting various simple options', function() {
             var opts = {
-                objName: 'bananas', allowPublic: true, ownedByUser: false
+                objName: 'bananas', allowPublic: true, ownedByUser: false, maxReadLimit: 666
             };
             svc = new CrudSvc(mockColl, 't', opts);
             expect(svc.objName).toBe('bananas');
             expect(svc._allowPublic).toBe(true);
             expect(svc._ownedByUser).toBe(false);
+            expect(svc.maxReadLimit).toBe(666);
         });
 
         it('should allow disabling the user + org props', function() {
@@ -953,6 +955,49 @@ describe('CrudSvc', function() {
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
             }).done(done);
+        });
+        
+        describe('if a maxReadLimit is set for the service', function(done) {
+            beforeEach(function() {
+                svc.maxReadLimit = 100;
+                req.query.limit = 120;
+            });
+            
+            it('should cap the limit param if set', function(done) {
+                svc.getObjs(query, req, false).then(function(resp) {
+                    expect(resp).toEqual({code: 200, body: 'formatted'});
+                    expect(mockColl.find).toHaveBeenCalledWith('userPermQuery', jasmine.objectContaining({ limit: 100 }));
+                }).catch(function(error) {
+                    expect(error.toString()).not.toBeDefined();
+                }).done(done);
+            });
+            
+            it('should set the limit param if unset or invalid', function(done) {
+                delete req.query.limit;
+                svc.getObjs(query, req, false).then(function(resp) {
+                    expect(resp).toEqual({code: 200, body: 'formatted'});
+                    expect(mockColl.find).toHaveBeenCalledWith('userPermQuery', jasmine.objectContaining({ limit: 100 }));
+
+                    mockColl.find.calls.reset();
+                    req.query.limit = -80;
+                    return svc.getObjs(query, req, false);
+                }).then(function(resp) {
+                    expect(resp).toEqual({code: 200, body: 'formatted'});
+                    expect(mockColl.find).toHaveBeenCalledWith('userPermQuery', jasmine.objectContaining({ limit: 100 }));
+                }).catch(function(error) {
+                    expect(error.toString()).not.toBeDefined();
+                }).done(done);
+            });
+            
+            it('should not change the limit if less than the maxReadLimit', function(done) {
+                req.query.limit = 80;
+                svc.getObjs(query, req, false).then(function(resp) {
+                    expect(resp).toEqual({code: 200, body: 'formatted'});
+                    expect(mockColl.find).toHaveBeenCalledWith('userPermQuery', jasmine.objectContaining({ limit: 80 }));
+                }).catch(function(error) {
+                    expect(error.toString()).not.toBeDefined();
+                }).done(done);
+            });
         });
 
         it('should allow specifiying which fields to return', function(done) {
