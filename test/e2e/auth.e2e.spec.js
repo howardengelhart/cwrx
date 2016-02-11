@@ -1,4 +1,5 @@
 var q               = require('q'),
+    util            = require('util'),
     testUtils       = require('./testUtils'),
     request         = require('request'),
     requestUtils    = require('../../lib/requestUtils'),

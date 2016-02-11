@@ -1,23 +1,23 @@
-var q               = require('q');
-    testUtils       = require('./testUtils');
+var q               = require('q'),
+    testUtils       = require('./testUtils'),
     requestUtils    = require('../../lib/requestUtils');
 
 describe('vote (E2E)', function(){
     var makeUrl, mockData, cookieJar, restart = true,
-        dbEnv = JSON.parse(process.env['mongo'] || '{}');
+        dbEnv = JSON.parse(process.env.mongo || '{}');
     if (dbEnv && !dbEnv.db) {
         dbEnv.db = 'voteDb';
     }
-    process.env['mongo'] = JSON.stringify(dbEnv);
+    process.env.mongo = JSON.stringify(dbEnv);
     
     beforeEach(function(){
-        var urlBase = 'http://' + (process.env['host'] ? process.env['host'] : 'localhost');
+        var urlBase = 'http://' + (process.env.host ? process.env.host : 'localhost');
 
         jasmine.DEFAULT_TIMEOUT_INTERVAL = 10000;
 
         makeUrl = function(fragment){
             return urlBase + fragment;
-        }
+        };
         
     });
     
@@ -87,7 +87,7 @@ describe('vote (E2E)', function(){
     });
     
     beforeEach(function(done) {
-        if (cookieJar && cookieJar.cookies) {
+        if (cookieJar) {
             return done();
         }
         cookieJar = require('request').jar();
@@ -115,7 +115,7 @@ describe('vote (E2E)', function(){
             }
         };
         var userDbCfg = JSON.parse(JSON.stringify(dbEnv));
-        userDbCfg.db = 'c6Db'
+        userDbCfg.db = 'c6Db';
         testUtils.resetCollection('users', mockUser, userDbCfg).then(function(resp) {
             return requestUtils.qRequest('post', loginOpts);
         }).done(function(resp) {
@@ -241,7 +241,7 @@ describe('vote (E2E)', function(){
             requestUtils.qRequest('post', postOpts)
                 .then(function(resp) {
                     expect(resp.response.statusCode).toEqual(200);
-                    return requestUtils.qRequest('get', {url:makeUrl('/api/election/e3'),jar:cookieJar})
+                    return requestUtils.qRequest('get', {url:makeUrl('/api/election/e3'),jar:cookieJar});
                 }).then(function(resp) {
                     expect(resp.body.id).toEqual('e3');
                     expect(resp.body.ballot).toEqual({

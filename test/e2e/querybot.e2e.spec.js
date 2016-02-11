@@ -279,7 +279,7 @@ describe('querybot (E2E)', function(){
     });
 
     beforeEach(function(done){
-        if (cookieJar && cookieJar.cookies) {
+        if (cookieJar) {
             return done();
         }
         cookieJar = request.jar();

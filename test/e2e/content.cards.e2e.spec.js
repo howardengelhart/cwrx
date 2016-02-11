@@ -16,7 +16,7 @@ describe('content card endpoints (E2E):', function() {
     beforeEach(function(done) {
         jasmine.DEFAULT_TIMEOUT_INTERVAL = 15000;
 
-        if (selfieJar && selfieJar.cookies && adminJar && adminJar.cookies) {
+        if (selfieJar && adminJar) {
             return done();
         }
         selfieJar = request.jar();

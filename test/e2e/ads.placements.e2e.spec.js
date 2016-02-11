@@ -15,7 +15,7 @@ describe('ads placements endpoints (E2E):', function() {
     beforeEach(function(done) {
         jasmine.DEFAULT_TIMEOUT_INTERVAL = 10000;
 
-        if (cookieJar && cookieJar.cookies && nonAdminJar && nonAdminJar.cookies) {
+        if (cookieJar && nonAdminJar) {
             return done();
         }
 

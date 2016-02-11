@@ -61,7 +61,7 @@ describe('content category endpoints (E2E):', function() {
             }
         ];
     
-        if (e2eUserJar && e2eUserJar.cookies && adminJar && adminJar.cookies && somePermsJar && somePermsJar.cookies) {
+        if (e2eUserJar && adminJar && somePermsJar) {
             return done();
         }
         e2eUserJar = request.jar();

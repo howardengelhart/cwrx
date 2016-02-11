@@ -4,7 +4,7 @@ var q               = require('q'),
     testUtils       = require('./testUtils'),
     requestUtils    = require('../../lib/requestUtils'),
     request         = require('request'),
-    host            = process.env['host'] || 'localhost',
+    host            = process.env.host || 'localhost',
     bucket          = process.env.bucket || 'c6.dev',
     config = {
         searchUrl   : 'http://' + (host === 'localhost' ? host + ':3800' : host) + '/api',
@@ -16,7 +16,7 @@ describe('search (E2E):', function() {
     beforeEach(function(done) {
         jasmine.DEFAULT_TIMEOUT_INTERVAL = 30000;
 
-        if (cookieJar && cookieJar.cookies) {
+        if (cookieJar) {
             return done();
         }
         cookieJar = require('request').jar();

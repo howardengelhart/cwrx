@@ -15,7 +15,7 @@ describe('orgSvc referralCodes endpoints (E2E):', function() {
     beforeEach(function(done) {
         jasmine.DEFAULT_TIMEOUT_INTERVAL = 10000;
 
-        if (cookieJar && cookieJar.cookies) {
+        if (cookieJar) {
             return done();
         }
 

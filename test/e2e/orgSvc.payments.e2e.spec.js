@@ -23,7 +23,7 @@ describe('orgSvc payments (E2E):', function() {
     beforeEach(function(done) {
         jasmine.DEFAULT_TIMEOUT_INTERVAL = 30000;
 
-        if (cookieJar && cookieJar.cookies && readOnlyJar && readOnlyJar.cookies) {
+        if (cookieJar && readOnlyJar) {
             return done();
         }
 
