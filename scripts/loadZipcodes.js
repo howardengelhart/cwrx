@@ -21,7 +21,7 @@ var data;
 
 var passPromise, start;
 
-//TODO: may also want need to handle authenticating to admin db...
+//TODO: may also need to handle authenticating to admin db...
 if (program.dbUser === 'e2eTests') {
     passPromise = q('password');
 } else {

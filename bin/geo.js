@@ -43,7 +43,7 @@
                 port: null,
                 retryConnect : true
             },
-            geoDb: { //TODO: is there a good reason this should really be a different db?
+            geoDb: {
                 host: null,
                 port: null,
                 retryConnect : true
@@ -56,11 +56,6 @@
         }
     };
 
-/*TODO: Mongo to-dos
-- consider adding functionality for creating 2dsphere indexes
-- consider adding functionality for creating unique indexes
-*/
-
     geo.setupZipSvc = function(coll, config) {
         var opts = {
             userProp: false,
@@ -69,7 +64,7 @@
             maxReadLimit: config.maxReadLimit
         };
         
-        var svc = new CrudSvc(coll, null, opts, {}); //TODO: this feels...dangerous
+        var svc = new CrudSvc(coll, null, opts, {});
             
         return svc;
     };
