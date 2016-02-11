@@ -18,12 +18,7 @@
     state.defaultConfig = {
         appName: 'geo',
         appDir: __dirname,
-        caches : {
-            run: path.normalize('/usr/local/share/cwrx/' + state.name + '/caches/run/'),
-        },
-        api: {
-            root: 'http://localhost',   // for proxying requests
-        },
+        pidDir: path.resolve(__dirname, '../pids'),
         sessions: {
             key: 'c6Auth',
             maxAge: 30*60*1000,         // 30 minutes; unit here is milliseconds
