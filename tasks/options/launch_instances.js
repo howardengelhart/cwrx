@@ -101,6 +101,18 @@ module.exports = {
         ],
         checkSsh : [ { host : 'mongo-dev-1' } ]
     },
+    geo : {
+        startInstances : [ 'mongo-dev-1' ],
+        runInstances   : [ { name: 'test-geo', params: 'apiServer' } ],
+        checkHttp : [
+            {
+                host    : 'test-geo',
+                iface   : 'public',
+                path    : '/api/geo/meta'
+            }
+        ],
+        checkSsh : [ { host : 'mongo-dev-1' } ]
+    },
     orgSvc  : {
         startInstances : [ 'mongo-dev-1' ],
         runInstances   : [ { name: 'test-orgSvc', params: 'apiServer' } ],
@@ -121,18 +133,6 @@ module.exports = {
                 host    : 'test-search',
                 iface   : 'public',
                 path    : '/api/search/meta'
-            }
-        ],
-        checkSsh : [ { host : 'mongo-dev-1' } ]
-    },
-    siteSvc : {
-        startInstances : [ 'mongo-dev-1' ],
-        runInstances   : [ { name: 'test-siteSvc', params: 'apiServer' } ],
-        checkHttp : [
-            {
-                host    : 'test-siteSvc',
-                iface   : 'public',
-                path    : '/api/site/meta'
             }
         ],
         checkSsh : [ { host : 'mongo-dev-1' } ]
@@ -198,7 +198,22 @@ module.exports = {
             {
                 host    : 'nightly_build',
                 iface   : 'public',
+                path    : '/api/geo/meta'
+            },
+            {
+                host    : 'nightly_build',
+                iface   : 'public',
                 path    : '/api/search/meta'
+            },
+            {
+                host    : 'nightly_build',
+                iface   : 'public',
+                path    : '/api/analytics/meta'
+            },
+            {
+                host    : 'nightly_build',
+                iface   : 'public',
+                path    : '/api/players/meta'
             },
             {
                 host    : 'nightly_build',

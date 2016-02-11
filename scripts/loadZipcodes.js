@@ -9,6 +9,8 @@ var q               = require('q'),
 program
     .version('0.0.1')
     .option('--url [URL]', 'Url of data file to use', 'https://s3.amazonaws.com/c6.dev/data/US_zipcodes_2016-02-09__test_set.json.gz')
+    .option('--dbName [DBNAME]', 'Name of db to write to', 'geoDb')
+    .option('--authDb [AUTHDB]', 'Name of db to authenticate to', 'geoDb')
     .option('--dbHost [HOST]', 'Host of mongo instance', '33.33.33.100')
     .option('--dbPort [PORT]', 'Port of mongo instance', parseInt, 27017)
     .option('--dbUser [DBUSER]', 'Name of mongo user to use', 'e2eTests')
@@ -21,7 +23,6 @@ var data;
 
 var passPromise, start;
 
-//TODO: may also need to handle authenticating to admin db...
 if (program.dbUser === 'e2eTests') {
     passPromise = q('password');
 } else {
@@ -29,7 +30,7 @@ if (program.dbUser === 'e2eTests') {
     passPromise = deferred.promise;
     
     //NOTE: I believe this password prompt only works in commander 1.x
-    var promptMsg = util.format('Enter password for %s at %s:%d/geoDb: ', program.dbUser, program.dbHost, program.dbPort);
+    var promptMsg = util.format('Enter password for %s at %s:%d/%s: ', program.dbUser, program.dbHost, program.dbPort, program.authDb);
     program.password(promptMsg, function(pass) {
         deferred.resolve(pass);
     });
@@ -37,11 +38,16 @@ if (program.dbUser === 'e2eTests') {
 
 passPromise.then(function(dbPass) {
     start = Date.now();
-    console.log('Connecting to mongo at', program.dbHost, ':', program.dbPort);
-    return mongoUtils.connect(program.dbHost, program.dbPort, 'geoDb', program.dbUser, dbPass);
+    console.log('Connecting to mongo at', program.dbHost + ':' + program.dbPort, 'as', program.dbUser);
+    return mongoUtils.connect(program.dbHost, program.dbPort, program.authDb, program.dbUser, dbPass);
 })
 .then(function(database) {
-    db = database;
+    if (program.dbName !== program.authDb) {
+        db = database.db(program.dbName);
+    } else {
+        db = database;
+    }
+
     zipColl = db.collection('zipcodes');
     
     console.log('Getting data from', program.url);
