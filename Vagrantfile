@@ -9,11 +9,11 @@ Vagrant.configure("2") do |config|
   config.vm.hostname = "cwrx-development"
 
   # Every Vagrant virtual environment requires a box to build off of.
-  config.vm.box = "Berkshelf-CentOS-6.3-x86_64-minimal--bigger"
+  config.vm.box = "Reelcontent-CentOS-6.3-x86_64-1.0.0"
 
   # The url from where the 'config.vm.box' box will be fetched if it
   # doesn't already exist on the user's system.
-  config.vm.box_url = "https://s3.amazonaws.com/c6.dev/VagrantBoxes/Berkshelf-CentOS-6.3-x86_64-minimal--bigger.box"
+  config.vm.box_url = "https://s3.amazonaws.com/c6.dev/VagrantBoxes/Reelcontent-CentOS-6.3-x86_64-1.0.0.box"
 
   config.vm.network :private_network, ip: "33.33.33.10"
   config.vm.provider :virtualbox do |vb|
@@ -41,8 +41,21 @@ Vagrant.configure("2") do |config|
             }
         },
         :c6mongo => {
+            :indexes => {
+                "geoDb" => {
+                    "zipcodes" => [
+                        { "field" => "zipcode", "unique" => true },
+                        { "field" => "loc", "type" => "2dsphere" }
+                    ]
+                },
+                "c6Journal" => {
+                    "audit" => [
+                        { "field" => "created", "type" => "descending" }
+                    ]
+                }
+            },
             :users => {
-                :ids => ["evan", "howard", "e2eTests", "content", "collateral", "auth", "userSvc", "orgSvc", "vote", "siteSvc", "search", "deepthought", "ads", "querybot"]
+                :ids => ["evan", "howard", "e2eTests", "content", "collateral", "auth", "userSvc", "orgSvc", "vote", "search", "deepthought", "ads", "querybot", "geo"]
             },
             "cappedColls" => [
                 {
@@ -86,7 +99,7 @@ Vagrant.configure("2") do |config|
         "recipe[maint]"
     ]
     
-    svcs = ['ads', 'collateral', 'content', 'monitor', 'orgSvc', 'player', 'search', 'userSvc', 'vote', 'querybot', 'c6postgres', 'c6postgres::admin']
+    svcs = ['ads', 'collateral', 'content', 'geo', 'monitor', 'orgSvc', 'player', 'search', 'userSvc', 'vote', 'querybot', 'c6postgres', 'c6postgres::admin']
     
     if ENV['CWRX_APP'] == 'all'
         chosen = svcs
@@ -117,6 +130,27 @@ Vagrant.configure("2") do |config|
 
         if svc == 'vote'
             chef.json[svc][:mongo][:voteDb] = { :host => "127.0.0.1" }
+        end
+        
+        if svc == 'geo'
+            chef.json[svc][:config] = {
+                "sessions" => {
+                    "mongo" => {
+                        "host" => "127.0.0.1"
+                    }
+                },
+                "mongo" => {
+                    "c6Db" => {
+                        "host" => "127.0.0.1"
+                    },
+                    "c6Journal" => {
+                        "host" => "127.0.0.1"
+                    },
+                    "geoDb" => {
+                        "host" => "127.0.0.1"
+                    }
+                }
+            }
         end
 
         if svc == 'c6postgres'
