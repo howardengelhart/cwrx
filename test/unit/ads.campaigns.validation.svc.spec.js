@@ -296,6 +296,7 @@ describe('campaign validation', function() {
     describe('when handling targeting,', function() {
         beforeEach(function() {
             newObj.targeting = {};
+            origObj.targeting = {};
         });
         
         function targetingArrayTests(targetingType, subProp) {
@@ -320,6 +321,7 @@ describe('campaign validation', function() {
         describe('subfield geo,', function() {
             beforeEach(function() {
                 newObj.targeting.geo = {};
+                origObj.targeting.geo = {};
             });
             
             describe('subfield states,', function() {
@@ -328,6 +330,76 @@ describe('campaign validation', function() {
 
             describe('subfield dmas', function() {
                 targetingArrayTests('geo', 'dmas');
+            });
+            
+            describe('subfield zipcodes,', function() {
+                beforeEach(function() {
+                    newObj.targeting.geo.zipcodes = {};
+                });
+                
+                describe('subfield codes', function() {
+                    it('should fail if the field is not an array of strings', function() {
+                        newObj.targeting.geo.zipcodes.codes = 123;
+                        expect(svc.model.validate('create', newObj, origObj, requester))
+                            .toEqual({ isValid: false, reason: 'targeting.geo.zipcodes.codes must be in format: stringArray' });
+
+                        newObj.targeting.geo.zipcodes.codes = ['foo', 'bar', 123];
+                        expect(svc.model.validate('create', newObj, origObj, requester))
+                            .toEqual({ isValid: false, reason: 'targeting.geo.zipcodes.codes must be in format: stringArray' });
+                    });
+                    
+                    it('should allow the field to be set', function() {
+                        newObj.targeting.geo.zipcodes.codes = ['foo', 'bar'];
+                        expect(svc.model.validate('create', newObj, origObj, requester))
+                            .toEqual({ isValid: true, reason: undefined });
+                        expect(newObj.targeting.geo.zipcodes.codes).toEqual(['foo', 'bar']);
+                    });
+
+                    it('should fail if the field has too many entries', function() {
+                        newObj.targeting.geo.zipcodes.codes = new Array(1000).join(',').split(',').map(function() { return 'a'; });
+                        var resp = svc.model.validate('create', newObj, origObj, requester);
+                        expect(resp.isValid).toBe(false);
+                        expect(resp.reason).toMatch(/targeting.geo.zipcodes.codes must have at most \d+ entries/);
+                    });
+                });
+                
+                describe('subfield radius', function() {
+                    it('should fail if the field is not a number', function() {
+                        newObj.targeting.geo.zipcodes.radius = 'very far';
+                        expect(svc.model.validate('create', newObj, origObj, requester))
+                            .toEqual({ isValid: false, reason: 'targeting.geo.zipcodes.radius must be in format: number' });
+                    });
+                    
+                    it('should allow the field to be set on create or edit', function() {
+                        newObj.targeting.geo.zipcodes.radius = 66;
+                        expect(svc.model.validate('create', newObj, origObj, requester))
+                            .toEqual({ isValid: true, reason: undefined });
+                        expect(newObj.targeting.geo.zipcodes.radius).toEqual(66);
+                        
+                        origObj.targeting.geo.zipcodes = { radius: 77 };
+                        expect(svc.model.validate('edit', newObj, origObj, requester))
+                            .toEqual({ isValid: true, reason: undefined });
+                        expect(newObj.targeting.geo.zipcodes.radius).toEqual(66);
+                    });
+                    
+                    it('should provide a default radius if none is set', function() {
+                        expect(svc.model.validate('create', newObj, origObj, requester))
+                            .toEqual({ isValid: true, reason: undefined });
+                        expect(newObj.targeting.geo.zipcodes.radius).toEqual(jasmine.any(Number));
+                    });
+
+                    it('should fail if the field does not fit the bounds', function() {
+                        newObj.targeting.geo.zipcodes.radius = 1000000000000000000000000000000000000000;
+                        var resp = svc.model.validate('edit', newObj, origObj, requester);
+                        expect(resp.isValid).toBe(false);
+                        expect(resp.reason).toMatch(/targeting.geo.zipcodes.radius must be less than the max: \d+/);
+                        
+                        newObj.targeting.geo.zipcodes.radius = -1234;
+                        resp = svc.model.validate('edit', newObj, origObj, requester);
+                        expect(resp.isValid).toBe(false);
+                        expect(resp.reason).toMatch(/targeting.geo.zipcodes.radius must be greater than the min: \d+/);
+                    });
+                });
             });
         });
 

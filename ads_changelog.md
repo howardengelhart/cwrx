@@ -1,5 +1,9 @@
 # Ads Service Changelog
 
+### 4.4.1: Thu Feb 11 20:29:39 EST 2016
+* Add `targeting.geo.zipcodes` schema: [#786](https://github.com/cinema6/cwrx/issues/786)
+* Extra deployment steps: None
+
 ### 4.4.0: Mon Feb  8 13:39:09 EST 2016
 * Support `autoApproveUpdates` entitlement: [#750](https://github.com/cinema6/cwrx/issues/750)
 * Support `excludeOrgs` query param for campaigns: [#751](https://github.com/cinema6/cwrx/issues/751)
