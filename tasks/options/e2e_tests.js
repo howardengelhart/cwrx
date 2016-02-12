@@ -19,6 +19,15 @@ module.exports = {
                     forwardedArgs: ['dbHost']
                 }
             ]
+        },
+        geo: {
+            preScripts: [
+                {
+                    name: 'loadZipcodes.js',
+                    path: path.join(__dirname, '../../scripts/loadZipcodes.js'),
+                    forwardedArgs: ['dbHost']
+                }
+            ]
         }
     }
 };

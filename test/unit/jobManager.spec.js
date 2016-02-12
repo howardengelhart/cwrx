@@ -1,6 +1,6 @@
 var flush = true;
 describe('JobManager', function() {
-    var JobManager, q, logger, mockLog, mockCache, req, res, nextSpy, events, jobMgr;
+    var JobManager, q, expressUtils, logger, mockLog, mockCache, req, res, nextSpy, events, jobMgr;
     
     beforeEach(function() {
         jasmine.clock().install();
@@ -10,6 +10,7 @@ describe('JobManager', function() {
         q           = require('q');
         logger      = require('../../lib/logger');
         JobManager  = require('../../lib/jobManager');
+        expressUtils= require('../../lib/expressUtils');
 
         mockLog = {
             trace : jasmine.createSpy('log_trace'),
@@ -27,6 +28,7 @@ describe('JobManager', function() {
         res.send = jasmine.createSpy('res.send()');
         res.header = jasmine.createSpy('res.header()');
         nextSpy = jasmine.createSpy('next()');
+        spyOn(expressUtils, 'sendResponse').and.callThrough();
 
         mockCache = {
             set: jasmine.createSpy('cache.set').and.returnValue(q()),
@@ -35,7 +37,6 @@ describe('JobManager', function() {
         };
 
         jobMgr = new JobManager(mockCache, { enabled: true, timeout: 2000, cacheTTL: 6000, urlPrefix: '/api/job' });
-        spyOn(jobMgr, 'sendResponse').and.callThrough();
     });
 
     afterEach(function() {
@@ -79,30 +80,6 @@ describe('JobManager', function() {
         });
     });
     
-    describe('sendResponse', function() {
-        it('should call res.send with the result', function() {
-            jobMgr.sendResponse(res, { code: 200, body: 'ok!' });
-            expect(res.send).toHaveBeenCalledWith(200, 'ok!');
-            jobMgr.sendResponse(res, { code: 500, body: { error: 'Error!', detail: 'Problems!' } });
-            expect(res.send).toHaveBeenCalledWith(500, { error: 'Error!', detail: 'Problems!' });
-            expect(res.header).not.toHaveBeenCalled();
-        });
-        
-        it('should call res.send with a 204 if no result is provided', function() {
-            jobMgr.sendResponse(res);
-            expect(res.send).toHaveBeenCalledWith(204);
-            expect(res.header).not.toHaveBeenCalled();
-        });
-        
-        it('should appropriately set headers if defined', function() {
-            var headers = { 'cache-control': 0, 'content-range': 'items 1-2/2' };
-            jobMgr.sendResponse(res, { code: 200, body: 'ok!', headers: headers });
-            expect(res.send).toHaveBeenCalledWith(200, 'ok!');
-            expect(res.header).toHaveBeenCalledWith('cache-control', 0);
-            expect(res.header).toHaveBeenCalledWith('content-range', 'items 1-2/2');
-        });
-    });
-    
     describe('setJobTimeout', function() {
         it('should do nothing if job timeouts are not enabled', function() {
             jobMgr.cfg.enabled = false;
@@ -129,7 +106,7 @@ describe('JobManager', function() {
                 process.nextTick(function() {
                     expect(req._job.timedOut).toBe(true);
                     expect(mockCache.add).toHaveBeenCalledWith('req:1234', {code: 202, body: {url: '/api/job/1234'}}, jobMgr.cfg.cacheTTL);
-                    expect(jobMgr.sendResponse).toHaveBeenCalledWith(res, {code: 202, body: {url: '/api/job/1234'}});
+                    expect(expressUtils.sendResponse).toHaveBeenCalledWith(res, {code: 202, body: {url: '/api/job/1234'}});
                     expect(mockLog.error).not.toHaveBeenCalled();
                     done();
                 });
@@ -144,7 +121,7 @@ describe('JobManager', function() {
                 process.nextTick(function() {
                     expect(req._job.timedOut).toBe(false);
                     expect(mockCache.add).toHaveBeenCalled();
-                    expect(jobMgr.sendResponse).not.toHaveBeenCalled();
+                    expect(expressUtils.sendResponse).not.toHaveBeenCalled();
                     expect(mockLog.warn).toHaveBeenCalled();
                     done();
                 });
@@ -159,7 +136,7 @@ describe('JobManager', function() {
                 process.nextTick(function() {
                     expect(req._job.timedOut).toBe(false);
                     expect(mockCache.add).not.toHaveBeenCalled();
-                    expect(jobMgr.sendResponse).not.toHaveBeenCalled();
+                    expect(expressUtils.sendResponse).not.toHaveBeenCalled();
                     done();
                 });
             });
@@ -179,8 +156,8 @@ describe('JobManager', function() {
             jobMgr.endJob(req, res, promiseResult).then(function() {
                 expect(req._job.timedOut).toBe(true);
                 expect(mockCache.set).not.toHaveBeenCalled();
-                expect(jobMgr.sendResponse.calls.count()).toBe(2);
-                expect(jobMgr.sendResponse).toHaveBeenCalledWith(res, {code: 200, body: 'all good'});
+                expect(expressUtils.sendResponse.calls.count()).toBe(2);
+                expect(expressUtils.sendResponse).toHaveBeenCalledWith(res, {code: 200, body: 'all good'});
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
             }).done(done);
@@ -191,8 +168,8 @@ describe('JobManager', function() {
             jobMgr.endJob(req, res, promiseResult).then(function() {
                 expect(req._job.timedOut).toBe(false);
                 expect(mockCache.set).not.toHaveBeenCalled();
-                expect(jobMgr.sendResponse.calls.count()).toBe(1);
-                expect(jobMgr.sendResponse).toHaveBeenCalledWith(res, {code: 200, body: 'all good'});
+                expect(expressUtils.sendResponse.calls.count()).toBe(1);
+                expect(expressUtils.sendResponse).toHaveBeenCalledWith(res, {code: 200, body: 'all good'});
                 jasmine.clock().tick(1000);
                 expect(req._job.timedOut).toBe(false);
                 expect(mockCache.add).not.toHaveBeenCalled();
@@ -207,8 +184,8 @@ describe('JobManager', function() {
             jobMgr.endJob(req, res, promiseResult).then(function() {
                 expect(req._job.timedOut).toBe(true);
                 expect(mockCache.set).toHaveBeenCalledWith('req:1234', {code: 200, body: 'all good'}, jobMgr.cfg.cacheTTL);
-                expect(jobMgr.sendResponse.calls.count()).toBe(1);
-                expect(jobMgr.sendResponse).not.toHaveBeenCalledWith(res, {code: 200, body: 'all good'});
+                expect(expressUtils.sendResponse.calls.count()).toBe(1);
+                expect(expressUtils.sendResponse).not.toHaveBeenCalledWith(res, {code: 200, body: 'all good'});
                 expect(mockLog.error).not.toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
@@ -222,7 +199,7 @@ describe('JobManager', function() {
                 expect(mockCache.set).toHaveBeenCalledWith('req:1234',
                     { code: 500, body: { error: 'Internal Error', detail: '\'I GOT A PROBLEM\'' } },
                     jobMgr.cfg.cacheTTL);
-                expect(jobMgr.sendResponse.calls.count()).toBe(1);
+                expect(expressUtils.sendResponse.calls.count()).toBe(1);
                 expect(mockLog.error).not.toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
@@ -235,7 +212,7 @@ describe('JobManager', function() {
             jobMgr.endJob(req, res, promiseResult).then(function() {
                 expect(mockCache.set).toHaveBeenCalled();
                 expect(mockLog.warn).toHaveBeenCalled();
-                expect(jobMgr.sendResponse.calls.count()).toBe(1);
+                expect(expressUtils.sendResponse.calls.count()).toBe(1);
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
             }).done(done);
@@ -246,7 +223,7 @@ describe('JobManager', function() {
         it('should get a result from the cache', function(done) {
             mockCache.get.and.returnValue(q({code: 200, body: 'yes'}));
             jobMgr.getJobResult(req, res, '5678').then(function(resp) {
-                expect(jobMgr.sendResponse).toHaveBeenCalledWith(res, {code: 200, body: 'yes'});
+                expect(expressUtils.sendResponse).toHaveBeenCalledWith(res, {code: 200, body: 'yes'});
                 expect(mockCache.get).toHaveBeenCalledWith('req:5678');
                 expect(mockLog.error).not.toHaveBeenCalled();
                 expect(mockLog.warn).not.toHaveBeenCalled();
@@ -258,7 +235,7 @@ describe('JobManager', function() {
         it('should warn and send a 404 if not enabled', function(done) {
             jobMgr.cfg.enabled = false;
             jobMgr.getJobResult(req, res, '5678').then(function(resp) {
-                expect(jobMgr.sendResponse).toHaveBeenCalledWith(res, {code: 404, body: 'No result with that id found'});
+                expect(expressUtils.sendResponse).toHaveBeenCalledWith(res, {code: 404, body: 'No result with that id found'});
                 expect(mockCache.get).not.toHaveBeenCalled();
                 expect(mockLog.error).not.toHaveBeenCalled();
                 expect(mockLog.warn).toHaveBeenCalled();
@@ -270,7 +247,7 @@ describe('JobManager', function() {
         it('should send a 404 if no result is found', function(done) {
             mockCache.get.and.returnValue(q());
             jobMgr.getJobResult(req, res, '5678').then(function(resp) {
-                expect(jobMgr.sendResponse).toHaveBeenCalledWith(res, {code: 404, body: 'No result with that id found'});
+                expect(expressUtils.sendResponse).toHaveBeenCalledWith(res, {code: 404, body: 'No result with that id found'});
                 expect(mockCache.get).toHaveBeenCalledWith('req:5678');
                 expect(mockLog.error).not.toHaveBeenCalled();
                 expect(mockLog.warn).not.toHaveBeenCalled();
@@ -285,7 +262,7 @@ describe('JobManager', function() {
                 expect('resolved').not.toBe('resolved');
             }).catch(function(error) {
                 expect(error).toBe('Cache error');
-                expect(jobMgr.sendResponse).not.toHaveBeenCalled();
+                expect(expressUtils.sendResponse).not.toHaveBeenCalled();
                 expect(mockCache.get).toHaveBeenCalledWith('req:5678');
                 expect(mockLog.error).not.toHaveBeenCalled();
                 expect(mockLog.warn).toHaveBeenCalled();

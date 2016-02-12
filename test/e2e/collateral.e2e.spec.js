@@ -17,7 +17,7 @@ describe('collateral (E2E):', function() {
     beforeEach(function(done) {
         jasmine.DEFAULT_TIMEOUT_INTERVAL = 30000;
 
-        if (cookieJar && cookieJar.cookies) {
+        if (cookieJar) {
             return done();
         }
         cookieJar = require('request').jar();

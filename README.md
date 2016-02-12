@@ -116,6 +116,7 @@ In order to run a service locally, you'll need to setup a few things:
  | auth         | 3200 |
  | collateral   | 3600 |
  | content      | 3300 |
+ | geo          | 4200 |
  | maint        | 4000 |
  | monitor      | 5000 |
  | orgSvc       | 3700 |
@@ -139,12 +140,13 @@ In order to run a service locally, you'll need to setup a few things:
   | auth       | monitor                        |
   | collateral | auth, monitor                  |
   | content    | auth, monitor                  |
+  | geo        | auth, monitor                  |
   | maint      | none                           |
   | monitor    | maint                          |
   | orgSvc     | auth, monitor                  |
   | player     | auth, monitor, content         |
   | querybot   | auth, monitor                  |
-  | search     | auth                           |
+  | search     | auth, monitor                  |
   | userSvc    | auth, orgSvc, ads, monitor     |
   | vote       | auth, maint                    |
 

@@ -177,7 +177,7 @@ describe('player service', function() {
         describe('@public', function() {
             describe('methods:', function() {
                 describe('startService()', function() {
-                    var MockPlayer, mockExpress, expressApp;
+                    var MockPlayer, mockExpress, expressApp, mockErrHandler;
                     var player, browser;
                     var ServiceError;
 
@@ -210,6 +210,9 @@ describe('player service', function() {
                         spyOn(service, 'cluster').and.callFake(whenIndentity);
 
                         spyOn(AWS.config, 'update').and.callThrough();
+                        
+                        mockErrHandler = jasmine.createSpy('handleError()');
+                        spyOn(expressUtils, 'errorHandler').and.returnValue(mockErrHandler);
 
                         expressRoutes = {
                             get: {}
@@ -381,6 +384,11 @@ describe('player service', function() {
 
                     it('should make express trust the 1st proxy', function() {
                         expect(expressApp.set).toHaveBeenCalledWith('trust proxy', 1);
+                    });
+                    
+                    it('should include an error handler', function() {
+                        expect(expressUtils.errorHandler).toHaveBeenCalledWith();
+                        expect(expressApp.use).toHaveBeenCalledWith(mockErrHandler);
                     });
 
                     it('should make the server listen on the port', function() {

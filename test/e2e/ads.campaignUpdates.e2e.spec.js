@@ -25,7 +25,7 @@ describe('ads campaignUpdates endpoints (E2E):', function() {
 
     beforeAll(function(done) {
 
-        if (selfieJar && selfieJar.cookies && adminJar && adminJar.cookies) {
+        if (selfieJar && adminJar) {
             return done();
         }
         selfieJar = request.jar();

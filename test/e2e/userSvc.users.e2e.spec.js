@@ -19,7 +19,7 @@ describe('userSvc users (E2E):', function() {
 
         urlRegex = /https?:\/\/.*id=u-[0-9a-z]+.*token=[0-9a-f]{48}/;
 
-        if (cookieJar && cookieJar.cookies && adminJar && adminJar.cookies) {
+        if (cookieJar && adminJar) {
             return done();
         }
         cookieJar = request.jar();
