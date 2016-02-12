@@ -171,7 +171,8 @@ describe('campaignUtils', function() {
             body = { targeting: {
                 geo: {
                     states: [],
-                    dmas: []
+                    dmas: [],
+                    zipcodes: { codes: [], radius: 50 }
                 },
                 demographics: {
                     age: [],
@@ -193,14 +194,22 @@ describe('campaignUtils', function() {
         
         it('should increase the price for each targeting category chosen', function() {
             expect(campaignUtils.computeCost(body, origObj, actingSchema)).toEqual(0.05);
+
             body.targeting.geo.states.push('ohio', 'new jersey');
             expect(campaignUtils.computeCost(body, origObj, actingSchema)).toEqual(0.06);
+
             body.targeting.geo.dmas.push('princeton', 'new york', 'chicago');
             expect(campaignUtils.computeCost(body, origObj, actingSchema)).toEqual(0.06);
+
+            body.targeting.geo.zipcodes.codes.push('08540');
+            expect(campaignUtils.computeCost(body, origObj, actingSchema)).toEqual(0.06);
+
             body.targeting.demographics.age.push('18-24', '24-36');
             expect(campaignUtils.computeCost(body, origObj, actingSchema)).toEqual(0.07);
+
             body.targeting.demographics.gender.push('female');
             expect(campaignUtils.computeCost(body, origObj, actingSchema)).toEqual(0.07);
+
             body.targeting.interests.push('cat-1');
             expect(campaignUtils.computeCost(body, origObj, actingSchema)).toEqual(0.08);
         });
@@ -223,18 +232,27 @@ describe('campaignUtils', function() {
             actingSchema = model.personalizeSchema(requester);
             
             expect(campaignUtils.computeCost(body, origObj, actingSchema)).toEqual(0.51);
+
             body.targeting.geo.states.push('ohio', 'new jersey');
             expect(campaignUtils.computeCost(body, origObj, actingSchema)).toEqual(0.69);
+
             body.targeting.geo.dmas.push('princeton', 'new york', 'chicago');
             expect(campaignUtils.computeCost(body, origObj, actingSchema)).toEqual(0.80);
+
+            body.targeting.geo.zipcodes.codes.push('08540');
+            expect(campaignUtils.computeCost(body, origObj, actingSchema)).toEqual(0.91);
+
             body.targeting.demographics.age.push('18-24', '24-36');
-            expect(campaignUtils.computeCost(body, origObj, actingSchema)).toEqual(1.09);
+            expect(campaignUtils.computeCost(body, origObj, actingSchema)).toEqual(1.2);
+
             body.targeting.demographics.gender.push('female');
-            expect(campaignUtils.computeCost(body, origObj, actingSchema)).toEqual(1.30);
+            expect(campaignUtils.computeCost(body, origObj, actingSchema)).toEqual(1.41);
+
             body.targeting.demographics.income.push('1000', '2000');
-            expect(campaignUtils.computeCost(body, origObj, actingSchema)).toEqual(1.51);
+            expect(campaignUtils.computeCost(body, origObj, actingSchema)).toEqual(1.62);
+
             body.targeting.interests.push('cat-1');
-            expect(campaignUtils.computeCost(body, origObj, actingSchema)).toEqual(2.62);
+            expect(campaignUtils.computeCost(body, origObj, actingSchema)).toEqual(2.73);
         });
     });
     

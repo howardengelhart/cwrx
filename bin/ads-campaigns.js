@@ -99,6 +99,21 @@
                 dmas: {
                     __allowed: true,
                     __type: 'stringArray'
+                },
+                zipcodes: {
+                    __allowed: true,
+                    codes: {
+                        __allowed: true,
+                        __type: 'stringArray',
+                        __length: 20
+                    },
+                    radius: {
+                        __allowed: true,
+                        __type: 'number',
+                        __min: 20,
+                        __max: 100,
+                        __default: 50
+                    }
                 }
             },
             demographics: {

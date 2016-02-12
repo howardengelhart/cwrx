@@ -1028,7 +1028,8 @@ describe('ads campaigns endpoints (E2E):', function() {
                     targeting: {
                         geo: {
                             states: ['new jersey'],
-                            dmas: ['new york', 'chicago']
+                            dmas: ['new york', 'chicago'],
+                            zipcodes: { radius: 40, codes: ['08540'] }
                         },
                         demographics: {
                             age: ['18-24'],
@@ -1076,7 +1077,30 @@ describe('ads campaigns endpoints (E2E):', function() {
                     expect(results[2].response.statusCode).toBe(400);
                     expect(results[2].body).toMatch(/dailyLimit must be between \d+\.?\d* and \d+\.?\d* of budget/);
                     expect(results[3].response.statusCode).toBe(400);
-                    expect(results[2].body).toMatch(/dailyLimit must be between \d+\.?\d* and \d+\.?\d* of budget/);
+                    expect(results[3].body).toMatch(/dailyLimit must be between \d+\.?\d* and \d+\.?\d* of budget/);
+                }).catch(function(error) {
+                    expect(util.inspect(error)).not.toBeDefined();
+                }).done(done);
+            });
+
+            it('should return a 400 if the user sends up invalid zipcode radius targeting', function(done) {
+                q.all([
+                    { radius: 9999999999999999999999 },
+                    { radius: -1234 },
+                    { codes: new Array(1000).join(',').split(',').map(function() { return 'a'; }) }
+                ].map(function(zipcodeTarg) {
+                    options.json = {
+                        targeting: { geo: { zipcodes: zipcodeTarg } },
+                        advertiserId: 'e2e-a-1'
+                    };
+                    return requestUtils.qRequest('post', options, null, { maxAttempts: 30 });
+                })).then(function(results) {
+                    expect(results[0].response.statusCode).toBe(400);
+                    expect(results[0].body).toMatch(/targeting.geo.zipcodes.radius must be less than the max: \d+/);
+                    expect(results[1].response.statusCode).toBe(400);
+                    expect(results[1].body).toMatch(/targeting.geo.zipcodes.radius must be greater than the min: \d+/);
+                    expect(results[2].response.statusCode).toBe(400);
+                    expect(results[2].body).toMatch(/targeting.geo.zipcodes.codes must have at most \d+ entries/);
                 }).catch(function(error) {
                     expect(util.inspect(error)).not.toBeDefined();
                 }).done(done);
