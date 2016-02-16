@@ -57,6 +57,9 @@
             },
             paymentMethods: {
                 endpoint: '/api/payments/methods/'
+            },
+            zipcodes: {
+                endpoint: '/api/geo/zipcodes'
             }
         },
         sessions: {

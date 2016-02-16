@@ -49,6 +49,10 @@ describe('ads-campaigns (UT)', function() {
             experiences: {
                 baseUrl: 'https://test.com/api/content/experiences/',
                 endpoint: '/api/content/experiences/'
+            },
+            zipcodes: {
+                baseUrl: 'https://test.com/api/geo/zipcodes/',
+                endpoint: '/api/geo/zipcodes/'
             }
         };
         campModule.config.emails = {
@@ -165,6 +169,11 @@ describe('ads-campaigns (UT)', function() {
         it('should do extra validation on create + edit', function() {
             expect(svc._middleware.create).toContain(getBoundFn(campModule.extraValidation, [campModule, svc]));
             expect(svc._middleware.edit).toContain(getBoundFn(campModule.extraValidation, [campModule, svc]));
+        });
+        
+        it('should validate zipcodes on create + edit', function() {
+            expect(svc._middleware.create).toContain(campModule.validateZipcodes);
+            expect(svc._middleware.edit).toContain(campModule.validateZipcodes);
         });
         
         it('should default the reportingId on create + edit', function() {
@@ -683,6 +692,46 @@ describe('ads-campaigns (UT)', function() {
                 expect(nextSpy).not.toHaveBeenCalled();
                 expect(doneSpy).not.toHaveBeenCalled();
                 expect(errorSpy).toHaveBeenCalledWith('I GOT A PROBLEM');
+            }).done(done, done.fail);
+        });
+    });
+
+    describe('validateZipcodes', function() {
+        beforeEach(function() {
+            req.body = { newCampaign: 'yes' };
+            req.origObj = { oldCampaign: 'yes' };
+            spyOn(campaignUtils, 'validateZipcodes').and.returnValue(q({ isValid: true }));
+        });
+        
+        it('should call next if the zipcodes is valid', function(done) {
+            campModule.validateZipcodes(req, nextSpy, doneSpy).catch(errorSpy).finally(function() {
+                expect(nextSpy).toHaveBeenCalled();
+                expect(doneSpy).not.toHaveBeenCalled();
+                expect(errorSpy).not.toHaveBeenCalled();
+                expect(campaignUtils.validateZipcodes).toHaveBeenCalledWith({ newCampaign: 'yes' }, { oldCampaign: 'yes' },
+                    req.user, 'https://test.com/api/geo/zipcodes/', req);
+            }).done(done, done.fail);
+        });
+        
+        it('should call done if the zipcodes are not valid', function(done) {
+            campaignUtils.validateZipcodes.and.returnValue(q({ isValid: false, reason: 'you better pay up buddy' }));
+            campModule.validateZipcodes(req, nextSpy, doneSpy).catch(errorSpy).finally(function() {
+                expect(nextSpy).not.toHaveBeenCalled();
+                expect(doneSpy).toHaveBeenCalledWith({ code: 400, body: 'you better pay up buddy' });
+                expect(errorSpy).not.toHaveBeenCalled();
+                expect(campaignUtils.validateZipcodes).toHaveBeenCalledWith({ newCampaign: 'yes' }, { oldCampaign: 'yes' },
+                    req.user, 'https://test.com/api/geo/zipcodes/', req);
+            }).done(done, done.fail);
+        });
+        
+        it('should reject if campaignUtils.validateZipcodes fails', function(done) {
+            campaignUtils.validateZipcodes.and.returnValue(q.reject('I GOT A PROBLEM'));
+            campModule.validateZipcodes(req, nextSpy, doneSpy).catch(errorSpy).finally(function() {
+                expect(nextSpy).not.toHaveBeenCalled();
+                expect(doneSpy).not.toHaveBeenCalled();
+                expect(errorSpy).toHaveBeenCalledWith('I GOT A PROBLEM');
+                expect(campaignUtils.validateZipcodes).toHaveBeenCalledWith({ newCampaign: 'yes' }, { oldCampaign: 'yes' },
+                    req.user, 'https://test.com/api/geo/zipcodes/', req);
             }).done(done, done.fail);
         });
     });

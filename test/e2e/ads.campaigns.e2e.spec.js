@@ -9,6 +9,7 @@ var q               = require('q'),
         adsUrl      : 'http://' + (host === 'localhost' ? host + ':3900' : host) + '/api',
         contentUrl  : 'http://' + (host === 'localhost' ? host + ':3300' : host) + '/api/content',
         paymentUrl  : 'http://' + (host === 'localhost' ? host + ':3700' : host) + '/api/payments',
+        geoUrl      : 'http://' + (host === 'localhost' ? host + ':4200' : host) + '/api/geo',
         authUrl     : 'http://' + (host === 'localhost' ? host + ':3200' : host) + '/api/auth'
     },
     gateway = braintree.connect({
@@ -1087,7 +1088,9 @@ describe('ads campaigns endpoints (E2E):', function() {
                 q.all([
                     { radius: 9999999999999999999999 },
                     { radius: -1234 },
-                    { codes: new Array(1000).join(',').split(',').map(function() { return 'a'; }) }
+                    { codes: new Array(1000).join(',').split(',').map(function() { return 'a'; }) },
+                    { codes: ['66666'] },
+                    { codes: ['yo mommas house'] }
                 ].map(function(zipcodeTarg) {
                     options.json = {
                         targeting: { geo: { zipcodes: zipcodeTarg } },
@@ -1101,6 +1104,10 @@ describe('ads campaigns endpoints (E2E):', function() {
                     expect(results[1].body).toMatch(/targeting.geo.zipcodes.radius must be greater than the min: \d+/);
                     expect(results[2].response.statusCode).toBe(400);
                     expect(results[2].body).toMatch(/targeting.geo.zipcodes.codes must have at most \d+ entries/);
+                    expect(results[3].response.statusCode).toBe(400);
+                    expect(results[3].body).toBe('These zipcodes were not found: [66666]');
+                    expect(results[4].response.statusCode).toBe(400);
+                    expect(results[4].body).toBe('These zipcodes were not found: [yo mommas house]');
                 }).catch(function(error) {
                     expect(util.inspect(error)).not.toBeDefined();
                 }).done(done);

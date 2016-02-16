@@ -97,6 +97,7 @@
         svc.use('create', extraValidation);
         svc.use('create', updateModule.validateCards);
         svc.use('create', updateModule.validatePaymentMethod);
+        svc.use('create', updateModule.validateZipcodes);
         svc.use('create', handleInitialSubmit);
         svc.use('create', updateModule.notifySupport);
         svc.use('create', lockCampaign);
@@ -108,6 +109,7 @@
         svc.use('edit', extraValidation);
         svc.use('edit', updateModule.validateCards);
         svc.use('edit', updateModule.validatePaymentMethod);
+        svc.use('edit', updateModule.validateZipcodes);
         svc.use('edit', unlockCampaign);
         svc.use('edit', applyUpdate);
         svc.use('edit', notifyOwner);
@@ -117,6 +119,8 @@
         svc.use('autoApprove', fetchCamp);
         svc.use('autoApprove', updateModule.enforceLock);
         svc.use('autoApprove', updateModule.validatePaymentMethod);
+        svc.use('autoApprove', updateModule.validateZipcodes);
+        svc.use('autoApprove', svc.handleStatusHistory);
         svc.use('autoApprove', applyUpdate);
         
         return svc;
@@ -309,6 +313,7 @@
         });
     };
     
+    // Check if paymentMethod on req.body.data is valid.
     updateModule.validatePaymentMethod = function(req, next, done) {
         var log = logger.getLog();
 
@@ -317,6 +322,27 @@
             req.campaign,
             req.user,
             updateModule.config.api.paymentMethods.baseUrl,
+            req
+        )
+        .then(function(validResp) {
+            if (!validResp.isValid) {
+                log.info('[%1] %2', req.uuid, validResp.reason);
+                return done({ code: 400, body: validResp.reason });
+            } else {
+                return next();
+            }
+        });
+    };
+
+    // Check if zipcodes in req.body.data targeting are valid
+    updateModule.validateZipcodes = function(req, next, done) {
+        var log = logger.getLog();
+
+        return campaignUtils.validateZipcodes(
+            req.body.data,
+            req.campaign,
+            req.user,
+            updateModule.config.api.zipcodes.baseUrl,
             req
         )
         .then(function(validResp) {

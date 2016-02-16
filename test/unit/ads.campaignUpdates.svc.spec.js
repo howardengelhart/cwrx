@@ -53,6 +53,10 @@ describe('ads-campaignUpdates (UT)', function() {
             campaigns: {
                 baseUrl: 'https://test.com/api/campaigns/',
                 endpoint: '/api/campaigns/'
+            },
+            zipcodes: {
+                baseUrl: 'https://test.com/api/geo/zipcodes/',
+                endpoint: '/api/geo/zipcodes/'
             }
         };
         updateModule.config.emails = {
@@ -133,6 +137,7 @@ describe('ads-campaignUpdates (UT)', function() {
             expect(svc._middleware.create).toContain(updateModule.extraValidation);
             expect(svc._middleware.create).toContain(updateModule.validateCards);
             expect(svc._middleware.create).toContain(updateModule.validatePaymentMethod);
+            expect(svc._middleware.create).toContain(updateModule.validateZipcodes);
             expect(svc._middleware.create).toContain(updateModule.handleInitialSubmit);
             expect(svc._middleware.create).toContain(updateModule.notifySupport);
             expect(svc._middleware.create).toContain(updateModule.lockCampaign);
@@ -146,6 +151,7 @@ describe('ads-campaignUpdates (UT)', function() {
             expect(svc._middleware.edit).toContain(updateModule.extraValidation);
             expect(svc._middleware.edit).toContain(updateModule.validateCards);
             expect(svc._middleware.edit).toContain(updateModule.validatePaymentMethod);
+            expect(svc._middleware.create).toContain(updateModule.validateZipcodes);
             expect(svc._middleware.edit).toContain(updateModule.unlockCampaign);
             expect(svc._middleware.edit).toContain(updateModule.applyUpdate);
             expect(svc._middleware.edit).toContain(updateModule.notifyOwner);
@@ -157,6 +163,7 @@ describe('ads-campaignUpdates (UT)', function() {
             expect(svc._middleware.autoApprove).toContain(updateModule.fetchCamp);
             expect(svc._middleware.autoApprove).toContain(updateModule.enforceLock);
             expect(svc._middleware.autoApprove).toContain(updateModule.validatePaymentMethod);
+            expect(svc._middleware.autoApprove).toContain(svc.handleStatusHistory);
             expect(svc._middleware.autoApprove).toContain(updateModule.applyUpdate);
         });
         
@@ -769,6 +776,46 @@ describe('ads-campaignUpdates (UT)', function() {
                 expect(errorSpy).toHaveBeenCalledWith('I GOT A PROBLEM');
                 expect(campaignUtils.validatePaymentMethod).toHaveBeenCalledWith({ newCampaign: 'yes' }, { oldCampaign: 'yes' },
                     req.user, 'https://test.com/api/payments/methods/', req);
+            }).done(done, done.fail);
+        });
+    });
+
+    describe('validateZipcodes', function() {
+        beforeEach(function() {
+            req.body = { data: { newCampaign: 'yes' } };
+            req.campaign = { oldCampaign: 'yes' };
+            spyOn(campaignUtils, 'validateZipcodes').and.returnValue(q({ isValid: true }));
+        });
+        
+        it('should call next if the zipcodes is valid', function(done) {
+            updateModule.validateZipcodes(req, nextSpy, doneSpy).catch(errorSpy).finally(function() {
+                expect(nextSpy).toHaveBeenCalled();
+                expect(doneSpy).not.toHaveBeenCalled();
+                expect(errorSpy).not.toHaveBeenCalled();
+                expect(campaignUtils.validateZipcodes).toHaveBeenCalledWith({ newCampaign: 'yes' }, { oldCampaign: 'yes' },
+                    req.user, 'https://test.com/api/geo/zipcodes/', req);
+            }).done(done, done.fail);
+        });
+        
+        it('should call done if the zipcodes are not valid', function(done) {
+            campaignUtils.validateZipcodes.and.returnValue(q({ isValid: false, reason: 'you better pay up buddy' }));
+            updateModule.validateZipcodes(req, nextSpy, doneSpy).catch(errorSpy).finally(function() {
+                expect(nextSpy).not.toHaveBeenCalled();
+                expect(doneSpy).toHaveBeenCalledWith({ code: 400, body: 'you better pay up buddy' });
+                expect(errorSpy).not.toHaveBeenCalled();
+                expect(campaignUtils.validateZipcodes).toHaveBeenCalledWith({ newCampaign: 'yes' }, { oldCampaign: 'yes' },
+                    req.user, 'https://test.com/api/geo/zipcodes/', req);
+            }).done(done, done.fail);
+        });
+        
+        it('should reject if campaignUtils.validateZipcodes fails', function(done) {
+            campaignUtils.validateZipcodes.and.returnValue(q.reject('I GOT A PROBLEM'));
+            updateModule.validateZipcodes(req, nextSpy, doneSpy).catch(errorSpy).finally(function() {
+                expect(nextSpy).not.toHaveBeenCalled();
+                expect(doneSpy).not.toHaveBeenCalled();
+                expect(errorSpy).toHaveBeenCalledWith('I GOT A PROBLEM');
+                expect(campaignUtils.validateZipcodes).toHaveBeenCalledWith({ newCampaign: 'yes' }, { oldCampaign: 'yes' },
+                    req.user, 'https://test.com/api/geo/zipcodes/', req);
             }).done(done, done.fail);
         });
     });

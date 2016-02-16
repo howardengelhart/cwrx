@@ -3,15 +3,16 @@ module.exports = function(grunt) {
         spawn   = require('child_process').spawn;
 
     var serviceDepends = {
-        ads         : 'auth,content,monitor',
+        ads         : 'auth,content,monitor,orgSvc,geo',
         collateral  : 'auth,monitor',
+        geo         : 'auth,monitor',
         content     : 'auth,monitor',
-        orgSvc      : 'auth',
+        orgSvc      : 'auth,monitor',
         player      : 'content,auth,monitor',
-        search      : 'auth',
-        userSvc     : 'auth',
+        search      : 'auth,monitor',
+        userSvc     : 'auth,monitor',
         querybot    : 'ads,auth,content,monitor,c6postgres,c6postgres::admin',
-        vote        : 'auth'
+        vote        : 'auth,monitor'
     };
 
     function killWatch(done){
