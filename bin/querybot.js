@@ -514,7 +514,6 @@ lib.main = function(state) {
 
     
     authUtils._db = state.dbs.c6Db;
-    var sigVerifier = new signatures.Verifier(state.dbs.c6Db);
 
     app.set('trust proxy', 1);
     app.set('json spaces', 2);
@@ -544,7 +543,7 @@ lib.main = function(state) {
     var sessions = state.sessions;
     
     var authGetCamp = authUtils.middlewarify({
-        sigVerifier: sigVerifier,
+        allowApps: true,
         permissions: { campaigns: 'read' }
     });
 

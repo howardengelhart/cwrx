@@ -97,7 +97,7 @@
     orgModule.deletePermCheck = function(req, next, done) {
         var log = logger.getLog();
         
-        if (req.params.id === req.requester.org) {
+        if (req.user && req.params.id === req.user.org) {
             log.info('[%1] User %2 tried to delete their own org', req.uuid, req.requester.id);
             return q(done({ code: 400, body: 'You cannot delete your own org' }));
         }
@@ -206,7 +206,7 @@
             
         router.use(jobManager.setJobTimeout.bind(jobManager));
         
-        var authMidware = authUtils.objMidware('orgs', {});
+        var authMidware = authUtils.objMidware('orgs', { allowApps: true });
 
         router.get('/:id', sessions, authMidware.read, audit, function(req, res) {
             var promise = svc.getObjs({ id: req.params.id }, req, false);

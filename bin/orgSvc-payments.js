@@ -568,7 +568,7 @@
         router.use(jobManager.setJobTimeout.bind(jobManager));
         
         var authGetOrg = authUtils.middlewarify({ permissions: { orgs: 'read' } }),
-            authPutOrg = authUtils.middlewarify({ permissions: { orgs: 'read' } });
+            authPutOrg = authUtils.middlewarify({ permissions: { orgs: 'edit' } });
 
 
         router.get('/clientToken', sessions, authGetOrg, audit, function(req, res) {

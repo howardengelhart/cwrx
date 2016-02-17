@@ -321,11 +321,11 @@
             return req.user && req.user.org === obj.org;
         }
         
-        return !!( requester.permissions && requester.permissions[name] &&
-                   requester.permissions[name][verb] &&
-             ( requester.permissions[name][verb] === Scope.All ||
-              (requester.permissions[name][verb] === Scope.Org && (matchOrg() || matchUser())) ||
-              (requester.permissions[name][verb] === Scope.Own && matchUser() )
+        return !!( requester.permissions && requester.permissions.users &&
+                   requester.permissions.users[verb] &&
+             ( requester.permissions.users[verb] === Scope.All ||
+              (requester.permissions.users[verb] === Scope.Org && (matchOrg() || matchUser())) ||
+              (requester.permissions.users[verb] === Scope.Own && matchUser() )
              )
         );
     };

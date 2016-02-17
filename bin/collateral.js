@@ -965,7 +965,7 @@
         app.use(expressUtils.basicMiddleware());
         app.use(bodyParser.json());
         
-        var authUpload = authUtils.middlewarify({});
+        var authUpload = authUtils.middlewarify({ allowApps: true });
         var setJobTimeout = jobManager.setJobTimeout.bind(jobManager);
 
         app.post('/api/collateral/files/:expId', setJobTimeout, state.sessions, authUpload,

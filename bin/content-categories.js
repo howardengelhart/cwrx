@@ -66,10 +66,10 @@
         
         router.use(jobManager.setJobTimeout.bind(jobManager));
         
-        var authMidware = authUtils.objMidware('categories', {});
+        var authMidware = authUtils.objMidware('categories', { allowApps: true });
 
         // want to allow anyone to get categories, so require no permissions
-        var authGetCat = authUtils.middlewarify({});
+        var authGetCat = authUtils.middlewarify({ allowApps: true });
         router.get('/:id', sessions, authGetCat, audit, function(req, res) {
             var promise = catSvc.getObjs({id: req.params.id}, req, false);
             promise.finally(function() {

@@ -646,7 +646,7 @@
         
         router.use(jobManager.setJobTimeout.bind(jobManager));
         
-        var authMidware = authUtils.objMidware('campaignUpdates', {});
+        var authMidware = authUtils.objMidware('campaignUpdates', { allowApps: true });
         
         router.get('/updates?/', sessions, authMidware.read, audit, function(req, res) {
             var query = {};

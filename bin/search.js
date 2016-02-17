@@ -280,7 +280,7 @@
         app.use(expressUtils.basicMiddleware());
         app.use(bodyParser.json());
 
-        var authSearch = authUtils.middlewarify({});
+        var authSearch = authUtils.middlewarify({ allowApps: true });
         app.get('/api/search/videos', state.sessions, authSearch, audit, function(req, res) {
             search.findVideos(req, state.config, state.secrets)
             .then(function(resp) {

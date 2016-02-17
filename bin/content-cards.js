@@ -455,7 +455,7 @@
     };
 
 
-    cardModule.setupEndpoints = function(app, cardSvc, sessions, sigVer, audit, config, jobManager){
+    cardModule.setupEndpoints = function(app, cardSvc, sessions, audit, config, jobManager){
         // Public get card; regex at end allows client to optionally specify extension (js|json)
         app.get('/api/public/content/cards?/:id([^.]+).?:ext?', function(req, res) {
             cardModule.handlePublicGet(req, res, cardSvc, config).then(function(resp) {
@@ -482,9 +482,9 @@
         
         router.use(jobManager.setJobTimeout.bind(jobManager));
         
-        var authMidware = authUtils.objMidware('cards', { sigVerifier: sigVer });
+        var authMidware = authUtils.objMidware('cards', { allowApps: true });
 
-        var authGetSchema = authUtils.middlewarify({});
+        var authGetSchema = authUtils.middlewarify({ allowApps: true });
         router.get('/schema', sessions, authGetSchema, function(req, res) {
             var promise = cardSvc.getSchema(req);
             promise.finally(function() {

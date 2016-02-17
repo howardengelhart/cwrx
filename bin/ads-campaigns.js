@@ -752,15 +752,15 @@
     };
 
     
-    campModule.setupEndpoints = function(app, svc, sessions, sigVerifier, audit, jobManager) {
+    campModule.setupEndpoints = function(app, svc, sessions, audit, jobManager) {
         var router      = express.Router(),
             mountPath   = '/api/campaigns?'; // prefix to all endpoints declared here
         
         router.use(jobManager.setJobTimeout.bind(jobManager));
         
-        var authMidware = authUtils.objMidware('campaigns', { sigVerifier: sigVerifier });
+        var authMidware = authUtils.objMidware('campaigns', { allowApps: true });
         
-        var authGetSchema = authUtils.middlewarify({ sigVerifier: sigVerifier });
+        var authGetSchema = authUtils.middlewarify({ allowApps: true });
         router.get('/schema', sessions, authGetSchema, function(req, res) {
             var promise = svc.getSchema(req);
             promise.finally(function() {

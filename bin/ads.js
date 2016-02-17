@@ -10,7 +10,6 @@
         authUtils       = require('../lib/authUtils'),
         service         = require('../lib/service'),
         expressUtils    = require('../lib/expressUtils'),
-        signatures      = require('../lib/signatures'),
         logger          = require('../lib/logger'),
         journal         = require('../lib/journal'),
         JobManager      = require('../lib/jobManager'),
@@ -116,7 +115,6 @@
 
         var app          = express(),
             appCreds     = state.secrets.rcAppCredentials,
-            sigVerifier  = new signatures.Verifier(state.dbs.c6Db),
             jobManager   = new JobManager(state.cache, state.config.jobTimeouts),
             advertSvc    = advertModule.setupSvc(state.dbs.c6Db.collection('advertisers')),
             campSvc      = campModule.setupSvc(state.dbs.c6Db, state.config),
@@ -163,7 +161,7 @@
         // Update module endpoints MUST be added before campaign endpoints!
         updateModule.setupEndpoints(app, updateSvc, state.sessions, audit, jobManager);
 
-        campModule.setupEndpoints(app, campSvc, state.sessions, sigVerifier, audit, jobManager);
+        campModule.setupEndpoints(app, campSvc, state.sessions, audit, jobManager);
         siteModule.setupEndpoints(app, siteSvc, state.sessions, audit, jobManager);
         conModule.setupEndpoints(app, conSvc, state.sessions, audit, jobManager);
         placeModule.setupEndpoints(app, placeSvc, state.sessions, audit, jobManager);

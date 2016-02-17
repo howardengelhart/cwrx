@@ -104,7 +104,7 @@
         });
         
         
-        var authGetZip = authUtils.middlewarify({});
+        var authGetZip = authUtils.middlewarify({ allowApps: true });
         app.get('/api/geo/zipcodes?/:code', state.sessions, authGetZip, audit, function(req, res) {
             zipSvc.getObjs({ zipcode: req.params.code }, req, false).then(function(resp) {
                 expressUtils.sendResponse(res, resp);

@@ -58,7 +58,7 @@
             
         router.use(jobManager.setJobTimeout.bind(jobManager));
         
-        var authMidware = authUtils.objMidware('referralCodes', {});
+        var authMidware = authUtils.objMidware('referralCodes', { allowApps: true });
 
         router.get('/:id', sessions, authMidware.read, audit, function(req, res) {
             var promise = svc.getObjs({ id: req.params.id }, req, false);
