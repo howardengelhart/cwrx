@@ -606,10 +606,10 @@
         
         router.use(jobManager.setJobTimeout.bind(jobManager));
 
-        var authGetExp = authUtils.middlewarify({experiences: 'read'});
+        var authMidware = authUtils.objMidware('experiences', {});
         
         // private get experience by id
-        router.get('/:id', sessions, authGetExp, audit, function(req, res) {
+        router.get('/:id', sessions, authMidware.read, audit, function(req, res) {
             var query = { id: req.params.id },
                 promise = expModule.getExperiences(query, req, expColl);
 
@@ -622,7 +622,7 @@
         });
 
         // private get experience by query
-        router.get('/', sessions, authGetExp, audit, function(req, res) {
+        router.get('/', sessions, authMidware.read, audit, function(req, res) {
             var query = {};
             if ('ids' in req.query) {
                 query.id = String(req.query.ids).split(',');
@@ -656,8 +656,7 @@
             });
         });
 
-        var authPostExp = authUtils.middlewarify({experiences: 'create'});
-        router.post('/', sessions, authPostExp, audit, function(req, res) {
+        router.post('/', sessions, authMidware.create, audit, function(req, res) {
             var promise = expModule.createExperience(req, expColl);
             promise.finally(function() {
                 jobManager.endJob(req, res, promise.inspect())
@@ -667,8 +666,7 @@
             });
         });
 
-        var authPutExp = authUtils.middlewarify({experiences: 'edit'});
-        router.put('/:id', sessions, authPutExp, audit, function(req, res) {
+        router.put('/:id', sessions, authMidware.edit, audit, function(req, res) {
             var promise = expModule.updateExperience(req, expColl);
             promise.finally(function() {
                 jobManager.endJob(req, res, promise.inspect())
@@ -678,8 +676,7 @@
             });
         });
 
-        var authDelExp = authUtils.middlewarify({experiences: 'delete'});
-        router.delete('/:id', sessions, authDelExp, audit, function(req, res) {
+        router.delete('/:id', sessions, authMidware.delete, audit, function(req, res) {
             var promise = expModule.deleteExperience(req, expColl);
             promise.finally(function() {
                 jobManager.endJob(req, res, promise.inspect())

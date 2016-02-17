@@ -97,7 +97,7 @@
     payModule.canEditOrg = function(orgSvc, req, next, done) {
         var log = logger.getLog();
 
-        if (!orgSvc.checkScope(req.user, req.org, 'edit')) {
+        if (!orgSvc.checkScope(req, req.org, 'edit')) {
             log.info('[%1] Requester cannot edit org %2', req.uuid);
             return done({ code: 403, body: 'Not authorized to edit this org' });
         }
@@ -567,7 +567,10 @@
             
         router.use(jobManager.setJobTimeout.bind(jobManager));
         
-        var authGetOrg = authUtils.middlewarify({orgs: 'read'});
+        var authGetOrg = authUtils.middlewarify({ permissions: { orgs: 'read' } }),
+            authPutOrg = authUtils.middlewarify({ permissions: { orgs: 'read' } });
+
+
         router.get('/clientToken', sessions, authGetOrg, audit, function(req, res) {
             delete req.query.org; // unsupported for this endpoint
 
@@ -590,7 +593,6 @@
             });
         });
         
-        var authPutOrg = authUtils.middlewarify({orgs: 'edit'});
         router.post('/methods?/', sessions, authPutOrg, audit, function(req, res) {
             delete req.query.org; // unsupported for this endpoint
 

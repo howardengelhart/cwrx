@@ -197,7 +197,9 @@
                             log.info('[%1] User %2 provided an incorrect token', req.uuid, id);
                             return done({ code: 403, body: 'Confirmation failed' });
                         }
+
                         req.user = svc.transformMongoDoc(result);
+                        req.requester = authUtils.createRequester(req); //TODO: test
                         return next();
                     });
             });
@@ -211,6 +213,7 @@
             mutex = new CacheMutex(cache, 'confirmUser:' + id, 60 * 1000);
             
         // Post a new entity of the given type
+        //TODO: should this use proxyRequest? or should we replace sixxy user hack with app auth?
         function postEntity(entityName, opts) {
             return requestUtils.qRequest('post', opts).then(function(resp) {
                 if (resp.response.statusCode === 201) {
@@ -308,33 +311,45 @@
     };
 
     // Check whether the requester can operate on the target user according to their scope
-    userModule.checkScope = function(requester, user, verb) {
-        return !!(requester && requester.permissions && requester.permissions.users &&
-                  requester.permissions.users[verb] &&
-             (requester.permissions.users[verb] === Scope.All ||
-             (requester.permissions.users[verb] === Scope.Org && (requester.org === user.org ||
-                                                                  requester.id === user.id)) ||
-             (requester.permissions.users[verb] === Scope.Own && requester.id === user.id) ));
+    userModule.checkScope = function(req, obj, verb) { //TODO: update tests
+        var requester = req.requester;
+
+        function matchUser() {
+            return req.user && req.user.id === obj.id;
+        }
+        function matchOrg() {
+            return req.user && req.user.org === obj.org;
+        }
+        
+        return !!( requester.permissions && requester.permissions[name] &&
+                   requester.permissions[name][verb] &&
+             ( requester.permissions[name][verb] === Scope.All ||
+              (requester.permissions[name][verb] === Scope.Org && (matchOrg() || matchUser())) ||
+              (requester.permissions[name][verb] === Scope.Own && matchUser() )
+             )
+        );
     };
 
     // Adds fields to a find query to filter out users the requester can't see
-    userModule.userPermQuery = function(query, requester) {
+    userModule.userPermQuery = function(query, req) { //TODO: update tests
         var newQuery = JSON.parse(JSON.stringify(query)),
-            readScope = requester.permissions.users.read,
+            userId = req.user && req.user.id || '',
+            orgId = req.user && req.user.org || '',
+            readScope = req.requester.permissions.users.read,
             log = logger.getLog(),
             orClause;
 
         newQuery.status = {$ne: Status.Deleted}; // never show deleted users
 
         if (!Scope.isScope(readScope)) {
-            log.warn('User has invalid scope ' + readScope);
+            log.warn('Requester has invalid scope ' + readScope);
             readScope = Scope.Own;
         }
 
         if (readScope === Scope.Own) {
-            orClause = { $or: [ { id: requester.id } ] };
+            orClause = { $or: [ { id: userId } ] };
         } else if (readScope === Scope.Org) {
-            orClause = { $or: [ { org: requester.org }, { id: requester.id } ] };
+            orClause = { $or: [ { org: orgId }, { id: userId } ] };
         }
         
         mongoUtils.mergeORQuery(newQuery, orClause);
@@ -364,14 +379,10 @@
     userModule.hashProp = function hashPassword(prop, req, next, done) {
         var log = logger.getLog();
         var value = req.body[prop];
-        var user = req.user;
 
         if (!value || typeof value !== 'string') {
-            if (user) {
-                log.info('[%1] User %2 did not provide a valid %3', req.uuid, user.id, prop);
-            } else {
-                log.info('[%1] User did not provide a valid %2', req.uuid, prop);
-            }
+            log.info('[%1] Requester %2 did not provide a valid %3',
+                     req.uuid, req.requester && req.requester.id || '', prop);
             return q(done({ code: 400, body: prop + ' is missing/not valid.' }));
         }
 
@@ -524,11 +535,10 @@
     // deleting a user.
     userModule.preventSelfDeletion = function preventSelfDeletion(req, next, done) {
         var log = logger.getLog();
-        var requester = req.user;
         var userId = req.params.id;
 
-        if (userId === requester.id) {
-            log.warn('[%1] User %2 tried to delete themselves', req.uuid, requester.id);
+        if (userId === req.requester.id) {
+            log.warn('[%1] User %2 tried to delete themselves', req.uuid, req.requester.id);
 
             return done({ code: 400, body: 'You cannot delete yourself' });
         }
@@ -579,7 +589,7 @@
         var log = logger.getLog();
 
         if (!req.body.newEmail || typeof req.body.newEmail !== 'string') {
-            log.info('[%1] User %2 did not provide a new email', req.uuid, req.user.id);
+            log.info('[%1] User %2 did not provide a new email', req.uuid, req.requester.id);
             return done({ code: 400, body: 'Must provide a new email' });
         }
 
@@ -636,13 +646,12 @@
     // forceLogout.
     userModule.authorizeForceLogout = function authorizeForceLogout(req, next, done) {
         var log = logger.getLog();
-        var requester = req.user;
 
-        if (!(requester.permissions &&
-              requester.permissions.users &&
-              requester.permissions.users.edit &&
-              requester.permissions.users.edit === Scope.All)) {
-            log.info('[%1] User %2 not authorized to force logout users', req.uuid, requester.id);
+        if (!(req.requester.permissions &&
+              req.requester.permissions.users &&
+              req.requester.permissions.users.edit &&
+              req.requester.permissions.users.edit === Scope.All)) {
+            log.info('[%1] %2 not authorized to force logout users', req.uuid, req.requester.id);
             return done({ code: 403, body: 'Not authorized to force logout users' });
         }
 
@@ -655,11 +664,10 @@
 
         return svc.customMethod(req, 'forceLogout', function forceLogout() {
             var id = req.params.id;
-            var requester = req.user;
 
             log.info(
                 '[%1] Admin %2 is deleting all login sessions for %3',
-                req.uuid, requester.id, id
+                req.uuid, req.requester.id, id
             );
 
             return q(sessions.deleteMany({ 'session.user': id }, { w: 1, j: true }))
@@ -846,6 +854,8 @@
 
         router.use(jobManager.setJobTimeout.bind(jobManager));
         
+        var authMidware = authUtils.objMidware('users', {});
+        
         var credsChecker = authUtils.userPassChecker();
         router.post('/email', credsChecker, audit, function(req, res) {
             var promise = userModule.changeEmail(svc, req, config.emails.sender,
@@ -889,7 +899,7 @@
             });
         });
 
-        var authNewUser = authUtils.middlewarify({}, null, [Status.New]);
+        var authNewUser = authUtils.middlewarify({ userStatuses: [Status.New] });
         router.post('/resendActivation', sessions, authNewUser, function(req, res) {
             var promise = userModule.resendActivation(svc, req);
             promise.finally(function() {
@@ -900,8 +910,7 @@
             });
         });
 
-        var authGetUser = authUtils.middlewarify({users: 'read'});
-        router.get('/:id', sessions, authGetUser, audit, function(req, res) {
+        router.get('/:id', sessions, authMidware.read, audit, function(req, res) {
             var promise = svc.getObjs({ id: req.params.id }, req, false)
             .then(function(resp) {
                 if ((req.query.decorated !== 'true' && req.query.decorated !== true) ||
@@ -922,7 +931,7 @@
             });
         });
 
-        router.get('/', sessions, authGetUser, audit, function(req, res) {
+        router.get('/', sessions, authMidware.read, audit, function(req, res) {
             var query = {};
             if (req.query.org) {
                 query.org = String(req.query.org);
@@ -946,8 +955,7 @@
             });
         });
 
-        var authPostUser = authUtils.middlewarify({users: 'create'});
-        router.post('/', sessions, authPostUser, audit, function(req, res) {
+        router.post('/', sessions, authMidware.create, audit, function(req, res) {
             var promise = svc.createObj(req)
             .then(function(resp) {
                 if ((req.query.decorated !== 'true' && req.query.decorated !== true) ||
@@ -968,8 +976,7 @@
             });
         });
 
-        var authPutUser = authUtils.middlewarify({users: 'edit'});
-        router.put('/:id', sessions, authPutUser, audit, function(req, res) {
+        router.put('/:id', sessions, authMidware.edit, audit, function(req, res) {
             var promise = svc.editObj(req)
             .then(function(resp) {
                 if ((req.query.decorated !== 'true' && req.query.decorated !== true) ||
@@ -990,8 +997,7 @@
             });
         });
 
-        var authDelUser = authUtils.middlewarify({users: 'delete'});
-        router.delete('/:id', sessions, authDelUser, audit, function(req, res) {
+        router.delete('/:id', sessions, authMidware.delete, audit, function(req, res) {
             var promise = svc.deleteObj(req);
             promise.finally(function() {
                 jobManager.endJob(req, res, promise.inspect())
@@ -1001,7 +1007,7 @@
             });
         });
 
-        router.post('/logout/:id', sessions, authPutUser, audit, function(req, res) {
+        router.post('/logout/:id', sessions, authMidware.edit, audit, function(req, res) {
             var promise = userModule.forceLogoutUser(
                 svc,
                 req,

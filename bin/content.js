@@ -11,6 +11,7 @@
         journal         = require('../lib/journal'),
         QueryCache      = require('../lib/queryCache'),
         authUtils       = require('../lib/authUtils'),
+        signatures      = require('../lib/signatures'),
         service         = require('../lib/service'),
         JobManager      = require('../lib/jobManager'),
         cardModule      = require('./content-cards'),
@@ -115,6 +116,7 @@
         log.info('Running as cluster worker, proceed with setting up web server.');
 
         var app          = express(),
+            sigVerifier  = new signatures.Verifier(state.dbs.c6Db),
             collections  = {},
             caches       = {},
             jobManager   = new JobManager(state.cache, state.config.jobTimeouts),
@@ -187,7 +189,8 @@
                                  state.sessions, audit, jobManager);
         
         // adds endpoints for managing cards
-        cardModule.setupEndpoints(app, cardSvc, state.sessions,audit,state.config,jobManager);
+        cardModule.setupEndpoints(app, cardSvc, state.sessions, sigVerifier, audit, state.config,
+                                  jobManager);
         
         // adds endpoints for managing categories
         catModule.setupEndpoints(app, catSvc, state.sessions, audit, jobManager);

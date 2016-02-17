@@ -41,8 +41,9 @@
         
         router.use(jobManager.setJobTimeout.bind(jobManager));
         
-        var authGetAd = authUtils.middlewarify({advertisers: 'read'});
-        router.get('/:id', sessions, authGetAd, audit, function(req, res) {
+        var authMidware = authUtils.objMidware('advertisers', {});
+        
+        router.get('/:id', sessions, authMidware.read, audit, function(req, res) {
             var promise = svc.getObjs({id: req.params.id}, req, false);
             promise.finally(function() {
                 jobManager.endJob(req, res, promise.inspect())
@@ -52,7 +53,7 @@
             });
         });
 
-        router.get('/', sessions, authGetAd, audit, function(req, res) {
+        router.get('/', sessions, authMidware.read, audit, function(req, res) {
             var query = {};
             if (req.query.name) {
                 query.name = String(req.query.name);
@@ -73,8 +74,7 @@
             });
         });
 
-        var authPostAd = authUtils.middlewarify({advertisers: 'create'});
-        router.post('/', sessions, authPostAd, audit, function(req, res) {
+        router.post('/', sessions, authMidware.create, audit, function(req, res) {
             var promise = svc.createObj(req);
             promise.finally(function() {
                 jobManager.endJob(req, res, promise.inspect())
@@ -84,8 +84,7 @@
             });
         });
 
-        var authPutAd = authUtils.middlewarify({advertisers: 'edit'});
-        router.put('/:id', sessions, authPutAd, audit, function(req, res) {
+        router.put('/:id', sessions, authMidware.edit, audit, function(req, res) {
             var promise = svc.editObj(req);
             promise.finally(function() {
                 jobManager.endJob(req, res, promise.inspect())
@@ -95,8 +94,7 @@
             });
         });
 
-        var authDelAd = authUtils.middlewarify({advertisers: 'delete'});
-        router.delete('/:id', sessions, authDelAd, audit, function(req,res) {
+        router.delete('/:id', sessions, authMidware.delete, audit, function(req,res) {
             var promise = svc.deleteObj(req);
             promise.finally(function() {
                 jobManager.endJob(req, res, promise.inspect())

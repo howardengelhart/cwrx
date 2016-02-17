@@ -407,11 +407,12 @@
             });
         });
 
-        var authGetUser = authUtils.middlewarify({}, null, [Status.Active, Status.New]),
+        var authGetUser = authUtils.middlewarify({ userStatuses: [Status.Active, Status.New] }),
             audit = auditJournal.middleware.bind(auditJournal);
 
         app.get('/api/auth/status', state.sessions, authGetUser, audit, function(req, res) {
-            res.send(200, req.user); // errors handled entirely by authGetUser
+            //TODO: what should be returned from this? should this handle apps?
+            res.send(200, req.user);
         });
         
         app.post('/api/auth/password/forgot', function(req, res) {

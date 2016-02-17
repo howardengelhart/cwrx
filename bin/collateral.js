@@ -132,8 +132,8 @@
             };
             headParams = {Key: outParams.Key, Bucket: outParams.Bucket};
             
-            log.info('[%1] User %2 is uploading file to %3/%4',
-                     req.uuid, req.user.id, outParams.Bucket, outParams.Key);
+            log.info('[%1] Requester %2 is uploading file to %3/%4',
+                     req.uuid, req.requester.id, outParams.Bucket, outParams.Key);
 
             return q.npost(s3, 'headObject', [headParams]).then(function(data) {
                 log.info('[%1] Identical file %2 already exists on s3, not uploading',
@@ -180,7 +180,6 @@
     // Upload a file from req.files to S3
     collateral.uploadFiles = function(req, s3, config) {
         var log = logger.getLog(),
-            user = req.user,
             prefix;
 
         function cleanup(fpath) {
@@ -194,14 +193,14 @@
         }
 
         if (typeof req.files !== 'object' || Object.keys(req.files).length === 0) {
-            log.info('[%1] No files to upload from user %2', req.uuid, req.user.id);
+            log.info('[%1] No files to upload from requester %2', req.uuid, req.requester.id);
             return q({code: 400, body: 'Must provide files to upload'});
         } else {
-            log.info('[%1] User %2 is uploading %3 files',
-                     req.uuid, req.user.id, Object.keys(req.files).length);
+            log.info('[%1] Requester %2 is uploading %3 files',
+                     req.uuid, req.requester.id, Object.keys(req.files).length);
         }
 
-        prefix = path.join(config.s3.path, 'userFiles/' + user.id);
+        prefix = path.join(config.s3.path, 'userFiles/' + req.requester.id);
         
         return q.allSettled(Object.keys(req.files).map(function(objName) {
             var file = req.files[objName];
@@ -263,7 +262,6 @@
         var maxSize = config.maxFileSize;
         var maxTime = config.maxDownloadTime;
         var jobId = uuid.createUuid();
-        var user = req.user;
 
         var tmpFiles = [];
 
@@ -449,7 +447,7 @@
             var imagePath = data.path;
             var type = data.type;
             var uri = data.uri;
-            var prefix = path.join(config.s3.path, 'userFiles', user.id);
+            var prefix = path.join(config.s3.path, 'userFiles', req.requester.id);
             var image = { path: imagePath, type: type };
 
             function succeed(response) {
@@ -636,7 +634,7 @@
             jobId           = uuid.createUuid(),
             compiledPath    = path.join(require('os').tmpdir(), jobId + '-compiled.html'),
             splashPath      = path.join(require('os').tmpdir(), jobId + '-splash.jpg'),
-            prefix          = path.join(config.s3.path, 'userFiles/' + req.user.id),
+            prefix          = path.join(config.s3.path, 'userFiles/' + req.requester.id),
             data            = { thumbs: req.body.thumbs },
             compiled        = handlebars.compile(template)(data), // Compile the template
             deferred        = q.defer(),
@@ -746,8 +744,7 @@
     // Create a single splash if needed using the imgSpec and req.body.thumbs
     collateral.generateSplash = function(req, imgSpec, s3, config) {
         var log             = logger.getLog(),
-            user            = req.user,
-            prefix          = path.join(config.s3.path, 'userFiles/' + user.id),
+            prefix          = path.join(config.s3.path, 'userFiles/' + req.requester.id),
             templateNum     = collateral.chooseTemplateNum(req.body.thumbs.length),
             templateDir     = path.join(__dirname, '../templates/splashTemplates'),
             templatePath    = path.join(templateDir, imgSpec.ratio + '_x' + templateNum + '.html');
@@ -850,8 +847,14 @@
             return q({code: 400, body: 'Must provide imageSpecs to create splashes for'});
         }
         
-        log.info('[%1] User %2 generating %3 splashes for %4 from %5 thumbs',req.uuid,
-                 req.user.id,req.body.imageSpecs.length,req.params.expId,req.body.thumbs.length);
+        log.info(
+            '[%1] Requester %2 generating %3 splashes for %4 from %5 thumbs',
+            req.uuid,
+            req.requester.id,
+            req.body.imageSpecs.length,
+            req.params.expId,
+            req.body.thumbs.length
+        );
                  
         // default urls to http so phantom will handle properly
         req.body.thumbs = req.body.thumbs.map(function(thumb) {
@@ -894,8 +897,8 @@
             return q({code: 400, body: 'Must provide path of file on s3'});
         }
         
-        log.info('[%1] User %2 setting CacheControl of %3 to %4',
-                 req.uuid, req.user.id, req.body.path, cacheControl);
+        log.info('[%1] Requester %2 setting CacheControl of %3 to %4',
+                 req.uuid, req.requester.id, req.body.path, cacheControl);
 
         // Best way to set headers on existing object is to copy the object to same location
         var params = {
