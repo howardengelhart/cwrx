@@ -174,6 +174,7 @@
         
         svc.use('create', campModule.fetchCards);
         svc.use('create', extraValidation);
+        svc.use('create', campModule.validateZipcodes);
         svc.use('create', campModule.defaultReportingId);
         svc.use('create', campModule.setCardDates);
         svc.use('create', campModule.updateCards);
@@ -183,6 +184,7 @@
         svc.use('edit', campModule.enforceLock);
         svc.use('edit', campModule.fetchCards);
         svc.use('edit', extraValidation);
+        svc.use('edit', campModule.validateZipcodes);
         svc.use('edit', campModule.defaultReportingId);
         svc.use('edit', campModule.cleanCards);
         svc.use('edit', campModule.cleanMiniReels);
@@ -417,6 +419,27 @@
             req.origObj,
             req.user,
             campModule.config.api.paymentMethods.baseUrl,
+            req
+        )
+        .then(function(validResp) {
+            if (!validResp.isValid) {
+                log.info('[%1] %2', req.uuid, validResp.reason);
+                return done({ code: 400, body: validResp.reason });
+            } else {
+                return next();
+            }
+        });
+    };
+
+    // Check if zipcodes in body's targeting hash are valid
+    campModule.validateZipcodes = function(req, next, done) {
+        var log = logger.getLog();
+
+        return campaignUtils.validateZipcodes(
+            req.body,
+            req.origObj,
+            req.user,
+            campModule.config.api.zipcodes.baseUrl,
             req
         )
         .then(function(validResp) {

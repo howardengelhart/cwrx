@@ -498,7 +498,7 @@ describe('campaignUtils', function() {
             }).done(done);
         });
         
-        it('should call done if the chosen paymentMethod is not found', function(done) {
+        it('should return invalid if the chosen paymentMethod is not found', function(done) {
             body.paymentMethod = 'ghi';
             campaignUtils.validatePaymentMethod(body, origObj, requester, payMethodUrl, req).then(function(resp) {
                 expect(resp).toEqual({ isValid: false, reason: 'paymentMethod ghi does not exist for o-1' });
@@ -510,7 +510,7 @@ describe('campaignUtils', function() {
             }).done(done);
         });
         
-        it('should call done and warn if the request returns a non-200 response', function(done) {
+        it('should return invalid and warn if the request returns a non-200 response', function(done) {
             mockResp.response.statusCode = 403;
             mockResp.body = 'Forbidden';
             campaignUtils.validatePaymentMethod(body, origObj, requester, payMethodUrl, req).then(function(resp) {
@@ -529,6 +529,91 @@ describe('campaignUtils', function() {
                 expect(resp).not.toBeDefined();
             }).catch(function(error) {
                 expect(error).toBe('Error fetching payment methods');
+                expect(requestUtils.qRequest).toHaveBeenCalled();
+                expect(mockLog.error).toHaveBeenCalled();
+            }).done(done);
+        });
+    });
+
+
+    describe('validateZipcodes', function() {
+        var body, origObj, requester, zipUrl, mockResp;
+        beforeEach(function() {
+            body = { name: 'camp 1', targeting: { geo: { zipcodes: { codes: ['08540', '07078'] } } } };
+            origObj = {};
+            requester = { id: 'u-1' };
+            zipUrl = 'https://test.com/api/geo/zipcodes/';
+            mockResp = { response: { statusCode: 200 }, body: [{ zipcode: '08540' }, { zipcode: '07078' }] };
+            spyOn(requestUtils, 'qRequest').and.callFake(function() { return q(mockResp); });
+            req.headers = { cookie: 'asdf1234' };
+        });
+        
+        it('should pass without making a request if no zipcodes are defined on the body', function(done) {
+            q.all([
+                {},
+                { targeting: {} },
+                { targeting: { geo: {} } },
+                { targeting: { geo: { zipcodes: {} } } },
+                { targeting: { geo: { zipcodes: { codes: [] } } } }
+            ].map(function(altBody) {
+                return campaignUtils.validateZipcodes(altBody, origObj, requester, zipUrl, req).then(function(resp) {
+                    expect(resp).toEqual({ isValid: true, reason: undefined });
+                });
+            })).then(function(results) {
+                expect(requestUtils.qRequest).not.toHaveBeenCalled();
+                expect(mockLog.warn).not.toHaveBeenCalled();
+                expect(mockLog.error).not.toHaveBeenCalled();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should lookup the zipcodes and return valid if they all exist', function(done) {
+            campaignUtils.validateZipcodes(body, origObj, requester, zipUrl, req).then(function(resp) {
+                expect(resp).toEqual({ isValid: true, reason: undefined });
+                expect(requestUtils.qRequest).toHaveBeenCalledWith('get', {
+                    url: 'https://test.com/api/geo/zipcodes/',
+                    qs: { zipcodes: '08540,07078', fields: 'zipcode' },
+                    headers: { cookie: 'asdf1234' }
+                });
+                expect(mockLog.warn).not.toHaveBeenCalled();
+                expect(mockLog.error).not.toHaveBeenCalled();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should return invalid if some of the zipcodes are not found', function(done) {
+            body.targeting.geo.zipcodes.codes.push('66666');
+            campaignUtils.validateZipcodes(body, origObj, requester, zipUrl, req).then(function(resp) {
+                expect(resp).toEqual({ isValid: false, reason: 'These zipcodes were not found: [66666]' });
+                expect(requestUtils.qRequest).toHaveBeenCalled();
+                expect(mockLog.warn).not.toHaveBeenCalled();
+                expect(mockLog.error).not.toHaveBeenCalled();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should call done and warn if the request returns a non-200 response', function(done) {
+            mockResp.response.statusCode = 403;
+            mockResp.body = 'Forbidden';
+            campaignUtils.validateZipcodes(body, origObj, requester, zipUrl, req).then(function(resp) {
+                expect(resp).toEqual({ isValid: false, reason: 'cannot fetch zipcodes' });
+                expect(requestUtils.qRequest).toHaveBeenCalled();
+                expect(mockLog.warn).toHaveBeenCalled();
+                expect(mockLog.error).not.toHaveBeenCalled();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should reject if the request fails', function(done) {
+            requestUtils.qRequest.and.returnValue(q.reject('I GOT A PROBLEM'));
+            campaignUtils.validateZipcodes(body, origObj, requester, zipUrl, req).then(function(resp) {
+                expect(resp).not.toBeDefined();
+            }).catch(function(error) {
+                expect(error).toBe('Error fetching zipcodes');
                 expect(requestUtils.qRequest).toHaveBeenCalled();
                 expect(mockLog.error).toHaveBeenCalled();
             }).done(done);

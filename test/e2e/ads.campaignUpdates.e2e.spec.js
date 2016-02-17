@@ -1189,6 +1189,32 @@ describe('ads campaignUpdates endpoints (E2E):', function() {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
+
+        it('should return a 400 if the user sends up invalid zipcode radius targeting', function(done) {
+            q.all([
+                { radius: 9999999999999999999999 },
+                { radius: -1234 },
+                { codes: new Array(1000).join(',').split(',').map(function() { return 'a'; }) },
+                { codes: ['66666'] },
+                { codes: ['yo mommas house'] }
+            ].map(function(zipcodeTarg) {
+                options.json.data = { targeting: { geo: { zipcodes: zipcodeTarg } } };
+                return requestUtils.qRequest('post', options);
+            })).then(function(results) {
+                expect(results[0].response.statusCode).toBe(400);
+                expect(results[0].body).toMatch(/targeting.geo.zipcodes.radius must be less than the max: \d+/);
+                expect(results[1].response.statusCode).toBe(400);
+                expect(results[1].body).toMatch(/targeting.geo.zipcodes.radius must be greater than the min: \d+/);
+                expect(results[2].response.statusCode).toBe(400);
+                expect(results[2].body).toMatch(/targeting.geo.zipcodes.codes must have at most \d+ entries/);
+                expect(results[3].response.statusCode).toBe(400);
+                expect(results[3].body).toBe('These zipcodes were not found: [66666]');
+                expect(results[4].response.statusCode).toBe(400);
+                expect(results[4].body).toBe('These zipcodes were not found: [yo mommas house]');
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
         
         it('should trim off forbidden fields from the data', function(done) {
             var createdUpdate;
