@@ -346,7 +346,8 @@ describe('player service', function() {
                                 { prop: 'q1Urls', event: 'q1' },
                                 { prop: 'q2Urls', event: 'q2' },
                                 { prop: 'q3Urls', event: 'q3' },
-                                { prop: 'q4Urls', event: 'q4' }
+                                { prop: 'q4Urls', event: 'q4' },
+                                { prop: 'interactionUrls', event: 'interaction' }
                             ].forEach(function(item) {
                                 var pixels = card.campaign[item.prop];
 
@@ -369,6 +370,11 @@ describe('player service', function() {
                                         ex: config.playerUrl.query.ex,
                                         vr: config.playerUrl.query.vr,
                                         event: item.event,
+                                        sw: '{screenWidth}',
+                                        sh: '{screenHeight}',
+                                        pw: '{playerWidth}',
+                                        ph: '{playerHeight}',
+                                        c: '{context}',
                                         d: '{delay}',
                                         cb: '{cachebreaker}'
                                     }
@@ -397,6 +403,11 @@ describe('player service', function() {
                                         ex: config.playerUrl.query.ex,
                                         vr: config.playerUrl.query.vr,
                                         event: 'link.' + type,
+                                        sw: '{screenWidth}',
+                                        sh: '{screenHeight}',
+                                        pw: '{playerWidth}',
+                                        ph: '{playerHeight}',
+                                        c: '{context}',
                                         d: '{delay}',
                                         cb: '{cachebreaker}'
                                     }
@@ -425,6 +436,11 @@ describe('player service', function() {
                                         ex: config.playerUrl.query.ex,
                                         vr: config.playerUrl.query.vr,
                                         event: 'shareLink.' + type,
+                                        sw: '{screenWidth}',
+                                        sh: '{screenHeight}',
+                                        pw: '{playerWidth}',
+                                        ph: '{playerHeight}',
+                                        c: '{context}',
                                         d: '{delay}',
                                         cb: '{cachebreaker}'
                                     }
@@ -540,7 +556,8 @@ describe('player service', function() {
                                 { prop: 'q1Urls', event: 'q1' },
                                 { prop: 'q2Urls', event: 'q2' },
                                 { prop: 'q3Urls', event: 'q3' },
-                                { prop: 'q4Urls', event: 'q4' }
+                                { prop: 'q4Urls', event: 'q4' },
+                                { prop: 'interactionUrls', event: 'interaction' }
                             ].forEach(function(item) {
                                 var pixels = card.campaign[item.prop];
 
@@ -563,6 +580,11 @@ describe('player service', function() {
                                         ex: config.playerUrl.query.ex,
                                         vr: config.playerUrl.query.vr,
                                         event: item.event,
+                                        sw: '{screenWidth}',
+                                        sh: '{screenHeight}',
+                                        pw: '{playerWidth}',
+                                        ph: '{playerHeight}',
+                                        c: '{context}',
                                         d: '{delay}',
                                         cb: '{cachebreaker}'
                                     }
@@ -591,6 +613,11 @@ describe('player service', function() {
                                         ex: config.playerUrl.query.ex,
                                         vr: config.playerUrl.query.vr,
                                         event: 'link.' + type,
+                                        sw: '{screenWidth}',
+                                        sh: '{screenHeight}',
+                                        pw: '{playerWidth}',
+                                        ph: '{playerHeight}',
+                                        c: '{context}',
                                         d: '{delay}',
                                         cb: '{cachebreaker}'
                                     }
@@ -619,6 +646,11 @@ describe('player service', function() {
                                         ex: config.playerUrl.query.ex,
                                         vr: config.playerUrl.query.vr,
                                         event: 'shareLink.' + type,
+                                        sw: '{screenWidth}',
+                                        sh: '{screenHeight}',
+                                        pw: '{playerWidth}',
+                                        ph: '{playerHeight}',
+                                        c: '{context}',
                                         d: '{delay}',
                                         cb: '{cachebreaker}'
                                     }
@@ -920,7 +952,8 @@ describe('player service', function() {
                         { prop: 'q1Urls', event: 'q1' },
                         { prop: 'q2Urls', event: 'q2' },
                         { prop: 'q3Urls', event: 'q3' },
-                        { prop: 'q4Urls', event: 'q4' }
+                        { prop: 'q4Urls', event: 'q4' },
+                        { prop: 'interactionUrls', event: 'interaction' }
                     ].forEach(function(item) {
                         var pixels = card.campaign[item.prop];
 
@@ -943,6 +976,11 @@ describe('player service', function() {
                                 ex: config.playerUrl.query.ex,
                                 vr: config.playerUrl.query.vr,
                                 event: item.event,
+                                sw: '{screenWidth}',
+                                sh: '{screenHeight}',
+                                pw: '{playerWidth}',
+                                ph: '{playerHeight}',
+                                c: '{context}',
                                 d: '{delay}',
                                 cb: '{cachebreaker}'
                             }
@@ -971,6 +1009,11 @@ describe('player service', function() {
                                 ex: config.playerUrl.query.ex,
                                 vr: config.playerUrl.query.vr,
                                 event: 'link.' + type,
+                                sw: '{screenWidth}',
+                                sh: '{screenHeight}',
+                                pw: '{playerWidth}',
+                                ph: '{playerHeight}',
+                                c: '{context}',
                                 d: '{delay}',
                                 cb: '{cachebreaker}'
                             }
@@ -999,6 +1042,11 @@ describe('player service', function() {
                                 ex: config.playerUrl.query.ex,
                                 vr: config.playerUrl.query.vr,
                                 event: 'shareLink.' + type,
+                                sw: '{screenWidth}',
+                                sh: '{screenHeight}',
+                                pw: '{playerWidth}',
+                                ph: '{playerHeight}',
+                                c: '{context}',
                                 d: '{delay}',
                                 cb: '{cachebreaker}'
                             }
@@ -1411,7 +1459,7 @@ describe('player service', function() {
                                         ex: undefined,
                                         vr: undefined,
                                         event: 'impression'
-                                    }) + '&d={delay}&cb={cachebreaker}'
+                                    }) + '&sw={screenWidth}&sh={screenHeight}&pw={playerWidth}&ph={playerHeight}&c={context}&d={delay}&cb={cachebreaker}'
                                 }
                             ],
                             creatives: [
@@ -1632,7 +1680,7 @@ describe('player service', function() {
                                         ex: undefined,
                                         vr: undefined,
                                         event: 'impression'
-                                    }) + '&d={delay}&cb={cachebreaker}'
+                                    }) + '&sw={screenWidth}&sh={screenHeight}&pw={playerWidth}&ph={playerHeight}&c={context}&d={delay}&cb={cachebreaker}'
                                 }
                             ],
                             creatives: [
