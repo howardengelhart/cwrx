@@ -936,8 +936,7 @@ Player.prototype.getViaPlacement = function getViaPlacement(options) {
     });
 };
 
-Player.prototype.getVAST = function getVAST(/*options*/) {
-    var options = extend(arguments[0], this.config.defaults);
+Player.prototype.getVAST = function getVAST(options) {
     var self = this;
     var log = logger.getLog();
     var adLoader = this.adLoader;

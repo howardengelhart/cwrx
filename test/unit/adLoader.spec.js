@@ -758,7 +758,8 @@ describe('AdLoader()', function() {
                             { prop: 'q1Urls', event: 'q1' },
                             { prop: 'q2Urls', event: 'q2' },
                             { prop: 'q3Urls', event: 'q3' },
-                            { prop: 'q4Urls', event: 'q4' }
+                            { prop: 'q4Urls', event: 'q4' },
+                            { prop: 'interactionUrls', event: 'interaction' }
                         ].forEach(function(item) {
                             var urls = card.campaign[item.prop];
 
@@ -806,7 +807,8 @@ describe('AdLoader()', function() {
                                 { prop: 'q1Urls', event: 'q1' },
                                 { prop: 'q2Urls', event: 'q2' },
                                 { prop: 'q3Urls', event: 'q3' },
-                                { prop: 'q4Urls', event: 'q4' }
+                                { prop: 'q4Urls', event: 'q4' },
+                            { prop: 'interactionUrls', event: 'interaction' }
                             ].reduce(function(campaign, item) {
                                 campaign[item.prop] = [loader.pixelFactory(card, meta)(item.event)];
 
@@ -1302,7 +1304,7 @@ describe('AdLoader()', function() {
                                 ex: meta.ex,
                                 vr: meta.vr,
                                 event: 'play'
-                            }) + '&d={delay}&cb={cachebreaker}');
+                            }) + '&sw={screenWidth}&sh={screenHeight}&pw={playerWidth}&ph={playerHeight}&c={context}&d={delay}&cb={cachebreaker}');
                         });
 
                         describe('if there is no trackingPixel', function() {
@@ -1340,7 +1342,7 @@ describe('AdLoader()', function() {
                                     ex: meta.ex,
                                     vr: meta.vr,
                                     event: 'q1'
-                                }) + '&d={delay}&cb={cachebreaker}');
+                                }) + '&sw={screenWidth}&sh={screenHeight}&pw={playerWidth}&ph={playerHeight}&c={context}&d={delay}&cb={cachebreaker}');
                             });
                         });
                     });

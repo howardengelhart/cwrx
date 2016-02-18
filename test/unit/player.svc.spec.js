@@ -2133,10 +2133,6 @@ describe('player service', function() {
                         result.then(success, failure);
                     });
 
-                    it('should apply the default options', function() {
-                        expect(options).toEqual(_.defaults({}, originalOptions, player.config.defaults));
-                    });
-
                     it('should get the placement', function() {
                         expect(player.__getPlacement__).toHaveBeenCalledWith(options.placement, {}, options.origin, options.reqUuid);
                     });

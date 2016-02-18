@@ -1,5 +1,16 @@
 # Player Service Changelog
 
+### 2.7.0: Thu Feb 18 11:49:08 EST 2016
+* Add `{context}` macro to tracking pixels to track the UI element that
+  generated the event: [#797](https://github.com/cinema6/cwrx/pull/797)
+* Add `{screenWidth}`, `{screenHeight}`, `{playerWidth}`, and
+  `{playerHeight}` macors to tracking pixels to track screen/player
+  dimensions: [#797](https://github.com/cinema6/cwrx/pull/797)
+* Add `interactionUrls` to cards to track internal interactions with the
+  player: [#797](https://github.com/cinema6/cwrx/pull/797)
+* Stop defaulting the `host` parameter in VAST impression pixels:
+  [#797](https://github.com/cinema6/cwrx/pull/797)
+
 ### 2.6.0: Wed Feb 10 09:50:28 EST 2016
 * Add support for [`domino.css`](https://github.com/cinema6/domino.css)
   with `branding`
