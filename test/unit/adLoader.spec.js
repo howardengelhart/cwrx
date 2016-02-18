@@ -1302,7 +1302,7 @@ describe('AdLoader()', function() {
                                 ex: meta.ex,
                                 vr: meta.vr,
                                 event: 'play'
-                            }) + '&d={delay}&cb={cachebreaker}');
+                            }) + '&c={context}&d={delay}&cb={cachebreaker}');
                         });
 
                         describe('if there is no trackingPixel', function() {
@@ -1340,7 +1340,7 @@ describe('AdLoader()', function() {
                                     ex: meta.ex,
                                     vr: meta.vr,
                                     event: 'q1'
-                                }) + '&d={delay}&cb={cachebreaker}');
+                                }) + '&c={context}&d={delay}&cb={cachebreaker}');
                             });
                         });
                     });
