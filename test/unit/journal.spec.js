@@ -163,12 +163,43 @@ describe('journal lib: ', function() {
             
             it('should write an entry to the journal', function(done) {
                 journ.write('u-1', req, {foo: 'bar'}).then(function() {
+                    expect(mockColl.insertOne).toHaveBeenCalledWith(
+                        {
+                            user: 'u-1',
+                            application: undefined,
+                            created: jasmine.any(Date),
+                            host: 'fakeHost',
+                            pid: process.pid,
+                            uuid: '1234',
+                            sessionID: 's1',
+                            service: 'ut',
+                            version: 'v1',
+                            origin: 'c6.com',
+                            data: { foo: 'bar' }
+                        },
+                        { w: 1, j: true }
+                    );
+                }).catch(function(error) {
+                    expect(error.toString()).not.toBeDefined();
+                }).done(done);
+            });
+            
+            it('should handle the user being undefined', function(done) {
+                journ.write(undefined, req, {foo: 'bar'}).then(function() {
                     expect(mockColl.insertOne).toHaveBeenCalled();
-                    expect(mockColl.insertOne.calls.all()[0].args[0]).toEqual({
-                        user: 'u-1', created: jasmine.any(Date), host: 'fakeHost', pid: process.pid,
-                        uuid: '1234', sessionID: 's1', service: 'ut', version: 'v1', origin: 'c6.com', data: {foo: 'bar'}
-                    });
-                    expect(mockColl.insertOne.calls.all()[0].args[1]).toEqual({w: 1, j: true});
+                    expect(mockColl.insertOne.calls.argsFor(0)[0].user).not.toBeDefined();
+                }).catch(function(error) {
+                    expect(error.toString()).not.toBeDefined();
+                }).done(done);
+            });
+
+            it('should save the application id if defined', function(done) {
+                req.application = { id: 'app-1', key: 'watchman' };
+                journ.write('u-1', req, { foo: 'bar' }).then(function() {
+                    expect(mockColl.insertOne).toHaveBeenCalledWith(
+                        jasmine.objectContaining({ application: 'app-1' }),
+                        { w: 1, j: true }
+                    );
                 }).catch(function(error) {
                     expect(error.toString()).not.toBeDefined();
                 }).done(done);
@@ -227,7 +258,7 @@ describe('journal lib: ', function() {
         describe('initialization', function() {
             it('should call the Journal constructor', function(done) {
                 spyOn(journal.Journal, 'apply').and.callThrough();
-                journ = new journal.AuditJournal(mockColl, 'v1', 'ut');
+                var journ = new journal.AuditJournal(mockColl, 'v1', 'ut');
                 expect(journal.Journal.apply).toHaveBeenCalledWith(journ, jasmine.objectContaining({0: mockColl, 1: 'v1', 2: 'ut', length: 3}));
                 expect(journ.svcName).toBe('ut');
                 expect(journ.version).toBe('v1');
@@ -245,7 +276,7 @@ describe('journal lib: ', function() {
         
         describe('inherited methods', function() {
             it('should exist', function() {
-                journ = new journal.AuditJournal(mockColl, 'v1', 'ut');
+                var journ = new journal.AuditJournal(mockColl, 'v1', 'ut');
                 expect(journ.resetColl).toBe(journal.Journal.prototype.resetColl);
                 expect(journ.write).toBe(journal.Journal.prototype.write);
                 expect(journ instanceof journal.Journal).toBe(true);
@@ -293,6 +324,7 @@ describe('journal lib: ', function() {
                 journ = new journal.AuditJournal(mockColl, 'v1', 'ut');
                 req = {
                     uuid: '1234',
+                    requester: { id: 'u-1', permissions: {} },
                     user: { id: 'u-1', email: 'johnny' }
                 };
                 res = {
@@ -310,11 +342,23 @@ describe('journal lib: ', function() {
                 expect(res.send).not.toHaveBeenCalled();
             });
             
-            it('should skip writing if no user is logged in', function(done) {
-                delete req.user;
+            it('should skip writing if no one is authenticated', function(done) {
+                delete req.requester;
                 journ.middleware(req, res, function(val) {
                     expect(val).not.toBeDefined();
                     expect(journ.writeAuditEntry).not.toHaveBeenCalled();
+                    done();
+                });
+                expect(res.send).not.toHaveBeenCalled();
+            });
+            
+            it('should handle a case where only an app is authenticated', function(done) {
+                delete req.user;
+                req.application = { id: 'app-1', key: 'watchman' };
+                req.requester = { id: 'app-1', permissions: {} };
+                journ.middleware(req, res, function(val) {
+                    expect(val).not.toBeDefined();
+                    expect(journ.writeAuditEntry).toHaveBeenCalled();
                     done();
                 });
                 expect(res.send).not.toHaveBeenCalled();

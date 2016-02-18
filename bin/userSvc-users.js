@@ -311,8 +311,8 @@
     };
 
     // Check whether the requester can operate on the target user according to their scope
-    userModule.checkScope = function(req, obj, verb) { //TODO: update tests
-        var requester = req.requester;
+    userModule.checkScope = function(req, obj, verb) {
+        var requester = req.requester || {};
 
         function matchUser() {
             return req.user && req.user.id === obj.id;
@@ -331,7 +331,7 @@
     };
 
     // Adds fields to a find query to filter out users the requester can't see
-    userModule.userPermQuery = function(query, req) { //TODO: update tests
+    userModule.userPermQuery = function(query, req) {
         var newQuery = JSON.parse(JSON.stringify(query)),
             userId = req.user && req.user.id || '',
             orgId = req.user && req.user.org || '',
@@ -349,7 +349,7 @@
         if (readScope === Scope.Own) {
             orClause = { $or: [ { id: userId } ] };
         } else if (readScope === Scope.Org) {
-            orClause = { $or: [ { org: orgId }, { id: userId } ] };
+            orClause = { $or: [ { id: userId }, { org: orgId } ] };
         }
         
         mongoUtils.mergeORQuery(newQuery, orClause);

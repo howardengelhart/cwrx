@@ -572,6 +572,7 @@ describe('userSvc (UT)', function() {
         describe('when the provided token is valid and matches the stored activation token', function() {
             beforeEach(function(done) {
                 mockUser = {
+                    id: 'u-new',
                     status: 'new',
                     activationToken: {
                         expires: new Date(99999, 11, 25),
@@ -598,6 +599,13 @@ describe('userSvc (UT)', function() {
             it('should temporarily store the safe fetched user document on the request', function() {
                 expect(svc.transformMongoDoc).toHaveBeenCalledWith(mockUser);
                 expect(req.user).toEqual(mockUser);
+                expect(req.requester).toEqual({
+                    id: 'u-new',
+                    permissions: {},
+                    fieldValidation: {},
+                    entitlements: {},
+                    applications: []
+                });
             });
         });
     });
@@ -606,6 +614,7 @@ describe('userSvc (UT)', function() {
         var svc;
         beforeEach(function() {
             req.user = { id: 'u-12345', company: 'some company' };
+            req.requester = { id: 'u-12345', permissions: {} };
             svc = { _coll: 'fakeColl' };
             spyOn(userModule, 'getSixxySession').and.returnValue(q('sixxy cookie'));
             spyOn(CacheMutex.prototype, '_init');
@@ -753,7 +762,7 @@ describe('userSvc (UT)', function() {
                             body: { id: object + '-id-123' }
                         });
                     }
-                }
+                };
             }
 
             describe('if creating an org fails with a ' + failType, function() {
@@ -1092,94 +1101,160 @@ describe('userSvc (UT)', function() {
     });
 
     describe('checkScope', function() {
-        it('should correctly handle the scopes', function() {
-            var requester = {
-                id: 'u-1234',
-                org: 'o-1234',
-                permissions: {
-                    users: {
-                        read: Scope.All,
-                        edit: Scope.Org,
-                        delete: Scope.Own
+        var req, users;
+        beforeEach(function() {
+            req = {
+                uuid: '1234',
+                user: {
+                    id: 'u-1234',
+                    org: 'o-1234'
+                },
+                requester: {
+                    id: 'u-1234',
+                    permissions: {
+                        users: {
+                            read: Scope.All,
+                            edit: Scope.Org,
+                            delete: Scope.Own
+                        }
                     }
                 }
             };
-            var users = [{ id: 'u-1234', org: 'o-1234'},
-                         { id: 'u-4567', org: 'o-1234'},
-                         { id: 'u-1234', org: 'o-4567'},
-                         { id: 'u-4567', org: 'o-4567'}];
+            users = [{ id: 'u-1234', org: 'o-1234'},
+                     { id: 'u-4567', org: 'o-1234'},
+                     { id: 'u-1234', org: 'o-4567'},
+                     { id: 'u-4567', org: 'o-4567'}];
+        });
+
+        it('should correctly handle the scopes', function() {
+            expect(users.filter(function(target) {
+                return userModule.checkScope(req, target, 'read');
+            })).toEqual(users);
 
             expect(users.filter(function(target) {
-                return userModule.checkScope(requester, target, 'read');
-            })).toEqual(users);
-            expect(users.filter(function(target) {
-                return userModule.checkScope(requester, target, 'edit');
+                return userModule.checkScope(req, target, 'edit');
             })).toEqual([users[0], users[1], users[2]]);
+
             expect(users.filter(function(target) {
-                return userModule.checkScope(requester, target, 'delete');
+                return userModule.checkScope(req, target, 'delete');
             })).toEqual([users[0], users[2]]);
         });
 
-        it('should sanity-check the user permissions object', function() {
-            var target = { id: 'u-1' };
+        it('should sanity-check the requester permissions object', function() {
+            var target = { id: 't-1' };
+            
+            req.requester.permissions.users.read = '';
             expect(userModule.checkScope({}, target, 'read')).toBe(false);
-            var requester = { id: 'u-1234', org: 'o-1234' };
-            expect(userModule.checkScope(requester, target, 'read')).toBe(false);
-            requester.permissions = {};
-            expect(userModule.checkScope(requester, target, 'read')).toBe(false);
-            requester.permissions.users = {};
-            requester.permissions.orgs = { read: Scope.All };
-            expect(userModule.checkScope(requester, target, 'read')).toBe(false);
-            requester.permissions.users.read = '';
-            expect(userModule.checkScope(requester, target, 'read')).toBe(false);
-            requester.permissions.users.read = Scope.All;
-            expect(userModule.checkScope(requester, target, 'read')).toBe(true);
+
+            req.requester.permissions.users = {};
+            req.requester.permissions.orgs = { read: Scope.All };
+            expect(userModule.checkScope({}, target, 'read')).toBe(false);
+            
+            req.requester.permissions = {};
+            expect(userModule.checkScope({}, target, 'read')).toBe(false);
+            
+            delete req.requester;
+            expect(userModule.checkScope({}, target, 'read')).toBe(false);
+        });
+        
+        it('should handle a case where there is no req.user', function() {
+            delete req.user;
+            req.requester.id = 'app-1';
+            req.application = { id: 'app-1', key: 'watchman' };
+            
+            expect(users.filter(function(target) {
+                return userModule.checkScope(req, target, 'read');
+            })).toEqual(users);
+
+            expect(users.filter(function(target) {
+                return userModule.checkScope(req, target, 'edit');
+            })).toEqual([]);
+
+            expect(users.filter(function(target) {
+                return userModule.checkScope(req, target, 'delete');
+            })).toEqual([]);
         });
     });
 
     describe('userPermQuery', function() {
-        var query, requester;
+        var query, req;
         beforeEach(function() {
             query = { org: 'o-1' };
-            requester = { id: 'u-1', org: 'o-1', permissions: { users: { read: Scope.Own } } };
+            req = {
+                uuid: '1234',
+                user: {
+                    id: 'u-1',
+                    org: 'o-1'
+                },
+                requester: {
+                    id: 'u-1',
+                    permissions: { users: { read: Scope.Own } }
+                }
+            };
         });
 
         it('should just check that the user is not deleted if the requester is an admin', function() {
-            requester.permissions.users.read = Scope.All;
-            expect(userModule.userPermQuery(query, requester))
+            req.requester.permissions.users.read = Scope.All;
+            expect(userModule.userPermQuery(query, req))
                 .toEqual({ org: 'o-1', status: { $ne: Status.Deleted } });
             expect(query).toEqual({org: 'o-1'});
         });
 
         it('should check that the ids match if the requester has Scope.Own', function() {
-            expect(userModule.userPermQuery(query, requester))
+            expect(userModule.userPermQuery(query, req))
                 .toEqual({ org: 'o-1', status: { $ne: Status.Deleted }, $or: [ { id: 'u-1' } ] });
         });
 
         it('should check that the ids or orgs match if the requester has Scope.Org', function() {
-            requester.permissions.users.read = Scope.Org;
-            expect(userModule.userPermQuery(query, requester))
-                .toEqual({org: 'o-1', status: {$ne: Status.Deleted}, $or: [{org: 'o-1'}, {id: 'u-1'}]});
+            req.requester.permissions.users.read = Scope.Org;
+            expect(userModule.userPermQuery(query, req))
+                .toEqual({org: 'o-1', status: {$ne: Status.Deleted}, $or: [{id: 'u-1'}, {org: 'o-1'}]});
         });
 
         it('should preserve existing $or clauses', function() {
-            requester.permissions.users.read = Scope.Org;
+            req.requester.permissions.users.read = Scope.Org;
             query.$or = [ { a: 1 }, { b: 2 } ];
-            expect(userModule.userPermQuery(query, requester)).toEqual({
+            expect(userModule.userPermQuery(query, req)).toEqual({
                 org: 'o-1',
                 status: { $ne: Status.Deleted },
                 $and: [
                     { $or: [ { a: 1 }, { b: 2 } ] },
-                    { $or: [ { org: 'o-1' }, { id: 'u-1' } ] }
+                    { $or: [ { id: 'u-1' }, { org: 'o-1' } ] }
                 ]
             });
         });
 
         it('should log a warning if the requester has an invalid scope', function() {
-            requester.permissions.users.read = 'alfkjdf';
-            expect(userModule.userPermQuery(query, requester))
+            req.requester.permissions.users.read = 'alfkjdf';
+            expect(userModule.userPermQuery(query, req))
                 .toEqual({ org: 'o-1', status: { $ne: Status.Deleted }, $or: [ { id: 'u-1' } ] });
             expect(mockLog.warn).toHaveBeenCalled();
+        });
+        
+        it('should handle requests from apps instead of users', function() {
+            delete req.user;
+            req.requester.id = 'app-1';
+            req.application = { id: 'app-1', key: 'watchman' };
+            
+            req.requester.permissions.users.read = Scope.All;
+            expect(userModule.userPermQuery(query, req)).toEqual({
+                org: 'o-1',
+                status: { $ne: Status.Deleted }
+            });
+            
+            req.requester.permissions.users.read = Scope.Own;
+            expect(userModule.userPermQuery(query, req)).toEqual({
+                org: 'o-1',
+                status: { $ne: Status.Deleted },
+                $or: [{ id: '' }]
+            });
+
+            req.requester.permissions.users.read = Scope.Org;
+            expect(userModule.userPermQuery(query, req)).toEqual({
+                org: 'o-1',
+                status: { $ne: Status.Deleted },
+                $or: [{ id: '' }, { org: '' }]
+            });
         });
     });
 
@@ -1267,6 +1342,7 @@ describe('userSvc (UT)', function() {
             prop = 'someProp';
             req = {
                 user: { id: 'u-978ae0224eb7aa' },
+                requester: { id: 'u-978ae0224eb7aa', permissions: {} },
                 body: {
                     someProp: 'MySupp3rS3cur3P@ssw0rd'
                 }
@@ -1532,7 +1608,8 @@ describe('userSvc (UT)', function() {
         beforeEach(function() {
             req = {
                 params: { id: 'u-848a8c6d11ddcd' },
-                user: { id: 'u-4b023952363514' }
+                user: { id: 'u-4b023952363514' },
+                requester: { id: 'u-4b023952363514', permissions: {} },
             };
             next = jasmine.createSpy('next()');
             done = jasmine.createSpy('done()');
@@ -1560,7 +1637,7 @@ describe('userSvc (UT)', function() {
 
         describe('if the user is trying to delete themselves', function() {
             beforeEach(function() {
-                req.params.id = req.user.id;
+                req.params.id = req.requester.id;
 
                 userModule.preventSelfDeletion(req, next, done);
             });
@@ -1888,6 +1965,7 @@ describe('userSvc (UT)', function() {
             };
             req = {
                 user: { id: 'u-19fa31cb1a8e0f' },
+                requester: { id: 'u-19fa31cb1a8e0f', permissions: {} },
                 body: {
                     newEmail: 'Josh@Cinema6.com'
                 }
@@ -2190,6 +2268,7 @@ describe('userSvc (UT)', function() {
                     org: 'o-12345',
                     advertiser: 'a-12345'
                 },
+                requester: { id: 'u-12345', permissions: {} },
                 session: {
                     regenerate: jasmine.createSpy('regenerate()').and.callFake(function(cb) {
                         cb(null, q());
@@ -2410,6 +2489,7 @@ describe('userSvc (UT)', function() {
             };
             req = {
                 user: { id: 'u-19fa31cb1a8e0f' },
+                requester: { id: 'u-19fa31cb1a8e0f', permissions: {} },
                 params: { id: 'u-fbe05a74517c06' },
                 session: {
                     user: 'u-19fa31cb1a8e0f'
@@ -2515,33 +2595,34 @@ describe('userSvc (UT)', function() {
 
         beforeEach(function() {
             req = {
-                user: {}
+                user: { id: 'u-1' },
+                requester: { id: 'u-1', permissions: {} }
             };
             next = jasmine.createSpy('next()');
             done = jasmine.createSpy('done()');
         });
 
-        describe('if the user has no permissions', function() {
+        describe('if the requester has no permissions', function() {
             beforeEach(function() {
-                req.user.permissions = null;
+                req.requester.permissions = null;
                 userModule.authorizeForceLogout(req, next, done);
             });
 
             itShouldCallDone();
         });
 
-        describe('if the user has no users permissions', function() {
+        describe('if the requester has no users permissions', function() {
             beforeEach(function() {
-                req.user.permissions = { experiences: {}, elections: {}, campaigns: {} };
+                req.requester.permissions = { experiences: {}, elections: {}, campaigns: {} };
                 userModule.authorizeForceLogout(req, next, done);
             });
 
             itShouldCallDone();
         });
 
-        describe('if the user has no edit permissions for users', function() {
+        describe('if the requester has no edit permissions for users', function() {
             beforeEach(function() {
-                req.user.permissions = {
+                req.requester.permissions = {
                     users: { read: Scope.All, create: Scope.Org }
                 };
                 userModule.authorizeForceLogout(req, next, done);
@@ -2551,9 +2632,9 @@ describe('userSvc (UT)', function() {
         });
 
         [Scope.Own, Scope.Org].forEach(function(scope) {
-            describe('if the user\'s users edit permissions are ' + scope, function() {
+            describe('if the requester\'s users edit permissions are ' + scope, function() {
                 beforeEach(function() {
-                    req.user.permissions = {
+                    req.requester.permissions = {
                         users: { edit: scope }
                     };
                     userModule.authorizeForceLogout(req, next, done);
@@ -2563,9 +2644,9 @@ describe('userSvc (UT)', function() {
             });
         });
 
-        describe('if the user\'s users edit permissions are ' + Scope.All, function() {
+        describe('if the requester\'s users edit permissions are ' + Scope.All, function() {
             beforeEach(function() {
-                req.user.permissions = {
+                req.requester.permissions = {
                     users: { edit: Scope.All }
                 };
                 userModule.authorizeForceLogout(req, next, done);

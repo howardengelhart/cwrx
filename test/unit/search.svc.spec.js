@@ -21,7 +21,8 @@ describe('search (UT)', function() {
         spyOn(logger, 'getLog').and.returnValue(mockLog);
         req = {
             uuid: '1234',
-            user: { id: 'u1' }
+            user: { id: 'u1' },
+            requester: { id: 'u1', permissions: {} }
         };
         anyFunc = jasmine.any(Function);
     });

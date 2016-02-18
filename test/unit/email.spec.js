@@ -181,15 +181,67 @@ describe('email', function() {
     });
     
     describe('newUpdateRequest', function() {
+        var req;
+        beforeEach(function() {
+            req = {
+                uuid: '1234',
+                user: {
+                    id: 'u-1',
+                    email: 'selfie@c6.com',
+                    company: 'Selfie, Inc.',
+                    firstName: 'Johnny',
+                    lastName: 'Testmonkey'
+                }
+            };
+        });
+
         it('should correctly call compileAndSend', function(done) {
-            email.newUpdateRequest('send', 'recip', 'user@c6.com', 'Heinz', 'ketchupbot', 'review.me').then(function(resp) {
+            email.newUpdateRequest('send', 'recip', req, 'ketchupbot', 'review.me').then(function(resp) {
                 expect(resp).toBe('success');
                 expect(email.compileAndSend).toHaveBeenCalledWith(
                     'send',
                     'recip',
-                    'New update request from Heinz for campaign "ketchupbot"',
+                    'New update request from Selfie, Inc. for campaign "ketchupbot"',
                     'newUpdateRequest.html',
-                    { userEmail: 'user@c6.com', campName: 'ketchupbot', reviewLink: 'review.me' },
+                    { requester: 'selfie@c6.com', campName: 'ketchupbot', reviewLink: 'review.me' },
+                    [{ filename: 'logo.png', cid: 'reelContentLogo' }]
+                );
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should handle users without a company', function(done) {
+            delete req.user.company;
+            email.newUpdateRequest('send', 'recip', req, 'ketchupbot', 'review.me').then(function(resp) {
+                expect(resp).toBe('success');
+                expect(email.compileAndSend).toHaveBeenCalledWith(
+                    'send',
+                    'recip',
+                    'New update request from Johnny Testmonkey for campaign "ketchupbot"',
+                    'newUpdateRequest.html',
+                    { requester: 'selfie@c6.com', campName: 'ketchupbot', reviewLink: 'review.me' },
+                    [{ filename: 'logo.png', cid: 'reelContentLogo' }]
+                );
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should handle requests from applications', function(done) {
+            delete req.user;
+            req.application = {
+                id: 'app-1',
+                key: 'watchman'
+            };
+            email.newUpdateRequest('send', 'recip', req, 'ketchupbot', 'review.me').then(function(resp) {
+                expect(resp).toBe('success');
+                expect(email.compileAndSend).toHaveBeenCalledWith(
+                    'send',
+                    'recip',
+                    'New update request from watchman for campaign "ketchupbot"',
+                    'newUpdateRequest.html',
+                    { requester: 'watchman', campName: 'ketchupbot', reviewLink: 'review.me' },
                     [{ filename: 'logo.png', cid: 'reelContentLogo' }]
                 );
             }).catch(function(error) {
@@ -199,7 +251,7 @@ describe('email', function() {
 
         it('should pass along errors from compileAndSend', function(done) {
             email.compileAndSend.and.returnValue(q.reject('I GOT 99 PROBLEMS AND THIS IS ONE'));
-            email.newUpdateRequest('send', 'recip', 'user@c6.com', 'Heinz', 'ketchupbot', 'review.me').then(function(resp) {
+            email.newUpdateRequest('send', 'recip', req, 'ketchupbot', 'review.me').then(function(resp) {
                 expect(resp).not.toBeDefined();
             }).catch(function(error) {
                 expect(error).toBe('I GOT 99 PROBLEMS AND THIS IS ONE');

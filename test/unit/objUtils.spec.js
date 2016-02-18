@@ -75,12 +75,12 @@ describe('objUtils', function() {
             var sorted = objUtils.sortObject(obj);
             expect(JSON.stringify(sorted)).toBe(JSON.stringify({a: 2, b: 1, c: 5}));
             
-            var obj = {b: {f: 3, e: 8}, a: 2, c: [3, 2, 1]};
-            var sorted = objUtils.sortObject(obj);
+            obj = {b: {f: 3, e: 8}, a: 2, c: [3, 2, 1]};
+            sorted = objUtils.sortObject(obj);
             expect(JSON.stringify(sorted)).toBe(JSON.stringify({a: 2, b: {e: 8, f: 3}, c: [3, 2, 1]}));
             
-            var obj = {b: [{h: 1, g: 2}, {e: 5, f: 3}], a: 2};
-            var sorted = objUtils.sortObject(obj);
+            obj = {b: [{h: 1, g: 2}, {e: 5, f: 3}], a: 2};
+            sorted = objUtils.sortObject(obj);
             expect(JSON.stringify(sorted)).toBe(JSON.stringify({a: 2, b: [{g: 2, h: 1}, {e: 5, f: 3}]}));
         });
         
@@ -112,6 +112,15 @@ describe('objUtils', function() {
             expect(objUtils.compareObjects(a, b)).toBe(false);
             a.data.org = 'c6';
             expect(objUtils.compareObjects(a, b)).toBe(true);
+        });
+        
+        it('should handle non-objects too', function() {
+            expect(objUtils.compareObjects('foo', 'foo')).toBe(true);
+            expect(objUtils.compareObjects('foo', 'foob')).toBe(false);
+            expect(objUtils.compareObjects(11, 11)).toBe(true);
+            expect(objUtils.compareObjects('11', 11)).toBe(false);
+            expect(objUtils.compareObjects(true, true)).toBe(true);
+            expect(objUtils.compareObjects(true, false)).toBe(false);
         });
     });
 

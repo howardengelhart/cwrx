@@ -37,7 +37,15 @@ describe('content-cards (UT)', function() {
             })
         };
         
-        req = { uuid: '1234', baseUrl: '', route: { path: '' }, params: {}, query: {}, user: { id: 'u-1' } };
+        req = {
+            uuid: '1234',
+            baseUrl: '',
+            route: { path: '' },
+            params: {},
+            query: {},
+            user: { id: 'u-1' },
+            requester: { id: 'u-1', permissions: {} },
+        };
         nextSpy = jasmine.createSpy('next');
         doneSpy = jasmine.createSpy('done');
         errorSpy = jasmine.createSpy('caught error');
@@ -436,7 +444,7 @@ describe('content-cards (UT)', function() {
         beforeEach(function() {
             req.origObj = { id: 'rc-1' };
             req.campaign = { id: 'cam-1', status: Status.Active };
-            req.user.entitlements = {};
+            req.requester.entitlements = {};
             permitted = [Status.Draft, Status.Canceled];
         });
 
@@ -454,7 +462,7 @@ describe('content-cards (UT)', function() {
         });
         
         it('should call next if the user has the directEditCampaigns entitlement', function() {
-            req.user.entitlements.directEditCampaigns = true;
+            req.requester.entitlements.directEditCampaigns = true;
             cardModule.campStatusCheck(permitted, req, nextSpy, doneSpy);
             expect(nextSpy).toHaveBeenCalled();
             expect(doneSpy).not.toHaveBeenCalled();

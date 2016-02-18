@@ -605,7 +605,11 @@ describe('Model', function() {
         var model, req, nextSpy, doneSpy;
         beforeEach(function() {
             model = new Model('puppies', { woof: 'yes', meow: 'no' });
-            req = { body: { name: 'woofles', dog: 'yes' }, user: { id: 'u-1' } };
+            req = {
+                body: { name: 'woofles', dog: 'yes' },
+                requester: { id: 'u-1', permissions: {} },
+                user: { id: 'u-1', email: 'foo@bar.com' }
+            };
             spyOn(model, 'validate').and.returnValue({ isValid: true });
             nextSpy = jasmine.createSpy('next()');
             doneSpy = jasmine.createSpy('done()');
@@ -616,7 +620,7 @@ describe('Model', function() {
             process.nextTick(function() {
                 expect(nextSpy).toHaveBeenCalled();
                 expect(doneSpy).not.toHaveBeenCalled();
-                expect(model.validate).toHaveBeenCalledWith('create', req.body, {}, { id: 'u-1' });
+                expect(model.validate).toHaveBeenCalledWith('create', req.body, {}, req.requester);
                 expect(req.body).toEqual({ name: 'woofles', dog: 'yes' });
                 done();
             });
@@ -628,7 +632,7 @@ describe('Model', function() {
             process.nextTick(function() {
                 expect(nextSpy).toHaveBeenCalled();
                 expect(doneSpy).not.toHaveBeenCalled();
-                expect(model.validate).toHaveBeenCalledWith('edit', req.body, { name: 'woofles', dog: 'maybe' }, { id: 'u-1' });
+                expect(model.validate).toHaveBeenCalledWith('edit', req.body, { name: 'woofles', dog: 'maybe' }, req.requester);
                 expect(req.body).toEqual({ name: 'woofles', dog: 'yes' });
                 done();
             });

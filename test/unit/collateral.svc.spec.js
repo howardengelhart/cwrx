@@ -1,5 +1,5 @@
 describe('collateral (UT):', function() {
-    var mockLog, uuid, logger, collateral, q, glob, phantom, handlebars, path, enums, Scope, anyFunc, os, util;
+    var mockLog, uuid, logger, collateral, q, fs, glob, phantom, handlebars, s3util, path, enums, Scope, anyFunc, os, util;
     var request, spidey;
     var EventEmitter;
     var Promise;
@@ -71,7 +71,7 @@ describe('collateral (UT):', function() {
     describe('upload', function() {
         var s3, req, config, fileOpts;
         beforeEach(function() {
-            req = { uuid: '1234', user: { id: 'u-1', org: 'o-1' } };
+            req = { uuid: '1234', requester: { id: 'u-1', permissions: {} }, user: { id: 'u-1', org: 'o-1' } };
             s3 = {
                 headObject: jasmine.createSpy('s3.headObject').and.callFake(function(params, cb) {
                     cb('that does not exist', null);
@@ -229,6 +229,7 @@ describe('collateral (UT):', function() {
 
             req = {
                 user: { id: 'u-0507ebe9b5dc5d' },
+                requester: { id: 'u-0507ebe9b5dc5d', permissions: {} },
                 body: {
                     uri: 'https://pbs.twimg.com/profile_images/554776783967363072/2lxo5V22_400x400.png'
                 }
@@ -324,7 +325,7 @@ describe('collateral (UT):', function() {
                 }));
                 spyOn(collateral, 'checkImageType').and.returnValue(q('image/png'));
                 spyOn(collateral, 'upload').and.returnValue(q({
-                    key: path.join(config.s3.path, 'userFiles/' + req.user.id),
+                    key: path.join(config.s3.path, 'userFiles/' + req.requester.id),
                     md5: 'fu934yrhf7438rr'
                 }));
 
@@ -745,21 +746,21 @@ describe('collateral (UT):', function() {
                         });
 
                         it('should upload the image to S3', function() {
-                            expect(collateral.upload).toHaveBeenCalledWith(req, path.join(config.s3.path, 'userFiles/' + req.user.id), { path: tmpPath, type: 'image/png' }, s3, config);
+                            expect(collateral.upload).toHaveBeenCalledWith(req, path.join(config.s3.path, 'userFiles/' + req.requester.id), { path: tmpPath, type: 'image/png' }, s3, config);
                         });
 
                         describe('and the S3 upload succeeds', function() {
                             beforeEach(function(done) {
                                 done = noArgs(done);
 
-                                uploadDeferred.resolve({ key: path.join(config.s3.path, 'userFiles/' + req.user.id), md5: 'fu934yrhf7438rr' });
+                                uploadDeferred.resolve({ key: path.join(config.s3.path, 'userFiles/' + req.requester.id), md5: 'fu934yrhf7438rr' });
                                 promise.finally(done);
                             });
 
                             it('should resolve the promise with the upload location', function() {
                                 expect(success).toHaveBeenCalledWith(jasmine.objectContaining({
                                     code: 201,
-                                    body: { path: path.join(config.s3.path, 'userFiles/' + req.user.id) }
+                                    body: { path: path.join(config.s3.path, 'userFiles/' + req.requester.id) }
                                 }));
                             });
 
@@ -858,6 +859,7 @@ describe('collateral (UT):', function() {
         beforeEach(function(done) {
             req = {
                 user: { id: 'u-0507ebe9b5dc5d' },
+                requester: { id: 'u-0507ebe9b5dc5d', permissions: {} },
                 body: null,
                 query: {
                     uri: 'http://www.toyota.com/'
@@ -1078,6 +1080,7 @@ describe('collateral (UT):', function() {
             req = {
                 uuid: '1234',
                 user: { id: 'u-1', org: 'o-1' },
+                requester: { id: 'u-1', permissions: {} },
                 files: {
                     testFile: { name: 'test', type: 'text/plain', path: '/tmp/123' }
                 }
@@ -1250,6 +1253,7 @@ describe('collateral (UT):', function() {
             req = {
                 uuid: '1234',
                 user: { id: 'u-1', org: 'o-1' },
+                requester: { id: 'u-1', permissions: {} },
                 params: { expId: 'e-1' },
                 body: { ratio:'foo', thumbs: ['http://image.jpg'] }
             };
@@ -1412,7 +1416,16 @@ describe('collateral (UT):', function() {
     describe('generateSplash', function() {
         var req, imgSpec, s3, config, templDir;
         beforeEach(function() {
-            req = {uuid:'1234',user:{id:'u-1'},params:{expId:'e-1'},body:{ratio:'foo',thumbs:['http://image.jpg']}};
+            req = {
+                uuid:'1234',
+                user: { id: 'u-1' },
+                requester: { id: 'u-1', permissions: {} },
+                params: { expId: 'e-1' },
+                body: {
+                    ratio: 'foo',
+                    thumbs: ['http://image.jpg']
+                }
+            };
             imgSpec = { height: 600, width: 600, ratio: 'foo' };
             s3 = {
                 headObject: jasmine.createSpy('s3.headObject').and.callFake(function(params, cb) {
@@ -1469,7 +1482,8 @@ describe('collateral (UT):', function() {
             imgSpec.height = 2000;
             collateral.generateSplash(req, imgSpec, s3, config).catch(function(error) {
                 expect(error).toEqual({code:400,ratio:'foo',error:'Requested image size is too large'});
-                imgSpec.height = 400, imgSpec.width = 2000;
+                imgSpec.height = 400;
+                imgSpec.width = 2000;
                 return collateral.generateSplash(req, imgSpec, s3, config);
             }).catch(function(error) {
                 expect(error).toEqual({code:400,ratio:'foo',error:'Requested image size is too large'});
@@ -1495,7 +1509,7 @@ describe('collateral (UT):', function() {
         });
 
         it('should regenerate the splash if there is a cached md5 but no file on s3', function(done) {
-            collateral.splashCache['fakeHash'] = { md5: 'qwer1234', date: new Date() };
+            collateral.splashCache.fakeHash = { md5: 'qwer1234', date: new Date() };
             collateral.generateSplash(req, imgSpec, s3, config).then(function(resp) {
                 expect(resp).toEqual({code:201,ratio:'foo',path:'/path/on/s3'});
                 expect(s3.headObject).toHaveBeenCalledWith({Bucket:'bkt',Key:'ut/userFiles/u-1/qwer1234.jpg'},anyFunc);
@@ -1511,7 +1525,7 @@ describe('collateral (UT):', function() {
         });
         
         it('should regenerate the splash if there is a file on s3 with the wrong md5', function(done) {
-            collateral.splashCache['fakeHash'] = { md5: 'qwer1234', date: new Date() };
+            collateral.splashCache.fakeHash = { md5: 'qwer1234', date: new Date() };
             s3.headObject.and.callFake(function(params, cb) { cb(null, {ETag: '"qwer5678"'}); });
             collateral.generateSplash(req, imgSpec, s3, config).then(function(resp) {
                 expect(resp).toEqual({code:201,ratio:'foo',path:'/path/on/s3'});
@@ -1523,7 +1537,7 @@ describe('collateral (UT):', function() {
         });
         
         it('should not regenerate the splash if the correct file is on s3', function(done) {
-            collateral.splashCache['fakeHash'] = { md5: 'qwer1234', date: new Date() };
+            collateral.splashCache.fakeHash = { md5: 'qwer1234', date: new Date() };
             s3.headObject.and.callFake(function(params, cb) { cb(null, {ETag: '"qwer1234"'}); });
             collateral.generateSplash(req, imgSpec, s3, config).then(function(resp) {
                 expect(resp).toEqual({code:201,ratio:'foo',path:'ut/userFiles/u-1/qwer1234.jpg'});
@@ -1566,6 +1580,7 @@ describe('collateral (UT):', function() {
             req = {
                 uuid: '1234',
                 user: { id: 'u-1', org: 'o-1' },
+                requester: { id: 'u-1', permissions: {} },
                 params: { expId: 'e-1' },
                 body: {
                     imageSpecs: [{ height: 600, width: 600, ratio: 'foo' }],
@@ -1642,14 +1657,11 @@ describe('collateral (UT):', function() {
             collateral.generateSplash.and.callFake(function(req, imgSpec, s3, config) {
                 switch(imgSpec.name) {
                     case 'splash1':
-                        return q.reject({code: 400, ratio: imgSpec.ratio, name: 'splash1', error: 'YOU GOT A PROBLEM'})
-                        break;
+                        return q.reject({code: 400, ratio: imgSpec.ratio, name: 'splash1', error: 'YOU GOT A PROBLEM'});
                     case 'splash2':
-                        return q.reject({code: 500, ratio: imgSpec.ratio, name: 'splash2', error: 'I GOT A PROBLEM'})
-                        break;
+                        return q.reject({code: 500, ratio: imgSpec.ratio, name: 'splash2', error: 'I GOT A PROBLEM'});
                     case 'splash3':
-                        return q({code: 201, ratio: imgSpec.ratio, name: 'splash3', path: '/path/on/s3'})
-                        break;
+                        return q({code: 201, ratio: imgSpec.ratio, name: 'splash3', path: '/path/on/s3'});
                 }
             });
 
@@ -1672,7 +1684,12 @@ describe('collateral (UT):', function() {
     describe('setHeaders', function() {
         var req, s3, config;
         beforeEach(function() {
-            req = { uuid: '1234', user: {id: 'u-1'}, body: {path: 'ut/foo.txt', 'max-age': 100} };
+            req = {
+                uuid: '1234',
+                user: { id: 'u-1' },
+                requester: { id: 'u-1', permissions: {} },
+                body: { path: 'ut/foo.txt', 'max-age': 100 }
+            };
             config = { s3: { bucket: 'bkt' }, cacheControl: { default: 'max-age=15' } };
             s3 = {
                 headObject: jasmine.createSpy('s3.headObject').and.callFake(function(params, cb) {
@@ -1701,8 +1718,9 @@ describe('collateral (UT):', function() {
                 expect(s3.headObject).toHaveBeenCalledWith({Bucket: 'bkt', Key: 'ut/foo.txt'}, anyFunc);
                 expect(s3.copyObject).toHaveBeenCalledWith(
                     {Bucket:'bkt',Key:'ut/foo.txt',CacheControl:'max-age=100',ContentType:'text/plain',
-                     CopySource:'bkt/ut/foo.txt',ACL:'public-read',MetadataDirective:'REPLACE'}
-                , anyFunc);
+                     CopySource:'bkt/ut/foo.txt',ACL:'public-read',MetadataDirective:'REPLACE'},
+                    anyFunc
+                );
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
             }).done(done);
@@ -1715,8 +1733,9 @@ describe('collateral (UT):', function() {
                 expect(s3.headObject).toHaveBeenCalledWith({Bucket: 'bkt', Key: 'ut/foo.txt'}, anyFunc);
                 expect(s3.copyObject).toHaveBeenCalledWith(
                     {Bucket:'bkt',Key:'ut/foo.txt',CacheControl:'max-age=15',ContentType:'text/plain',
-                     CopySource:'bkt/ut/foo.txt',ACL:'public-read',MetadataDirective:'REPLACE'}
-                , anyFunc);
+                     CopySource:'bkt/ut/foo.txt',ACL:'public-read',MetadataDirective:'REPLACE'},
+                    anyFunc
+                );
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
             }).done(done);
@@ -1729,8 +1748,9 @@ describe('collateral (UT):', function() {
                 expect(s3.headObject).toHaveBeenCalledWith({Bucket: 'bkt', Key: 'ut/foo.txt'}, anyFunc);
                 expect(s3.copyObject).toHaveBeenCalledWith(
                     {Bucket:'bkt',Key:'ut/foo.txt',CacheControl:'max-age=0',ContentType:'text/plain',
-                     CopySource:'bkt/ut/foo.txt',ACL:'public-read',MetadataDirective:'REPLACE'}
-                , anyFunc);
+                     CopySource:'bkt/ut/foo.txt',ACL:'public-read',MetadataDirective:'REPLACE'},
+                    anyFunc
+                );
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
             }).done(done);
