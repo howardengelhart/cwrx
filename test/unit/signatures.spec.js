@@ -118,6 +118,142 @@ describe('signatures', function() {
         });
     });
     
+    describe('proxyRequest', function() {
+        var req, opts, files, jobPolling;
+        beforeEach(function() {
+            req = {
+                uuid: '1234',
+                user: { id: 'u-1' },
+                headers: {}
+            };
+            opts = {
+                url: 'http://staging.cinema6.com/api/campaigns'
+            };
+            files = 'manyFiles';
+            jobPolling = 'pollDemJobs';
+
+            spyOn(requestUtils, 'qRequest').and.returnValue(q({
+                response: { statusCode: 200 },
+                body: 'marvelous authentication, good sir. 10/10'
+            }));
+            mockAuthenticator = {
+                request: jasmine.createSpy('authenticator.request()').and.returnValue(q({
+                    response: { statusCode: 200 },
+                    body: 'you are the best app. 3/2 thumbs up'
+                }))
+            };
+            spyOn(signatures, 'Authenticator').and.returnValue(mockAuthenticator);
+        });
+        
+        it('should call requestUtils.qRequest', function(done) {
+            signatures.proxyRequest(req, 'get', opts, files, jobPolling).then(function(resp) {
+                expect(resp).toEqual({
+                    response: { statusCode: 200 },
+                    body: 'marvelous authentication, good sir. 10/10'
+                });
+                expect(requestUtils.qRequest).toHaveBeenCalledWith('get', {
+                    url: 'http://staging.cinema6.com/api/campaigns',
+                    headers: { cookie: undefined }
+                }, 'manyFiles', 'pollDemJobs');
+                expect(signatures.Authenticator).not.toHaveBeenCalled();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should forward the cookie header if set', function(done) {
+            req.headers.cookie = 'chocolate chip';
+            signatures.proxyRequest(req, 'get', opts, files, jobPolling).then(function(resp) {
+                expect(resp).toEqual({
+                    response: { statusCode: 200 },
+                    body: 'marvelous authentication, good sir. 10/10'
+                });
+                expect(requestUtils.qRequest).toHaveBeenCalledWith('get', {
+                    url: 'http://staging.cinema6.com/api/campaigns',
+                    headers: { cookie: 'chocolate chip' }
+                }, 'manyFiles', 'pollDemJobs');
+                expect(signatures.Authenticator).not.toHaveBeenCalled();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should not overwrite existing headers', function(done) {
+            req.headers.cookie = 'chocolate chip';
+            opts.headers = { foo: 'bar' };
+            signatures.proxyRequest(req, 'get', opts, files, jobPolling).then(function(resp) {
+                expect(resp).toEqual({
+                    response: { statusCode: 200 },
+                    body: 'marvelous authentication, good sir. 10/10'
+                });
+                expect(requestUtils.qRequest).toHaveBeenCalledWith('get', {
+                    url: 'http://staging.cinema6.com/api/campaigns',
+                    headers: { cookie: 'chocolate chip', foo: 'bar' }
+                }, 'manyFiles', 'pollDemJobs');
+                expect(signatures.Authenticator).not.toHaveBeenCalled();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should fail if requestUtils.qRequest fails', function(done) {
+            requestUtils.qRequest.and.returnValue(q.reject('THE SYSTEM IS DOWN'));
+            signatures.proxyRequest(req, 'get', opts, files, jobPolling).then(function(resp) {
+                expect(resp).not.toBeDefined();
+            }).catch(function(error) {
+                expect(error).toBe('THE SYSTEM IS DOWN');
+            }).done(done);
+        });
+        
+        describe('if there is an application already authenticated', function(done) {
+            beforeEach(function() {
+                req.application = { id: 'app-1', key: 'watchman' };
+                req._appSecret = 'iwatchthewatchman';
+            });
+
+            it('should create an authenticator and send the request with that', function(done) {
+                signatures.proxyRequest(req, 'get', opts, files, jobPolling).then(function(resp) {
+                    expect(resp).toEqual({
+                        response: { statusCode: 200 },
+                        body: 'you are the best app. 3/2 thumbs up'
+                    });
+                    expect(signatures.Authenticator).toHaveBeenCalledWith({ key: 'watchman', secret: 'iwatchthewatchman' });
+                    expect(mockAuthenticator.request).toHaveBeenCalledWith('get', {
+                        url: 'http://staging.cinema6.com/api/campaigns',
+                        headers: { cookie: undefined }
+                    }, 'manyFiles', 'pollDemJobs');
+                }).catch(function(error) {
+                    expect(error.toString()).not.toBeDefined();
+                }).done(done);
+            });
+            
+            it('should be able to also pass along the user auth', function(done) {
+                req.headers.cookie = 'chocolate chip';
+                signatures.proxyRequest(req, 'get', opts, files, jobPolling).then(function(resp) {
+                    expect(resp).toEqual({
+                        response: { statusCode: 200 },
+                        body: 'you are the best app. 3/2 thumbs up'
+                    });
+                    expect(mockAuthenticator.request).toHaveBeenCalledWith('get', {
+                        url: 'http://staging.cinema6.com/api/campaigns',
+                        headers: { cookie: 'chocolate chip' }
+                    }, 'manyFiles', 'pollDemJobs');
+                }).catch(function(error) {
+                    expect(error.toString()).not.toBeDefined();
+                }).done(done);
+            });
+
+            it('should fail if authenticator.request fails', function(done) {
+                mockAuthenticator.request.and.returnValue(q.reject('THE SYSTEM IS DOWN'));
+                signatures.proxyRequest(req, 'get', opts, files, jobPolling).then(function(resp) {
+                    expect(resp).not.toBeDefined();
+                }).catch(function(error) {
+                    expect(error).toBe('THE SYSTEM IS DOWN');
+                }).done(done);
+            });
+        });
+    });
+    
     describe('Authenticator', function() {
         var creds;
         beforeEach(function() {
@@ -427,208 +563,180 @@ describe('signatures', function() {
             });
         });
         
-        describe('middlewarify', function() {
+        describe('verifyReq', function() {
             var verifier;
             beforeEach(function() {
+                spyOn(uuid, 'hashText').and.returnValue('hashbrownies');
+                spyOn(signatures, 'signData').and.returnValue('johnhancock');
                 verifier = new signatures.Verifier(mockDb, 5000);
+                spyOn(verifier, '_fetchApplication').and.returnValue(q({
+                    _id: 'mongoid',
+                    id: 'app-1',
+                    key: 'ads-service',
+                    secret: 'supersecret',
+                    status: 'active',
+                    entitlements: { foo: true }
+                }));
+                req.method = 'get';
+                req.originalUrl = '/api/campaigns/cam-1';
+                req.body = {};
+                req.headers = {
+                    'x-rc-auth-app-key'     : 'ads-service',
+                    'x-rc-auth-timestamp'   : 1453929767464,
+                    'x-rc-auth-nonce'       : 'morelikenoncenseamirite',
+                    'x-rc-auth-signature'   : 'johnhancock'
+                };
             });
             
-            it('should return a function', function() {
-                expect(verifier.middlewarify()).toEqual(jasmine.any(Function));
-            });
-            
-            describe('returns a function which', function() {
-                var midWare, res;
-                beforeEach(function() {
-                    spyOn(uuid, 'hashText').and.returnValue('hashbrownies');
-                    spyOn(signatures, 'signData').and.returnValue('johnhancock');
-                    spyOn(verifier, '_fetchApplication').and.returnValue(q({
-                        _id: 'mongoid',
-                        id: 'app-1',
-                        key: 'ads-service',
-                        secret: 'supersecret',
-                        status: 'active',
-                        entitlements: { foo: true }
-                    }));
-                    midWare = verifier.middlewarify();
-                    res = {
-                        send: jasmine.createSpy('res.send()')
-                    };
-                    req.method = 'get';
-                    req.originalUrl = '/api/campaigns/cam-1';
-                    req.body = {};
-                    req.headers = {
-                        'x-rc-auth-app-key'     : 'ads-service',
-                        'x-rc-auth-timestamp'   : 1453929767464,
-                        'x-rc-auth-nonce'       : 'morelikenoncenseamirite',
-                        'x-rc-auth-signature'   : 'johnhancock'
-                    };
-                });
-                
-                it('should fetch the app, verify the signature, and call next', function(done) {
-                    q(midWare(req, res, nextSpy)).finally(function() {
-                        expect(nextSpy).toHaveBeenCalled();
-                        expect(res.send).not.toHaveBeenCalled();
-                        expect(req.application).toEqual({
+            it('should fetch the app, verify the signature, and return success', function(done) {
+                verifier.verifyReq(req).then(function(resp) {
+                    expect(resp).toEqual({
+                        success: true,
+                        application: {
                             id: 'app-1',
                             key: 'ads-service',
                             status: 'active',
                             entitlements: { foo: true }
-                        });
-                        expect(verifier._fetchApplication).toHaveBeenCalledWith('ads-service', req);
-                        expect(uuid.hashText).toHaveBeenCalledWith('{}', 'SHA256');
-                        expect(signatures.signData).toHaveBeenCalledWith({
-                            appKey: 'ads-service',
-                            bodyHash: 'hashbrownies',
-                            endpoint: 'GET /api/campaigns/cam-1',
-                            nonce: 'morelikenoncenseamirite',
-                            qs: null,
-                            timestamp: 1453929767464
-                        }, 'SHA256', 'supersecret');
-                        expect(mockLog.error).not.toHaveBeenCalled();
-                    }).done(done);
-                });
-                
-                ['x-rc-auth-app-key', 'x-rc-auth-timestamp', 'x-rc-auth-nonce', 'x-rc-auth-signature'].forEach(function(field) {
-                    describe('if missing the ' + field + ' header', function() {
-                        beforeEach(function() {
-                            delete req.headers[field];
-                        });
-
-                        it('should call next if required is false', function(done) {
-                            q(midWare(req, res, nextSpy)).finally(function() {
-                                expect(nextSpy).toHaveBeenCalled();
-                                expect(res.send).not.toHaveBeenCalled();
-                                expect(req.application).not.toBeDefined();
-                                expect(verifier._fetchApplication).not.toHaveBeenCalled();
-                                expect(uuid.hashText).not.toHaveBeenCalled();
-                                expect(signatures.signData).not.toHaveBeenCalled();
-                                expect(mockLog.error).not.toHaveBeenCalled();
-                            }).done(done);
-                        });
-                        
-                        it('should return a 400 if required is true', function(done) {
-                            midWare = verifier.middlewarify(true);
-                            q(midWare(req, res, nextSpy)).finally(function() {
-                                expect(nextSpy).not.toHaveBeenCalled();
-                                expect(res.send).toHaveBeenCalledWith(400, 'Must include \'' + field + '\' header');
-                                expect(req.application).not.toBeDefined();
-                                expect(verifier._fetchApplication).not.toHaveBeenCalled();
-                                expect(uuid.hashText).not.toHaveBeenCalled();
-                                expect(signatures.signData).not.toHaveBeenCalled();
-                                expect(mockLog.error).not.toHaveBeenCalled();
-                            }).done(done);
-                        });
+                        }
                     });
-                });
-                
-                it('should return a 400 if the timestamp header is too old', function(done) {
-                    jasmine.clock().tick(5001);
-                    q(midWare(req, res, nextSpy)).finally(function() {
-                        expect(nextSpy).not.toHaveBeenCalled();
-                        expect(res.send).toHaveBeenCalledWith(400, 'Request timestamp header is too old');
-                        expect(req.application).not.toBeDefined();
-                        expect(verifier._fetchApplication).not.toHaveBeenCalled();
-                        expect(uuid.hashText).not.toHaveBeenCalled();
-                        expect(signatures.signData).not.toHaveBeenCalled();
-                        expect(mockLog.error).not.toHaveBeenCalled();
-                    }).done(done);
-                });
-                
-                it('should return a 403 if the application is not found', function(done) {
-                    verifier._fetchApplication.and.returnValue(q());
-                    q(midWare(req, res, nextSpy)).finally(function() {
-                        expect(nextSpy).not.toHaveBeenCalled();
-                        expect(res.send).toHaveBeenCalledWith(403, 'Forbidden');
-                        expect(req.application).not.toBeDefined();
-                        expect(verifier._fetchApplication).toHaveBeenCalled();
-                        expect(uuid.hashText).not.toHaveBeenCalled();
-                        expect(signatures.signData).not.toHaveBeenCalled();
-                        expect(mockLog.error).not.toHaveBeenCalled();
-                    }).done(done);
-                });
-                
-                it('should correctly parse a query string out of the url', function(done) {
-                    req.originalUrl = '/api/campaigns?foo=bar&orgs=o-1,o-2';
-                    q(midWare(req, res, nextSpy)).finally(function() {
-                        expect(nextSpy).toHaveBeenCalled();
-                        expect(res.send).not.toHaveBeenCalled();
-                        expect(req.application).toEqual(jasmine.objectContaining({ id: 'app-1' }));
-                        expect(uuid.hashText).toHaveBeenCalledWith('{}', 'SHA256');
-                        expect(signatures.signData).toHaveBeenCalledWith({
-                            appKey: 'ads-service',
-                            bodyHash: 'hashbrownies',
-                            endpoint: 'GET /api/campaigns',
-                            nonce: 'morelikenoncenseamirite',
-                            qs: 'foo=bar&orgs=o-1,o-2',
-                            timestamp: 1453929767464
-                        }, 'SHA256', 'supersecret');
-                        expect(mockLog.error).not.toHaveBeenCalled();
-                    }).done(done);
-                });
-                
-                it('should stringify and hash the body', function(done) {
-                    req.body = { foo: 'bar', arr: [3, 1], d: new Date('Wed Jan 27 2016 18:51:08 GMT-0500 (EST)') };
-                    q(midWare(req, res, nextSpy)).finally(function() {
-                        expect(nextSpy).toHaveBeenCalled();
-                        expect(res.send).not.toHaveBeenCalled();
-                        expect(req.application).toEqual(jasmine.objectContaining({ id: 'app-1' }));
-                        expect(uuid.hashText).toHaveBeenCalledWith('{"foo":"bar","arr":[3,1],"d":"2016-01-27T23:51:08.000Z"}', 'SHA256');
-                        expect(signatures.signData).toHaveBeenCalledWith({
-                            appKey: 'ads-service',
-                            bodyHash: 'hashbrownies',
-                            endpoint: 'GET /api/campaigns/cam-1',
-                            nonce: 'morelikenoncenseamirite',
-                            qs: null,
-                            timestamp: 1453929767464
-                        }, 'SHA256', 'supersecret');
-                        expect(mockLog.error).not.toHaveBeenCalled();
-                    }).done(done);
-                });
-                
-                it('should also handle a string body', function(done) {
-                    req.body = 'yo body is ridiculous';
-                    q(midWare(req, res, nextSpy)).finally(function() {
-                        expect(nextSpy).toHaveBeenCalled();
-                        expect(res.send).not.toHaveBeenCalled();
-                        expect(req.application).toEqual(jasmine.objectContaining({ id: 'app-1' }));
-                        expect(uuid.hashText).toHaveBeenCalledWith('yo body is ridiculous', 'SHA256');
-                        expect(signatures.signData).toHaveBeenCalledWith({
-                            appKey: 'ads-service',
-                            bodyHash: 'hashbrownies',
-                            endpoint: 'GET /api/campaigns/cam-1',
-                            nonce: 'morelikenoncenseamirite',
-                            qs: null,
-                            timestamp: 1453929767464
-                        }, 'SHA256', 'supersecret');
-                        expect(mockLog.error).not.toHaveBeenCalled();
-                    }).done(done);
-                });
-                
-                it('should return a 401 if the signature does not match', function(done) {
-                    req.headers['x-rc-auth-signature'] = 'thomasjefferson';
-                    q(midWare(req, res, nextSpy)).finally(function() {
-                        expect(nextSpy).not.toHaveBeenCalled();
-                        expect(res.send).toHaveBeenCalledWith(401, 'Invalid signature');
-                        expect(req.application).not.toBeDefined();
-                        expect(verifier._fetchApplication).toHaveBeenCalled();
-                        expect(signatures.signData).toHaveBeenCalled();
-                        expect(mockLog.error).not.toHaveBeenCalled();
-                    }).done(done);
-                });
-                
-                it('should return a 500 if _fetchApplication fails', function(done) {
-                    verifier._fetchApplication.and.returnValue(q.reject('honey, you got a big storm coming'));
-                    q(midWare(req, res, nextSpy)).finally(function() {
-                        expect(nextSpy).not.toHaveBeenCalled();
-                        expect(res.send).toHaveBeenCalledWith(500, 'Error checking authorization of app');
-                        expect(req.application).not.toBeDefined();
-                        expect(verifier._fetchApplication).toHaveBeenCalled();
-                        expect(uuid.hashText).not.toHaveBeenCalled();
-                        expect(signatures.signData).not.toHaveBeenCalled();
-                        expect(mockLog.error).toHaveBeenCalled();
-                    }).done(done);
-                });
+                    expect(req._appSecret).toEqual('supersecret');
+                    expect(verifier._fetchApplication).toHaveBeenCalledWith('ads-service', req);
+                    expect(uuid.hashText).toHaveBeenCalledWith('{}', 'SHA256');
+                    expect(signatures.signData).toHaveBeenCalledWith({
+                        appKey: 'ads-service',
+                        bodyHash: 'hashbrownies',
+                        endpoint: 'GET /api/campaigns/cam-1',
+                        nonce: 'morelikenoncenseamirite',
+                        qs: null,
+                        timestamp: 1453929767464
+                    }, 'SHA256', 'supersecret');
+                }).done(done);
+            });
+            
+            it('should return an unsuccessful response if headers are missing', function(done) {
+                q.all(['x-rc-auth-app-key', 'x-rc-auth-timestamp', 'x-rc-auth-nonce', 'x-rc-auth-signature'].map(function(field) {
+                    var reqCopy = JSON.parse(JSON.stringify(req));
+                    delete reqCopy.headers[field];
+                    return verifier.verifyReq(reqCopy).then(function(resp) {
+                        expect(resp).toEqual({ success: false });
+                    });
+                })).then(function() {
+                    expect(verifier._fetchApplication).not.toHaveBeenCalled();
+                    expect(uuid.hashText).not.toHaveBeenCalled();
+                    expect(signatures.signData).not.toHaveBeenCalled();
+                }).catch(function(error) {
+                    expect(error.toString()).not.toBeDefined();
+                }).done(done);
+            });
+            
+            it('should return a 400 if the timestamp header is too old', function(done) {
+                jasmine.clock().tick(5001);
+                verifier.verifyReq(req).then(function(resp) {
+                    expect(resp).toEqual({
+                        success: false,
+                        code: 400,
+                        message: 'Request timestamp header is too old'
+                    });
+                    expect(verifier._fetchApplication).not.toHaveBeenCalled();
+                    expect(uuid.hashText).not.toHaveBeenCalled();
+                    expect(signatures.signData).not.toHaveBeenCalled();
+                }).done(done);
+            });
+            
+            it('should return a 403 if the application is not found', function(done) {
+                verifier._fetchApplication.and.returnValue(q());
+                verifier.verifyReq(req).then(function(resp) {
+                    expect(resp).toEqual({
+                        success: false,
+                        code: 401,
+                        message: 'Unauthorized'
+                    });
+                    expect(verifier._fetchApplication).toHaveBeenCalled();
+                    expect(uuid.hashText).not.toHaveBeenCalled();
+                    expect(signatures.signData).not.toHaveBeenCalled();
+                }).done(done);
+            });
+            
+            it('should correctly parse a query string out of the url', function(done) {
+                req.originalUrl = '/api/campaigns?foo=bar&orgs=o-1,o-2';
+                verifier.verifyReq(req).then(function(resp) {
+                    expect(resp).toEqual({
+                        success: true,
+                        application: jasmine.objectContaining({ id: 'app-1' })
+                    });
+                    expect(uuid.hashText).toHaveBeenCalledWith('{}', 'SHA256');
+                    expect(signatures.signData).toHaveBeenCalledWith({
+                        appKey: 'ads-service',
+                        bodyHash: 'hashbrownies',
+                        endpoint: 'GET /api/campaigns',
+                        nonce: 'morelikenoncenseamirite',
+                        qs: 'foo=bar&orgs=o-1,o-2',
+                        timestamp: 1453929767464
+                    }, 'SHA256', 'supersecret');
+                }).done(done);
+            });
+            
+            it('should stringify and hash the body', function(done) {
+                req.body = { foo: 'bar', arr: [3, 1], d: new Date('Wed Jan 27 2016 18:51:08 GMT-0500 (EST)') };
+                verifier.verifyReq(req).then(function(resp) {
+                    expect(resp).toEqual({
+                        success: true,
+                        application: jasmine.objectContaining({ id: 'app-1' })
+                    });
+                    expect(uuid.hashText).toHaveBeenCalledWith('{"foo":"bar","arr":[3,1],"d":"2016-01-27T23:51:08.000Z"}', 'SHA256');
+                    expect(signatures.signData).toHaveBeenCalledWith({
+                        appKey: 'ads-service',
+                        bodyHash: 'hashbrownies',
+                        endpoint: 'GET /api/campaigns/cam-1',
+                        nonce: 'morelikenoncenseamirite',
+                        qs: null,
+                        timestamp: 1453929767464
+                    }, 'SHA256', 'supersecret');
+                }).done(done);
+            });
+            
+            it('should also handle a string body', function(done) {
+                req.body = 'yo body is ridiculous';
+                verifier.verifyReq(req).then(function(resp) {
+                    expect(resp).toEqual({
+                        success: true,
+                        application: jasmine.objectContaining({ id: 'app-1' })
+                    });
+                    expect(uuid.hashText).toHaveBeenCalledWith('yo body is ridiculous', 'SHA256');
+                    expect(signatures.signData).toHaveBeenCalledWith({
+                        appKey: 'ads-service',
+                        bodyHash: 'hashbrownies',
+                        endpoint: 'GET /api/campaigns/cam-1',
+                        nonce: 'morelikenoncenseamirite',
+                        qs: null,
+                        timestamp: 1453929767464
+                    }, 'SHA256', 'supersecret');
+                }).done(done);
+            });
+            
+            it('should return a 401 if the signature does not match', function(done) {
+                req.headers['x-rc-auth-signature'] = 'thomasjefferson';
+                verifier.verifyReq(req).then(function(resp) {
+                    expect(resp).toEqual({
+                        success: false,
+                        code: 401,
+                        message: 'Unauthorized'
+                    });
+                    expect(verifier._fetchApplication).toHaveBeenCalled();
+                    expect(signatures.signData).toHaveBeenCalled();
+                }).done(done);
+            });
+            
+            it('should return a 500 if _fetchApplication fails', function(done) {
+                verifier._fetchApplication.and.returnValue(q.reject('honey, you got a big storm coming'));
+                verifier.verifyReq(req).then(function(resp) {
+                    expect(resp).not.toBeDefined();
+                }).catch(function(error) {
+                    expect(error).toBe('honey, you got a big storm coming');
+                    expect(verifier._fetchApplication).toHaveBeenCalled();
+                    expect(uuid.hashText).not.toHaveBeenCalled();
+                    expect(signatures.signData).not.toHaveBeenCalled();
+                }).done(done);
             });
         });
     });

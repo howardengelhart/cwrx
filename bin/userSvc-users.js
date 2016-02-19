@@ -199,7 +199,7 @@
                         }
 
                         req.user = svc.transformMongoDoc(result);
-                        req.requester = authUtils.createRequester(req); //TODO: test
+                        req.requester = authUtils.createRequester(req);
                         return next();
                     });
             });
