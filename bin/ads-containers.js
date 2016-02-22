@@ -61,7 +61,7 @@
         
         router.use(jobManager.setJobTimeout.bind(jobManager));
         
-        var authMidware = authUtils.objMidware('containers', { allowApps: true });
+        var authMidware = authUtils.crudMidware('containers', { allowApps: true });
         
         router.get('/:id', sessions, authMidware.read, audit, function(req, res) {
             var promise = svc.getObjs({id: req.params.id}, req, false);

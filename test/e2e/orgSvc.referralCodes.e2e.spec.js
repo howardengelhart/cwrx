@@ -3,6 +3,7 @@ var q               = require('q'),
     request         = require('request'),
     testUtils       = require('./testUtils'),
     requestUtils    = require('../../lib/requestUtils'),
+    signatures      = require('../../lib/signatures'),
     host            = process.env.host || 'localhost',
     config = {
         refUrl  : 'http://' + (host === 'localhost' ? host + ':3700' : host) + '/api/referral-codes',
@@ -10,7 +11,7 @@ var q               = require('q'),
     };
 
 describe('orgSvc referralCodes endpoints (E2E):', function() {
-    var cookieJar;
+    var cookieJar, mockApp, authenticator;
 
     beforeEach(function(done) {
         jasmine.DEFAULT_TIMEOUT_INTERVAL = 10000;
@@ -37,10 +38,21 @@ describe('orgSvc referralCodes endpoints (E2E):', function() {
                 referralCodes: { read: 'all', create: 'all', edit: 'all', delete: 'all' }
             }
         };
+        mockApp = {
+            id: 'app-e2e-refCodes',
+            key: 'e2e-refCodes',
+            status: 'active',
+            secret: 'wowsuchsecretverysecureamaze',
+            permissions: {
+                referralCodes: { read: 'all', create: 'all', edit: 'all', delete: 'all' }
+            }
+        };
+        authenticator = new signatures.Authenticator({ key: mockApp.key, secret: mockApp.secret });
         
         q.all([
             testUtils.resetCollection('users', mockUser),
-            testUtils.resetCollection('policies', testPolicy)
+            testUtils.resetCollection('policies', testPolicy),
+            testUtils.mongoUpsert('applications', { key: mockApp.key }, mockApp)
         ]).then(function(results) {
             return requestUtils.qRequest('post', {
                 url: config.authUrl + '/login',
@@ -135,6 +147,26 @@ describe('orgSvc referralCodes endpoints (E2E):', function() {
             requestUtils.qRequest('get', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(404);
                 expect(resp.body).toEqual('Object not found');
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should allow an app to get a referralCode', function(done) {
+            delete options.jar;
+            authenticator.request('get', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.body).toEqual({ id: 'e2e-ref-1', name: 'ref 1', status: 'active', code: 'asdf123456' });
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should fail if an app uses the wrong secret to make a request', function(done) {
+            var badAuth = new signatures.Authenticator({ key: mockApp.key, secret: 'WRONG' });
+            badAuth.request('get', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(401);
+                expect(resp.body).toBe('Unauthorized');
             }).catch(function(error) {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
@@ -293,6 +325,20 @@ describe('orgSvc referralCodes endpoints (E2E):', function() {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
+
+        it('should allow an app to get referralCodes', function(done) {
+            delete options.jar;
+            authenticator.request('get', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.body.length).toBe(3);
+                expect(resp.body[0].id).toBe('e2e-ref-1');
+                expect(resp.body[1].id).toBe('e2e-ref-2');
+                expect(resp.body[2].id).toBe('e2e-ref-3');
+                expect(resp.response.headers['content-range']).toBe('items 1-3/3');
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
     });
 
     describe('POST /api/referral-codes', function() {
@@ -380,6 +426,21 @@ describe('orgSvc referralCodes endpoints (E2E):', function() {
             .then(function(resp) {
                 expect(resp.response.statusCode).toBe(401);
                 expect(resp.body).toBe('Unauthorized');
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
+
+        it('should allow an app to create a referralCode', function(done) {
+            delete options.jar;
+            authenticator.request('post', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(201);
+                expect(resp.body).toEqual(jasmine.objectContaining({
+                    id          : jasmine.any(String),
+                    name        : 'fake refCode',
+                    clientId    : 'client1',
+                    code        : jasmine.any(String)
+                }));
             }).catch(function(error) {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
@@ -481,6 +542,19 @@ describe('orgSvc referralCodes endpoints (E2E):', function() {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
+
+        it('should allow an app to edit a referralCode', function(done) {
+            delete options.jar;
+            authenticator.request('put', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.body.id).toBe('e2e-ref-1');
+                expect(resp.body.name).toBe('new name');
+                expect(resp.body.code).toBe('asdf123456');
+                expect(resp.body.clientId).toBe('client1.5');
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
     });
 
     describe('DELETE /api/referral-codes/:id', function() {
@@ -553,6 +627,16 @@ describe('orgSvc referralCodes endpoints (E2E):', function() {
             .then(function(resp) {
                 expect(resp.response.statusCode).toBe(401);
                 expect(resp.body).toBe('Unauthorized');
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
+
+        it('should allow an app to delete a referralCode', function(done) {
+            delete options.jar;
+            authenticator.request('delete', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(204);
+                expect(resp.body).toBe('');
             }).catch(function(error) {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);

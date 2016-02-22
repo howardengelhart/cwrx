@@ -126,7 +126,7 @@
 
         router.use(jobManager.setJobTimeout.bind(jobManager));
         
-        var authMidware = authUtils.objMidware('roles', {});
+        var authMidware = authUtils.crudMidware('roles', {});
         
         router.get('/:id', sessions, authMidware.read, audit, function(req, res) {
             var promise = svc.getObjs({ id: req.params.id }, req, false);

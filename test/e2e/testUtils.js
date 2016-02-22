@@ -55,14 +55,28 @@ testUtils._getDb = function(userCfg) {
     }
 };
 
-testUtils.mongoFind = function(collection, query, sort, limit, skip, userCfg) {
+testUtils.mongoFind = function(collName, query, sort, limit, skip, userCfg) {
     var db, coll;
     return testUtils._getDb(userCfg)
         .then(function(database){
             db      = database;
-            coll    = db.collection(collection);
+            coll    = db.collection(collName);
             return q(coll.find(query, {sort: sort, limit: limit, skip: skip}).toArray());
         });
+};
+
+testUtils.mongoUpsert = function(collName, query, obj, userCfg) {
+    var coll;
+    
+    return testUtils._getDb(userCfg).then(function(database) {
+        coll = database.collection(collName);
+        
+        return q(coll.findOneAndUpdate(
+            query,
+            obj,
+            { w: 1, journal: true, returnOriginal: false, upsert: true, sort: { id: 1 } }
+        ));
+    });
 };
 
 testUtils.resetCollection = function(collection,data,userCfg){

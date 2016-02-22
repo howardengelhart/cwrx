@@ -4,6 +4,7 @@ var q               = require('q'),
     request         = require('request'),
     testUtils       = require('./testUtils'),
     requestUtils    = require('../../lib/requestUtils'),
+    signatures      = require('../../lib/signatures'),
     host            = process.env.host || 'localhost',
     config = {
         orgSvcUrl   : 'http://' + (host === 'localhost' ? host + ':3700' : host) + '/api/account/orgs',
@@ -17,7 +18,7 @@ var q               = require('q'),
     });
     
 describe('orgSvc orgs (E2E):', function() {
-    var cookieJar, nonAdminJar, mockRequester, nonAdminUser, testPolicies;
+    var cookieJar, nonAdminJar, mockRequester, nonAdminUser, testPolicies, mockApp, authenticator;
     
     beforeEach(function(done) {
         jasmine.DEFAULT_TIMEOUT_INTERVAL = 30000;
@@ -69,6 +70,17 @@ describe('orgSvc orgs (E2E):', function() {
                 }
             }
         ];
+        mockApp = {
+            id: 'app-e2e-orgs',
+            key: 'e2e-orgs',
+            status: 'active',
+            secret: 'wowsuchsecretverysecureamaze',
+            permissions: {
+                orgs: { read: 'all', create: 'all', edit: 'all', delete: 'all' }
+            }
+        };
+        authenticator = new signatures.Authenticator({ key: mockApp.key, secret: mockApp.secret });
+
         var logins = [
             {url: config.authUrl + '/login', json: {email: 'orgsvce2euser', password: 'password'}, jar: cookieJar},
             {url: config.authUrl + '/login', json: {email: 'orgsvce2enonadminuser', password: 'password'}, jar: nonAdminJar},
@@ -76,7 +88,8 @@ describe('orgSvc orgs (E2E):', function() {
         
         q.all([
             testUtils.resetCollection('users', [mockRequester, nonAdminUser]),
-            testUtils.resetCollection('policies', testPolicies)
+            testUtils.resetCollection('policies', testPolicies),
+            testUtils.mongoUpsert('applications', { key: mockApp.key }, mockApp)
         ]).then(function(results) {
             return q.all(logins.map(function(opts) { return requestUtils.qRequest('post', opts); }));
         }).done(function(results) {
@@ -195,6 +208,30 @@ describe('orgSvc orgs (E2E):', function() {
         it('should return a 401 error if the user is not authenticated', function(done) {
             var options = { url: config.orgSvcUrl + '/e2e-fake1' };
             requestUtils.qRequest('get', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(401);
+                expect(resp.body).toBe('Unauthorized');
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
+
+        it('should allow an app to get an org', function(done) {
+            delete options.jar;
+            authenticator.request('get', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.body).toEqual({
+                    id: 'o-1234',
+                    name: 'e2e-getId1',
+                    status: 'active'
+                });
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should fail if an app uses the wrong secret to make a request', function(done) {
+            var badAuth = new signatures.Authenticator({ key: mockApp.key, secret: 'WRONG' });
+            badAuth.request('get', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(401);
                 expect(resp.body).toBe('Unauthorized');
             }).catch(function(error) {
@@ -334,6 +371,21 @@ describe('orgSvc orgs (E2E):', function() {
             requestUtils.qRequest('get', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(401);
                 expect(resp.body).toBe('Unauthorized');
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
+
+        it('should allow an app to get orgs', function(done) {
+            delete options.jar;
+            authenticator.request('get', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.body).toEqual([
+                    { id: 'o-1234', name: 'e2e-getOrg3', status: 'active' },
+                    { id: 'o-4567', name: 'e2e-getOrg2', status: 'active' },
+                    { id: 'o-7890', name: 'e2e-getOrg1', status: 'active' }
+                ]);
+                expect(resp.response.headers['content-range']).toBe('items 1-3/3');
             }).catch(function(error) {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
@@ -478,6 +530,19 @@ describe('orgSvc orgs (E2E):', function() {
             }).done(done);
         });
 
+        it('should allow an app to create an org', function(done) {
+            delete options.jar;
+            authenticator.request('post', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(201);
+                expect(resp.body).toEqual(jasmine.objectContaining({
+                    id: jasmine.any(String),
+                    name: 'e2e-org',
+                    waterfalls: { video: ['cinema6'], display: ['cinema6'] }
+                }));
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
     });
 
     describe('PUT /api/account/orgs/:id', function() {
@@ -625,6 +690,18 @@ describe('orgSvc orgs (E2E):', function() {
             requestUtils.qRequest('put', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(401);
                 expect(resp.body).toBe('Unauthorized');
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
+
+        it('should allow an app to edit an org', function(done) {
+            delete options.jar;
+            authenticator.request('put', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.body.id).toBe('o-1234');
+                expect(resp.body.tag).toBe('bar');
+                expect(resp.body.waterfalls).toEqual({ video: ['cinema6'], display: ['cinema6'] });
             }).catch(function(error) {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
@@ -878,11 +955,19 @@ describe('orgSvc orgs (E2E):', function() {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
-    });
-});
 
-describe('test cleanup', function() {
-    it('should close db connections', function(done) {
+        it('should allow an app to delete an org', function(done) {
+            delete options.jar;
+            authenticator.request('delete', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(204);
+                expect(resp.body).toBe('');
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
+    });
+
+    afterAll(function(done) {
         testUtils.closeDbs().done(done);
     });
 });

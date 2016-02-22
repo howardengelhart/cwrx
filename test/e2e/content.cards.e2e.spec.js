@@ -4,6 +4,7 @@ var q               = require('q'),
     request         = require('request'),
     testUtils       = require('./testUtils'),
     requestUtils    = require('../../lib/requestUtils'),
+    signatures      = require('../../lib/signatures'),
     host            = process.env.host || 'localhost',
     config = {
         contentUrl  : 'http://' + (host === 'localhost' ? host + ':3300' : host) + '/api',
@@ -11,7 +12,7 @@ var q               = require('q'),
     };
 
 describe('content card endpoints (E2E):', function() {
-    var selfieJar, adminJar;
+    var selfieJar, adminJar, mockApp, authenticator;
 
     beforeEach(function(done) {
         jasmine.DEFAULT_TIMEOUT_INTERVAL = 15000;
@@ -75,6 +76,17 @@ describe('content card endpoints (E2E):', function() {
                 }
             },
         ];
+        mockApp = {
+            id: 'app-e2e-cards',
+            key: 'e2e-cards',
+            status: 'active',
+            secret: 'wowsuchsecretverysecureamaze',
+            permissions: {
+                cards: { read: 'all', create: 'all', edit: 'all', delete: 'all' }
+            },
+            fieldValidation: JSON.parse(JSON.stringify(testPolicies[1].fieldValidation))
+        };
+        authenticator = new signatures.Authenticator({ key: mockApp.key, secret: mockApp.secret });
         
         var loginOpts = {
             url: config.authUrl + '/login',
@@ -94,7 +106,8 @@ describe('content card endpoints (E2E):', function() {
         };
         q.all([
             testUtils.resetCollection('users', [selfieUser, adminUser]),
-            testUtils.resetCollection('policies', testPolicies)
+            testUtils.resetCollection('policies', testPolicies),
+            testUtils.mongoUpsert('applications', { key: mockApp.key }, mockApp)
         ]).then(function(resp) {
             return q.all([
                 requestUtils.qRequest('post', loginOpts),
@@ -686,6 +699,28 @@ describe('content card endpoints (E2E):', function() {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
+
+        it('should allow an app to get a card', function(done) {
+            var options = {url: config.contentUrl + '/content/cards/e2e-getid1'};
+            authenticator.request('get', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.body.id).toBe('e2e-getid1');
+                expect(resp.body.campaignId).toBe('cam-cards-e2e1');
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should fail if an app uses the wrong secret to make a request', function(done) {
+            var options = {url: config.contentUrl + '/content/cards/e2e-getid1'};
+            var badAuth = new signatures.Authenticator({ key: mockApp.key, secret: 'WRONG' });
+            badAuth.request('get', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(401);
+                expect(resp.body).toBe('Unauthorized');
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
     });
 
     describe('GET /api/content/cards', function() {
@@ -933,6 +968,21 @@ describe('content card endpoints (E2E):', function() {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
+
+        it('should allow an app to get cards', function(done) {
+            delete options.jar;
+            authenticator.request('get', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.body.length).toBe(4);
+                expect(resp.body[0].id).toBe('e2e-getquery1');
+                expect(resp.body[1].id).toBe('e2e-getquery2');
+                expect(resp.body[2].id).toBe('e2e-getquery3');
+                expect(resp.body[3].id).toBe('e2e-getquery4');
+                expect(resp.response.headers['content-range']).toBe('items 1-4/4');
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
     });
 
     describe('POST /api/content/cards', function() {
@@ -1108,6 +1158,29 @@ describe('content card endpoints (E2E):', function() {
             .then(function(resp) {
                 expect(resp.response.statusCode).toBe(401);
                 expect(resp.body).toBe('Unauthorized');
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
+
+        it('should allow an app to create a card', function(done) {
+            delete options.jar;
+            authenticator.request('post', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(201);
+                expect(resp.body.id).toBeDefined();
+                expect(resp.body.campaignId).toBe('cam-cards-e2e1');
+                expect(resp.body.campaign).toEqual({ minViewTime: 3 });
+                expect(resp.body.data).toEqual({
+                    foo: 'bar',
+                    skip: 5,
+                    controls: true,
+                    autoplay: true,
+                    autoadvance: false,
+                    moat: { campaign: 'cam-cards-e2e1', advertiser: 'a-1', creative: resp.body.id }
+                });
+                expect(resp.body.user).not.toBeDefined();
+                expect(resp.body.org).not.toBeDefined();
+                expect(resp.body.status).toBe('active');
             }).catch(function(error) {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
@@ -1464,6 +1537,19 @@ describe('content card endpoints (E2E):', function() {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
+
+        it('should allow an app to edit a card', function(done) {
+            delete options.jar;
+            authenticator.request('put', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.body.id).toBe('rc-put1');
+                expect(resp.body.title).toBe('best card');
+                expect(resp.body.data).toEqual(mockCards[0].data);
+                expect(resp.body.campaign).toEqual(mockCards[0].campaign);
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
     });
 
     describe('DELETE /api/content/cards/:id', function() {
@@ -1651,6 +1737,16 @@ describe('content card endpoints (E2E):', function() {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
+
+        it('should allow an app to delete a card', function(done) {
+            delete options.jar;
+            authenticator.request('delete', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(204);
+                expect(resp.body).toBe('');
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
     });
 
     describe('GET /api/campaigns/schema', function() {
@@ -1732,6 +1828,27 @@ describe('content card endpoints (E2E):', function() {
                         __default: false
                     },
                     moat: JSON.parse(JSON.stringify(cardModule.cardSchema.data.moat))
+                }));
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
+
+        it('should allow an app to get its schema', function(done) {
+            var options = {
+                url: config.contentUrl + '/content/cards/schema',
+                qs: { personalized: 'true' }
+            };
+            authenticator.request('get', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.body.user).toEqual({ __allowed: true, __type: 'string' });
+                expect(resp.body.org).toEqual({ __allowed: true, __type: 'string' });
+                expect(resp.body.campaign).toEqual(jasmine.objectContaining({
+                    minViewTime: {
+                        __type: 'number',
+                        __allowed: true,
+                        __default: 3
+                    }
                 }));
             }).catch(function(error) {
                 expect(util.inspect(error)).not.toBeDefined();

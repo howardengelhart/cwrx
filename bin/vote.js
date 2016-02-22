@@ -627,7 +627,7 @@
                 });
         });
         
-        var authMidware = authUtils.objMidware('elections', {});
+        var authMidware = authUtils.crudMidware('elections', {});
 
         webServer.get('/api/election/:electionId', sessions, authMidware.read, audit,
                                                                               function(req, res) {

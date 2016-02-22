@@ -3,6 +3,7 @@ var q               = require('q'),
     path            = require('path'),
     testUtils       = require('./testUtils'),
     requestUtils    = require('../../lib/requestUtils'),
+    signatures      = require('../../lib/signatures'),
     request         = require('request'),
     host            = process.env.host || 'localhost',
     bucket          = process.env.bucket || 'c6.dev',
@@ -12,7 +13,7 @@ var q               = require('q'),
     };
 
 describe('search (E2E):', function() {
-    var cookieJar, mockUser;
+    var cookieJar, mockUser, mockApp, authenticator;
     beforeEach(function(done) {
         jasmine.DEFAULT_TIMEOUT_INTERVAL = 30000;
 
@@ -33,7 +34,19 @@ describe('search (E2E):', function() {
             jar: cookieJar,
             json: { email: 'searche2euser', password: 'password' }
         };
-        testUtils.resetCollection('users', mockUser).then(function() {
+        mockApp = {
+            id: 'app-e2e-search',
+            key: 'e2e-searchsvc',
+            status: 'active',
+            secret: 'wowsuchsecretverysecureamaze',
+            permissions: {}
+        };
+        authenticator = new signatures.Authenticator({ key: mockApp.key, secret: mockApp.secret });
+
+        q.all([
+            testUtils.resetCollection('users', mockUser),
+            testUtils.mongoUpsert('applications', { key: mockApp.key }, mockApp)
+        ]).then(function(results) {
             return requestUtils.qRequest('post', loginOpts);
         }).done(function(resp) {
             done();
@@ -239,6 +252,31 @@ describe('search (E2E):', function() {
                 expect(resp.body).toBe('Unauthorized');
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
+            }).done(done);
+        });
+
+        it('should allow an app to get videos', function(done) {
+            delete options.jar;
+            authenticator.request('get', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.body.meta).toBeDefined();
+                expect(resp.body.meta.skipped).toBe(0);
+                expect(resp.body.meta.numResults).toBe(10);
+                expect(resp.body.meta.totalResults >= 10).toBeTruthy();
+                expect(resp.body.meta.totalResults <= 100).toBeTruthy();
+                expect(resp.body.items.length).toBe(10);
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should fail if an app uses the wrong secret to make a request', function(done) {
+            var badAuth = new signatures.Authenticator({ key: mockApp.key, secret: 'WRONG' });
+            badAuth.request('get', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(401);
+                expect(resp.body).toBe('Unauthorized');
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
     });

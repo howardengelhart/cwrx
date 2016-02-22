@@ -3,6 +3,7 @@ var q               = require('q'),
     request         = require('request'),
     testUtils       = require('./testUtils'),
     requestUtils    = require('../../lib/requestUtils'),
+    signatures      = require('../../lib/signatures'),
     host            = process.env.host || 'localhost',
     config = {
         adsUrl  : 'http://' + (host === 'localhost' ? host + ':3900' : host) + '/api',
@@ -10,7 +11,7 @@ var q               = require('q'),
     };
 
 describe('ads containers endpoints (E2E):', function() {
-    var cookieJar;
+    var cookieJar, mockApp, authenticator;
 
     beforeEach(function(done) {
         jasmine.DEFAULT_TIMEOUT_INTERVAL = 10000;
@@ -37,10 +38,21 @@ describe('ads containers endpoints (E2E):', function() {
                 containers: { read: 'all', create: 'all', edit: 'all', delete: 'all' }
             }
         };
+        mockApp = {
+            id: 'app-e2e-containers',
+            key: 'e2e-containers',
+            status: 'active',
+            secret: 'wowsuchsecretverysecureamaze',
+            permissions: {
+                containers: { read: 'all', create: 'all', edit: 'all', delete: 'all' }
+            }
+        };
+        authenticator = new signatures.Authenticator({ key: mockApp.key, secret: mockApp.secret });
         
         q.all([
             testUtils.resetCollection('users', mockUser),
-            testUtils.resetCollection('policies', testPolicy)
+            testUtils.resetCollection('policies', testPolicy),
+            testUtils.mongoUpsert('applications', { key: mockApp.key }, mockApp)
         ]).then(function(results) {
             return requestUtils.qRequest('post', {
                 url: config.authUrl + '/login',
@@ -139,6 +151,32 @@ describe('ads containers endpoints (E2E):', function() {
             requestUtils.qRequest('get', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(404);
                 expect(resp.body).toEqual('Object not found');
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
+
+        it('should allow an app to get a container', function(done) {
+            delete options.jar;
+            authenticator.request('get', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.body).toEqual({
+                    id: 'e2e-con-1',
+                    name: 'box-1',
+                    status: 'active',
+                    defaultTagParams: { container: 'box-1' }
+                });
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should fail if an app uses the wrong secret to make a request', function(done) {
+            delete options.jar;
+            var badAuth = new signatures.Authenticator({ key: mockApp.key, secret: 'WRONG' });
+            badAuth.request('get', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(401);
+                expect(resp.body).toBe('Unauthorized');
             }).catch(function(error) {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
@@ -269,6 +307,20 @@ describe('ads containers endpoints (E2E):', function() {
                 expect(resp.response.statusCode).toBe(401);
                 expect(resp.body).toBe('Unauthorized');
                 expect(resp.response.headers['content-range']).not.toBeDefined();
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
+
+        it('should allow an app to get containers', function(done) {
+            delete options.jar;
+            authenticator.request('get', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.body.length).toBe(3);
+                expect(resp.body[0].id).toBe('e2e-con-1');
+                expect(resp.body[1].id).toBe('e2e-con-2');
+                expect(resp.body[2].id).toBe('e2e-con-3');
+                expect(resp.response.headers['content-range']).toBe('items 1-3/3');
             }).catch(function(error) {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
@@ -415,6 +467,28 @@ describe('ads containers endpoints (E2E):', function() {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
+
+        it('should allow an app to create a container', function(done) {
+            delete options.jar;
+            authenticator.request('post', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(201);
+                expect(resp.body).toEqual({
+                    id          : jasmine.any(String),
+                    status      : 'active',
+                    created     : jasmine.any(String),
+                    lastUpdated : resp.body.created,
+                    name        : 'fake-container',
+                    label       : 'totally legit container',
+                    defaultTagParams : {
+                        container   : 'fake-container',
+                        type        : 'full',
+                        branding    : 'elitedaily'
+                    }
+                });
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
     });
 
     describe('PUT /api/containers/:id', function() {
@@ -536,6 +610,18 @@ describe('ads containers endpoints (E2E):', function() {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
+
+        it('should allow an app to edit a container', function(done) {
+            delete options.jar;
+            authenticator.request('put', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.body.id).toBe('e2e-con-1');
+                expect(resp.body.name).toBe('box-1');
+                expect(resp.body.label).toBe('foo bar');
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
     });
 
     describe('DELETE /api/containers/:id', function() {
@@ -613,6 +699,17 @@ describe('ads containers endpoints (E2E):', function() {
             .then(function(resp) {
                 expect(resp.response.statusCode).toBe(401);
                 expect(resp.body).toBe('Unauthorized');
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
+
+        it('should allow an app to delete a container', function(done) {
+            delete options.jar;
+            authenticator.request('delete', options)
+            .then(function(resp) {
+                expect(resp.response.statusCode).toBe(204);
+                expect(resp.body).toBe('');
             }).catch(function(error) {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);

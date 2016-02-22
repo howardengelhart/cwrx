@@ -758,7 +758,7 @@
         
         router.use(jobManager.setJobTimeout.bind(jobManager));
         
-        var authMidware = authUtils.objMidware('campaigns', { allowApps: true });
+        var authMidware = authUtils.crudMidware('campaigns', { allowApps: true });
         
         var authGetSchema = authUtils.middlewarify({ allowApps: true });
         router.get('/schema', sessions, authGetSchema, function(req, res) {

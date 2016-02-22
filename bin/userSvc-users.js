@@ -213,7 +213,7 @@
             mutex = new CacheMutex(cache, 'confirmUser:' + id, 60 * 1000);
             
         // Post a new entity of the given type
-        //TODO: should this use proxyRequest? or should we replace sixxy user hack with app auth?
+        //TODO: replace sixxy user hack with app auth
         function postEntity(entityName, opts) {
             return requestUtils.qRequest('post', opts).then(function(resp) {
                 if (resp.response.statusCode === 201) {
@@ -854,7 +854,7 @@
 
         router.use(jobManager.setJobTimeout.bind(jobManager));
         
-        var authMidware = authUtils.objMidware('users', {});
+        var authMidware = authUtils.crudMidware('users', {});
         
         var credsChecker = authUtils.userPassChecker();
         router.post('/email', credsChecker, audit, function(req, res) {

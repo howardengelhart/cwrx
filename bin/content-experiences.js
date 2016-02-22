@@ -606,7 +606,7 @@
         
         router.use(jobManager.setJobTimeout.bind(jobManager));
 
-        var authMidware = authUtils.objMidware('experiences', {});
+        var authMidware = authUtils.crudMidware('experiences', {});
         
         // private get experience by id
         router.get('/:id', sessions, authMidware.read, audit, function(req, res) {

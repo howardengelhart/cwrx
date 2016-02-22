@@ -347,6 +347,23 @@ describe('signatures', function() {
                     }), 'SHA256', 'ipoopmypants');
                 });
                 
+                it('should handle an empty qs property', function() {
+                    reqOpts.qs = {};
+                    authenticator.setHeaders('get', reqOpts);
+
+                    expect(reqOpts).toEqual({
+                        url: 'http://staging.cinema6.com/api/campaigns/cam-1234',
+                        qs: {},
+                        headers: jasmine.objectContaining({
+                            'x-rc-auth-signature'   : 'johnhancock'
+                        })
+                    });
+                    expect(signatures.signData).toHaveBeenCalledWith(jasmine.objectContaining({
+                        endpoint    : 'GET /api/campaigns/cam-1234',
+                        qs          : null,
+                    }), 'SHA256', 'ipoopmypants');
+                });
+                
                 it('should be able to use the query string in the url', function() {
                     reqOpts.url = 'http://localhost:9000/api/account/user?decorated=false&orgs=o-1,o-2,o-3&status=active';
                     authenticator.setHeaders('PoSt', reqOpts);

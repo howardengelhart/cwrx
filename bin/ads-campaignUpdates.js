@@ -646,9 +646,12 @@
         
         router.use(jobManager.setJobTimeout.bind(jobManager));
         
-        var authMidware = authUtils.objMidware('campaignUpdates', { allowApps: true });
+        var authReadUpd = authUtils.middlewarify({
+            allowApps: true,
+            permissions: { campaignUpdates: 'read' }
+        });
         
-        router.get('/updates?/', sessions, authMidware.read, audit, function(req, res) {
+        router.get('/updates?/', sessions, authReadUpd, audit, function(req, res) {
             var query = {};
             if ('statuses' in req.query) {
                 query.status = String(req.query.statuses).split(',');
@@ -669,7 +672,7 @@
             });
         });
 
-        router.get('/:campId/updates?/:id', sessions, authMidware.read, audit, function(req, res) {
+        router.get('/:campId/updates?/:id', sessions, authReadUpd, audit, function(req, res) {
             var promise = svc.getObjs({id: req.params.id, campaign: req.params.campId}, req, false);
             promise.finally(function() {
                 jobManager.endJob(req, res, promise.inspect())
@@ -679,7 +682,7 @@
             });
         });
 
-        router.get('/:campId/updates?/', sessions, authMidware.read, audit, function(req, res) {
+        router.get('/:campId/updates?/', sessions, authReadUpd, audit, function(req, res) {
             var query = { campaign: req.params.campId };
             if ('statuses' in req.query) {
                 query.status = String(req.query.statuses).split(',');
@@ -696,8 +699,9 @@
                 });
             });
         });
-
-        router.post('/:campId/updates?/', sessions, authMidware.create, audit, function(req, res) {
+        
+        var authCreateUpd = authUtils.middlewarify({ permissions: { campaignUpdates: 'create' } });
+        router.post('/:campId/updates?/', sessions, authCreateUpd, audit, function(req, res) {
             var promise;
             
             if (updateModule.canAutoApprove(req)) {
@@ -714,7 +718,8 @@
             });
         });
 
-        router.put('/:campId/updates?/:id', sessions, authMidware.edit, audit, function(req, res) {
+        var authEditUpd = authUtils.middlewarify({ permissions: { campaignUpdates: 'edit' } });
+        router.put('/:campId/updates?/:id', sessions, authEditUpd, audit, function(req, res) {
             var promise = svc.editObj(req);
             promise.finally(function() {
                 jobManager.endJob(req, res, promise.inspect())

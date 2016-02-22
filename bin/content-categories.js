@@ -66,7 +66,7 @@
         
         router.use(jobManager.setJobTimeout.bind(jobManager));
         
-        var authMidware = authUtils.objMidware('categories', { allowApps: true });
+        var authMidware = authUtils.crudMidware('categories', { allowApps: true });
 
         // want to allow anyone to get categories, so require no permissions
         var authGetCat = authUtils.middlewarify({ allowApps: true });

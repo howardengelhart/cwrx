@@ -3,6 +3,7 @@ var q               = require('q'),
     request         = require('request'),
     testUtils       = require('./testUtils'),
     requestUtils    = require('../../lib/requestUtils'),
+    signatures      = require('../../lib/signatures'),
     host            = process.env.host || 'localhost',
     config = {
         adsUrl  : 'http://' + (host === 'localhost' ? host + ':3900' : host) + '/api',
@@ -10,7 +11,7 @@ var q               = require('q'),
     };
 
 describe('ads placements endpoints (E2E):', function() {
-    var cookieJar, nonAdminJar, mockCons, mockCards, mockCamps, mockExps;
+    var cookieJar, nonAdminJar, mockCons, mockCards, mockCamps, mockExps, mockApp, authenticator;
 
     beforeEach(function(done) {
         jasmine.DEFAULT_TIMEOUT_INTERVAL = 10000;
@@ -57,6 +58,16 @@ describe('ads placements endpoints (E2E):', function() {
                 }
             }
         ];
+        mockApp = {
+            id: 'app-e2e-placements',
+            key: 'e2e-placements',
+            status: 'active',
+            secret: 'wowsuchsecretverysecureamaze',
+            permissions: {
+                placements: { read: 'all', create: 'all', edit: 'all', delete: 'all' }
+            }
+        };
+        authenticator = new signatures.Authenticator({ key: mockApp.key, secret: mockApp.secret });
 
         mockCons = [
             { id: 'con-1', status: 'active', name: 'box-active', defaultTagParams: { container: 'box-active' } },
@@ -89,7 +100,8 @@ describe('ads placements endpoints (E2E):', function() {
         
         q.all([
             testUtils.resetCollection('users', [mockUser, nonAdmin]),
-            testUtils.resetCollection('policies', testPolicies)
+            testUtils.resetCollection('policies', testPolicies),
+            testUtils.mongoUpsert('applications', { key: mockApp.key }, mockApp)
         ]).then(function(results) {
             return q.all(logins.map(function(opts) { return requestUtils.qRequest('post', opts); }));
         }).done(function(results) {
@@ -220,6 +232,33 @@ describe('ads placements endpoints (E2E):', function() {
             requestUtils.qRequest('get', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(404);
                 expect(resp.body).toEqual('Object not found');
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
+
+        it('should allow an app to get a placement', function(done) {
+            delete options.jar;
+            authenticator.request('get', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.body).toEqual(                {
+	                id: 'e2e-pl-1',
+	                status: 'active',
+	                user: 'u-selfie',
+	                org: 'o-selfie',
+	                tagParams: { type: 'full', container: 'box-1', campaign: 'cam-1' }
+                });
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should fail if an app uses the wrong secret to make a request', function(done) {
+            delete options.jar;
+            var badAuth = new signatures.Authenticator({ key: mockApp.key, secret: 'WRONG' });
+            badAuth.request('get', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(401);
+                expect(resp.body).toBe('Unauthorized');
             }).catch(function(error) {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
@@ -423,6 +462,21 @@ describe('ads placements endpoints (E2E):', function() {
                 expect(resp.response.statusCode).toBe(401);
                 expect(resp.body).toBe('Unauthorized');
                 expect(resp.response.headers['content-range']).not.toBeDefined();
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
+
+        it('should allow an app to get placements', function(done) {
+            delete options.jar;
+            authenticator.request('get', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.body.length).toBe(4);
+                expect(resp.body[0].id).toBe('e2e-pl-1');
+                expect(resp.body[1].id).toBe('e2e-pl-2');
+                expect(resp.body[2].id).toBe('e2e-pl-3');
+                expect(resp.body[3].id).toBe('e2e-pl-4');
+                expect(resp.response.headers['content-range']).toBe('items 1-4/4');
             }).catch(function(error) {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
@@ -688,6 +742,27 @@ describe('ads placements endpoints (E2E):', function() {
             .then(function(resp) {
                 expect(resp.response.statusCode).toBe(401);
                 expect(resp.body).toBe('Unauthorized');
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
+
+        it('should allow an app to create a placement', function(done) {
+            delete options.jar;
+            authenticator.request('post', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(201);
+                expect(resp.body).toEqual(jasmine.objectContaining({
+                    id          : jasmine.any(String),
+                    label       : 'totally legit placement',
+                    tagType     : 'vpaid',
+                    budget      : { daily: 100, total: 1000 },
+                    tagParams : {
+                        container   : 'box-active',
+                        campaign    : 'cam-active',
+                        type        : 'full',
+                        branding    : 'elitedaily'
+                    }
+                }));
             }).catch(function(error) {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
@@ -1042,6 +1117,18 @@ describe('ads placements endpoints (E2E):', function() {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
+
+        it('should allow an app to edit a placement', function(done) {
+            delete options.jar;
+            authenticator.request('put', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.body.id).toBe('e2e-pl-1');
+                expect(resp.body.label).toBe('foo bar');
+                expect(resp.body.tagParams).toEqual({ type: 'mobile', container: 'box-active', campaign: 'cam-active' });
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
     });
 
     describe('DELETE /api/placements/:id', function() {
@@ -1156,6 +1243,17 @@ describe('ads placements endpoints (E2E):', function() {
             .then(function(resp) {
                 expect(resp.response.statusCode).toBe(401);
                 expect(resp.body).toBe('Unauthorized');
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
+
+        it('should allow an app to delete a placement', function(done) {
+            delete options.jar;
+            authenticator.request('delete', options)
+            .then(function(resp) {
+                expect(resp.response.statusCode).toBe(204);
+                expect(resp.body).toBe('');
             }).catch(function(error) {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);

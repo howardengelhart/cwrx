@@ -36,7 +36,7 @@ ServiceError.prototype.toString = function toString() {
 state.defaultConfig = {
     appName: 'querybot',
     appDir: __dirname,
-    caches : { //TODO: may want to rename this now...
+    caches : {
         run     : path.normalize('/usr/local/share/cwrx/' + state.name + '/caches/run/'),
     },
     sessions: {

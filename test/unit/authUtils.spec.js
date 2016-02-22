@@ -1151,7 +1151,7 @@ describe('authUtils', function() {
         });
     });
     
-    describe('objMidware', function() {
+    describe('crudMidware', function() {
         var objName, spies;
         beforeEach(function() {
             objName = 'thangs';
@@ -1167,7 +1167,7 @@ describe('authUtils', function() {
         });
 
         it('should return an object with middleware for each verb', function() {
-            expect(authUtils.objMidware(objName)).toEqual({
+            expect(authUtils.crudMidware(objName)).toEqual({
                 read: spies.read,
                 create: spies.create,
                 edit: spies.edit,
@@ -1181,7 +1181,7 @@ describe('authUtils', function() {
         
         it('should not overwrite existing opts', function() {
             var opts = { allowApps: true, permissions: { stuffs: 'create' } };
-            expect(authUtils.objMidware(objName, opts)).toEqual({
+            expect(authUtils.crudMidware(objName, opts)).toEqual({
                 read: spies.read,
                 create: spies.create,
                 edit: spies.edit,
