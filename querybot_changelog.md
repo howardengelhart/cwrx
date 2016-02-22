@@ -1,5 +1,7 @@
 # QueryBot Service Changelog
 
+* Support app authentication: [#798](https://github.com/cinema6/cwrx/pull/798)
+
 ### 1.2.1: Tue Jan 19 12:33:29 EST 2016
 * [FIX] : Fixed cloudwatch metrics (wrong metric going to wrong name) : [#743](https://github.com/cinema6/cwrx/issues/743)
 

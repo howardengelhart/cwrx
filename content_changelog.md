@@ -1,5 +1,7 @@
 # Content Service Changelog
 
+* Support app authentication: [#798](https://github.com/cinema6/cwrx/pull/798)
+
 ### 4.0.2: Mon Feb  8 13:39:09 EST 2016
 * Do not allow deleting cards for completed/outOfBudget campaigns: [#784](https://github.com/cinema6/cwrx/issues/784)
 * Allow returning cards from public endpoints for any non-deleted campaign: [#784](https://github.com/cinema6/cwrx/issues/784)

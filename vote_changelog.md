@@ -1,5 +1,6 @@
 # Vote Service Changelog
 
+* Support app authentication: [#798](https://github.com/cinema6/cwrx/pull/798)
 * Upgrade mongo driver to 2.x, fixing reconnect issues: [#717](https://github.com/cinema6/cwrx/pull/717)
 
 ### 1.4.3: Thu Oct 15 13:24:56 EDT 2015

@@ -1,5 +1,6 @@
 # Search Service Changelog
 
+* Support app authentication: [#798](https://github.com/cinema6/cwrx/pull/798)
 * [REMOVAL]: Remove support for yahoo, rumble, and aol vidoes: [#669](https://github.com/cinema6/cwrx/issues/669)
 * Upgrade mongo driver to 2.x, fixing reconnect issues: [#717](https://github.com/cinema6/cwrx/pull/717)
 
