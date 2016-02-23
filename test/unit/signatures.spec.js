@@ -108,7 +108,7 @@ describe('signatures', function() {
         beforeEach(function() {
             creds = { key: 'ads-service', secret: 'ipoopmypants' };
             spyOn(uuid, 'hashText').and.returnValue('hashbrowns');
-            spyOn(uuid, 'createUuid').and.returnValue('uuuuuuuuuuuuuuuuuuid');
+            spyOn(uuid, 'randomUuid').and.returnValue('uuuuuuuuuuuuuuuuuuid');
             spyOn(signatures, 'signData').and.returnValue('johnhancock');
             reqOpts = {
                 url: 'http://staging.cinema6.com/api/campaigns/cam-1234',
