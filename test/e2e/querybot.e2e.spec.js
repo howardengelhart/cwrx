@@ -1,8 +1,8 @@
 var q               = require('q'),
+    util            = require('util'),
     request         = require('request'),
     isArray         = require('util').isArray,
     requestUtils    = require('../../lib/requestUtils'),
-    signatures      = require('../../lib/signatures'),
     testUtils       = require('./testUtils'),
     host            = process.env.host || 'localhost',
     config = {
@@ -38,7 +38,7 @@ function pgQuery(conn,statement) {
 
 describe('querybot (E2E)', function(){
     var pgdata_campaign_summary_hourly, mockUser, mockCamps, pgconn,
-        cookieJar, options, camp1Data, camp2Data, camp5Data, mockApp, authenticator;
+        cookieJar, options, camp1Data, camp2Data, camp5Data, mockApp, appCreds;
 
     beforeEach(function(done){
         pgconn = {
@@ -255,7 +255,7 @@ describe('querybot (E2E)', function(){
                 campaigns: { read: 'all', create: 'all', edit: 'all', delete: 'all' }
             }
         };
-        authenticator = new signatures.Authenticator({ key: mockApp.key, secret: mockApp.secret });
+        appCreds = { key: mockApp.key, secret: mockApp.secret };
         
         mockCamps = [
             { id: 'cam-1757d5cd13e383', name: 'camp 1', status: 'active',
@@ -461,7 +461,7 @@ describe('querybot (E2E)', function(){
         it('should allow an app to get stats', function(done) {
             delete options.jar;
             options.url += '/cam-1757d5cd13e383';
-            authenticator.request('get', options).then(function(resp) {
+            requestUtils.makeSignedRequest(appCreds, 'get', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
                 expect(resp.body).toEqual(camp1Data);
             }).catch(function(error) {
@@ -471,8 +471,8 @@ describe('querybot (E2E)', function(){
         
         it('should fail if an app uses the wrong secret to make a request', function(done) {
             delete options.jar;
-            var badAuth = new signatures.Authenticator({ key: mockApp.key, secret: 'WRONG' });
-            badAuth.request('get', options).then(function(resp) {
+            var badCreds = { key: mockApp.key, secret: 'WRONG' };
+            requestUtils.makeSignedRequest(badCreds, 'get', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(401);
                 expect(resp.body).toBe('Unauthorized');
             }).catch(function(error) {
@@ -541,7 +541,7 @@ describe('querybot (E2E)', function(){
         it('should allow an app to get stats', function(done) {
             delete options.jar;
             options.url += '/?ids=cam-1757d5cd13e383';
-            authenticator.request('get', options).then(function(resp) {
+            requestUtils.makeSignedRequest(appCreds, 'get', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
                 expect(resp.body).toEqual([ camp1Data ]);
             }).catch(function(error) {

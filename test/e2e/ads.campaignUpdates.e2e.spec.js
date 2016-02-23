@@ -4,7 +4,6 @@ var q               = require('q'),
     util            = require('util'),
     testUtils       = require('./testUtils'),
     requestUtils    = require('../../lib/requestUtils'),
-    signatures      = require('../../lib/signatures'),
     host            = process.env.host || 'localhost',
     config = {
         adsUrl      : 'http://' + (host === 'localhost' ? host + ':3900' : host) + '/api',
@@ -22,7 +21,7 @@ jasmine.DEFAULT_TIMEOUT_INTERVAL = 30000;
 
 describe('ads campaignUpdates endpoints (E2E):', function() {
     var selfieJar, adminJar, testPolicies, createdCamp, createdCampDecorated,
-        mailman, selfieCredit, selfiePaypal, adminCredit, mockOrgs, mockApp, authenticator;
+        mailman, selfieCredit, selfiePaypal, adminCredit, mockOrgs, mockApp, appCreds;
 
     beforeAll(function(done) {
 
@@ -119,7 +118,7 @@ describe('ads campaignUpdates endpoints (E2E):', function() {
                 autoApproveUpdates: true
             }
         };
-        authenticator = new signatures.Authenticator({ key: mockApp.key, secret: mockApp.secret });
+        appCreds = { key: mockApp.key, secret: mockApp.secret };
         
         var loginOpts = {
             url: config.authUrl + '/login',
@@ -362,7 +361,7 @@ describe('ads campaignUpdates endpoints (E2E):', function() {
 
         it('should allow an app to get an update', function(done) {
             delete options.jar;
-            authenticator.request('get', options).then(function(resp) {
+            requestUtils.makeSignedRequest(appCreds, 'get', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
                 expect(resp.body).toEqual({ id: 'ur-getId1', campaign: 'cam-getId1', status: 'pending',
                     user: 'e2e-user', org: 'o-selfie', data: {} });
@@ -373,8 +372,8 @@ describe('ads campaignUpdates endpoints (E2E):', function() {
         
         it('should fail if an app uses the wrong secret to make a request', function(done) {
             delete options.jar;
-            var badAuth = new signatures.Authenticator({ key: mockApp.key, secret: 'WRONG' });
-            badAuth.request('get', options).then(function(resp) {
+            var badCreds = { key: mockApp.key, secret: 'WRONG' };
+            requestUtils.makeSignedRequest(badCreds, 'get', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(401);
                 expect(resp.body).toBe('Unauthorized');
             }).catch(function(error) {
@@ -545,7 +544,7 @@ describe('ads campaignUpdates endpoints (E2E):', function() {
 
         it('should allow an app to get updates', function(done) {
             delete options.jar;
-            authenticator.request('get', options).then(function(resp) {
+            requestUtils.makeSignedRequest(appCreds, 'get', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
                 expect(resp.body.length).toBe(5);
                 expect(resp.body[0].id).toBe('ur-getQry1');
@@ -724,7 +723,7 @@ describe('ads campaignUpdates endpoints (E2E):', function() {
 
         it('should allow an app to get updates', function(done) {
             delete options.jar;
-            authenticator.request('get', options).then(function(resp) {
+            requestUtils.makeSignedRequest(appCreds, 'get', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
                 expect(resp.body.length).toBe(5);
                 expect(resp.body[0].id).toBe('ur-getQry1');

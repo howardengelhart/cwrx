@@ -7,8 +7,8 @@
         express         = require('express'),
         Status          = require('../lib/enums').Status,
         campaignUtils   = require('../lib/campaignUtils'),
+        requestUtils    = require('../lib/requestUtils'),
         mongoUtils      = require('../lib/mongoUtils'),
-        signatures      = require('../lib/signatures'),
         authUtils       = require('../lib/authUtils'),
         historian       = require('../lib/historian'),
         objUtils        = require('../lib/objUtils'),
@@ -74,8 +74,7 @@
             );
         });
 
-        var authenticator = new signatures.Authenticator(appCreds),
-            coll = db.collection('campaignUpdates'),
+        var coll = db.collection('campaignUpdates'),
             svc = new CrudSvc(coll, 'ur', { statusHistory: true }, updateModule.updateSchema);
         svc._db = db;
         
@@ -88,7 +87,7 @@
             handleInitialSubmit = updateModule.handleInitialSubmit.bind(updateModule, svc),
             lockCampaign        = updateModule.lockCampaign.bind(updateModule, svc),
             unlockCampaign      = updateModule.unlockCampaign.bind(updateModule, svc),
-            applyUpdate         = updateModule.applyUpdate.bind(updateModule, svc, authenticator),
+            applyUpdate         = updateModule.applyUpdate.bind(updateModule, svc, appCreds),
             notifyOwner         = updateModule.notifyOwner.bind(updateModule, svc);
             
         svc.use('create', fetchCamp);
@@ -166,7 +165,7 @@
             campId = req.params.campId;
             
         log.trace('[%1] Fetching campaign %2', req.uuid, String(campId));
-        return signatures.proxyRequest(req, 'get', {
+        return requestUtils.proxyRequest(req, 'get', {
             url: urlUtils.resolve(updateModule.config.api.campaigns.baseUrl, campId)
         })
         .then(function(resp) {
@@ -268,7 +267,7 @@
         }
         
         // get non-personalized schema, as we will construct a model that personalizes it here
-        return signatures.proxyRequest(req, 'get', {
+        return requestUtils.proxyRequest(req, 'get', {
             url: urlUtils.resolve(updateModule.config.api.cards.baseUrl, 'schema')
         })
         .then(function(resp) {
@@ -512,7 +511,7 @@
     /* Apply update request to campaign by proxying a PUT request. Assumes the user editing the
      * campaign update request has permission to edit all campaigns. Fails if any non-200 response
      * is returned from the campaign service, and attempts to re-lock the campaign. */
-    updateModule.applyUpdate = function(svc, authenticator, req, next/*, done*/) {
+    updateModule.applyUpdate = function(svc, appCreds, req, next/*, done*/) {
         var log = logger.getLog(),
             updateId = req.origObj && req.origObj.id || req.body.id,
             campId = req.campaign.id;
@@ -523,7 +522,7 @@
         
         delete req.body.data.updateRequest;
         
-        return authenticator.request('put', {
+        return requestUtils.makeSignedRequest(appCreds, 'put', {
             url: urlUtils.resolve(updateModule.config.api.campaigns.baseUrl, campId),
             json: req.body.data,
             headers: { cookie: req.headers.cookie }

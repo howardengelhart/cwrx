@@ -3,7 +3,6 @@ var q               = require('q'),
     request         = require('request'),
     testUtils       = require('./testUtils'),
     requestUtils    = require('../../lib/requestUtils'),
-    signatures      = require('../../lib/signatures'),
     host            = process.env.host || 'localhost',
     config = {
         geoUrl  : 'http://' + (host === 'localhost' ? host + ':4200' : host) + '/api/geo',
@@ -11,7 +10,7 @@ var q               = require('q'),
     };
 
 describe('geo (E2E):', function() {
-    var cookieJar, mockApp, authenticator;
+    var cookieJar, mockApp, appCreds;
 
     beforeEach(function(done) {
         jasmine.DEFAULT_TIMEOUT_INTERVAL = 10000;
@@ -43,7 +42,7 @@ describe('geo (E2E):', function() {
             secret: 'wowsuchsecretverysecureamaze',
             permissions: {}
         };
-        authenticator = new signatures.Authenticator({ key: mockApp.key, secret: mockApp.secret });
+        appCreds = { key: mockApp.key, secret: mockApp.secret };
         
         q.all([
             testUtils.resetCollection('users', mockUser),
@@ -141,7 +140,7 @@ describe('geo (E2E):', function() {
 
         it('should allow an app to get a zipcode', function(done) {
             delete options.jar;
-            authenticator.request('get', options).then(function(resp) {
+            requestUtils.makeSignedRequest(appCreds, 'get', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
                 expect(resp.body).toEqual(jasmine.objectContaining({
                     zipcode: '08540',
@@ -158,8 +157,8 @@ describe('geo (E2E):', function() {
         
         it('should fail if an app uses the wrong secret to make a request', function(done) {
             delete options.jar;
-            var badAuth = new signatures.Authenticator({ key: mockApp.key, secret: 'WRONG' });
-            badAuth.request('get', options).then(function(resp) {
+            var badCreds = { key: mockApp.key, secret: 'WRONG' };
+            requestUtils.makeSignedRequest(badCreds, 'get', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(401);
                 expect(resp.body).toBe('Unauthorized');
             }).catch(function(error) {
@@ -301,7 +300,7 @@ describe('geo (E2E):', function() {
         
         it('should allow an app to get zipcodes', function(done) {
             delete options.jar;
-            authenticator.request('get', options).then(function(resp) {
+            requestUtils.makeSignedRequest(appCreds, 'get', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
                 expect(resp.body.length).toBe(5);
                 expect(resp.body[0].zipcode).toBe('00401');

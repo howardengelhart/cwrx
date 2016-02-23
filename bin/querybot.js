@@ -15,7 +15,7 @@ var q                 = require('q'),
     dbpass            = require('../lib/dbpass'),
     logger            = require('../lib/logger'),
     authUtils         = require('../lib/authUtils'),
-    signatures        = require('../lib/signatures'),
+    requestUtils      = require('../lib/requestUtils'),
     service           = require('../lib/service'),
     inspect           = require('util').inspect,
     state   = {},
@@ -190,7 +190,7 @@ lib.queryParamsFromRequest = function(req){
 
     idList = ids.join(',');
     log.trace('[%1] campaign check: %2, ids=%3', req.uuid,urlBase , idList);
-    return signatures.proxyRequest(req, 'get', {
+    return requestUtils.proxyRequest(req, 'get', {
         url: urlBase,
         qs : {
             ids    : idList,

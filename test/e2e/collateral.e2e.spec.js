@@ -7,7 +7,7 @@ var q               = require('q'),
     signatures      = require('../../lib/signatures'),
     request         = require('request'),
     parseURL        = require('url').parse,
-    host            = process.env['host'] || 'localhost',
+    host            = process.env.host || 'localhost',
     bucket          = process.env.bucket || 'c6.dev',
     config = {
         collateralUrl   : 'http://' + (host === 'localhost' ? host + ':3600' : host) + '/api',
@@ -15,7 +15,7 @@ var q               = require('q'),
     };
 
 describe('collateral (E2E):', function() {
-    var cookieJar, mockUser, mockApp, authenticator;
+    var cookieJar, mockUser, mockApp, appCreds;
     beforeEach(function(done) {
         jasmine.DEFAULT_TIMEOUT_INTERVAL = 30000;
 
@@ -45,7 +45,7 @@ describe('collateral (E2E):', function() {
             secret: 'wowsuchsecretverysecureamaze',
             permissions: {}
         };
-        authenticator = new signatures.Authenticator({ key: mockApp.key, secret: mockApp.secret });
+        appCreds = { key: mockApp.key, secret: mockApp.secret };
 
         var loginOpts = {
             url: config.authUrl + '/auth/login',
@@ -179,7 +179,7 @@ describe('collateral (E2E):', function() {
                 files.newFile = samples[1].path;
                 requestUtils.qRequest('post', options, files).then(function(resp) {
                     expect(resp.response.statusCode).toBe(201);
-                    resp.body.sort(function(a, b) { return a.path < b.path ? -1 : 1 });
+                    resp.body.sort(function(a, b) { return a.path < b.path ? -1 : 1; });
                     expect(resp.body).toEqual([
                         {code: 201, name: 'testFile', path: 'collateral/userFiles/e2e-user/' + samples[0].etag + '.jpg'},
                         {code: 201, name: 'newFile', path: 'collateral/userFiles/e2e-user/' + samples[1].etag + '.jpg'}
@@ -262,7 +262,7 @@ describe('collateral (E2E):', function() {
 
             it('should allow an app to upload a file', function(done) {
                 delete options.jar;
-                authenticator.request('post', options, files).then(function(resp) {
+                requestUtils.makeSignedRequest(appCreds, 'post', options, files).then(function(resp) {
                     expect(resp.response.statusCode).toBe(201);
                     expect(resp.body).toEqual([{code: 201, name: 'testFile', path: 'collateral/userFiles/app-e2e-collateral/' + samples[0].etag + '.jpg'}]);
                     rmList.push(resp.body[0].path);
@@ -272,8 +272,8 @@ describe('collateral (E2E):', function() {
             });
             
             it('should fail if an app uses the wrong secret to make a request', function(done) {
-                var badAuth = new signatures.Authenticator({ key: mockApp.key, secret: 'WRONG' });
-                badAuth.request('post', options, files).then(function(resp) {
+                var badCreds = { key: mockApp.key, secret: 'WRONG' };
+                requestUtils.makeSignedRequest(badCreds, 'post', options, files).then(function(resp) {
                     expect(resp.response.statusCode).toBe(401);
                     expect(resp.body).toBe('Unauthorized');
                 }).catch(function(error) {
@@ -495,7 +495,7 @@ describe('collateral (E2E):', function() {
         it('should allow an app to upload a reupload a valid image uri', function(done) {
             delete options.jar;
             options.json.uri = samples[0].url;
-            authenticator.request('post', options).then(function(resp) {
+            requestUtils.makeSignedRequest(appCreds, 'post', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(201);
                 expect(resp.body).toEqual({
                     path: 'collateral/userFiles/app-e2e-collateral/' + samples[0].etag + '.jpg'
@@ -619,7 +619,7 @@ describe('collateral (E2E):', function() {
         it('should allow an app to get website data for a valid uri', function(done) {
             delete options.jar;
             options.qs.uri = 'https://s3.amazonaws.com/c6.dev/e2e/samplePages/toyota.html';
-            authenticator.request('get', options).then(function(resp) {
+            requestUtils.makeSignedRequest(appCreds, 'get', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
                 expect(resp.body).toEqual({
                     links: {
@@ -830,7 +830,7 @@ describe('collateral (E2E):', function() {
                 ];
                 q.all(etags.map(function(etag, index) {
                     options.json.thumbs = samples.slice(0, index + 1);
-                    if (index == 6) options.json.thumbs.push(samples[5]);
+                    if (index === 6) options.json.thumbs.push(samples[5]);
                     return requestUtils.qRequest('post', options).then(function(resp) {
                         expect(resp.response.statusCode).toBe(201);
                         expect(resp.body).toEqual([{code: 201, ratio: '__e2e',
@@ -865,7 +865,7 @@ describe('collateral (E2E):', function() {
 
             it('should allow an app to generate splash a splash image', function(done) {
                 delete options.jar;
-                authenticator.request('post', options).then(function(resp) {
+                requestUtils.makeSignedRequest(appCreds, 'post', options).then(function(resp) {
                     expect(resp.response.statusCode).toBe(201);
                     expect(resp.response.statusCode).toBe(201);
                     expect(resp.body).toEqual([{code: 201, ratio: '__e2e', path: 'collateral/userFiles/app-e2e-collateral/1ac1b4765354b78678dac5f83a008892.jpg'}]);
@@ -955,7 +955,7 @@ describe('collateral (E2E):', function() {
         });
         
         it('should throw a 404 if the file is not found', function(done) {
-            options.json.path = 'collateral/e-1234/fake.txt'
+            options.json.path = 'collateral/e-1234/fake.txt';
             requestUtils.qRequest('post', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(404);
                 expect(resp.body).toBe('File not found');
@@ -984,7 +984,7 @@ describe('collateral (E2E):', function() {
 
         it('should allow an app to set headers', function(done) {
             delete options.jar;
-            authenticator.request('post', options).then(function(resp) {
+            requestUtils.makeSignedRequest(appCreds, 'post', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
                 expect(resp.body).toBe('collateral/e-1234/test.txt');
                 return requestUtils.qRequest('head', {url: 'https://s3.amazonaws.com/' + path.join(bucket, resp.body)});

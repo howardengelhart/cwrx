@@ -4,7 +4,6 @@ var q               = require('q'),
     util            = require('util'),
     testUtils       = require('./testUtils'),
     requestUtils    = require('../../lib/requestUtils'),
-    signatures      = require('../../lib/signatures'),
     host            = process.env.host || 'localhost',
     config = {
         adsUrl      : 'http://' + (host === 'localhost' ? host + ':3900' : host) + '/api',
@@ -21,7 +20,7 @@ var q               = require('q'),
     });
 
 describe('ads campaigns endpoints (E2E):', function() {
-    var selfieJar, adminJar, selfiePayment, adminPayment, mockOrgs, mockCards, mockExps, mockApp, authenticator;
+    var selfieJar, adminJar, selfiePayment, adminPayment, mockOrgs, mockCards, mockExps, mockApp, appCreds;
 
     beforeEach(function(done) {
         jasmine.DEFAULT_TIMEOUT_INTERVAL = 10000;
@@ -128,7 +127,7 @@ describe('ads campaigns endpoints (E2E):', function() {
                 directEditCampaigns: true
             }
         };
-        authenticator = new signatures.Authenticator({ key: mockApp.key, secret: mockApp.secret });
+        appCreds = { key: mockApp.key, secret: mockApp.secret };
         
         var loginOpts = {
             url: config.authUrl + '/login',
@@ -327,7 +326,7 @@ describe('ads campaigns endpoints (E2E):', function() {
 
         it('should allow an app to get a campaign', function(done) {
             var options = {url: config.adsUrl + '/campaigns/e2e-getid1' };
-            authenticator.request('get', options).then(function(resp) {
+            requestUtils.makeSignedRequest(appCreds, 'get', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
                 expect(resp.body).toEqual({ id: 'e2e-getid1', name: 'camp 1', status: 'active',
                     user: 'not-e2e-user', org: 'o-selfie' });
@@ -338,8 +337,8 @@ describe('ads campaigns endpoints (E2E):', function() {
         
         it('should fail if an app uses the wrong secret to make a request', function(done) {
             var options = { url: config.adsUrl + '/campaigns/e2e-getid1' };
-            var badAuth = new signatures.Authenticator({ key: mockApp.key, secret: 'WRONG' });
-            badAuth.request('get', options).then(function(resp) {
+            var badCreds = { key: mockApp.key, secret: 'WRONG' };
+            requestUtils.makeSignedRequest(badCreds, 'get', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(401);
                 expect(resp.body).toBe('Unauthorized');
             }).catch(function(error) {
@@ -720,7 +719,7 @@ describe('ads campaigns endpoints (E2E):', function() {
 
         it('should allow an app to get campaigns', function(done) {
             delete options.jar;
-            authenticator.request('get', options).then(function(resp) {
+            requestUtils.makeSignedRequest(appCreds, 'get', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
                 expect(resp.body.length).toBe(5);
                 expect(resp.body[0].id).toBe('e2e-getquery1');
@@ -1256,7 +1255,7 @@ describe('ads campaigns endpoints (E2E):', function() {
         it('should allow an app to create a campaign', function(done) {
             delete options.jar;
             options.json = { name: 'empty camp', advertiserId: 'e2e-a-1' };
-            authenticator.request('post', options).then(function(resp) {
+            requestUtils.makeSignedRequest(appCreds, 'post', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(201);
                 expect(resp.body.id).toBeDefined();
                 expect(resp.body.user).not.toBeDefined();
@@ -2003,7 +2002,7 @@ describe('ads campaigns endpoints (E2E):', function() {
             delete options.jar;
             options.json = { name: 'updated fake camp' };
 
-            authenticator.request('put', options).then(function(resp) {
+            requestUtils.makeSignedRequest(appCreds, 'put', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
                 expect(resp.body.name).toBe('updated fake camp');
             }).catch(function(error) {
@@ -2188,7 +2187,7 @@ describe('ads campaigns endpoints (E2E):', function() {
         });
         
         it('should allow an app to delete a campaign', function(done) {
-            authenticator.request('delete', { url: config.adsUrl + '/campaigns/e2e-del2' })
+            requestUtils.makeSignedRequest(appCreds, 'delete', { url: config.adsUrl + '/campaigns/e2e-del2' })
             .then(function(resp) {
                 expect(resp.response.statusCode).toBe(204);
                 expect(resp.body).toBe('');
@@ -2263,7 +2262,7 @@ describe('ads campaigns endpoints (E2E):', function() {
                 url: config.adsUrl + '/campaigns/schema',
                 qs: { personalized: 'true' }
             };
-            authenticator.request('get', options).then(function(resp) {
+            requestUtils.makeSignedRequest(appCreds, 'get', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
                 expect(resp.body.miniReels).toEqual({ __allowed: true, __type: 'objectArray' });
                 expect(resp.body.staticCardMap).toEqual({ __allowed: true, __type: 'object' });

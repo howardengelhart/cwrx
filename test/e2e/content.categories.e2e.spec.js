@@ -3,7 +3,6 @@ var q               = require('q'),
     request         = require('request'),
     testUtils       = require('./testUtils'),
     requestUtils    = require('../../lib/requestUtils'),
-    signatures      = require('../../lib/signatures'),
     host            = process.env.host || 'localhost',
     config = {
         contentUrl  : 'http://' + (host === 'localhost' ? host + ':3300' : host) + '/api',
@@ -11,7 +10,7 @@ var q               = require('q'),
     };
 
 describe('content category endpoints (E2E):', function() {
-    var e2eUserJar, somePermsJar, adminJar, mockUsers, mockCats, mockApp, authenticator;
+    var e2eUserJar, somePermsJar, adminJar, mockUsers, mockCats, mockApp, appCreds;
 
     beforeEach(function(done) {
         jasmine.DEFAULT_TIMEOUT_INTERVAL = 5000;
@@ -117,7 +116,7 @@ describe('content category endpoints (E2E):', function() {
                 categories: { read: 'all', create: 'all', edit: 'all', delete: 'all' }
             }
         };
-        authenticator = new signatures.Authenticator({ key: mockApp.key, secret: mockApp.secret });
+        appCreds = { key: mockApp.key, secret: mockApp.secret };
 
         var logins = [
             {url:config.authUrl + '/auth/login',jar:e2eUserJar,json: {email:'contente2euser',password:'password'}},
@@ -259,7 +258,7 @@ describe('content category endpoints (E2E):', function() {
 
         it('should allow an app to get a category', function(done) {
             var options = {url: config.contentUrl + '/content/category/e2e-id1'};
-            authenticator.request('get', options).then(function(resp) {
+            requestUtils.makeSignedRequest(appCreds, 'get', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
                 expect(resp.body).toEqual(jasmine.objectContaining({
                     id: 'e2e-id1',
@@ -273,8 +272,8 @@ describe('content category endpoints (E2E):', function() {
         
         it('should fail if an app uses the wrong secret to make a request', function(done) {
             var options = {url: config.contentUrl + '/content/cards/e2e-getid1'};
-            var badAuth = new signatures.Authenticator({ key: mockApp.key, secret: 'WRONG' });
-            badAuth.request('get', options).then(function(resp) {
+            var badCreds = { key: mockApp.key, secret: 'WRONG' };
+            requestUtils.makeSignedRequest(badCreds, 'get', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(401);
                 expect(resp.body).toBe('Unauthorized');
             }).catch(function(error) {
@@ -524,7 +523,7 @@ describe('content category endpoints (E2E):', function() {
 
         it('should allow an app to get categories', function(done) {
             delete options.jar;
-            authenticator.request('get', options).then(function(resp) {
+            requestUtils.makeSignedRequest(appCreds, 'get', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
                 expect(resp.body.length).toBe(4);
                 expect(resp.body[0].name).toBe('snuffles');
@@ -635,7 +634,7 @@ describe('content category endpoints (E2E):', function() {
 
         it('should allow an app to create a category', function(done) {
             delete options.jar;
-            authenticator.request('post', options).then(function(resp) {
+            requestUtils.makeSignedRequest(appCreds, 'post', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(201);
                 expect(resp.body).toEqual({
                     id: jasmine.any(String),
@@ -758,7 +757,7 @@ describe('content category endpoints (E2E):', function() {
 
         it('should allow an app to edit a category', function(done) {
             delete options.jar;
-            authenticator.request('put', options).then(function(resp) {
+            requestUtils.makeSignedRequest(appCreds, 'put', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
                 expect(resp.body).not.toEqual(mockCats[0]);
                 expect(resp.body.id).toBe('e2e-id1');
@@ -860,7 +859,7 @@ describe('content category endpoints (E2E):', function() {
         });
 
         it('should allow an app to delete a category', function(done) {
-            authenticator.request('delete', {url: config.contentUrl + '/content/category/e2e-id1'})
+            requestUtils.makeSignedRequest(appCreds, 'delete', {url: config.contentUrl + '/content/category/e2e-id1'})
             .then(function(resp) {
                 expect(resp.response.statusCode).toBe(204);
                 expect(resp.body).toBe('');

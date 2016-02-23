@@ -5,9 +5,9 @@
         urlUtils        = require('url'),
         util            = require('util'),
         express         = require('express'),
-        campaignUtils   = require('../lib/campaignUtils'),
         Status          = require('../lib/enums').Status,
-        signatures      = require('../lib/signatures'),
+        campaignUtils   = require('../lib/campaignUtils'),
+        requestUtils    = require('../lib/requestUtils'),
         mongoUtils      = require('../lib/mongoUtils'),
         authUtils       = require('../lib/authUtils'),
         historian       = require('../lib/historian'),
@@ -167,7 +167,6 @@
             svc = new CrudSvc(campColl, 'cam', { statusHistory: true }, campModule.campSchema);
         svc._db = db;
         
-        
         var extraValidation = campModule.extraValidation.bind(campModule, svc),
             notifyEnded     = campModule.notifyEnded.bind(campModule, svc),
             pricingHistory  = historian.middlewarify('pricing', 'pricingHistory');
@@ -226,7 +225,7 @@
             }
         
             log.trace('[%1] Decorating campaigns, fetching cards [%2]', req.uuid, ids);
-            return signatures.proxyRequest(req, 'get', {
+            return requestUtils.proxyRequest(req, 'get', {
                 url: campModule.config.api.cards.baseUrl,
                 qs: { ids: ids.join(',') }
             })
@@ -340,7 +339,7 @@
         
         // cache request promises to avoid making duplicate requests
         function makeRequest(id) {
-            reqCache[id] = reqCache[id] || signatures.proxyRequest(req, 'get', {
+            reqCache[id] = reqCache[id] || requestUtils.proxyRequest(req, 'get', {
                 url: urlUtils.resolve(campModule.config.api.cards.baseUrl, id)
             })
             .catch(function(error) {
@@ -495,7 +494,7 @@
     campModule.sendDeleteRequest = function(req, id, type) {
         var log = logger.getLog();
         
-        return signatures.proxyRequest(req, 'delete', {
+        return requestUtils.proxyRequest(req, 'delete', {
             url: urlUtils.resolve(campModule.config.api[type].baseUrl, id)
         })
         .then(function(resp) {
@@ -647,7 +646,7 @@
             cardEntry.campaignId = id;
             cardEntry.advertiserId = advertiserId;
             
-            return signatures.proxyRequest(req, verb, opts)
+            return requestUtils.proxyRequest(req, verb, opts)
             .then(function(resp) {
                 if (resp.response.statusCode !== expectedResponse) {
                     log.info(

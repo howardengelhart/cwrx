@@ -1,15 +1,15 @@
 var flush = true;
 describe('ads-campaigns (UT)', function() {
-    var mockLog, CrudSvc, Model, logger, q, campModule, campaignUtils, signatures, email, historian,
+    var mockLog, CrudSvc, Model, logger, q, campModule, campaignUtils, requestUtils, email, historian,
         mongoUtils, objUtils, nextSpy, doneSpy, errorSpy, req, anyNum, mockDb, Status;
 
     beforeEach(function() {
         if (flush) { for (var m in require.cache){ delete require.cache[m]; } flush = false; }
         q               = require('q');
         logger          = require('../../lib/logger');
-        signatures      = require('../../lib/signatures');
         campModule      = require('../../bin/ads-campaigns');
         campaignUtils   = require('../../lib/campaignUtils');
+        requestUtils    = require('../../lib/requestUtils');
         mongoUtils      = require('../../lib/mongoUtils');
         historian       = require('../../lib/historian');
         objUtils        = require('../../lib/objUtils');
@@ -250,7 +250,7 @@ describe('ads-campaigns (UT)', function() {
                     cards: [ { id: 'rc-1' }, { id: 'rc-2' } ]
                 }
             };
-            spyOn(signatures, 'proxyRequest').and.callFake(function(req, method, opts) {
+            spyOn(requestUtils, 'proxyRequest').and.callFake(function(req, method, opts) {
                 var cards = opts.qs.ids.split(',').map(function(id) { return c6Cards[id]; }).filter(function(card) { return !!card; });
                 return q({
                     response: { statusCode: 200 },
@@ -270,7 +270,7 @@ describe('ads-campaigns (UT)', function() {
                         { id: 'rc-2', title: 'card 2' }
                     ]
                 });
-                expect(signatures.proxyRequest).toHaveBeenCalledWith(req, 'get', {
+                expect(requestUtils.proxyRequest).toHaveBeenCalledWith(req, 'get', {
                     url: 'https://test.com/api/content/cards/',
                     qs: { ids: 'rc-1,rc-2' }
                 });
@@ -297,7 +297,7 @@ describe('ads-campaigns (UT)', function() {
                     { id: 'cam-1', name: 'camp 1', cards: [ { id: 'rc-3', title: 'card 3' } ] },
                     { id: 'cam-1', name: 'camp 1', cards: [ { id: 'rc-4', title: 'card 4' }, { id: 'rc-5', title: 'card 5' } ] },
                 ]);
-                expect(signatures.proxyRequest).toHaveBeenCalledWith(req, 'get', {
+                expect(requestUtils.proxyRequest).toHaveBeenCalledWith(req, 'get', {
                     url: 'https://test.com/api/content/cards/',
                     qs: { ids: 'rc-1,rc-2,rc-3,rc-4,rc-5' }
                 });
@@ -313,7 +313,7 @@ describe('ads-campaigns (UT)', function() {
             campModule.decorateWithCards(req, campResp).then(function(resp) {
                 expect(resp.code).toBe(400);
                 expect(resp.body).toBe('you did a bad thing');
-                expect(signatures.proxyRequest).not.toHaveBeenCalled();
+                expect(requestUtils.proxyRequest).not.toHaveBeenCalled();
                 expect(mockLog.warn).not.toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
@@ -325,7 +325,7 @@ describe('ads-campaigns (UT)', function() {
             campModule.decorateWithCards(req, campResp).then(function(resp) {
                 expect(resp.code).toBe(200);
                 expect(resp.body).toEqual({ id: 'cam-1', name: 'my camp' });
-                expect(signatures.proxyRequest).not.toHaveBeenCalled();
+                expect(requestUtils.proxyRequest).not.toHaveBeenCalled();
                 expect(mockLog.warn).not.toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
@@ -344,7 +344,7 @@ describe('ads-campaigns (UT)', function() {
                         { id: 'rc-2', title: 'card 2' }
                     ]
                 });
-                expect(signatures.proxyRequest).toHaveBeenCalledWith(req, 'get', {
+                expect(requestUtils.proxyRequest).toHaveBeenCalledWith(req, 'get', {
                     url: 'https://test.com/api/content/cards/',
                     qs: { ids: 'rc-2' }
                 });
@@ -366,20 +366,20 @@ describe('ads-campaigns (UT)', function() {
                     ]
                 });
                 expect(mockLog.warn).toHaveBeenCalled();
-                expect(signatures.proxyRequest).toHaveBeenCalled();
+                expect(requestUtils.proxyRequest).toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
             }).done(done);
         });
         
         it('should reject if any requests fail', function(done) {
-            signatures.proxyRequest.and.returnValue(q.reject('I GOT A PROBLEM'));
+            requestUtils.proxyRequest.and.returnValue(q.reject('I GOT A PROBLEM'));
             campModule.decorateWithCards(req, campResp).then(function(resp) {
                 expect(resp).not.toBeDefined();
             }).catch(function(error) {
                 expect(error).toBe('Error fetching cards');
                 expect(mockLog.error).toHaveBeenCalled();
-                expect(signatures.proxyRequest).toHaveBeenCalled();
+                expect(requestUtils.proxyRequest).toHaveBeenCalled();
             }).done(done);
         });
     });
@@ -490,7 +490,7 @@ describe('ads-campaigns (UT)', function() {
                 id: 'cam-1',
                 cards: [ { id: 'rc-3' } ]
             };
-            spyOn(signatures, 'proxyRequest').and.callFake(function(req, method, opts) {
+            spyOn(requestUtils, 'proxyRequest').and.callFake(function(req, method, opts) {
                 var card = c6Cards[opts.url.match(/cards\/(.+)$/)[1]];
                 return q({
                     response: { statusCode: !!card ? 200 : 404 },
@@ -513,12 +513,12 @@ describe('ads-campaigns (UT)', function() {
                 });
                 expect(req.body.cards).toEqual([{ id: 'rc-1' }, { id: 'rc-2' }]);
                 expect(req.origObj.cards).toEqual([c6Cards['rc-3']]);
-                expect(signatures.proxyRequest.calls.count()).toBe(3);
-                expect(signatures.proxyRequest).toHaveBeenCalledWith(req, 'get',
+                expect(requestUtils.proxyRequest.calls.count()).toBe(3);
+                expect(requestUtils.proxyRequest).toHaveBeenCalledWith(req, 'get',
                     { url: 'https://test.com/api/content/cards/rc-2' });
-                expect(signatures.proxyRequest).toHaveBeenCalledWith(req, 'get',
+                expect(requestUtils.proxyRequest).toHaveBeenCalledWith(req, 'get',
                     { url: 'https://test.com/api/content/cards/rc-1' });
-                expect(signatures.proxyRequest).toHaveBeenCalledWith(req, 'get',
+                expect(requestUtils.proxyRequest).toHaveBeenCalledWith(req, 'get',
                     { url: 'https://test.com/api/content/cards/rc-3' });
                 expect(mockLog.warn).not.toHaveBeenCalled();
                 expect(mockLog.error).not.toHaveBeenCalled();
@@ -536,7 +536,7 @@ describe('ads-campaigns (UT)', function() {
                     'rc-2': { id: 'rc-2', title: 'card 2', campaign: { minViewTime: 2} },
                 });
                 expect(req._origCards).toEqual({});
-                expect(signatures.proxyRequest.calls.count()).toBe(2);
+                expect(requestUtils.proxyRequest.calls.count()).toBe(2);
             }).done(done);
         });
         
@@ -551,7 +551,7 @@ describe('ads-campaigns (UT)', function() {
                     'rc-2': { id: 'rc-2', title: 'card 2', campaign: { minViewTime: 2} },
                 });
                 expect(req.body.cards).toEqual([{ id: 'rc-1' }, { id: 'rc-2' }, { title: 'my new card' }]);
-                expect(signatures.proxyRequest.calls.count()).toBe(3);
+                expect(requestUtils.proxyRequest.calls.count()).toBe(3);
                 expect(mockLog.warn).not.toHaveBeenCalled();
                 expect(mockLog.error).not.toHaveBeenCalled();
             }).done(done);
@@ -574,7 +574,7 @@ describe('ads-campaigns (UT)', function() {
                     'rc-1': { id: 'rc-1', title: 'card 1', campaign: { minViewTime: 1} },
                     'rc-2': { id: 'rc-2', title: 'card 2', campaign: { minViewTime: 2} },
                 });
-                expect(signatures.proxyRequest.calls.count()).toBe(3);
+                expect(requestUtils.proxyRequest.calls.count()).toBe(3);
                 done();
             });
         });
@@ -593,7 +593,7 @@ describe('ads-campaigns (UT)', function() {
                     'rc-1': { id: 'rc-1', title: 'card 1', campaign: { minViewTime: 1} },
                     'rc-3': { id: 'rc-3', title: 'card 3', campaign: { minViewTime: 3 } }
                 });
-                expect(signatures.proxyRequest.calls.count()).toBe(3);
+                expect(requestUtils.proxyRequest.calls.count()).toBe(3);
             }).done(done);
         });
         
@@ -603,7 +603,7 @@ describe('ads-campaigns (UT)', function() {
                 expect(nextSpy).not.toHaveBeenCalled();
                 expect(doneSpy).toHaveBeenCalledWith({ code: 400, body: 'Cannot fetch card rc-fake' });
                 expect(errorSpy).not.toHaveBeenCalled();
-                expect(signatures.proxyRequest.calls.count()).toBe(4);
+                expect(requestUtils.proxyRequest.calls.count()).toBe(4);
                 expect(mockLog.warn).not.toHaveBeenCalled();
             }).done(done);
         });
@@ -614,19 +614,19 @@ describe('ads-campaigns (UT)', function() {
                 expect(nextSpy).toHaveBeenCalled();
                 expect(doneSpy).not.toHaveBeenCalled();
                 expect(errorSpy).not.toHaveBeenCalled();
-                expect(signatures.proxyRequest.calls.count()).toBe(4);
+                expect(requestUtils.proxyRequest.calls.count()).toBe(4);
                 expect(mockLog.warn).toHaveBeenCalled();
             }).done(done);
         });
         
         it('should reject if any request fails', function(done) {
-            signatures.proxyRequest.and.returnValue(q.reject('I GOT A PROBLEM'));
+            requestUtils.proxyRequest.and.returnValue(q.reject('I GOT A PROBLEM'));
             campModule.fetchCards(req, nextSpy, doneSpy).catch(errorSpy).finally(function() {
                 expect(nextSpy).not.toHaveBeenCalled();
                 expect(doneSpy).not.toHaveBeenCalled();
                 expect(errorSpy).toHaveBeenCalledWith(jasmine.any(Error));
                 expect(errorSpy.calls.argsFor(0)[0].message).toBe('Error fetching card rc-1');
-                expect(signatures.proxyRequest.calls.count()).toBe(3);
+                expect(requestUtils.proxyRequest.calls.count()).toBe(3);
                 expect(mockLog.error).toHaveBeenCalled();
             }).done(done);
         });
@@ -1123,7 +1123,7 @@ describe('ads-campaigns (UT)', function() {
                 ]
             };
             req._cards = { 'rc-2': { id: 'rc-2', title: 'old title' } };
-            spyOn(signatures, 'proxyRequest').and.callFake(function(req, method, opts) {
+            spyOn(requestUtils, 'proxyRequest').and.callFake(function(req, method, opts) {
                 var resp = { response: {}, body: JSON.parse(JSON.stringify(opts.json)) };
                 resp.body.updated = true;
                 if (method === 'post') {
@@ -1147,12 +1147,12 @@ describe('ads-campaigns (UT)', function() {
                     'rc-1': { id: 'rc-1', title: 'card 1', campaign: { adtechName: 'foo' }, updated: true, campaignId: 'cam-1', advertiserId: 'a-1' },
                     'rc-2': { id: 'rc-2', title: 'card 2', campaign: { adtechName: 'bar' }, updated: true, campaignId: 'cam-1', advertiserId: 'a-1' },
                 });
-                expect(signatures.proxyRequest.calls.count()).toBe(2);
-                expect(signatures.proxyRequest).toHaveBeenCalledWith(req, 'post', {
+                expect(requestUtils.proxyRequest.calls.count()).toBe(2);
+                expect(requestUtils.proxyRequest).toHaveBeenCalledWith(req, 'post', {
                     url: 'https://test.com/api/content/cards/',
                     json: { title: 'card 1', campaign: { adtechName: 'foo' }, campaignId: 'cam-1', advertiserId: 'a-1' }
                 });
-                expect(signatures.proxyRequest).toHaveBeenCalledWith(req, 'put', {
+                expect(requestUtils.proxyRequest).toHaveBeenCalledWith(req, 'put', {
                     url: 'https://test.com/api/content/cards/rc-2',
                     json: { id: 'rc-2', title: 'card 2', campaign: { adtechName: 'bar' }, campaignId: 'cam-1', advertiserId: 'a-1' }
                 });
@@ -1170,13 +1170,13 @@ describe('ads-campaigns (UT)', function() {
                 expect(doneSpy).not.toHaveBeenCalled();
                 expect(errorSpy).not.toHaveBeenCalled();
                 expect(req.body.cards).not.toBeDefined();
-                expect(signatures.proxyRequest).not.toHaveBeenCalled();
+                expect(requestUtils.proxyRequest).not.toHaveBeenCalled();
                 done();
             });
         });
         
         it('should call done if one of the requests returns a 4xx', function(done) {
-            signatures.proxyRequest.and.callFake(function(req, method, opts) {
+            requestUtils.proxyRequest.and.callFake(function(req, method, opts) {
                 if (method === 'post') return q({ response: { statusCode: 403 }, body: 'Cannot POST cards' });
                 else return q({ response: { statusCode: 200 }, body: opts.json });
             });
@@ -1185,21 +1185,21 @@ describe('ads-campaigns (UT)', function() {
                 expect(nextSpy).not.toHaveBeenCalled();
                 expect(doneSpy).toHaveBeenCalledWith({ code: 400, body: 'Cannot post card "card 1"' });
                 expect(errorSpy).not.toHaveBeenCalled();
-                expect(signatures.proxyRequest.calls.count()).toBe(2);
+                expect(requestUtils.proxyRequest.calls.count()).toBe(2);
                 expect(mockLog.warn).not.toHaveBeenCalled();
                 done();
             });
         });
         
         it('should reject if one of the requests fails', function(done) {
-            signatures.proxyRequest.and.returnValue(q.reject('I GOT A PROBLEM'));
+            requestUtils.proxyRequest.and.returnValue(q.reject('I GOT A PROBLEM'));
             campModule.updateCards(req, nextSpy, doneSpy).catch(errorSpy);
             process.nextTick(function() {
                 expect(nextSpy).not.toHaveBeenCalled();
                 expect(doneSpy).not.toHaveBeenCalledWith();
                 expect(errorSpy).toHaveBeenCalledWith(jasmine.any(Error));
                 expect(errorSpy.calls.argsFor(0)[0].message).toBe('Error updating card "card 1"');
-                expect(signatures.proxyRequest.calls.count()).toBe(2);
+                expect(requestUtils.proxyRequest.calls.count()).toBe(2);
                 expect(mockLog.error).toHaveBeenCalled();
                 done();
             });
@@ -1325,12 +1325,12 @@ describe('ads-campaigns (UT)', function() {
             req.protocol = 'https';
             req.headers = { cookie: { c6Auth: 'qwer1234' } };
             resp = { response: { statusCode: 204 } };
-            spyOn(signatures, 'proxyRequest').and.callFake(function() { return q(resp); });
+            spyOn(requestUtils, 'proxyRequest').and.callFake(function() { return q(resp); });
         });
         
         it('should send a delete request to the content service', function(done) {
             campModule.sendDeleteRequest(req, 'e-1', 'experiences').then(function() {
-                expect(signatures.proxyRequest).toHaveBeenCalledWith(req, 'delete', { url: 'https://test.com/api/content/experiences/e-1' });
+                expect(requestUtils.proxyRequest).toHaveBeenCalledWith(req, 'delete', { url: 'https://test.com/api/content/experiences/e-1' });
                 expect(mockLog.warn).not.toHaveBeenCalled();
                 expect(mockLog.error).not.toHaveBeenCalled();
             }).catch(function(error) {
@@ -1349,7 +1349,7 @@ describe('ads-campaigns (UT)', function() {
         });
 
         it('should reject if the request fails', function(done) {
-            signatures.proxyRequest.and.returnValue(q.reject('I GOT A PROBLEM'));
+            requestUtils.proxyRequest.and.returnValue(q.reject('I GOT A PROBLEM'));
             campModule.sendDeleteRequest(req, 'e-1', 'experiences').then(function() {
                 expect('resolved').not.toBe('resolved');
             }).catch(function(error) {

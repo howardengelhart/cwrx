@@ -3,7 +3,6 @@ var q               = require('q'),
     testUtils       = require('./testUtils'),
     request         = require('request'),
     requestUtils    = require('../../lib/requestUtils'),
-    signatures      = require('../../lib/signatures'),
     enums           = require('../../lib/enums'),
     cacheLib        = require('../../lib/cacheLib'),
     cacheServer     = process.env.cacheServer || 'localhost:11211',
@@ -14,7 +13,7 @@ var q               = require('q'),
     };
 
 describe('auth (E2E):', function() {
-    var now, mockUser, mockPol, mockApp, mailman;
+    var now, mockUser, mockPol, mockApp, appCreds, mailman;
     beforeEach(function(done) {
         jasmine.DEFAULT_TIMEOUT_INTERVAL = 30000;
 
@@ -43,6 +42,7 @@ describe('auth (E2E):', function() {
             status: 'active',
             secret: 'wowsuchsecretverysecureamaze'
         };
+        appCreds = { key: mockApp.key, secret: mockApp.secret };
         
         return q.all([
             testUtils.resetCollection('policies', mockPol),
@@ -553,14 +553,13 @@ describe('auth (E2E):', function() {
         });
         
         describe('if an app is making the request', function(done) {
-            var authenticator, options;
+            var options;
             beforeEach(function() {
-                authenticator = new signatures.Authenticator({ key: mockApp.key, secret: mockApp.secret });
                 options = { url: config.authUrl + '/status' };
             });
             
             it('should show the app', function(done) {
-                authenticator.request('get', options).then(function(resp) {
+                requestUtils.makeSignedRequest(appCreds, 'get', options).then(function(resp) {
                     expect(resp.response.statusCode).toBe(200);
                     expect(resp.body).toEqual({
                         id: 'app-e2e-authsvc',
@@ -573,8 +572,8 @@ describe('auth (E2E):', function() {
             });
             
             it('should return a 401 if the secret used is incorrect', function(done) {
-                var badAuth = new signatures.Authenticator({ key: mockApp.key, secret: 'WRONG' });
-                badAuth.request('get', options).then(function(resp) {
+                var badCreds = { key: mockApp.key, secret: 'WRONG' };
+                requestUtils.makeSignedRequest(badCreds, 'get', options).then(function(resp) {
                     expect(resp.response.statusCode).toBe(401);
                     expect(resp.body).toBe('Unauthorized');
                 }).catch(function(error) {

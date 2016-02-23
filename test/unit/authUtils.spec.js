@@ -4,6 +4,9 @@ describe('authUtils', function() {
         enums, Status, Scope, anyFunc, res, next;
     
     beforeEach(function() {
+        jasmine.clock().install();
+        jasmine.clock().mockDate(new Date(1453929767464));
+
         if (flush){ for (var m in require.cache){ delete require.cache[m]; } flush = false; }
         q           = require('q');
         bcrypt      = require('bcrypt');
@@ -49,6 +52,10 @@ describe('authUtils', function() {
             log   : jasmine.createSpy('log.log')
         };
         spyOn(logger, 'getLog').and.returnValue(mockLog);
+    });
+
+    afterEach(function() {
+        jasmine.clock().uninstall();
     });
     
     describe('getUser', function() {
@@ -872,6 +879,172 @@ describe('authUtils', function() {
             }).done(done);
         });
     });
+
+    describe('getApp', function() {
+        var req;
+        beforeEach(function() {
+            req = { uuid: '1234' };
+            mongoUtils.findObject.and.returnValue(q({
+                id: 'app-1',
+                key: 'ads-service',
+                secret: 'supersecret'
+            }));
+        });
+        
+        it('should fetch and return the application', function(done) {
+            authUtils.getApp('ads-service', req).then(function(resp) {
+                expect(resp).toEqual({
+                    id: 'app-1',
+                    key: 'ads-service',
+                    secret: 'supersecret'
+                });
+                expect(mockDb.collection).toHaveBeenCalledWith('applications');
+                expect(mongoUtils.findObject).toHaveBeenCalledWith(
+                    mockColl,
+                    { key: 'ads-service', status: 'active' }
+                );
+                expect(mockLog.error).not.toHaveBeenCalled();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should return nothing if the application is not found', function(done) {
+            mongoUtils.findObject.and.returnValue(q());
+            authUtils.getApp('ads-service', req).then(function(resp) {
+                expect(resp).not.toBeDefined();
+                expect(mockDb.collection).toHaveBeenCalledWith('applications');
+                expect(mongoUtils.findObject).toHaveBeenCalled();
+                expect(mockLog.error).not.toHaveBeenCalled();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should log and return errors', function(done) {
+            mongoUtils.findObject.and.returnValue(q.reject('honey, you got a big storm coming'));
+            authUtils.getApp('ads-service', req).then(function(resp) {
+                expect(resp).not.toBeDefined();
+            }).catch(function(error) {
+                expect(error).toBe('Db error');
+                expect(mockDb.collection).toHaveBeenCalledWith('applications');
+                expect(mongoUtils.findObject).toHaveBeenCalled();
+                expect(mockLog.error).toHaveBeenCalled();
+            }).done(done);
+        });
+    });
+    
+    describe('authApp', function() {
+        var req;
+        beforeEach(function() {
+            spyOn(signatures, 'verifyRequest').and.returnValue(true);
+            spyOn(authUtils, 'getApp').and.returnValue(q({
+                _id: 'mongoid',
+                id: 'app-1',
+                key: 'ads-service',
+                secret: 'supersecret',
+                status: 'active',
+                entitlements: { foo: true }
+            }));
+            req = {
+                uuid: '1234',
+                headers: {
+                    'x-rc-auth-app-key'     : 'ads-service',
+                    'x-rc-auth-timestamp'   : 1453929767464,
+                    'x-rc-auth-nonce'       : 'morelikenoncenseamirite',
+                    'x-rc-auth-signature'   : 'johnhancock'
+                }
+            };
+        });
+        
+        it('should fetch the app, verify the signature, and return success', function(done) {
+            authUtils.authApp(req, 3000).then(function(resp) {
+                expect(resp).toEqual({
+                    success: true,
+                    application: {
+                        id: 'app-1',
+                        key: 'ads-service',
+                        status: 'active',
+                        entitlements: { foo: true }
+                    }
+                });
+                expect(req._appSecret).toEqual('supersecret');
+                expect(authUtils.getApp).toHaveBeenCalledWith('ads-service', req);
+                expect(signatures.verifyRequest).toHaveBeenCalledWith(req, {
+                    _id: 'mongoid',
+                    id: 'app-1',
+                    key: 'ads-service',
+                    secret: 'supersecret',
+                    status: 'active',
+                    entitlements: { foo: true }
+                });
+            }).done(done);
+        });
+        
+        it('should return an unsuccessful response if headers are missing', function(done) {
+            q.all(['x-rc-auth-app-key', 'x-rc-auth-timestamp', 'x-rc-auth-nonce', 'x-rc-auth-signature'].map(function(field) {
+                var reqCopy = JSON.parse(JSON.stringify(req));
+                delete reqCopy.headers[field];
+                return authUtils.authApp(reqCopy, 3000).then(function(resp) {
+                    expect(resp).toEqual({ success: false });
+                });
+            })).then(function() {
+                expect(authUtils.getApp).not.toHaveBeenCalled();
+                expect(signatures.verifyRequest).not.toHaveBeenCalled();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should return a 400 if the timestamp header is too old', function(done) {
+            jasmine.clock().tick(5001);
+            authUtils.authApp(req, 3000).then(function(resp) {
+                expect(resp).toEqual({
+                    success: false,
+                    code: 400,
+                    message: 'Request timestamp header is too old'
+                });
+                expect(authUtils.getApp).not.toHaveBeenCalled();
+                expect(signatures.verifyRequest).not.toHaveBeenCalled();
+            }).done(done);
+        });
+        
+        it('should return a 403 if the application is not found', function(done) {
+            authUtils.getApp.and.returnValue(q());
+            authUtils.authApp(req, 3000).then(function(resp) {
+                expect(resp).toEqual({
+                    success: false,
+                    code: 401,
+                    message: 'Unauthorized'
+                });
+                expect(authUtils.getApp).toHaveBeenCalled();
+            }).done(done);
+        });
+        
+        it('should return a 401 if the signature does not match', function(done) {
+            signatures.verifyRequest.and.returnValue(false);
+            authUtils.authApp(req, 3000).then(function(resp) {
+                expect(resp).toEqual({
+                    success: false,
+                    code: 401,
+                    message: 'Unauthorized'
+                });
+                expect(authUtils.getApp).toHaveBeenCalled();
+                expect(signatures.verifyRequest).toHaveBeenCalled();
+            }).done(done);
+        });
+        
+        it('should return a 500 if _fetchApplication fails', function(done) {
+            authUtils.getApp.and.returnValue(q.reject('honey, you got a big storm coming'));
+            authUtils.authApp(req, 3000).then(function(resp) {
+                expect(resp).not.toBeDefined();
+            }).catch(function(error) {
+                expect(error).toBe('honey, you got a big storm coming');
+                expect(authUtils.getApp).toHaveBeenCalled();
+                expect(signatures.verifyRequest).not.toHaveBeenCalled();
+            }).done(done);
+        });
+    });
     
     describe('middlewarify', function() {
         it('should return a function', function() {
@@ -879,7 +1052,7 @@ describe('authUtils', function() {
         });
         
         describe('returns a function that', function() {
-            var req, midware, mockVerifier, userAuthResp, appAuthResp;
+            var req, midware, userAuthResp, appAuthResp;
             beforeEach(function() {
                 req = {
                     uuid: '1234',
@@ -908,10 +1081,7 @@ describe('authUtils', function() {
                 };
                 
                 spyOn(authUtils, 'authUser').and.callFake(function() { return q(userAuthResp); });
-                mockVerifier = {
-                    verifyReq: jasmine.createSpy('verifier.verifyReq').and.callFake(function() { return q(appAuthResp); })
-                };
-                spyOn(signatures, 'Verifier').and.returnValue(mockVerifier);
+                spyOn(authUtils, 'authApp').and.callFake(function() { return q(appAuthResp); });
                 
                 spyOn(authUtils, '_compare').and.callThrough();
                 
@@ -933,7 +1103,7 @@ describe('authUtils', function() {
                     }));
                     expect(req.application).not.toBeDefined();
                     expect(authUtils.authUser).toHaveBeenCalledWith(req, undefined);
-                    expect(signatures.Verifier).not.toHaveBeenCalled();
+                    expect(authUtils.authApp).not.toHaveBeenCalled();
                     expect(authUtils._compare).toHaveBeenCalledWith(undefined, { thangs: { read: Scope.Own, delete: Scope.Own } });
                     expect(req.session.save).toHaveBeenCalled();
                     expect(mockLog.error).not.toHaveBeenCalled();
@@ -950,7 +1120,7 @@ describe('authUtils', function() {
                     expect(next).not.toHaveBeenCalled();
                     expect(res.send).toHaveBeenCalledWith(403, 'Forbidden');
                     expect(authUtils.authUser).toHaveBeenCalledWith(req, undefined);
-                    expect(signatures.Verifier).not.toHaveBeenCalled();
+                    expect(authUtils.authApp).not.toHaveBeenCalled();
                     expect(req.session.save).not.toHaveBeenCalled();
                     expect(mockLog.error).not.toHaveBeenCalled();
                 }).done(done);
@@ -962,7 +1132,7 @@ describe('authUtils', function() {
                     expect(next).not.toHaveBeenCalled();
                     expect(res.send).toHaveBeenCalledWith(401, 'Unauthorized');
                     expect(authUtils.authUser).toHaveBeenCalledWith(req, undefined);
-                    expect(signatures.Verifier).not.toHaveBeenCalled();
+                    expect(authUtils.authApp).not.toHaveBeenCalled();
                     expect(req.session.save).not.toHaveBeenCalled();
                     expect(mockLog.error).not.toHaveBeenCalled();
                 }).done(done);
@@ -977,7 +1147,7 @@ describe('authUtils', function() {
                     expect(req.requester).toBeDefined();
                     expect(req.application).not.toBeDefined();
                     expect(authUtils.authUser).toHaveBeenCalledWith(req, [Status.New, Status.Pending]);
-                    expect(signatures.Verifier).not.toHaveBeenCalled();
+                    expect(authUtils.authApp).not.toHaveBeenCalled();
                     expect(req.session.save).toHaveBeenCalled();
                     expect(mockLog.error).not.toHaveBeenCalled();
                 }).done(done);
@@ -1011,7 +1181,7 @@ describe('authUtils', function() {
                         expect(req.requester).toBeDefined();
                         expect(req.application).not.toBeDefined();
                         expect(authUtils.authUser).toHaveBeenCalledWith(req, undefined);
-                        expect(signatures.Verifier).not.toHaveBeenCalled();
+                        expect(authUtils.authApp).not.toHaveBeenCalled();
                         expect(authUtils._compare).toHaveBeenCalledWith({ thangs: 'read' }, { thangs: { read: Scope.Own, delete: Scope.Own } });
                         expect(req.session.save).toHaveBeenCalled();
                         expect(mockLog.error).not.toHaveBeenCalled();
@@ -1024,7 +1194,7 @@ describe('authUtils', function() {
                         expect(next).not.toHaveBeenCalled();
                         expect(res.send).toHaveBeenCalledWith(403, 'Forbidden');
                         expect(authUtils.authUser).toHaveBeenCalledWith(req, undefined);
-                        expect(signatures.Verifier).not.toHaveBeenCalled();
+                        expect(authUtils.authApp).not.toHaveBeenCalled();
                         expect(req.session.save).not.toHaveBeenCalled();
                         expect(mockLog.error).not.toHaveBeenCalled();
                     }).done(done);
@@ -1075,8 +1245,7 @@ describe('authUtils', function() {
                             permissions: { thangs: { read: Scope.All, edit: Scope.All } }
                         });
                         expect(authUtils.authUser).toHaveBeenCalledWith(req, undefined);
-                        expect(signatures.Verifier).toHaveBeenCalledWith(mockDb, 2000);
-                        expect(mockVerifier.verifyReq).toHaveBeenCalledWith(req);
+                        expect(authUtils.authApp).toHaveBeenCalledWith(req, 2000);
                         expect(authUtils._compare).toHaveBeenCalledWith(undefined, { thangs: { read: Scope.All, edit: Scope.All, delete: Scope.Own } });
                         expect(req.session.save).toHaveBeenCalled();
                         expect(mockLog.error).not.toHaveBeenCalled();
@@ -1093,7 +1262,7 @@ describe('authUtils', function() {
                         expect(next).not.toHaveBeenCalled();
                         expect(res.send).toHaveBeenCalledWith(403, 'Forbidden');
                         expect(authUtils.authUser).toHaveBeenCalledWith(req, undefined);
-                        expect(mockVerifier.verifyReq).toHaveBeenCalledWith(req);
+                        expect(authUtils.authApp).toHaveBeenCalledWith(req, 2000);
                         expect(mockLog.error).not.toHaveBeenCalled();
                     }).done(done);
                 });
@@ -1114,8 +1283,7 @@ describe('authUtils', function() {
                             permissions: { thangs: { read: Scope.All, edit: Scope.All } }
                         });
                         expect(authUtils.authUser).toHaveBeenCalledWith(req, undefined);
-                        expect(signatures.Verifier).toHaveBeenCalledWith(mockDb, 2000);
-                        expect(mockVerifier.verifyReq).toHaveBeenCalledWith(req);
+                        expect(authUtils.authApp).toHaveBeenCalledWith(req, 2000);
                         expect(authUtils._compare).toHaveBeenCalledWith(undefined, { thangs: { read: Scope.All, edit: Scope.All } });
                         expect(mockLog.error).not.toHaveBeenCalled();
                     }).done(done);
@@ -1138,8 +1306,8 @@ describe('authUtils', function() {
                     }).done(done);
                 });
                 
-                it('should send a 500 if verifier.verifyReq fails', function(done) {
-                    mockVerifier.verifyReq.and.returnValue(q.reject('aint gonna verify THAT'));
+                it('should send a 500 if authUtils.authApp rejects', function(done) {
+                    authUtils.authApp.and.returnValue(q.reject('I GOT A PROBLEM'));
                     midware(req, res, next).finally(function() {
                         expect(next).not.toHaveBeenCalled();
                         expect(res.send).toHaveBeenCalledWith(500, 'Error authorizing request');

@@ -3,7 +3,6 @@ var q               = require('q'),
     request         = require('request'),
     testUtils       = require('./testUtils'),
     requestUtils    = require('../../lib/requestUtils'),
-    signatures      = require('../../lib/signatures'),
     host            = process.env.host || 'localhost',
     config = {
         adsUrl  : 'http://' + (host === 'localhost' ? host + ':3900' : host) + '/api',
@@ -11,7 +10,7 @@ var q               = require('q'),
     };
 
 describe('ads containers endpoints (E2E):', function() {
-    var cookieJar, mockApp, authenticator;
+    var cookieJar, mockApp, appCreds;
 
     beforeEach(function(done) {
         jasmine.DEFAULT_TIMEOUT_INTERVAL = 10000;
@@ -47,7 +46,7 @@ describe('ads containers endpoints (E2E):', function() {
                 containers: { read: 'all', create: 'all', edit: 'all', delete: 'all' }
             }
         };
-        authenticator = new signatures.Authenticator({ key: mockApp.key, secret: mockApp.secret });
+        appCreds = { key: mockApp.key, secret: mockApp.secret };
         
         q.all([
             testUtils.resetCollection('users', mockUser),
@@ -158,7 +157,7 @@ describe('ads containers endpoints (E2E):', function() {
 
         it('should allow an app to get a container', function(done) {
             delete options.jar;
-            authenticator.request('get', options).then(function(resp) {
+            requestUtils.makeSignedRequest(appCreds, 'get', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
                 expect(resp.body).toEqual({
                     id: 'e2e-con-1',
@@ -173,8 +172,8 @@ describe('ads containers endpoints (E2E):', function() {
         
         it('should fail if an app uses the wrong secret to make a request', function(done) {
             delete options.jar;
-            var badAuth = new signatures.Authenticator({ key: mockApp.key, secret: 'WRONG' });
-            badAuth.request('get', options).then(function(resp) {
+            var badCreds = { key: mockApp.key, secret: 'WRONG' };
+            requestUtils.makeSignedRequest(badCreds, 'get', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(401);
                 expect(resp.body).toBe('Unauthorized');
             }).catch(function(error) {
@@ -314,7 +313,7 @@ describe('ads containers endpoints (E2E):', function() {
 
         it('should allow an app to get containers', function(done) {
             delete options.jar;
-            authenticator.request('get', options).then(function(resp) {
+            requestUtils.makeSignedRequest(appCreds, 'get', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
                 expect(resp.body.length).toBe(3);
                 expect(resp.body[0].id).toBe('e2e-con-1');
@@ -470,7 +469,7 @@ describe('ads containers endpoints (E2E):', function() {
 
         it('should allow an app to create a container', function(done) {
             delete options.jar;
-            authenticator.request('post', options).then(function(resp) {
+            requestUtils.makeSignedRequest(appCreds, 'post', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(201);
                 expect(resp.body).toEqual({
                     id          : jasmine.any(String),
@@ -613,7 +612,7 @@ describe('ads containers endpoints (E2E):', function() {
 
         it('should allow an app to edit a container', function(done) {
             delete options.jar;
-            authenticator.request('put', options).then(function(resp) {
+            requestUtils.makeSignedRequest(appCreds, 'put', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
                 expect(resp.body.id).toBe('e2e-con-1');
                 expect(resp.body.name).toBe('box-1');
@@ -706,7 +705,7 @@ describe('ads containers endpoints (E2E):', function() {
 
         it('should allow an app to delete a container', function(done) {
             delete options.jar;
-            authenticator.request('delete', options)
+            requestUtils.makeSignedRequest(appCreds, 'delete', options)
             .then(function(resp) {
                 expect(resp.response.statusCode).toBe(204);
                 expect(resp.body).toBe('');

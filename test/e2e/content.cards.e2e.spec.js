@@ -4,7 +4,6 @@ var q               = require('q'),
     request         = require('request'),
     testUtils       = require('./testUtils'),
     requestUtils    = require('../../lib/requestUtils'),
-    signatures      = require('../../lib/signatures'),
     host            = process.env.host || 'localhost',
     config = {
         contentUrl  : 'http://' + (host === 'localhost' ? host + ':3300' : host) + '/api',
@@ -12,7 +11,7 @@ var q               = require('q'),
     };
 
 describe('content card endpoints (E2E):', function() {
-    var selfieJar, adminJar, mockApp, authenticator;
+    var selfieJar, adminJar, mockApp, appCreds;
 
     beforeEach(function(done) {
         jasmine.DEFAULT_TIMEOUT_INTERVAL = 15000;
@@ -86,7 +85,7 @@ describe('content card endpoints (E2E):', function() {
             },
             fieldValidation: JSON.parse(JSON.stringify(testPolicies[1].fieldValidation))
         };
-        authenticator = new signatures.Authenticator({ key: mockApp.key, secret: mockApp.secret });
+        appCreds = { key: mockApp.key, secret: mockApp.secret };
         
         var loginOpts = {
             url: config.authUrl + '/login',
@@ -702,7 +701,7 @@ describe('content card endpoints (E2E):', function() {
 
         it('should allow an app to get a card', function(done) {
             var options = {url: config.contentUrl + '/content/cards/e2e-getid1'};
-            authenticator.request('get', options).then(function(resp) {
+            requestUtils.makeSignedRequest(appCreds, 'get', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
                 expect(resp.body.id).toBe('e2e-getid1');
                 expect(resp.body.campaignId).toBe('cam-cards-e2e1');
@@ -713,8 +712,8 @@ describe('content card endpoints (E2E):', function() {
         
         it('should fail if an app uses the wrong secret to make a request', function(done) {
             var options = {url: config.contentUrl + '/content/cards/e2e-getid1'};
-            var badAuth = new signatures.Authenticator({ key: mockApp.key, secret: 'WRONG' });
-            badAuth.request('get', options).then(function(resp) {
+            var badCreds = { key: mockApp.key, secret: 'WRONG' };
+            requestUtils.makeSignedRequest(badCreds, 'get', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(401);
                 expect(resp.body).toBe('Unauthorized');
             }).catch(function(error) {
@@ -971,7 +970,7 @@ describe('content card endpoints (E2E):', function() {
 
         it('should allow an app to get cards', function(done) {
             delete options.jar;
-            authenticator.request('get', options).then(function(resp) {
+            requestUtils.makeSignedRequest(appCreds, 'get', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
                 expect(resp.body.length).toBe(4);
                 expect(resp.body[0].id).toBe('e2e-getquery1');
@@ -1165,7 +1164,7 @@ describe('content card endpoints (E2E):', function() {
 
         it('should allow an app to create a card', function(done) {
             delete options.jar;
-            authenticator.request('post', options).then(function(resp) {
+            requestUtils.makeSignedRequest(appCreds, 'post', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(201);
                 expect(resp.body.id).toBeDefined();
                 expect(resp.body.campaignId).toBe('cam-cards-e2e1');
@@ -1540,7 +1539,7 @@ describe('content card endpoints (E2E):', function() {
 
         it('should allow an app to edit a card', function(done) {
             delete options.jar;
-            authenticator.request('put', options).then(function(resp) {
+            requestUtils.makeSignedRequest(appCreds, 'put', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
                 expect(resp.body.id).toBe('rc-put1');
                 expect(resp.body.title).toBe('best card');
@@ -1740,7 +1739,7 @@ describe('content card endpoints (E2E):', function() {
 
         it('should allow an app to delete a card', function(done) {
             delete options.jar;
-            authenticator.request('delete', options).then(function(resp) {
+            requestUtils.makeSignedRequest(appCreds, 'delete', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(204);
                 expect(resp.body).toBe('');
             }).catch(function(error) {
@@ -1839,7 +1838,7 @@ describe('content card endpoints (E2E):', function() {
                 url: config.contentUrl + '/content/cards/schema',
                 qs: { personalized: 'true' }
             };
-            authenticator.request('get', options).then(function(resp) {
+            requestUtils.makeSignedRequest(appCreds, 'get', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
                 expect(resp.body.user).toEqual({ __allowed: true, __type: 'string' });
                 expect(resp.body.org).toEqual({ __allowed: true, __type: 'string' });

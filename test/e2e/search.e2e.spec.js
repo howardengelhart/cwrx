@@ -1,9 +1,9 @@
 var q               = require('q'),
+    util            = require('util'),
     fs              = require('fs-extra'),
     path            = require('path'),
     testUtils       = require('./testUtils'),
     requestUtils    = require('../../lib/requestUtils'),
-    signatures      = require('../../lib/signatures'),
     request         = require('request'),
     host            = process.env.host || 'localhost',
     bucket          = process.env.bucket || 'c6.dev',
@@ -13,7 +13,7 @@ var q               = require('q'),
     };
 
 describe('search (E2E):', function() {
-    var cookieJar, mockUser, mockApp, authenticator;
+    var cookieJar, mockUser, mockApp, appCreds;
     beforeEach(function(done) {
         jasmine.DEFAULT_TIMEOUT_INTERVAL = 30000;
 
@@ -41,7 +41,7 @@ describe('search (E2E):', function() {
             secret: 'wowsuchsecretverysecureamaze',
             permissions: {}
         };
-        authenticator = new signatures.Authenticator({ key: mockApp.key, secret: mockApp.secret });
+        appCreds = { key: mockApp.key, secret: mockApp.secret };
 
         q.all([
             testUtils.resetCollection('users', mockUser),
@@ -257,7 +257,7 @@ describe('search (E2E):', function() {
 
         it('should allow an app to get videos', function(done) {
             delete options.jar;
-            authenticator.request('get', options).then(function(resp) {
+            requestUtils.makeSignedRequest(appCreds, 'get', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
                 expect(resp.body.meta).toBeDefined();
                 expect(resp.body.meta.skipped).toBe(0);
@@ -271,8 +271,8 @@ describe('search (E2E):', function() {
         });
         
         it('should fail if an app uses the wrong secret to make a request', function(done) {
-            var badAuth = new signatures.Authenticator({ key: mockApp.key, secret: 'WRONG' });
-            badAuth.request('get', options).then(function(resp) {
+            var badCreds = { key: mockApp.key, secret: 'WRONG' };
+            requestUtils.makeSignedRequest(badCreds, 'get', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(401);
                 expect(resp.body).toBe('Unauthorized');
             }).catch(function(error) {

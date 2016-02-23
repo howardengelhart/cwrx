@@ -3,7 +3,6 @@ var q               = require('q'),
     request         = require('request'),
     testUtils       = require('./testUtils'),
     requestUtils    = require('../../lib/requestUtils'),
-    signatures      = require('../../lib/signatures'),
     host            = process.env.host || 'localhost',
     config = {
         adsUrl  : 'http://' + (host === 'localhost' ? host + ':3900' : host) + '/api',
@@ -11,7 +10,7 @@ var q               = require('q'),
     };
 
 describe('ads advertisers endpoints (E2E):', function() {
-    var cookieJar, nonAdminJar, mockApp, authenticator;
+    var cookieJar, nonAdminJar, mockApp, appCreds;
 
     beforeEach(function(done) {
         jasmine.DEFAULT_TIMEOUT_INTERVAL = 10000;
@@ -67,7 +66,7 @@ describe('ads advertisers endpoints (E2E):', function() {
                 advertisers: { read: 'all', create: 'all', edit: 'all', delete: 'all' }
             }
         };
-        authenticator = new signatures.Authenticator({ key: mockApp.key, secret: mockApp.secret });
+        appCreds = { key: mockApp.key, secret: mockApp.secret };
 
         var logins = [
             {url: config.authUrl + '/login', json: {email: mockUser.email, password: 'password'}, jar: cookieJar},
@@ -190,7 +189,7 @@ describe('ads advertisers endpoints (E2E):', function() {
 
         it('should allow an app to get an advertiser', function(done) {
             delete options.jar;
-            authenticator.request('get', options).then(function(resp) {
+            requestUtils.makeSignedRequest(appCreds, 'get', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
                 expect(resp.body).toEqual({id: 'e2e-a-1', name: 'advert 1', status: 'active', org: 'o-selfie'});
             }).catch(function(error) {
@@ -200,8 +199,8 @@ describe('ads advertisers endpoints (E2E):', function() {
         
         it('should fail if an app uses the wrong secret to make a request', function(done) {
             delete options.jar;
-            var badAuth = new signatures.Authenticator({ key: mockApp.key, secret: 'WRONG' });
-            badAuth.request('get', options).then(function(resp) {
+            var badCreds = { key: mockApp.key, secret: 'WRONG' };
+            requestUtils.makeSignedRequest(badCreds, 'get', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(401);
                 expect(resp.body).toBe('Unauthorized');
             }).catch(function(error) {
@@ -367,7 +366,7 @@ describe('ads advertisers endpoints (E2E):', function() {
 
         it('should allow an app to get advertisers', function(done) {
             delete options.jar;
-            authenticator.request('get', options).then(function(resp) {
+            requestUtils.makeSignedRequest(appCreds, 'get', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
                 expect(resp.body.length).toBe(3);
                 expect(resp.body[0].id).toBe('e2e-a-1');
@@ -492,7 +491,7 @@ describe('ads advertisers endpoints (E2E):', function() {
 
         it('should allow an app to create an advertiser', function(done) {
             delete options.jar;
-            authenticator.request('post', options).then(function(resp) {
+            requestUtils.makeSignedRequest(appCreds, 'post', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(201);
                 expect(resp.body.id).toBeDefined();
                 expect(resp.body.name).toBe('fake advert');
@@ -637,7 +636,7 @@ describe('ads advertisers endpoints (E2E):', function() {
 
         it('should allow an app to edit an advertiser', function(done) {
             delete options.jar;
-            authenticator.request('put', options).then(function(resp) {
+            requestUtils.makeSignedRequest(appCreds, 'put', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
                 expect(resp.body.id).toBe('e2e-a-1');
                 expect(resp.body.name).toBe('new name');
@@ -748,7 +747,7 @@ describe('ads advertisers endpoints (E2E):', function() {
         });
 
         it('should allow an app to delete an advertiser', function(done) {
-            authenticator.request('delete', {url: config.adsUrl + '/account/advertisers/e2e-a-1'})
+            requestUtils.makeSignedRequest(appCreds, 'delete', {url: config.adsUrl + '/account/advertisers/e2e-a-1'})
             .then(function(resp) {
                 expect(resp.response.statusCode).toBe(204);
                 expect(resp.body).toBe('');
