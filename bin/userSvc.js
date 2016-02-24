@@ -117,7 +117,7 @@
         log.info('Running as cluster worker, proceed with setting up web server.');
 
         var app          = express(),
-            appCreds     = state.secrets.rcAppCredentials, //TODO: cookbook
+            appCreds     = state.secrets.rcAppCredentials,
             jobManager   = new JobManager(state.cache, state.config.jobTimeouts),
             userSvc      = userModule.setupSvc(state.dbs.c6Db, state.config, state.cache, appCreds),
             roleSvc      = roleModule.setupSvc(state.dbs.c6Db),

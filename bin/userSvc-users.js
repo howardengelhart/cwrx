@@ -198,7 +198,6 @@
                             return done({ code: 403, body: 'Confirmation failed' });
                         }
 
-                        //TODO: should we save session here?
                         req.user = svc.transformMongoDoc(result);
                         req.requester = authUtils.createRequester(req);
                         return next();

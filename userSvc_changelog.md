@@ -1,6 +1,10 @@
 # User Service Changelog
 
 * Support app authentication: [#798](https://github.com/cinema6/cwrx/pull/798)
+* Update `/confirm` endpoint to use app authentication instead of sixxy user
+* Extra deployment steps:
+    * Deploy userSvc cookbook version 1.4.0
+    * Create userSvc application in db
 
 ### 3.1.0: Thu Jan 14 17:49:00 EST 2016
 * Support `referralCode` prop, + set on org when confirming new user: [#737](https://github.com/cinema6/cwrx/issues/737)
