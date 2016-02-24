@@ -8,11 +8,33 @@ var apps = [
         id: 'app-adsservice',
         created: new Date(),
         lastUpdated: new Date(),
+        _preserve: true, // testUtils.resetCollection will not delete objects with this flag
         status: 'active',
         key: 'internal-ads-service',
         secret: '4cd371bf665c20f4fc1f0f4d9a1db851a28cfeec',
         entitlements: {
             directEditCampaigns: true
+        }
+    },
+    {
+        id: 'app-userservice',
+        created: new Date(),
+        lastUpdated: new Date(),
+        _preserve: true, // testUtils.resetCollection will not delete objects with this flag
+        status: 'active',
+        key: 'internal-user-service',
+        secret: '06d2d4fd579962c879e4005c00935b6f4ac7a661',
+        permissions: {
+            orgs: { create: 'all' },
+            advertisers: { create: 'all' }
+        },
+        fieldValidation: {
+            advertisers: {
+                org: { __allowed: true }
+            },
+            orgs: {
+                referralCode: { __allowed: true }
+            }
         }
     }
 ];

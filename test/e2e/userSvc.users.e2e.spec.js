@@ -445,7 +445,7 @@ describe('userSvc users (E2E):', function() {
             options.jar = adminJar;
             requestUtils.qRequest('get', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
-                expect(resp.body.length).toBe(7);
+                expect(resp.body.length).toBe(6);
                 expect(resp.body[0].id).toBe('e2e-admin-user');
                 expect(resp.body[0].password).not.toBeDefined();
                 expect(resp.body[1].id).toBe('e2e-user');
@@ -458,7 +458,7 @@ describe('userSvc users (E2E):', function() {
                 expect(resp.body[4].password).not.toBeDefined();
                 expect(resp.body[5].id).toBe('u-e2e-get4');
                 expect(resp.body[5].password).not.toBeDefined();
-                expect(resp.response.headers['content-range']).toBe('items 1-7/7');
+                expect(resp.response.headers['content-range']).toBe('items 1-6/6');
             }).catch(function(error) {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
@@ -2157,29 +2157,6 @@ describe('userSvc users (E2E):', function() {
                     expect(util.inspect(error)).not.toBeDefined();
                     done();
                 });
-        });
-    });
-
-    // This test will ONLY run on localhost
-    describe('POST /__internal/sixxyUserSession', function() {
-        var runTest, opts;
-        
-        beforeEach(function() {
-            runTest = (host === 'localhost');
-            opts = {url: 'http://localhost:3500/__internal/sixxyUserSession', json: {uuid: 'uuid', nonce: 'invalid nonce'}};
-        });
-        
-        it('should not work when called directly', function(done) {
-            if(runTest) {
-                requestUtils.qRequest('post', opts).then(function(resp) {
-                    expect(resp.response.statusCode).toBe(400);
-                    expect(resp.response.headers.c6Auth).not.toBeDefined();
-                }).catch(function(error) {
-                    expect(util.inspect(error)).not.toBeDefiened();
-                }).done(done);
-            } else {
-                done();
-            }
         });
     });
 

@@ -79,50 +79,36 @@ testUtils.mongoUpsert = function(collName, query, obj, userCfg) {
     });
 };
 
-testUtils.resetCollection = function(collection,data,userCfg){
+testUtils.resetCollection = function(collection, data,userCfg) {
     var db, coll, sixxyUser;
     
-    return q()
-        .then(function() {
-            if(collection === 'users') {
-                return testUtils.mongoFind(collection, {id: 'u-sixxy'})
-                    .then(function(results) {
-                        if(results.length === 0) {
-                            console.log('There is no sixxy user. Some e2e tests will fail. Create it by running the included sixxyUser.js script.');
-                        } else {
-                            sixxyUser = results[0];
-                        }
-                    });
-            }
-        })
-        .then(function() {
-            return testUtils._getDb(userCfg);
-        })
-        .then(function(database){
-            db      = database;
-            coll    = db.collection(collection);
-            return q(coll.deleteMany({}, { w: 1 , journal: true }));
-        })
-        .then(function(){
-            if (!data) {
-                data = [];
-            }
-            if(!Array.isArray(data)) {
-                data = [data];
-            }
-            if(sixxyUser) {
-                data.push(sixxyUser);
-            }
-            if(data.length === 0) {
-                return q();
-            }
+    return testUtils._getDb(userCfg).then(function(database) {
+        db      = database;
+        coll    = db.collection(collection);
+        return q(coll.deleteMany(
+            { _preserve: { $ne: true } }, // do not delete certain important items, like internal apps
+            { w: 1 , journal: true }
+        ));
+    })
+    .then(function() {
+        if (!data) {
+            data = [];
+        }
+        if (!Array.isArray(data)) {
+            data = [data];
+        }
+        if (data.length === 0) {
+            return q();
+        }
 
-            return q(coll.insertMany(data, { w: 1, journal: true }));
-        }).catch(function(error) {
-            console.log('\nFailed resetting ' + collection + ' with data ' + JSON.stringify(data, null, 4));
-            console.log(error);
-            return q.reject(error);
-        }).thenResolve();
+        return q(coll.insertMany(data, { w: 1, journal: true }));
+    })
+    .catch(function(error) {
+        console.log('\nFailed resetting ' + collection + ' with data ' + JSON.stringify(data, null, 4));
+        console.log(error);
+        return q.reject(error);
+    })
+    .thenResolve();
 };
 
 ///////////////////////////// Miscellaneous Helper Methods /////////////////////////////

@@ -96,7 +96,7 @@
         }, object);
     }
 
-    userModule.setupSvc = function setupSvc(db, config, cache) {
+    userModule.setupSvc = function setupSvc(db, config, cache, appCreds) {
         var opts = { userProp: false },
             userSvc = new CrudSvc(db.collection('users'), 'u', opts, userModule.userSchema);
 
@@ -118,7 +118,7 @@
             config.newUserPermissions.roles, config.newUserPermissions.policies);
         var checkValidToken = userModule.checkValidToken.bind(userModule, userSvc);
         var createLinkedEntities = userModule.createLinkedEntities.bind(userModule, config,
-            cache, userSvc);
+            cache, userSvc, appCreds);
         var sendConfirmationEmail = userModule.sendConfirmationEmail.bind(userModule,
             config.emails.sender, config.emails.dashboardLink);
 
@@ -198,6 +198,7 @@
                             return done({ code: 403, body: 'Confirmation failed' });
                         }
 
+                        //TODO: should we save session here?
                         req.user = svc.transformMongoDoc(result);
                         req.requester = authUtils.createRequester(req);
                         return next();
@@ -205,17 +206,15 @@
             });
     };
 
-    userModule.createLinkedEntities = function(config, cache, svc, req, next, done) {
+    userModule.createLinkedEntities = function(config, cache, svc, appCreds, req, next, done) {
         var log = logger.getLog(),
             company = req.user.company || null,
             id = req.user.id,
-            sixxyCookie = null,
             mutex = new CacheMutex(cache, 'confirmUser:' + id, 60 * 1000);
             
         // Post a new entity of the given type
-        //TODO: replace sixxy user hack with app auth
         function postEntity(entityName, opts) {
-            return requestUtils.qRequest('post', opts).then(function(resp) {
+            return requestUtils.makeSignedRequest(appCreds, 'post', opts).then(function(resp) {
                 if (resp.response.statusCode === 201) {
                     var createdId = resp.body.id;
                     log.info('[%1] Created %2 %3 for user %4', req.uuid, entityName, createdId, id);
@@ -238,62 +237,48 @@
                 return done({ code: 400, body: 'Another operation is already in progress' });
             }
 
-            return userModule.getSixxySession(req, config.port).then(function(cookie) {
-                sixxyCookie = cookie;
-                log.info('[%1] Got cookie for sixxy user', req.uuid);
+            var orgBody = {
+                name: (company ? company : 'newOrg') + ' (' + id + ')'
+            };
+            
+            if (!!req.user.referralCode) {
+                orgBody.referralCode = req.user.referralCode;
+            }
+            
+            return (!!req.user.org ? q(req.user.org) : postEntity('org', {
+                url: urlUtils.resolve(config.api.root, config.api.orgs.endpoint),
+                json: orgBody
+            }))
+            .then(function(orgId) {
+                req.user.org = orgId;
                 
-                var orgBody = {
-                    name: (company ? company : 'newOrg') + ' (' + id + ')'
-                };
-                
-                if (!!req.user.referralCode) {
-                    orgBody.referralCode = req.user.referralCode;
-                }
-                
-                return (!!req.user.org ? q(req.user.org) : postEntity('org', {
-                    url: urlUtils.resolve(config.api.root, config.api.orgs.endpoint),
-                    json: orgBody,
-                    headers: { cookie: sixxyCookie }
-                }))
-                .then(function(orgId) {
-                    req.user.org = orgId;
-                    
-                    return postEntity('advertiser', {
-                        url: urlUtils.resolve(config.api.root, config.api.advertisers.endpoint),
-                        json: {
-                            name: (company ? company : 'newAdvertiser') + ' (' + id + ')',
-                            org: orgId
-                        },
-                        headers: { cookie: sixxyCookie }
-                    });
-                })
-                .then(function() {
-                    return mutex.release();
-                })
-                .then(function() {
-                    return next();
-                })
-                .catch(function() {
-                    var promise;
-                    if (req.user.org) {
-                        log.info('[%1] Saving created org id on user %2', req.uuid, id);
-                        promise = mongoUtils.editObject(svc._coll, { org: req.user.org }, id);
-                    } else {
-                        promise = q();
+                return postEntity('advertiser', {
+                    url: urlUtils.resolve(config.api.root, config.api.advertisers.endpoint),
+                    json: {
+                        name: (company ? company : 'newAdvertiser') + ' (' + id + ')',
+                        org: orgId
                     }
-
-                    return promise.finally(function() {
-                        return mutex.release().finally(function() {
-                            return q.reject('Failed creating linked entities');
-                        });
-                    });
                 });
-                
-            }, function(error) {
-                log.error('[%1] Failed getting session for sixxy user: %2',
-                          req.uuid, inspect(error));
-                return mutex.release().finally(function() {
-                    return q.reject('Failed creating linked entities');
+            })
+            .then(function() {
+                return mutex.release();
+            })
+            .then(function() {
+                return next();
+            })
+            .catch(function() {
+                var promise;
+                if (req.user.org) {
+                    log.info('[%1] Saving created org id on user %2', req.uuid, id);
+                    promise = mongoUtils.editObject(svc._coll, { org: req.user.org }, id);
+                } else {
+                    promise = q();
+                }
+
+                return promise.finally(function() {
+                    return mutex.release().finally(function() {
+                        return q.reject('Failed creating linked entities');
+                    });
                 });
             });
         });
@@ -713,68 +698,6 @@
         });
     };
     
-    userModule.getSixxySession = function(req, port) {
-        var url = urlUtils.format({
-                protocol: 'http',
-                hostname: 'localhost',
-                port: port,
-                pathname: '/__internal/sixxyUserSession'
-            });
-
-        return q.npost(crypto, 'randomBytes', [24])
-        .then(function(buff) {
-            var nonce = buff.toString('hex');
-            
-            userModule._nonces[req.uuid] = nonce;
-
-            return requestUtils.qRequest('post', {
-                url: url,
-                json: { uuid: req.uuid, nonce: nonce }
-            });
-        })
-        .then(function(resp) {
-            if (resp.response.statusCode !== 204) {
-                var msg = 'Failed to request sixxy session: code = ' + resp.response.statusCode +
-                          ', body = ' + resp.body;
-                return q.reject(msg);
-            }
-
-            var authCookie = (resp.response.headers['set-cookie'] || []).filter(function(cookie) {
-                return (/^c6Auth/).test(cookie);
-            })[0];
-            
-            if (!authCookie) {
-                return q.reject('No c6Auth cookie in response');
-            }
-            
-            return authCookie;
-        });
-    };
-    
-    userModule.insertSixxySession = function(req, res, config) {
-        var log = logger.getLog();
-        
-        if (!req.body.nonce || !req.body.uuid) {
-            log.warn('[%1] Request does not have nonce + uuid', req.uuid);
-            return res.send(400);
-        }
-        if (req.body.nonce !== userModule._nonces[req.body.uuid]) {
-            log.warn('[%1] Invalid nonce for uuid %2', req.uuid, req.body.uuid);
-            return res.send(400);
-        }
-        
-        delete userModule._nonces[req.body.uuid];
-        
-        log.info('[%1] Returning sixxy user cookie to request %2', req.uuid, req.body.uuid);
-
-        return q.npost(req.session, 'regenerate').done(function() {
-            req.session.user = config.systemUserId;
-            req.session.cookie.maxAge = 60*1000;
-            req.session.cookie.secure = false; // allow cookies over HTTP; ok for internal
-            res.send(204);
-        });
-    };
-
     userModule.confirmUser = function(svc, req, journal, maxAge) {
         var log = logger.getLog();
         if(!req.body.token) {
@@ -847,10 +770,6 @@
                                                                     journal, jobManager) {
         var router      = express.Router(),
             mountPath   = '/api/account/users?'; // prefix to all endpoints declared here
-
-        app.post('/__internal/sixxyUserSession', sessions, function(req, res) {
-            userModule.insertSixxySession(req, res, config);
-        });
 
         router.use(jobManager.setJobTimeout.bind(jobManager));
         
