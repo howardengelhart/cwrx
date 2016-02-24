@@ -1,7 +1,7 @@
 var flush = true;
 describe('CrudSvc', function() {
     var q, mockLog, logger, CrudSvc, uuid, mongoUtils, FieldValidator, Model, mockColl, anyFunc,
-        req, svc, enums, Scope, Status, nextSpy, doneSpy, errorSpy;
+        historian, req, svc, enums, Scope, Status, nextSpy, doneSpy, errorSpy, histMidware;
 
     beforeEach(function() {
         if (flush){ for (var m in require.cache){ delete require.cache[m]; } flush = false; }
@@ -12,6 +12,7 @@ describe('CrudSvc', function() {
         uuid            = require('../../lib/uuid');
         mongoUtils      = require('../../lib/mongoUtils');
         FieldValidator  = require('../../lib/fieldValidator');
+        historian       = require('../../lib/historian');
         Model           = require('../../lib/model');
         Scope           = enums.Scope;
         Status          = enums.Status;
@@ -21,7 +22,11 @@ describe('CrudSvc', function() {
             collectionName: 'thangs',
             find: jasmine.createSpy('coll.find')
         };
-        req = { uuid: '1234', user: { id: 'u1', org: 'o1' } };
+        req = {
+            uuid: '1234',
+            requester: { id: 'u1', permissions: {} },
+            user: { id: 'u1', org: 'o1' }
+        };
         nextSpy = jasmine.createSpy('next');
         doneSpy = jasmine.createSpy('done');
         errorSpy = jasmine.createSpy('caught error');
@@ -45,6 +50,9 @@ describe('CrudSvc', function() {
         spyOn(FieldValidator, 'orgFunc').and.callThrough();
         spyOn(CrudSvc.prototype.checkExisting, 'bind').and.returnValue(CrudSvc.prototype.checkExisting);
         spyOn(CrudSvc.prototype.setupObj, 'bind').and.returnValue(CrudSvc.prototype.setupObj);
+        
+        histMidware = jasmine.createSpy('handleStatHist()');
+        spyOn(historian, 'middlewarify').and.returnValue(histMidware);
 
         svc = new CrudSvc(mockColl, 't');
         spyOn(svc, 'formatOutput').and.returnValue('formatted');
@@ -115,9 +123,10 @@ describe('CrudSvc', function() {
             svc = new CrudSvc(mockColl, 't', { statusHistory: true });
             expect(svc.createValidator._forbidden).toContain('statusHistory');
             expect(svc.editValidator._forbidden).toContain('statusHistory');
-            expect(svc._middleware.create).toContain(svc.handleStatusHistory);
-            expect(svc._middleware.edit).toContain(svc.handleStatusHistory);
-            expect(svc._middleware.delete).toContain(svc.handleStatusHistory);
+            expect(historian.middlewarify).toHaveBeenCalledWith('status', 'statusHistory');
+            expect(svc._middleware.create).toContain(histMidware);
+            expect(svc._middleware.edit).toContain(histMidware);
+            expect(svc._middleware.delete).toContain(histMidware);
         });
 
         describe('if a schema is provided', function() {
@@ -210,51 +219,84 @@ describe('CrudSvc', function() {
     });
 
     describe('checkScope', function() {
-        it('should correctly handle the scopes', function() {
-            var user = {
-                id: 'u-1234', org: 'o-1234',
-                permissions: { thangs: { read: Scope.All, edit: Scope.Org, delete: Scope.Own } }
+        var req, thangs;
+        beforeEach(function() {
+            req = {
+                uuid: '1234',
+                requester: {
+                    id: 'u-1234',
+                    permissions: { thangs: {
+                        read: Scope.All,
+                        edit: Scope.Org,
+                        delete: Scope.Own
+                    } }
+                },
+                user: {
+                    id: 'u-1234',
+                    org: 'o-1234'
+                }
             };
-            var thangs = [{ id: 't-1', user: 'u-1234', org: 'o-1234'},
-                          { id: 't-2', user: 'u-4567', org: 'o-1234'},
-                          { id: 't-3', user: 'u-1234', org: 'o-4567'},
-                          { id: 't-4', user: 'u-4567', org: 'o-4567'}];
+            thangs = [{ id: 't-1', user: 'u-1234', org: 'o-1234'},
+                      { id: 't-2', user: 'u-4567', org: 'o-1234'},
+                      { id: 't-3', user: 'u-1234', org: 'o-4567'},
+                      { id: 't-4', user: 'u-4567', org: 'o-4567'}];
+        });
 
+        it('should correctly handle the scopes', function() {
             expect(thangs.filter(function(thang) {
-                return svc.checkScope(user, thang, 'read');
+                return svc.checkScope(req, thang, 'read');
             })).toEqual(thangs);
 
             expect(thangs.filter(function(thang) {
-                return svc.checkScope(user, thang, 'edit');
+                return svc.checkScope(req, thang, 'edit');
             })).toEqual([thangs[0], thangs[1], thangs[2]]);
 
             expect(thangs.filter(function(thang) {
-                return svc.checkScope(user, thang, 'delete');
+                return svc.checkScope(req, thang, 'delete');
             })).toEqual([thangs[0], thangs[2]]);
+        });
+        
+        it('should handle a case where there is no req.user', function() {
+            delete req.user;
+            req.requester.id = 'app-1';
+            req.application = { id: 'app-1', key: 'watchman' };
+            
+            expect(thangs.filter(function(thang) {
+                return svc.checkScope(req, thang, 'read');
+            })).toEqual(thangs);
+
+            expect(thangs.filter(function(thang) {
+                return svc.checkScope(req, thang, 'edit');
+            })).toEqual([]);
+
+            expect(thangs.filter(function(thang) {
+                return svc.checkScope(req, thang, 'delete');
+            })).toEqual([]);
         });
 
         it('should sanity-check the user permissions object', function() {
             var thang = { id: 't-1' };
+            
+            req.requester.permissions.thangs.read = '';
             expect(svc.checkScope({}, thang, 'read')).toBe(false);
-            var user = { id: 'u-1234', org: 'o-1234' };
-            expect(svc.checkScope(user, thang, 'read')).toBe(false);
-            user.permissions = {};
-            expect(svc.checkScope(user, thang, 'read')).toBe(false);
-            user.permissions.thangs = {};
-            user.permissions.orgs = { read: Scope.All };
-            expect(svc.checkScope(user, thang, 'read')).toBe(false);
-            user.permissions.thangs.read = '';
-            expect(svc.checkScope(user, thang, 'read')).toBe(false);
+
+            req.requester.permissions.thangs = {};
+            req.requester.permissions.orgs = { read: Scope.All };
+            expect(svc.checkScope({}, thang, 'read')).toBe(false);
+            
+            req.requester.permissions = {};
+            expect(svc.checkScope({}, thang, 'read')).toBe(false);
+            
+            delete req.requester;
+            expect(svc.checkScope({}, thang, 'read')).toBe(false);
         });
         
         describe('if handling entities not owned by users', function() {
-            var user, thangs;
             beforeEach(function() {
-                user = {
-                    id: 'u-1',
+                req.user = {
+                    id: 'u-1234',
                     org: 'o-1',
-                    thang: 't-1',
-                    permissions: { thangs: { read: Scope.All, edit: Scope.Org, delete: Scope.Own } }
+                    thang: 't-1'
                 };
                 thangs = [
                     { id: 't-1', status: Status.Active, org: 'o-2' },
@@ -267,84 +309,111 @@ describe('CrudSvc', function() {
             it('should allow users with own/org scope to get entities they belong to', function() {
                 // 'all' scope should still work the same
                 expect(thangs.filter(function(thang) {
-                    return svc.checkScope(user, thang, 'read');
+                    return svc.checkScope(req, thang, 'read');
                 })).toEqual(thangs);
                 
                 // 'org' scope should get thangs owned by the org + the user's thang
                 expect(thangs.filter(function(thang) {
-                    return svc.checkScope(user, thang, 'edit');
+                    return svc.checkScope(req, thang, 'edit');
                 })).toEqual([thangs[0], thangs[1]]);
 
                 // 'own' scope should only get the user's thang
                 expect(thangs.filter(function(thang) {
-                    return svc.checkScope(user, thang, 'delete');
+                    return svc.checkScope(req, thang, 'delete');
                 })).toEqual([thangs[0]]);
             });
 
             it('should handle users without a parent object id', function() {
-                delete user.thang;
+                delete req.user.thang;
                 // 'all' scope should still work the same
                 expect(thangs.filter(function(thang) {
-                    return svc.checkScope(user, thang, 'read');
+                    return svc.checkScope(req, thang, 'read');
                 })).toEqual(thangs);
                 
                 // 'org' scope should only get thangs owned by the org
                 expect(thangs.filter(function(thang) {
-                    return svc.checkScope(user, thang, 'edit');
+                    return svc.checkScope(req, thang, 'edit');
                 })).toEqual([thangs[1]]);
 
                 // 'own' scope should get nothing
                 expect(thangs.filter(function(thang) {
-                    return svc.checkScope(user, thang, 'delete');
+                    return svc.checkScope(req, thang, 'delete');
                 })).toEqual([]);
             });
         });
     });
 
     describe('userPermQuery', function() {
-        var query, user;
+        var query, req;
         beforeEach(function() {
             query = { type: 'foo' };
-            user = { id: 'u-1', org: 'o-1', permissions: { thangs: { read: Scope.Own } } };
+            req = {
+                uuid: '1234',
+                requester: {
+                    id: 'u-1',
+                    permissions: { thangs: { read: Scope.Own } }
+                },
+                user: {
+                    id: 'u-1',
+                    org: 'o-1'
+                }
+            };
         });
 
         it('should just check that the entity is not deleted if the user is an admin', function() {
-            user.permissions.thangs.read = Scope.All;
-            expect(svc.userPermQuery(query, user))
-                .toEqual({ type: 'foo', status: { $ne: Status.Deleted } });
-            expect(query).toEqual({type: 'foo'});
+            req.requester.permissions.thangs.read = Scope.All;
+            expect(svc.userPermQuery(query, req)).toEqual({
+                type: 'foo',
+                status: { $ne: Status.Deleted }
+            });
+            expect(query).toEqual({ type: 'foo' });
         });
 
         it('should check if the user owns the object if they have Scope.Own', function() {
-            expect(svc.userPermQuery(query, user))
-                .toEqual({ type: 'foo', status: { $ne: Status.Deleted }, $or: [{user: 'u-1'}] });
+            expect(svc.userPermQuery(query, req)).toEqual({
+                type: 'foo',
+                status: { $ne: Status.Deleted },
+                $or: [{ user: 'u-1' }]
+            });
         });
 
         it('should check if the org owns the object if they have Scope.Org', function() {
-            user.permissions.thangs.read = Scope.Org;
-            expect(svc.userPermQuery(query, user))
-                .toEqual({ type: 'foo', status: { $ne: Status.Deleted }, $or: [{user: 'u-1'}, {org: 'o-1'}] });
+            req.requester.permissions.thangs.read = Scope.Org;
+            expect(svc.userPermQuery(query, req)).toEqual({
+                type: 'foo',
+                status: { $ne: Status.Deleted },
+                $or: [{ user: 'u-1' }, { org: 'o-1' }]
+            });
         });
 
         it('should log a warning if the user has an invalid scope', function() {
-            user.permissions.thangs.read = 'arghlblarghl';
-            expect(svc.userPermQuery(query, user))
-                .toEqual({ type: 'foo', status: { $ne: Status.Deleted }, $or: [{user: 'u-1'}] });
+            req.requester.permissions.thangs.read = 'arghlblarghl';
+            expect(svc.userPermQuery(query, req)).toEqual({
+                type: 'foo',
+                status: { $ne: Status.Deleted },
+                $or: [{ user: 'u-1' }]
+            });
             expect(mockLog.warn).toHaveBeenCalled();
         });
 
         it('should let users view active objects if allowPublic is true', function() {
             svc._allowPublic = true;
-            expect(svc.userPermQuery(query, user)).toEqual({ type: 'foo', status: { $ne: Status.Deleted },
-                                                             $or: [{user: 'u-1'}, {status: Status.Active}] });
-            user.permissions = {};
-            expect(svc.userPermQuery(query, user)).toEqual({ type: 'foo', status: Status.Active });
+            expect(svc.userPermQuery(query, req)).toEqual({
+                type: 'foo',
+                status: { $ne: Status.Deleted },
+                $or: [{ user: 'u-1' }, { status: Status.Active }]
+            });
+            req.requester.permissions = {};
+            expect(svc.userPermQuery(query, req)).toEqual({
+                type: 'foo',
+                status: Status.Active
+            });
         });
         
         it('should preserve existing $or clauses', function() {
-            user.permissions.thangs.read = Scope.Org;
+            req.requester.permissions.thangs.read = Scope.Org;
             query.$or = [ { name: 'foo' }, { advertiserDisplayName: 'foo' } ];
-            expect(svc.userPermQuery(query, user)).toEqual({
+            expect(svc.userPermQuery(query, req)).toEqual({
                 type: 'foo',
                 status: { $ne: Status.Deleted },
                 $and: [
@@ -357,53 +426,124 @@ describe('CrudSvc', function() {
         describe('if handling entities not owned by users', function() {
             beforeEach(function() {
                 svc._ownedByUser = false;
-                user.thang = 't-1';
+                req.user.thang = 't-1';
             });
 
             it('should just check that the entity is not deleted if the user is an admin', function() {
-                user.permissions.thangs.read = Scope.All;
-                expect(svc.userPermQuery(query, user))
-                    .toEqual({ type: 'foo', status: { $ne: Status.Deleted } });
+                req.requester.permissions.thangs.read = Scope.All;
+                expect(svc.userPermQuery(query, req)).toEqual({
+                    type: 'foo',
+                    status: { $ne: Status.Deleted }
+                });
             });
             
             it('should check if the user belongs to the object if they have Scope.Own', function() {
-                expect(svc.userPermQuery(query, user))
-                    .toEqual({ type: 'foo', status: { $ne: Status.Deleted }, $or: [ { id: 't-1' } ] });
+                expect(svc.userPermQuery(query, req)).toEqual({
+                    type: 'foo',
+                    status: { $ne: Status.Deleted },
+                    $or: [ { id: 't-1' } ]
+                });
             });
 
             it('should also check if the org owns the object if they have Scope.Org', function() {
-                user.permissions.thangs.read = Scope.Org;
-                expect(svc.userPermQuery(query, user))
-                    .toEqual({ type: 'foo', status: { $ne: Status.Deleted }, $or: [ { id: 't-1' }, { org: 'o-1' } ] });
+                req.requester.permissions.thangs.read = Scope.Org;
+                expect(svc.userPermQuery(query, req)).toEqual({
+                    type: 'foo',
+                    status: { $ne: Status.Deleted },
+                    $or: [ { id: 't-1' }, { org: 'o-1' } ]
+                });
             });
             
             it('should handle users without a parent object id', function() {
-                delete user.thang;
-                expect(svc.userPermQuery(query, user))
-                    .toEqual({ type: 'foo', status: { $ne: Status.Deleted }, $or: [ { id: { $exists: false } } ] });
+                delete req.user.thang;
+                expect(svc.userPermQuery(query, req)).toEqual({
+                    type: 'foo',
+                    status: { $ne: Status.Deleted },
+                    $or: [ { id: { $exists: false } } ]
+                });
             });
         });
 
         describe('if the requester is querying by status', function() {
             it('should not overwrite the existing filter', function() {
                 query = { status: Status.Active };
-                expect(svc.userPermQuery(query, user)).toEqual({ status: Status.Active, $or: [{user: 'u-1'}] });
+                expect(svc.userPermQuery(query, req)).toEqual({
+                    status: Status.Active,
+                    $or: [{ user: 'u-1' }]
+                });
 
                 query = { status: { $in: [Status.Active, Status.Inactive] } };
-                expect(svc.userPermQuery(query, user)).toEqual({ status: { $in: [Status.Active, Status.Inactive] }, $or: [{user: 'u-1'}] });
+                expect(svc.userPermQuery(query, req)).toEqual({
+                    status: { $in: [Status.Active, Status.Inactive] },
+                    $or: [{ user: 'u-1' }]
+                });
                 expect(mockLog.warn).not.toHaveBeenCalled();
             });
 
-            it('should overwrite the existing filter if the user is querying for deleted objects', function() {
+            it('should overwrite the existing filter if the user is querying for just deleted objects', function() {
                 query = { status: Status.Deleted };
-                expect(svc.userPermQuery(query, user)).toEqual({ status: { $ne: Status.Deleted }, $or: [{user: 'u-1'}] });
+                expect(svc.userPermQuery(query, req)).toEqual({
+                    status: { $ne: Status.Deleted },
+                    $or: [{ user: 'u-1' }]
+                });
                 expect(mockLog.warn).toHaveBeenCalled();
             });
 
-            it('should trim the existing filter if the user is querying for deleted objects', function() {
+            it('should trim the existing filter if the user is querying for deleted objects, among other statuses', function() {
                 query = { status: { $in: [Status.Active, Status.Deleted] } };
-                expect(svc.userPermQuery(query, user)).toEqual({ status: { $in: [Status.Active] }, $or: [{user: 'u-1'}] });
+                expect(svc.userPermQuery(query, req)).toEqual({
+                    status: { $in: [Status.Active] },
+                    $or: [{user: 'u-1' }]
+                });
                 expect(mockLog.warn).toHaveBeenCalled();
+            });
+        });
+        
+        describe('if the request is coming from an app, not a user', function() {
+            beforeEach(function() {
+                delete req.user;
+                req.requester.id = 'app-1';
+                req.application = { id: 'app-1', key: 'watchman' };
+            });
+
+            it('should still allow access if the requester has Scope.All', function() {
+                req.requester.permissions.thangs.read = Scope.All;
+                expect(svc.userPermQuery(query, req)).toEqual({
+                    type: 'foo',
+                    status: { $ne: Status.Deleted }
+                });
+            });
+            
+            it('should not allow access if the requester has Scope.Own or Scope.Org', function() {
+                expect(svc.userPermQuery(query, req)).toEqual({
+                    type: 'foo',
+                    status: { $ne: Status.Deleted },
+                    $or: [{ user: '' }]
+                });
+
+                req.requester.permissions.thangs.read = Scope.Org;
+                expect(svc.userPermQuery(query, req)).toEqual({
+                    type: 'foo',
+                    status: { $ne: Status.Deleted },
+                    $or: [{ user: '' }, { org: '' }]
+                });
+            });
+            
+            it('should also handle the case where the entities are not owned by users', function() {
+                svc._ownedByUser = false;
+
+                req.requester.permissions.thangs.read = Scope.All;
+                expect(svc.userPermQuery(query, req)).toEqual({
+                    type: 'foo',
+                    status: { $ne: Status.Deleted }
+                });
+
+                req.requester.permissions.thangs.read = Scope.Own;
+                expect(svc.userPermQuery(query, req)).toEqual({
+                    type: 'foo',
+                    status: { $ne: Status.Deleted },
+                    $or: [{ id: { $exists: false } }]
+                });
             });
         });
     });
@@ -475,63 +615,6 @@ describe('CrudSvc', function() {
         });
     });
 
-    describe('handleStatusHistory', function() {
-        beforeEach(function() {
-            req.body = { foo: 'bar', status: Status.Active };
-            req.origObj = {
-                status: Status.Pending,
-                statusHistory: [{
-                    status: Status.Pending,
-                    userId: 'u-2',
-                    user: 'admin@c6.com',
-                    date: new Date()
-                }]
-            };
-            req.user = { id: 'u-1', email: 'foo@bar.com' };
-        });
-
-        it('should do nothing if req.body.status is not defined', function() {
-            delete req.body.status;
-            svc.handleStatusHistory(req, nextSpy, doneSpy);
-            expect(req.body.statusHistory).not.toBeDefined();
-            expect(nextSpy).toHaveBeenCalledWith();
-        });
-
-        it('should do nothing if the status is unchanged', function() {
-            req.body.status = Status.Pending;
-            svc.handleStatusHistory(req, nextSpy, doneSpy);
-            expect(req.body.statusHistory).not.toBeDefined();
-            expect(nextSpy).toHaveBeenCalledWith();
-        });
-
-        it('should add an entry to the statusHistory', function() {
-            svc.handleStatusHistory(req, nextSpy, doneSpy);
-            expect(req.body.statusHistory).toEqual([
-                { status: Status.Active, userId: 'u-1', user: 'foo@bar.com', date: jasmine.any(Date) },
-                { status: Status.Pending, userId: 'u-2', user: 'admin@c6.com', date: jasmine.any(Date) }
-            ]);
-            expect(nextSpy).toHaveBeenCalledWith();
-        });
-
-        it('should initalize the statusHistory if not defined', function() {
-            delete req.origObj;
-            svc.handleStatusHistory(req, nextSpy, doneSpy);
-            expect(req.body.statusHistory).toEqual([
-                { status: Status.Active, userId: 'u-1', user: 'foo@bar.com', date: jasmine.any(Date) }
-            ]);
-            expect(nextSpy).toHaveBeenCalledWith();
-        });
-
-        it('should delete the existing statusHistory off req.body', function() {
-            req.body = {
-                statusHistory: [{ status: Status.Inactive, userId: 'u-3', user: 'me@c6.com', date: new Date() }]
-            };
-            svc.handleStatusHistory(req, nextSpy, doneSpy);
-            expect(req.body.statusHistory).not.toBeDefined();
-            expect(nextSpy).toHaveBeenCalledWith();
-        });
-    });
-
     describe('checkExisting', function() {
         var transformedObject;
 
@@ -552,7 +635,7 @@ describe('CrudSvc', function() {
                 expect(svc.transformMongoDoc).toHaveBeenCalledWith('origObject');
                 expect(req.origObj).toBe(transformedObject);
                 expect(mongoUtils.findObject).toHaveBeenCalledWith(mockColl, { id: 't1' });
-                expect(svc.checkScope).toHaveBeenCalledWith({id: 'u1', org: 'o1'}, transformedObject, 'edit');
+                expect(svc.checkScope).toHaveBeenCalledWith(req, transformedObject, 'edit');
                 done();
             });
         });
@@ -866,7 +949,7 @@ describe('CrudSvc', function() {
                 expect(resp).toEqual({code: 200, body: 'formatted'});
                 expect(svc.runMiddleware).toHaveBeenCalledWith(req, 'read', anyFunc);
                 expect(svc.runMiddleware.calls.count()).toBe(1);
-                expect(svc.userPermQuery).toHaveBeenCalledWith({ type: 'foo' }, { id: 'u1', org: 'o1' });
+                expect(svc.userPermQuery).toHaveBeenCalledWith({ type: 'foo' }, req);
                 expect(mockColl.find).toHaveBeenCalledWith('userPermQuery',
                     { sort: { id: 1 }, limit: 20, skip: 10, fields: {} });
                 expect(fakeCursor.toArray).toHaveBeenCalled();
@@ -885,7 +968,7 @@ describe('CrudSvc', function() {
                 expect(resp).toEqual({code: 200, body: 'formatted'});
                 expect(svc.runMiddleware).toHaveBeenCalledWith(req, 'read', anyFunc);
                 expect(svc.runMiddleware.calls.count()).toBe(1);
-                expect(svc.userPermQuery).toHaveBeenCalledWith({ type: 'foo' }, { id: 'u1', org: 'o1' });
+                expect(svc.userPermQuery).toHaveBeenCalledWith({ type: 'foo' }, req);
                 expect(mockColl.find).toHaveBeenCalledWith('userPermQuery',
                     { sort: { id: 1 }, limit: 20, skip: 10, fields: {} });
                 expect(fakeCursor.toArray).toHaveBeenCalled();
@@ -898,7 +981,7 @@ describe('CrudSvc', function() {
         });
 
         it('should use defaults if some params are not defined', function(done) {
-            req = { uuid: '1234', user: 'fakeUser' };
+            delete req.query;
             svc.getObjs(query, req, false).then(function(resp) {
                 expect(resp).toEqual({code: 200, body: 'formatted'});
                 expect(mockColl.find).toHaveBeenCalledWith('userPermQuery',
@@ -1041,7 +1124,7 @@ describe('CrudSvc', function() {
                 expect(svc.userPermQuery).toHaveBeenCalledWith({
                     type: 'foo',
                     id: { $in: ['u-bbe668b7376b76', 'u-c78552acd80e22'] }
-                }, { id: 'u1', org: 'o1' });
+                }, req);
                 expect(mockColl.find).toHaveBeenCalledWith('userPermQuery',
                     { sort: { id: 1 }, limit: 20, skip: 10, fields: {} });
             }).catch(function(error) {
@@ -1360,8 +1443,8 @@ describe('CrudSvc', function() {
                     __max: 4
                 }
             });
-            req.user.permissions = { thangs: { create: 'own' } };
-            req.user.fieldValidation = { thangs: {
+            req.requester.permissions = { thangs: { create: 'own' } };
+            req.requester.fieldValidation = { thangs: {
                 name: {
                     __allowed: true
                 },
@@ -1378,10 +1461,10 @@ describe('CrudSvc', function() {
         });
         
         it('should return a 403 if the user does not have create or edit permissions', function(done) {
-            delete req.user.permissions.thangs.create;
+            delete req.requester.permissions.thangs.create;
             svc.getSchema(req).then(function(resp) {
                 expect(resp).toEqual({ code: 403, body: 'Cannot create or edit thangs' });
-                delete req.user.permissions.thangs;
+                delete req.requester.permissions.thangs;
                 return svc.getSchema(req);
             }).then(function(resp) {
                 expect(resp).toEqual({ code: 403, body: 'Cannot create or edit thangs' });

@@ -61,8 +61,9 @@
         
         router.use(jobManager.setJobTimeout.bind(jobManager));
         
-        var authGetCon = authUtils.middlewarify({containers: 'read'});
-        router.get('/:id', sessions, authGetCon, audit, function(req, res) {
+        var authMidware = authUtils.crudMidware('containers', { allowApps: true });
+        
+        router.get('/:id', sessions, authMidware.read, audit, function(req, res) {
             var promise = svc.getObjs({id: req.params.id}, req, false);
             promise.finally(function() {
                 jobManager.endJob(req, res, promise.inspect())
@@ -72,7 +73,7 @@
             });
         });
 
-        router.get('/', sessions, authGetCon, audit, function(req, res) {
+        router.get('/', sessions, authMidware.read, audit, function(req, res) {
             var query = {};
             if (req.query.name) {
                 query.name = String(req.query.name);
@@ -90,8 +91,7 @@
             });
         });
 
-        var authPostCon = authUtils.middlewarify({containers: 'create'});
-        router.post('/', sessions, authPostCon, audit, function(req, res) {
+        router.post('/', sessions, authMidware.create, audit, function(req, res) {
             var promise = svc.createObj(req);
             promise.finally(function() {
                 jobManager.endJob(req, res, promise.inspect())
@@ -101,8 +101,7 @@
             });
         });
 
-        var authPutCon = authUtils.middlewarify({containers: 'edit'});
-        router.put('/:id', sessions, authPutCon, audit, function(req, res) {
+        router.put('/:id', sessions, authMidware.edit, audit, function(req, res) {
             var promise = svc.editObj(req);
             promise.finally(function() {
                 jobManager.endJob(req, res, promise.inspect())
@@ -112,8 +111,7 @@
             });
         });
 
-        var authDelCon = authUtils.middlewarify({containers: 'delete'});
-        router.delete('/:id', sessions, authDelCon, audit, function(req,res) {
+        router.delete('/:id', sessions, authMidware.delete, audit, function(req,res) {
             var promise = svc.deleteObj(req);
             promise.finally(function() {
                 jobManager.endJob(req, res, promise.inspect())

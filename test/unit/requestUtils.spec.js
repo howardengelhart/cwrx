@@ -1,9 +1,10 @@
 var flush = true;
 describe('requestUtils', function() {
-    var requestUtils, fs, q, net, events;
+    var requestUtils, fs, q, net, events, signatures, uuid;
     
     beforeEach(function() {
         jasmine.clock().install();
+        jasmine.clock().mockDate(new Date(1453929767464));
 
         if (flush){ for (var m in require.cache){ delete require.cache[m]; } flush = false; }
         requestUtils    = require('../../lib/requestUtils');
@@ -11,6 +12,8 @@ describe('requestUtils', function() {
         q               = require('q');
         net             = require('net');
         events          = require('events');
+        uuid            = require('../../lib/uuid');
+        signatures      = require('../../lib/signatures');
     });
 
     afterEach(function() {
@@ -267,6 +270,222 @@ describe('requestUtils', function() {
                     expect(error).toEqual({code: 500, headers: undefined, body: {error: 'Server is borked'}});
                     expect(requestSpy.calls.count()).toBe(3);
                     expect(requestUtils.qRequest.calls.count()).toBe(3);
+                }).done(done);
+            });
+        });
+    });
+
+    describe('makeSignedRequest', function() {
+        var creds, opts, files, jobPolling;
+        beforeEach(function() {
+            creds = {
+                key: 'e2e-tests',
+                secret: 'omgsosecret'
+            };
+            spyOn(signatures, 'setAuthHeaders').and.callThrough();
+            spyOn(uuid, 'hashText').and.returnValue('hashbrowns');
+            spyOn(uuid, 'createUuid').and.returnValue('uuuuuuuuuuuuuuuuuuid');
+            spyOn(signatures, 'signData').and.returnValue('johnhancock');
+            spyOn(requestUtils, 'qRequest').and.returnValue(q({
+                response: { statusCode: 200 },
+                body: 'marvelous authentication, good sir. 10/10'
+            }));
+            opts = {
+                url: 'http://staging.cinema6.com/api/campaigns'
+            };
+            files = 'manyFiles';
+            jobPolling = 'pollDemJobs';
+        });
+        
+        it('should call setHeaders and then send the request', function(done) {
+            requestUtils.makeSignedRequest(creds, 'post', opts, files, jobPolling).then(function(resp) {
+                expect(resp).toEqual({
+                    response: { statusCode: 200 },
+                    body: 'marvelous authentication, good sir. 10/10'
+                });
+                expect(signatures.setAuthHeaders).toHaveBeenCalledWith({ key: 'e2e-tests', secret: 'omgsosecret' }, 'post', opts);
+                expect(requestUtils.qRequest).toHaveBeenCalledWith('post', {
+                    url: 'http://staging.cinema6.com/api/campaigns',
+                    headers: {
+                        'x-rc-auth-app-key'     : 'e2e-tests',
+                        'x-rc-auth-timestamp'   : 1453929767464,
+                        'x-rc-auth-nonce'       : 'uuuuuuuuuuuuuuuuuuid',
+                        'x-rc-auth-signature'   : 'johnhancock'
+                    }
+                }, files, jobPolling);
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should not overwrite existing headers', function(done) {
+            opts.headers = {
+                'x-gone-give-it-to-ya'      : 'yeaaaaah',
+                cookie                      : 'chocolate'
+            };
+            requestUtils.makeSignedRequest(creds, 'post', opts, files, jobPolling).then(function(resp) {
+                expect(resp).toEqual({
+                    response: { statusCode: 200 },
+                    body: 'marvelous authentication, good sir. 10/10'
+                });
+                expect(signatures.setAuthHeaders).toHaveBeenCalledWith({ key: 'e2e-tests', secret: 'omgsosecret' }, 'post', opts);
+                expect(requestUtils.qRequest).toHaveBeenCalledWith('post', {
+                    url: 'http://staging.cinema6.com/api/campaigns',
+                    headers: {
+                        'x-rc-auth-app-key'     : 'e2e-tests',
+                        'x-rc-auth-timestamp'   : 1453929767464,
+                        'x-rc-auth-nonce'       : 'uuuuuuuuuuuuuuuuuuid',
+                        'x-rc-auth-signature'   : 'johnhancock',
+                        'x-gone-give-it-to-ya'  : 'yeaaaaah',
+                        cookie                  : 'chocolate'
+                    }
+                }, files, jobPolling);
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should pass along request errors', function(done) {
+            requestUtils.qRequest.and.returnValue(q.reject('honey, you got a big storm coming'));
+            requestUtils.makeSignedRequest(creds, 'post', opts, files, jobPolling).then(function(resp) {
+                expect(resp).not.toBeDefined();
+            }).catch(function(error) {
+                expect(error).toEqual('honey, you got a big storm coming');
+                expect(signatures.setAuthHeaders).toHaveBeenCalled();
+                expect(requestUtils.qRequest).toHaveBeenCalled();
+            }).done(done);
+        });
+    });
+
+    describe('proxyRequest', function() {
+        var req, opts, files, jobPolling;
+        beforeEach(function() {
+            req = {
+                uuid: '1234',
+                user: { id: 'u-1' },
+                headers: {}
+            };
+            opts = {
+                url: 'http://staging.cinema6.com/api/campaigns'
+            };
+            files = 'manyFiles';
+            jobPolling = 'pollDemJobs';
+
+            spyOn(requestUtils, 'qRequest').and.returnValue(q({
+                response: { statusCode: 200 },
+                body: 'marvelous authentication, good sir. 10/10'
+            }));
+            spyOn(requestUtils, 'makeSignedRequest').and.returnValue(q({
+                response: { statusCode: 200 },
+                body: 'you are the best app. 3/2 thumbs up'
+            }));
+        });
+        
+        it('should call requestUtils.qRequest', function(done) {
+            requestUtils.proxyRequest(req, 'get', opts, files, jobPolling).then(function(resp) {
+                expect(resp).toEqual({
+                    response: { statusCode: 200 },
+                    body: 'marvelous authentication, good sir. 10/10'
+                });
+                expect(requestUtils.qRequest).toHaveBeenCalledWith('get', {
+                    url: 'http://staging.cinema6.com/api/campaigns',
+                    headers: { cookie: undefined }
+                }, 'manyFiles', 'pollDemJobs');
+                expect(requestUtils.makeSignedRequest).not.toHaveBeenCalled();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should forward the cookie header if set', function(done) {
+            req.headers.cookie = 'chocolate chip';
+            requestUtils.proxyRequest(req, 'get', opts, files, jobPolling).then(function(resp) {
+                expect(resp).toEqual({
+                    response: { statusCode: 200 },
+                    body: 'marvelous authentication, good sir. 10/10'
+                });
+                expect(requestUtils.qRequest).toHaveBeenCalledWith('get', {
+                    url: 'http://staging.cinema6.com/api/campaigns',
+                    headers: { cookie: 'chocolate chip' }
+                }, 'manyFiles', 'pollDemJobs');
+                expect(requestUtils.makeSignedRequest).not.toHaveBeenCalled();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should not overwrite existing headers', function(done) {
+            req.headers.cookie = 'chocolate chip';
+            opts.headers = { foo: 'bar' };
+            requestUtils.proxyRequest(req, 'get', opts, files, jobPolling).then(function(resp) {
+                expect(resp).toEqual({
+                    response: { statusCode: 200 },
+                    body: 'marvelous authentication, good sir. 10/10'
+                });
+                expect(requestUtils.qRequest).toHaveBeenCalledWith('get', {
+                    url: 'http://staging.cinema6.com/api/campaigns',
+                    headers: { cookie: 'chocolate chip', foo: 'bar' }
+                }, 'manyFiles', 'pollDemJobs');
+                expect(requestUtils.makeSignedRequest).not.toHaveBeenCalled();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should fail if requestUtils.qRequest fails', function(done) {
+            requestUtils.qRequest.and.returnValue(q.reject('THE SYSTEM IS DOWN'));
+            requestUtils.proxyRequest(req, 'get', opts, files, jobPolling).then(function(resp) {
+                expect(resp).not.toBeDefined();
+            }).catch(function(error) {
+                expect(error).toBe('THE SYSTEM IS DOWN');
+            }).done(done);
+        });
+        
+        describe('if there is an application already authenticated', function(done) {
+            beforeEach(function() {
+                req.application = { id: 'app-1', key: 'watchman' };
+                req._appSecret = 'iwatchthewatchman';
+            });
+
+            it('should make a signed request with its credentials', function(done) {
+                requestUtils.proxyRequest(req, 'get', opts, files, jobPolling).then(function(resp) {
+                    expect(resp).toEqual({
+                        response: { statusCode: 200 },
+                        body: 'you are the best app. 3/2 thumbs up'
+                    });
+                    expect(requestUtils.makeSignedRequest).toHaveBeenCalledWith({ key: 'watchman', secret: 'iwatchthewatchman' }, 'get', {
+                        url: 'http://staging.cinema6.com/api/campaigns',
+                        headers: { cookie: undefined }
+                    }, 'manyFiles', 'pollDemJobs');
+                    expect(requestUtils.qRequest).not.toHaveBeenCalled();
+                }).catch(function(error) {
+                    expect(error.toString()).not.toBeDefined();
+                }).done(done);
+            });
+            
+            it('should be able to also pass along the user auth', function(done) {
+                req.headers.cookie = 'chocolate chip';
+                requestUtils.proxyRequest(req, 'get', opts, files, jobPolling).then(function(resp) {
+                    expect(resp).toEqual({
+                        response: { statusCode: 200 },
+                        body: 'you are the best app. 3/2 thumbs up'
+                    });
+                    expect(requestUtils.makeSignedRequest).toHaveBeenCalledWith({ key: 'watchman', secret: 'iwatchthewatchman' }, 'get', {
+                        url: 'http://staging.cinema6.com/api/campaigns',
+                        headers: { cookie: 'chocolate chip' }
+                    }, 'manyFiles', 'pollDemJobs');
+                    expect(requestUtils.qRequest).not.toHaveBeenCalled();
+                }).catch(function(error) {
+                    expect(error.toString()).not.toBeDefined();
+                }).done(done);
+            });
+
+            it('should fail if makeSignedRequest fails', function(done) {
+                requestUtils.makeSignedRequest.and.returnValue(q.reject('THE SYSTEM IS DOWN'));
+                requestUtils.proxyRequest(req, 'get', opts, files, jobPolling).then(function(resp) {
+                    expect(resp).not.toBeDefined();
+                }).catch(function(error) {
+                    expect(error).toBe('THE SYSTEM IS DOWN');
                 }).done(done);
             });
         });

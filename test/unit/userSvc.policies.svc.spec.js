@@ -53,7 +53,7 @@ describe('userSvc-policies (UT)', function() {
             collection: jasmine.createSpy('db.collection()').and.returnValue(mockColl)
         };
 
-        req = { uuid: '1234', user: { id: 'u-1' } };
+        req = { uuid: '1234', user: { id: 'u-1' }, requester: { id: 'u-1', permissions: {} } };
         nextSpy = jasmine.createSpy('next()');
         doneSpy = jasmine.createSpy('done()');
         errorSpy = jasmine.createSpy('caught error');

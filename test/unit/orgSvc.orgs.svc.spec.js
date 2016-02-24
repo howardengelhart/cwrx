@@ -25,7 +25,7 @@ describe('orgSvc-orgs (UT)', function() {
         spyOn(logger, 'createLog').and.returnValue(mockLog);
         spyOn(logger, 'getLog').and.returnValue(mockLog);
 
-        req = { uuid: '1234', user: { id: 'u-1', org: 'o-1' } };
+        req = { uuid: '1234', user: { id: 'u-1', org: 'o-1' }, requester: { id: 'u-1', permissions: {} } };
         nextSpy = jasmine.createSpy('next()');
         doneSpy = jasmine.createSpy('done()');
         errorSpy = jasmine.createSpy('caught error');
@@ -208,10 +208,10 @@ describe('orgSvc-orgs (UT)', function() {
     
     describe('createPermCheck', function() {
         beforeEach(function() {
-            req.user.permissions = { orgs: { create: Scope.All } };
+            req.requester.permissions = { orgs: { create: Scope.All } };
         });
         
-        it('should call next if the user has admin-level create priviledges', function(done) {
+        it('should call next if the requester has admin-level create priviledges', function(done) {
             orgModule.createPermCheck(req, nextSpy, doneSpy).catch(errorSpy);
             process.nextTick(function() {
                 expect(nextSpy).toHaveBeenCalledWith();
@@ -221,8 +221,8 @@ describe('orgSvc-orgs (UT)', function() {
             });
         });
         
-        it('should call done if the user does not have admin-level create priviledges', function(done) {
-            req.user.permissions.orgs.create = Scope.Own;
+        it('should call done if the requester does not have admin-level create priviledges', function(done) {
+            req.requester.permissions.orgs.create = Scope.Own;
 
             orgModule.createPermCheck(req, nextSpy, doneSpy).catch(errorSpy);
             process.nextTick(function() {
@@ -271,7 +271,7 @@ describe('orgSvc-orgs (UT)', function() {
 
     describe('deletePermCheck', function() {
         beforeEach(function() {
-            req.user.permissions = { orgs: { delete: Scope.All } };
+            req.requester.permissions = { orgs: { delete: Scope.All } };
             req.params = { id: 'o-2' };
         });
         
@@ -287,7 +287,7 @@ describe('orgSvc-orgs (UT)', function() {
         });
 
         it('should call done if a user does not have admin delete priviledges', function(done) {
-            req.user.permissions.orgs.delete = Scope.Own;
+            req.requester.permissions.orgs.delete = Scope.Own;
             orgModule.deletePermCheck(req, nextSpy, doneSpy).catch(errorSpy);
             process.nextTick(function() {
                 expect(nextSpy).not.toHaveBeenCalled();

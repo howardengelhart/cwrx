@@ -10,7 +10,7 @@ var q               = require('q'),
     };
 
 describe('geo (E2E):', function() {
-    var cookieJar;
+    var cookieJar, mockApp, appCreds;
 
     beforeEach(function(done) {
         jasmine.DEFAULT_TIMEOUT_INTERVAL = 10000;
@@ -35,10 +35,19 @@ describe('geo (E2E):', function() {
             priority: 1,
             permissions: {}
         };
+        mockApp = {
+            id: 'app-e2e-geo',
+            key: 'e2e-geo',
+            status: 'active',
+            secret: 'wowsuchsecretverysecureamaze',
+            permissions: {}
+        };
+        appCreds = { key: mockApp.key, secret: mockApp.secret };
         
         q.all([
             testUtils.resetCollection('users', mockUser),
-            testUtils.resetCollection('policies', testPolicy)
+            testUtils.resetCollection('policies', testPolicy),
+            testUtils.mongoUpsert('applications', { key: mockApp.key }, mockApp)
         ]).then(function(results) {
             return requestUtils.qRequest('post', {
                 url: config.authUrl + '/login',
@@ -50,7 +59,7 @@ describe('geo (E2E):', function() {
         });
     });
     
-    describe('GET /api/geo/zipcodes/:id', function() {
+    describe('GET /api/geo/zipcodes/:code', function() {
         var options;
         beforeEach(function() {
             options = {
@@ -126,6 +135,34 @@ describe('geo (E2E):', function() {
                 expect(resp.body).toBe('Unauthorized');
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
+            }).done(done);
+        });
+
+        it('should allow an app to get a zipcode', function(done) {
+            delete options.jar;
+            requestUtils.makeSignedRequest(appCreds, 'get', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.body).toEqual(jasmine.objectContaining({
+                    zipcode: '08540',
+                    city: 'Princeton',
+                    stateName: 'New Jersey',
+                    stateCode: 'NJ',
+                    status: 'active',
+                    loc: jasmine.any(Array)
+                }));
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should fail if an app uses the wrong secret to make a request', function(done) {
+            delete options.jar;
+            var badCreds = { key: mockApp.key, secret: 'WRONG' };
+            requestUtils.makeSignedRequest(badCreds, 'get', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(401);
+                expect(resp.body).toBe('Unauthorized');
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
     });
@@ -258,6 +295,22 @@ describe('geo (E2E):', function() {
                 expect(resp.response.headers['content-range']).not.toBeDefined();
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should allow an app to get zipcodes', function(done) {
+            delete options.jar;
+            requestUtils.makeSignedRequest(appCreds, 'get', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.body.length).toBe(5);
+                expect(resp.body[0].zipcode).toBe('00401');
+                expect(resp.body[1].zipcode).toBe('00501');
+                expect(resp.body[2].zipcode).toBe('00544');
+                expect(resp.body[3].zipcode).toBe('02540');
+                expect(resp.body[4].zipcode).toBe('02556');
+                expect(resp.response.headers['content-range']).toMatch(/items 1-5\/\d+/);
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
     });

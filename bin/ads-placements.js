@@ -5,7 +5,7 @@
         util            = require('util'),
         express         = require('express'),
         logger          = require('../lib/logger'),
-        objUtils        = require('../lib/objUtils'),
+        historian       = require('../lib/historian'),
         QueryCache      = require('../lib/queryCache'),
         Status          = require('../lib/enums').Status,
         authUtils       = require('../lib/authUtils'),
@@ -88,16 +88,16 @@
         placeModule.config.cacheTTLs = config.cacheTTLs;
     
         var svc = new CrudSvc(db.collection('placements'), 'pl', {}, placeModule.placeSchema);
-        
         svc._db = db;
         
-        var validateExtRefs = placeModule.validateExtRefs.bind(placeModule, svc);
+        var validateExtRefs = placeModule.validateExtRefs.bind(placeModule, svc),
+            costHistory     = historian.middlewarify('externalCost', 'costHistory');
         
         svc.use('create', validateExtRefs);
-        svc.use('create', placeModule.handleCostHistory);
+        svc.use('create', costHistory);
         
         svc.use('edit', validateExtRefs);
-        svc.use('edit', placeModule.handleCostHistory);
+        svc.use('edit', costHistory);
         
         var cache = new QueryCache(
             config.cacheTTLs.placements.freshTTL,
@@ -171,29 +171,6 @@
         });
     };
     
-    // Initialize or update the costHistory property when the pricing changes
-    placeModule.handleCostHistory = function(req, next/*, done*/) {
-        var orig = req.origObj || {};
-        
-        delete req.body.costHistory;
-            
-        if (req.body.externalCost &&
-            !objUtils.compareObjects(req.body.externalCost, orig.externalCost)) {
-            req.body.costHistory = orig.costHistory || [];
-            
-            var wrapper = {
-                externalCost    : req.body.externalCost,
-                userId          : req.user.id,
-                user            : req.user.email,
-                date            : new Date()
-            };
-            
-            req.body.costHistory.unshift(wrapper);
-        }
-        
-        next();
-    };
-    
     placeModule.getPublicPlacement = function(svc, cache, id, req) {
         var log = logger.getLog(),
             privateFields = ['org', 'user', 'externalCost', 'costHistory', 'budget'];
@@ -261,8 +238,9 @@
         
         router.use(jobManager.setJobTimeout.bind(jobManager));
         
-        var authGetCon = authUtils.middlewarify({ placements: 'read' });
-        router.get('/:id', sessions, authGetCon, audit, function(req, res) {
+        var authMidware = authUtils.crudMidware('placements', { allowApps: true });
+        
+        router.get('/:id', sessions, authMidware.read, audit, function(req, res) {
             var promise = svc.getObjs({id: req.params.id}, req, false);
             promise.finally(function() {
                 jobManager.endJob(req, res, promise.inspect())
@@ -272,7 +250,7 @@
             });
         });
 
-        router.get('/', sessions, authGetCon, audit, function(req, res) {
+        router.get('/', sessions, authMidware.read, audit, function(req, res) {
             var query = {};
             if ('ids' in req.query) {
                 query.id = String(req.query.ids).split(',');
@@ -293,8 +271,7 @@
             });
         });
 
-        var authPostCon = authUtils.middlewarify({ placements: 'create' });
-        router.post('/', sessions, authPostCon, audit, function(req, res) {
+        router.post('/', sessions, authMidware.create, audit, function(req, res) {
             var promise = svc.createObj(req);
             promise.finally(function() {
                 jobManager.endJob(req, res, promise.inspect())
@@ -304,8 +281,7 @@
             });
         });
 
-        var authPutCon = authUtils.middlewarify({ placements: 'edit' });
-        router.put('/:id', sessions, authPutCon, audit, function(req, res) {
+        router.put('/:id', sessions, authMidware.edit, audit, function(req, res) {
             var promise = svc.editObj(req);
             promise.finally(function() {
                 jobManager.endJob(req, res, promise.inspect())
@@ -315,8 +291,7 @@
             });
         });
 
-        var authDelCon = authUtils.middlewarify({ placements: 'delete' });
-        router.delete('/:id', sessions, authDelCon, audit, function(req,res) {
+        router.delete('/:id', sessions, authMidware.delete, audit, function(req,res) {
             var promise = svc.deleteObj(req);
             promise.finally(function() {
                 jobManager.endJob(req, res, promise.inspect())

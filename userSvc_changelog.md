@@ -1,5 +1,7 @@
 # User Service Changelog
 
+* Support app authentication: [#798](https://github.com/cinema6/cwrx/pull/798)
+
 ### 3.1.0: Thu Jan 14 17:49:00 EST 2016
 * Support `referralCode` prop, + set on org when confirming new user: [#737](https://github.com/cinema6/cwrx/issues/737)
 * Extra deployment steps:

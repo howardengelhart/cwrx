@@ -21,7 +21,7 @@ jasmine.DEFAULT_TIMEOUT_INTERVAL = 30000;
 
 describe('ads campaignUpdates endpoints (E2E):', function() {
     var selfieJar, adminJar, testPolicies, createdCamp, createdCampDecorated,
-        mailman, selfieCredit, selfiePaypal, adminCredit, mockOrgs;
+        mailman, selfieCredit, selfiePaypal, adminCredit, mockOrgs, mockApp, appCreds;
 
     beforeAll(function(done) {
 
@@ -77,7 +77,6 @@ describe('ads campaignUpdates endpoints (E2E):', function() {
                 permissions: {
                     orgs: { read: 'all', edit: 'all', delete: 'all' },
                     cards: { read: 'all', create: 'all', edit: 'all', delete: 'all' },
-                    experiences: { read: 'all', delete: 'all' },
                     campaigns: { read: 'all', create: 'all', edit: 'all', delete: 'all' },
                     campaignUpdates: { read: 'all', create: 'all', edit: 'all' }
                 },
@@ -107,6 +106,19 @@ describe('ads campaignUpdates endpoints (E2E):', function() {
                 }
             },
         ];
+        mockApp = {
+            id: 'app-e2e-campUpdates',
+            key: 'e2e-campUpdates',
+            status: 'active',
+            secret: 'wowsuchsecretverysecureamaze',
+            permissions: JSON.parse(JSON.stringify(testPolicies[1].permissions)),
+            fieldValidation: JSON.parse(JSON.stringify(testPolicies[1].fieldValidation)),
+            entitlements: {
+                directEditCampaigns: true,
+                autoApproveUpdates: true
+            }
+        };
+        appCreds = { key: mockApp.key, secret: mockApp.secret };
         
         var loginOpts = {
             url: config.authUrl + '/login',
@@ -126,7 +138,8 @@ describe('ads campaignUpdates endpoints (E2E):', function() {
         };
         q.all([
             testUtils.resetCollection('users', [selfieUser, adminUser]),
-            testUtils.resetCollection('policies', testPolicies)
+            testUtils.resetCollection('policies', testPolicies),
+            testUtils.mongoUpsert('applications', { key: mockApp.key }, mockApp)
         ]).then(function(resp) {
             return q.all([
                 requestUtils.qRequest('post', loginOpts),
@@ -345,6 +358,28 @@ describe('ads campaignUpdates endpoints (E2E):', function() {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
+
+        it('should allow an app to get an update', function(done) {
+            delete options.jar;
+            requestUtils.makeSignedRequest(appCreds, 'get', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.body).toEqual({ id: 'ur-getId1', campaign: 'cam-getId1', status: 'pending',
+                    user: 'e2e-user', org: 'o-selfie', data: {} });
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should fail if an app uses the wrong secret to make a request', function(done) {
+            delete options.jar;
+            var badCreds = { key: mockApp.key, secret: 'WRONG' };
+            requestUtils.makeSignedRequest(badCreds, 'get', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(401);
+                expect(resp.body).toBe('Unauthorized');
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
     });
 
     describe('GET /api/campaigns/:campId/updates/', function() {
@@ -502,6 +537,22 @@ describe('ads campaignUpdates endpoints (E2E):', function() {
             requestUtils.qRequest('get', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(401);
                 expect(resp.body).toEqual('Unauthorized');
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
+
+        it('should allow an app to get updates', function(done) {
+            delete options.jar;
+            requestUtils.makeSignedRequest(appCreds, 'get', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.body.length).toBe(5);
+                expect(resp.body[0].id).toBe('ur-getQry1');
+                expect(resp.body[1].id).toBe('ur-getQry2');
+                expect(resp.body[2].id).toBe('ur-getQry3');
+                expect(resp.body[3].id).toBe('ur-getQry4');
+                expect(resp.body[4].id).toBe('ur-getQry5');
+                expect(resp.response.headers['content-range']).toBe('items 1-5/5');
             }).catch(function(error) {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
@@ -665,6 +716,22 @@ describe('ads campaignUpdates endpoints (E2E):', function() {
             requestUtils.qRequest('get', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(401);
                 expect(resp.body).toEqual('Unauthorized');
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
+
+        it('should allow an app to get updates', function(done) {
+            delete options.jar;
+            requestUtils.makeSignedRequest(appCreds, 'get', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.body.length).toBe(5);
+                expect(resp.body[0].id).toBe('ur-getQry1');
+                expect(resp.body[1].id).toBe('ur-getQry2');
+                expect(resp.body[2].id).toBe('ur-getQry3');
+                expect(resp.body[3].id).toBe('ur-getQry4');
+                expect(resp.body[4].id).toBe('ur-getQry5');
+                expect(resp.response.headers['content-range']).toBe('items 1-5/5');
             }).catch(function(error) {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);

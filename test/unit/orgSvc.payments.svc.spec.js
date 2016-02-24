@@ -27,7 +27,7 @@ describe('orgSvc-payments (UT)', function() {
         spyOn(logger, 'createLog').and.returnValue(mockLog);
         spyOn(logger, 'getLog').and.returnValue(mockLog);
 
-        req = { uuid: '1234', user: { id: 'u-1', org: 'o-1' } };
+        req = { uuid: '1234', user: { id: 'u-1', org: 'o-1' }, requester: { id: 'u-1', permissions: {} } };
         nextSpy = jasmine.createSpy('next()');
         doneSpy = jasmine.createSpy('done()');
         errorSpy = jasmine.createSpy('caught error');
@@ -305,7 +305,7 @@ describe('orgSvc-payments (UT)', function() {
     describe('canEditOrg', function() {
         beforeEach(function() {
             req.org = { id: 'o-1' };
-            req.user.permissions = { orgs: { edit: Scope.Own } };
+            req.requester.permissions = { orgs: { edit: Scope.Own } };
             spyOn(orgSvc, 'checkScope').and.callThrough();
         });
 
@@ -315,7 +315,7 @@ describe('orgSvc-payments (UT)', function() {
                 expect(nextSpy).toHaveBeenCalledWith();
                 expect(doneSpy).not.toHaveBeenCalled();
                 expect(errorSpy).not.toHaveBeenCalled();
-                expect(orgSvc.checkScope).toHaveBeenCalledWith(req.user, req.org, 'edit');
+                expect(orgSvc.checkScope).toHaveBeenCalledWith(req, req.org, 'edit');
                 done();
             });
         });
@@ -327,7 +327,7 @@ describe('orgSvc-payments (UT)', function() {
                 expect(nextSpy).not.toHaveBeenCalled();
                 expect(doneSpy).toHaveBeenCalledWith({ code: 403, body: 'Not authorized to edit this org' });
                 expect(errorSpy).not.toHaveBeenCalled();
-                expect(orgSvc.checkScope).toHaveBeenCalledWith(req.user, req.org, 'edit');
+                expect(orgSvc.checkScope).toHaveBeenCalledWith(req, req.org, 'edit');
                 done();
             });
         });

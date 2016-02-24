@@ -1,16 +1,17 @@
 var flush = true;
 describe('ads-campaigns (UT)', function() {
-    var mockLog, CrudSvc, Model, logger, q, campModule, campaignUtils, requestUtils, email,
+    var mockLog, CrudSvc, Model, logger, q, campModule, campaignUtils, requestUtils, email, historian,
         mongoUtils, objUtils, nextSpy, doneSpy, errorSpy, req, anyNum, mockDb, Status;
 
     beforeEach(function() {
         if (flush) { for (var m in require.cache){ delete require.cache[m]; } flush = false; }
         q               = require('q');
         logger          = require('../../lib/logger');
-        requestUtils    = require('../../lib/requestUtils');
         campModule      = require('../../bin/ads-campaigns');
         campaignUtils   = require('../../lib/campaignUtils');
+        requestUtils    = require('../../lib/requestUtils');
         mongoUtils      = require('../../lib/mongoUtils');
+        historian       = require('../../lib/historian');
         objUtils        = require('../../lib/objUtils');
         CrudSvc         = require('../../lib/crudSvc');
         Model           = require('../../lib/model');
@@ -65,6 +66,7 @@ describe('ads-campaigns (UT)', function() {
             uuid: '1234',
             _advertiserId: 987,
             headers: { cookie: 'chocolate' },
+            requester: { id: 'u-1', permissions: {} },
             user: { id: 'u-1', email: 'selfie@c6.com' },
             params: {}, query: {}
         };
@@ -74,7 +76,7 @@ describe('ads-campaigns (UT)', function() {
     });
     
     describe('setupSvc', function() {
-        var svc, boundFns;
+        var svc, boundFns, statHistMidware, priceHistMidware;
 
         function getBoundFn(original, argParams) {
             var boundObj = boundFns.filter(function(call) {
@@ -115,6 +117,14 @@ describe('ads-campaigns (UT)', function() {
                 });
             });
             
+            statHistMidware = jasmine.createSpy('handleStatHist');
+            priceHistMidware = jasmine.createSpy('handlePriceHist');
+            spyOn(historian, 'middlewarify').and.callFake(function(field, histField) {
+                if (field === 'status') return statHistMidware;
+                else if (field === 'pricing') return priceHistMidware;
+                else return;
+            });
+            
             svc = campModule.setupSvc(mockDb, config);
         });
 
@@ -150,9 +160,10 @@ describe('ads-campaigns (UT)', function() {
         });
         
         it('should enable statusHistory', function() {
-            expect(svc._middleware.create).toContain(svc.handleStatusHistory);
-            expect(svc._middleware.edit).toContain(svc.handleStatusHistory);
-            expect(svc._middleware.delete).toContain(svc.handleStatusHistory);
+            expect(historian.middlewarify).toHaveBeenCalledWith('status', 'statusHistory');
+            expect(svc._middleware.create).toContain(statHistMidware);
+            expect(svc._middleware.edit).toContain(statHistMidware);
+            expect(svc._middleware.delete).toContain(statHistMidware);
             expect(svc.model.schema.statusHistory).toBeDefined();
         });
         
@@ -211,8 +222,9 @@ describe('ads-campaigns (UT)', function() {
         });
         
         it('should include middleware for handling the pricingHistory', function() {
-            expect(svc._middleware.create).toContain(campModule.handlePricingHistory);
-            expect(svc._middleware.edit).toContain(campModule.handlePricingHistory);
+            expect(historian.middlewarify).toHaveBeenCalledWith('pricing', 'pricingHistory');
+            expect(svc._middleware.create).toContain(priceHistMidware);
+            expect(svc._middleware.edit).toContain(priceHistMidware);
         });
         
         it('should include middleware for deleting linked entities on delete', function() {
@@ -238,7 +250,7 @@ describe('ads-campaigns (UT)', function() {
                     cards: [ { id: 'rc-1' }, { id: 'rc-2' } ]
                 }
             };
-            spyOn(requestUtils, 'qRequest').and.callFake(function(method, opts) {
+            spyOn(requestUtils, 'proxyRequest').and.callFake(function(req, method, opts) {
                 var cards = opts.qs.ids.split(',').map(function(id) { return c6Cards[id]; }).filter(function(card) { return !!card; });
                 return q({
                     response: { statusCode: 200 },
@@ -258,10 +270,9 @@ describe('ads-campaigns (UT)', function() {
                         { id: 'rc-2', title: 'card 2' }
                     ]
                 });
-                expect(requestUtils.qRequest).toHaveBeenCalledWith('get', {
+                expect(requestUtils.proxyRequest).toHaveBeenCalledWith(req, 'get', {
                     url: 'https://test.com/api/content/cards/',
-                    qs: { ids: 'rc-1,rc-2' },
-                    headers: { cookie: 'chocolate' }
+                    qs: { ids: 'rc-1,rc-2' }
                 });
                 expect(mockLog.warn).not.toHaveBeenCalled();
                 expect(mockLog.error).not.toHaveBeenCalled();
@@ -286,10 +297,9 @@ describe('ads-campaigns (UT)', function() {
                     { id: 'cam-1', name: 'camp 1', cards: [ { id: 'rc-3', title: 'card 3' } ] },
                     { id: 'cam-1', name: 'camp 1', cards: [ { id: 'rc-4', title: 'card 4' }, { id: 'rc-5', title: 'card 5' } ] },
                 ]);
-                expect(requestUtils.qRequest).toHaveBeenCalledWith('get', {
+                expect(requestUtils.proxyRequest).toHaveBeenCalledWith(req, 'get', {
                     url: 'https://test.com/api/content/cards/',
-                    qs: { ids: 'rc-1,rc-2,rc-3,rc-4,rc-5' },
-                    headers: { cookie: 'chocolate' }
+                    qs: { ids: 'rc-1,rc-2,rc-3,rc-4,rc-5' }
                 });
                 expect(mockLog.warn).not.toHaveBeenCalled();
                 expect(mockLog.error).not.toHaveBeenCalled();
@@ -303,7 +313,7 @@ describe('ads-campaigns (UT)', function() {
             campModule.decorateWithCards(req, campResp).then(function(resp) {
                 expect(resp.code).toBe(400);
                 expect(resp.body).toBe('you did a bad thing');
-                expect(requestUtils.qRequest).not.toHaveBeenCalled();
+                expect(requestUtils.proxyRequest).not.toHaveBeenCalled();
                 expect(mockLog.warn).not.toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
@@ -315,7 +325,7 @@ describe('ads-campaigns (UT)', function() {
             campModule.decorateWithCards(req, campResp).then(function(resp) {
                 expect(resp.code).toBe(200);
                 expect(resp.body).toEqual({ id: 'cam-1', name: 'my camp' });
-                expect(requestUtils.qRequest).not.toHaveBeenCalled();
+                expect(requestUtils.proxyRequest).not.toHaveBeenCalled();
                 expect(mockLog.warn).not.toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
@@ -334,10 +344,9 @@ describe('ads-campaigns (UT)', function() {
                         { id: 'rc-2', title: 'card 2' }
                     ]
                 });
-                expect(requestUtils.qRequest).toHaveBeenCalledWith('get', {
+                expect(requestUtils.proxyRequest).toHaveBeenCalledWith(req, 'get', {
                     url: 'https://test.com/api/content/cards/',
-                    qs: { ids: 'rc-2' },
-                    headers: { cookie: 'chocolate' }
+                    qs: { ids: 'rc-2' }
                 });
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
@@ -357,20 +366,20 @@ describe('ads-campaigns (UT)', function() {
                     ]
                 });
                 expect(mockLog.warn).toHaveBeenCalled();
-                expect(requestUtils.qRequest).toHaveBeenCalled();
+                expect(requestUtils.proxyRequest).toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
             }).done(done);
         });
         
         it('should reject if any requests fail', function(done) {
-            requestUtils.qRequest.and.returnValue(q.reject('I GOT A PROBLEM'));
+            requestUtils.proxyRequest.and.returnValue(q.reject('I GOT A PROBLEM'));
             campModule.decorateWithCards(req, campResp).then(function(resp) {
                 expect(resp).not.toBeDefined();
             }).catch(function(error) {
                 expect(error).toBe('Error fetching cards');
                 expect(mockLog.error).toHaveBeenCalled();
-                expect(requestUtils.qRequest).toHaveBeenCalled();
+                expect(requestUtils.proxyRequest).toHaveBeenCalled();
             }).done(done);
         });
     });
@@ -418,7 +427,7 @@ describe('ads-campaigns (UT)', function() {
         var permitted;
         beforeEach(function() {
             req.origObj = { id: 'cam-1', status: Status.Active };
-            req.user.entitlements = {};
+            req.requester.entitlements = {};
             permitted = [Status.Draft, Status.Canceled];
         });
 
@@ -435,15 +444,8 @@ describe('ads-campaigns (UT)', function() {
             expect(doneSpy).not.toHaveBeenCalled();
         });
         
-        it('should call next if the user has the directEditCampaigns entitlement', function() {
-            req.user.entitlements.directEditCampaigns = true;
-            campModule.statusCheck(permitted, req, nextSpy, doneSpy);
-            expect(nextSpy).toHaveBeenCalled();
-            expect(doneSpy).not.toHaveBeenCalled();
-        });
-        
-        it('should call next if there\'s an application with the directEditCampaigns entitlement', function() {
-            req.application = { key: 'app 1', entitlements: { directEditCampaigns: true } };
+        it('should call next if the requester has the directEditCampaigns entitlement', function() {
+            req.requester.entitlements.directEditCampaigns = true;
             campModule.statusCheck(permitted, req, nextSpy, doneSpy);
             expect(nextSpy).toHaveBeenCalled();
             expect(doneSpy).not.toHaveBeenCalled();
@@ -476,9 +478,9 @@ describe('ads-campaigns (UT)', function() {
         var c6Cards;
         beforeEach(function() {
             c6Cards = {
-                'rc-1': { id: 'rc-1', title: 'card 1', campaign: { adtechId: 11, bannerId: 123, bannerNumber: 1 } },
-                'rc-2': { id: 'rc-2', title: 'card 2', campaign: { adtechId: 12, bannerId: 456, bannerNumber: 2 } },
-                'rc-3': { id: 'rc-3', title: 'card 3', campaign: { adtechId: 13, bannerId: 789, bannerNumber: 3 } }
+                'rc-1': { id: 'rc-1', title: 'card 1', campaign: { minViewTime: 1} },
+                'rc-2': { id: 'rc-2', title: 'card 2', campaign: { minViewTime: 2} },
+                'rc-3': { id: 'rc-3', title: 'card 3', campaign: { minViewTime: 3} }
             };
             req.body = {
                 id: 'cam-1',
@@ -488,7 +490,7 @@ describe('ads-campaigns (UT)', function() {
                 id: 'cam-1',
                 cards: [ { id: 'rc-3' } ]
             };
-            spyOn(requestUtils, 'qRequest').and.callFake(function(method, opts) {
+            spyOn(requestUtils, 'proxyRequest').and.callFake(function(req, method, opts) {
                 var card = c6Cards[opts.url.match(/cards\/(.+)$/)[1]];
                 return q({
                     response: { statusCode: !!card ? 200 : 404 },
@@ -503,21 +505,21 @@ describe('ads-campaigns (UT)', function() {
                 expect(doneSpy).not.toHaveBeenCalled();
                 expect(errorSpy).not.toHaveBeenCalled();
                 expect(req._cards).toEqual({
-                    'rc-1': { id: 'rc-1', title: 'card 1', campaign: { adtechId: 11, bannerId: 123, bannerNumber: 1 } },
-                    'rc-2': { id: 'rc-2', title: 'card 2', campaign: { adtechId: 12, bannerId: 456, bannerNumber: 2 } },
+                    'rc-1': { id: 'rc-1', title: 'card 1', campaign: { minViewTime: 1} },
+                    'rc-2': { id: 'rc-2', title: 'card 2', campaign: { minViewTime: 2} },
                 });
                 expect(req._origCards).toEqual({
-                    'rc-3': { id: 'rc-3', title: 'card 3', campaign: { adtechId: 13, bannerId: 789, bannerNumber: 3  } }
+                    'rc-3': { id: 'rc-3', title: 'card 3', campaign: { minViewTime: 3} }
                 });
                 expect(req.body.cards).toEqual([{ id: 'rc-1' }, { id: 'rc-2' }]);
                 expect(req.origObj.cards).toEqual([c6Cards['rc-3']]);
-                expect(requestUtils.qRequest.calls.count()).toBe(3);
-                expect(requestUtils.qRequest).toHaveBeenCalledWith('get',
-                    { url: 'https://test.com/api/content/cards/rc-2', headers: { cookie: 'chocolate' } });
-                expect(requestUtils.qRequest).toHaveBeenCalledWith('get',
-                    { url: 'https://test.com/api/content/cards/rc-1', headers: { cookie: 'chocolate' } });
-                expect(requestUtils.qRequest).toHaveBeenCalledWith('get',
-                    { url: 'https://test.com/api/content/cards/rc-3', headers: { cookie: 'chocolate' } });
+                expect(requestUtils.proxyRequest.calls.count()).toBe(3);
+                expect(requestUtils.proxyRequest).toHaveBeenCalledWith(req, 'get',
+                    { url: 'https://test.com/api/content/cards/rc-2' });
+                expect(requestUtils.proxyRequest).toHaveBeenCalledWith(req, 'get',
+                    { url: 'https://test.com/api/content/cards/rc-1' });
+                expect(requestUtils.proxyRequest).toHaveBeenCalledWith(req, 'get',
+                    { url: 'https://test.com/api/content/cards/rc-3' });
                 expect(mockLog.warn).not.toHaveBeenCalled();
                 expect(mockLog.error).not.toHaveBeenCalled();
             }).done(done);
@@ -530,11 +532,11 @@ describe('ads-campaigns (UT)', function() {
                 expect(doneSpy).not.toHaveBeenCalled();
                 expect(errorSpy).not.toHaveBeenCalled();
                 expect(req._cards).toEqual({
-                    'rc-1': { id: 'rc-1', title: 'card 1', campaign: { adtechId: 11, bannerId: 123, bannerNumber: 1 } },
-                    'rc-2': { id: 'rc-2', title: 'card 2', campaign: { adtechId: 12, bannerId: 456, bannerNumber: 2 } },
+                    'rc-1': { id: 'rc-1', title: 'card 1', campaign: { minViewTime: 1} },
+                    'rc-2': { id: 'rc-2', title: 'card 2', campaign: { minViewTime: 2} },
                 });
                 expect(req._origCards).toEqual({});
-                expect(requestUtils.qRequest.calls.count()).toBe(2);
+                expect(requestUtils.proxyRequest.calls.count()).toBe(2);
             }).done(done);
         });
         
@@ -545,11 +547,11 @@ describe('ads-campaigns (UT)', function() {
                 expect(doneSpy).not.toHaveBeenCalled();
                 expect(errorSpy).not.toHaveBeenCalled();
                 expect(req._cards).toEqual({
-                    'rc-1': { id: 'rc-1', title: 'card 1', campaign: { adtechId: 11, bannerId: 123, bannerNumber: 1 } },
-                    'rc-2': { id: 'rc-2', title: 'card 2', campaign: { adtechId: 12, bannerId: 456, bannerNumber: 2 } },
+                    'rc-1': { id: 'rc-1', title: 'card 1', campaign: { minViewTime: 1} },
+                    'rc-2': { id: 'rc-2', title: 'card 2', campaign: { minViewTime: 2} },
                 });
                 expect(req.body.cards).toEqual([{ id: 'rc-1' }, { id: 'rc-2' }, { title: 'my new card' }]);
-                expect(requestUtils.qRequest.calls.count()).toBe(3);
+                expect(requestUtils.proxyRequest.calls.count()).toBe(3);
                 expect(mockLog.warn).not.toHaveBeenCalled();
                 expect(mockLog.error).not.toHaveBeenCalled();
             }).done(done);
@@ -569,10 +571,10 @@ describe('ads-campaigns (UT)', function() {
                     { id: 'rc-2', title: 'card 1.2', campaign: { ads: 'maybe' }, data: { foo: 'baz' } }
                 ]);
                 expect(req._cards).toEqual({
-                    'rc-1': { id: 'rc-1', title: 'card 1', campaign: { adtechId: 11, bannerId: 123, bannerNumber: 1 } },
-                    'rc-2': { id: 'rc-2', title: 'card 2', campaign: { adtechId: 12, bannerId: 456, bannerNumber: 2 } },
+                    'rc-1': { id: 'rc-1', title: 'card 1', campaign: { minViewTime: 1} },
+                    'rc-2': { id: 'rc-2', title: 'card 2', campaign: { minViewTime: 2} },
                 });
-                expect(requestUtils.qRequest.calls.count()).toBe(3);
+                expect(requestUtils.proxyRequest.calls.count()).toBe(3);
                 done();
             });
         });
@@ -584,14 +586,14 @@ describe('ads-campaigns (UT)', function() {
                 expect(doneSpy).not.toHaveBeenCalled();
                 expect(errorSpy).not.toHaveBeenCalled();
                 expect(req._cards).toEqual({
-                    'rc-1': { id: 'rc-1', title: 'card 1', campaign: { adtechId: 11, bannerId: 123, bannerNumber: 1 } },
-                    'rc-2': { id: 'rc-2', title: 'card 2', campaign: { adtechId: 12, bannerId: 456, bannerNumber: 2 } },
+                    'rc-1': { id: 'rc-1', title: 'card 1', campaign: { minViewTime: 1} },
+                    'rc-2': { id: 'rc-2', title: 'card 2', campaign: { minViewTime: 2} },
                 });
                 expect(req._origCards).toEqual({
-                    'rc-1': { id: 'rc-1', title: 'card 1', campaign: { adtechId: 11, bannerId: 123, bannerNumber: 1 } },
-                    'rc-3': { id: 'rc-3', title: 'card 3', campaign: { adtechId: 13, bannerId: 789, bannerNumber: 3  } }
+                    'rc-1': { id: 'rc-1', title: 'card 1', campaign: { minViewTime: 1} },
+                    'rc-3': { id: 'rc-3', title: 'card 3', campaign: { minViewTime: 3 } }
                 });
-                expect(requestUtils.qRequest.calls.count()).toBe(3);
+                expect(requestUtils.proxyRequest.calls.count()).toBe(3);
             }).done(done);
         });
         
@@ -601,7 +603,7 @@ describe('ads-campaigns (UT)', function() {
                 expect(nextSpy).not.toHaveBeenCalled();
                 expect(doneSpy).toHaveBeenCalledWith({ code: 400, body: 'Cannot fetch card rc-fake' });
                 expect(errorSpy).not.toHaveBeenCalled();
-                expect(requestUtils.qRequest.calls.count()).toBe(4);
+                expect(requestUtils.proxyRequest.calls.count()).toBe(4);
                 expect(mockLog.warn).not.toHaveBeenCalled();
             }).done(done);
         });
@@ -612,19 +614,19 @@ describe('ads-campaigns (UT)', function() {
                 expect(nextSpy).toHaveBeenCalled();
                 expect(doneSpy).not.toHaveBeenCalled();
                 expect(errorSpy).not.toHaveBeenCalled();
-                expect(requestUtils.qRequest.calls.count()).toBe(4);
+                expect(requestUtils.proxyRequest.calls.count()).toBe(4);
                 expect(mockLog.warn).toHaveBeenCalled();
             }).done(done);
         });
         
         it('should reject if any request fails', function(done) {
-            requestUtils.qRequest.and.returnValue(q.reject('I GOT A PROBLEM'));
+            requestUtils.proxyRequest.and.returnValue(q.reject('I GOT A PROBLEM'));
             campModule.fetchCards(req, nextSpy, doneSpy).catch(errorSpy).finally(function() {
                 expect(nextSpy).not.toHaveBeenCalled();
                 expect(doneSpy).not.toHaveBeenCalled();
                 expect(errorSpy).toHaveBeenCalledWith(jasmine.any(Error));
                 expect(errorSpy.calls.argsFor(0)[0].message).toBe('Error fetching card rc-1');
-                expect(requestUtils.qRequest.calls.count()).toBe(3);
+                expect(requestUtils.proxyRequest.calls.count()).toBe(3);
                 expect(mockLog.error).toHaveBeenCalled();
             }).done(done);
         });
@@ -648,10 +650,10 @@ describe('ads-campaigns (UT)', function() {
                 expect(doneSpy).not.toHaveBeenCalled();
                 expect(errorSpy).not.toHaveBeenCalled();
                 expect(campaignUtils.ensureUniqueIds).toHaveBeenCalledWith({ foo: 'bar' });
-                expect(campaignUtils.validateAllDates).toHaveBeenCalledWith({ foo: 'bar' }, { old: 'yes' }, req.user, '1234');
-                expect(campaignUtils.validatePricing).toHaveBeenCalledWith({ foo: 'bar' }, { old: 'yes' }, req.user, svc.model);
+                expect(campaignUtils.validateAllDates).toHaveBeenCalledWith({ foo: 'bar' }, { old: 'yes' }, req.requester, '1234');
+                expect(campaignUtils.validatePricing).toHaveBeenCalledWith({ foo: 'bar' }, { old: 'yes' }, req.requester, svc.model);
                 expect(campaignUtils.validatePaymentMethod).toHaveBeenCalledWith({ foo: 'bar' }, { old: 'yes' },
-                    req.user, 'https://test.com/api/payments/methods/', req);
+                    req.requester, 'https://test.com/api/payments/methods/', req);
             }).done(done, done.fail);
         });
         
@@ -709,7 +711,7 @@ describe('ads-campaigns (UT)', function() {
                 expect(doneSpy).not.toHaveBeenCalled();
                 expect(errorSpy).not.toHaveBeenCalled();
                 expect(campaignUtils.validateZipcodes).toHaveBeenCalledWith({ newCampaign: 'yes' }, { oldCampaign: 'yes' },
-                    req.user, 'https://test.com/api/geo/zipcodes/', req);
+                    req.requester, 'https://test.com/api/geo/zipcodes/', req);
             }).done(done, done.fail);
         });
         
@@ -720,7 +722,7 @@ describe('ads-campaigns (UT)', function() {
                 expect(doneSpy).toHaveBeenCalledWith({ code: 400, body: 'you better pay up buddy' });
                 expect(errorSpy).not.toHaveBeenCalled();
                 expect(campaignUtils.validateZipcodes).toHaveBeenCalledWith({ newCampaign: 'yes' }, { oldCampaign: 'yes' },
-                    req.user, 'https://test.com/api/geo/zipcodes/', req);
+                    req.requester, 'https://test.com/api/geo/zipcodes/', req);
             }).done(done, done.fail);
         });
         
@@ -731,7 +733,7 @@ describe('ads-campaigns (UT)', function() {
                 expect(doneSpy).not.toHaveBeenCalled();
                 expect(errorSpy).toHaveBeenCalledWith('I GOT A PROBLEM');
                 expect(campaignUtils.validateZipcodes).toHaveBeenCalledWith({ newCampaign: 'yes' }, { oldCampaign: 'yes' },
-                    req.user, 'https://test.com/api/geo/zipcodes/', req);
+                    req.requester, 'https://test.com/api/geo/zipcodes/', req);
             }).done(done, done.fail);
         });
     });
@@ -854,9 +856,9 @@ describe('ads-campaigns (UT)', function() {
                 cards: [{ id: 'rc-1' }, { id: 'rc-2' }, { id: 'rc-3' }]
             };
             req._origCards = {
-                'rc-1': { id: 'rc-1', campaign: { adtechId: 11 } },
-                'rc-2': { id: 'rc-2', campaign: { adtechId: 12 } },
-                'rc-3': { id: 'rc-2', campaign: { adtechId: 13 } }
+                'rc-1': { id: 'rc-1', campaign: { minViewTime: 1 } },
+                'rc-2': { id: 'rc-2', campaign: { minViewTime: 2 } },
+                'rc-3': { id: 'rc-2', campaign: { minViewTime: 3 } }
             };
             spyOn(campModule, 'sendDeleteRequest').and.returnValue(q());
             spyOn(campModule, 'cleanStaticMap').and.callThrough();
@@ -1121,7 +1123,7 @@ describe('ads-campaigns (UT)', function() {
                 ]
             };
             req._cards = { 'rc-2': { id: 'rc-2', title: 'old title' } };
-            spyOn(requestUtils, 'qRequest').and.callFake(function(method, opts) {
+            spyOn(requestUtils, 'proxyRequest').and.callFake(function(req, method, opts) {
                 var resp = { response: {}, body: JSON.parse(JSON.stringify(opts.json)) };
                 resp.body.updated = true;
                 if (method === 'post') {
@@ -1145,16 +1147,14 @@ describe('ads-campaigns (UT)', function() {
                     'rc-1': { id: 'rc-1', title: 'card 1', campaign: { adtechName: 'foo' }, updated: true, campaignId: 'cam-1', advertiserId: 'a-1' },
                     'rc-2': { id: 'rc-2', title: 'card 2', campaign: { adtechName: 'bar' }, updated: true, campaignId: 'cam-1', advertiserId: 'a-1' },
                 });
-                expect(requestUtils.qRequest.calls.count()).toBe(2);
-                expect(requestUtils.qRequest).toHaveBeenCalledWith('post', {
+                expect(requestUtils.proxyRequest.calls.count()).toBe(2);
+                expect(requestUtils.proxyRequest).toHaveBeenCalledWith(req, 'post', {
                     url: 'https://test.com/api/content/cards/',
-                    json: { title: 'card 1', campaign: { adtechName: 'foo' }, campaignId: 'cam-1', advertiserId: 'a-1' },
-                    headers: { cookie: 'chocolate' }
+                    json: { title: 'card 1', campaign: { adtechName: 'foo' }, campaignId: 'cam-1', advertiserId: 'a-1' }
                 });
-                expect(requestUtils.qRequest).toHaveBeenCalledWith('put', {
+                expect(requestUtils.proxyRequest).toHaveBeenCalledWith(req, 'put', {
                     url: 'https://test.com/api/content/cards/rc-2',
-                    json: { id: 'rc-2', title: 'card 2', campaign: { adtechName: 'bar' }, campaignId: 'cam-1', advertiserId: 'a-1' },
-                    headers: { cookie: 'chocolate' }
+                    json: { id: 'rc-2', title: 'card 2', campaign: { adtechName: 'bar' }, campaignId: 'cam-1', advertiserId: 'a-1' }
                 });
                 expect(mockLog.warn).not.toHaveBeenCalled();
                 expect(mockLog.error).not.toHaveBeenCalled();
@@ -1170,13 +1170,13 @@ describe('ads-campaigns (UT)', function() {
                 expect(doneSpy).not.toHaveBeenCalled();
                 expect(errorSpy).not.toHaveBeenCalled();
                 expect(req.body.cards).not.toBeDefined();
-                expect(requestUtils.qRequest).not.toHaveBeenCalled();
+                expect(requestUtils.proxyRequest).not.toHaveBeenCalled();
                 done();
             });
         });
         
         it('should call done if one of the requests returns a 4xx', function(done) {
-            requestUtils.qRequest.and.callFake(function(method, opts) {
+            requestUtils.proxyRequest.and.callFake(function(req, method, opts) {
                 if (method === 'post') return q({ response: { statusCode: 403 }, body: 'Cannot POST cards' });
                 else return q({ response: { statusCode: 200 }, body: opts.json });
             });
@@ -1185,166 +1185,24 @@ describe('ads-campaigns (UT)', function() {
                 expect(nextSpy).not.toHaveBeenCalled();
                 expect(doneSpy).toHaveBeenCalledWith({ code: 400, body: 'Cannot post card "card 1"' });
                 expect(errorSpy).not.toHaveBeenCalled();
-                expect(requestUtils.qRequest.calls.count()).toBe(2);
+                expect(requestUtils.proxyRequest.calls.count()).toBe(2);
                 expect(mockLog.warn).not.toHaveBeenCalled();
                 done();
             });
         });
         
         it('should reject if one of the requests fails', function(done) {
-            requestUtils.qRequest.and.returnValue(q.reject('I GOT A PROBLEM'));
+            requestUtils.proxyRequest.and.returnValue(q.reject('I GOT A PROBLEM'));
             campModule.updateCards(req, nextSpy, doneSpy).catch(errorSpy);
             process.nextTick(function() {
                 expect(nextSpy).not.toHaveBeenCalled();
                 expect(doneSpy).not.toHaveBeenCalledWith();
                 expect(errorSpy).toHaveBeenCalledWith(jasmine.any(Error));
                 expect(errorSpy.calls.argsFor(0)[0].message).toBe('Error updating card "card 1"');
-                expect(requestUtils.qRequest.calls.count()).toBe(2);
+                expect(requestUtils.proxyRequest.calls.count()).toBe(2);
                 expect(mockLog.error).toHaveBeenCalled();
                 done();
             });
-        });
-    });
-    
-    describe('handlePricingHistory', function() {
-        var oldDate;
-        beforeEach(function() {
-            oldDate = new Date(new Date().valueOf() - 5000);
-            req.body = {
-                status: Status.Active,
-                foo: 'bar',
-                pricing: {
-                    budget: 1000,
-                    dailyLimit: 200,
-                    model: 'cpv',
-                    cost: 0.1
-                }
-            };
-            var origPricing = {
-                budget: 500,
-                dailyLimit: 200,
-                model: 'cpv',
-                cost: 0.1
-            };
-            req.origObj = {
-                pricing: origPricing,
-                pricingHistory: [{
-                    pricing: origPricing,
-                    userId: 'u-2',
-                    user: 'admin@c6.com',
-                    date: oldDate
-                }]
-            };
-            req.user = { id: 'u-1', email: 'foo@bar.com' };
-        });
-        
-        it('should do nothing if req.body.pricing is not defined', function() {
-            delete req.body.pricing;
-            campModule.handlePricingHistory(req, nextSpy, doneSpy);
-            expect(req.body.pricingHistory).not.toBeDefined();
-            expect(nextSpy).toHaveBeenCalledWith();
-        });
-
-        it('should do nothing if the pricing is unchanged', function() {
-            req.body.pricing.budget = 500;
-            campModule.handlePricingHistory(req, nextSpy, doneSpy);
-            expect(req.body.pricingHistory).not.toBeDefined();
-            expect(nextSpy).toHaveBeenCalledWith();
-        });
-        
-        it('should add an entry to the pricingHistory', function() {
-            campModule.handlePricingHistory(req, nextSpy, doneSpy);
-            expect(req.body.pricingHistory).toEqual([
-                {
-                    pricing: {
-                        budget: 1000,
-                        dailyLimit: 200,
-                        model: 'cpv',
-                        cost: 0.1
-                    },
-                    userId: 'u-1',
-                    user: 'foo@bar.com',
-                    date: jasmine.any(Date)
-                },
-                {
-                    pricing: {
-                        budget: 500,
-                        dailyLimit: 200,
-                        model: 'cpv',
-                        cost: 0.1
-                    },
-                    userId: 'u-2',
-                    user: 'admin@c6.com',
-                    date: oldDate
-                }
-            ]);
-            expect(req.body.pricingHistory[0].date).toBeGreaterThan(oldDate);
-            expect(nextSpy).toHaveBeenCalledWith();
-        });
-        
-        it('should initalize the pricingHistory if not defined', function() {
-            delete req.origObj;
-            campModule.handlePricingHistory(req, nextSpy, doneSpy);
-            expect(req.body.pricingHistory).toEqual([
-                {
-                    pricing: {
-                        budget: 1000,
-                        dailyLimit: 200,
-                        model: 'cpv',
-                        cost: 0.1
-                    },
-                    userId: 'u-1',
-                    user: 'foo@bar.com',
-                    date: jasmine.any(Date)
-                }
-            ]);
-            expect(nextSpy).toHaveBeenCalledWith();
-        });
-
-        it('should delete the existing pricingHistory off req.body', function() {
-            req.body = {
-                pricingHistory: [{ pricing: 'yes', userId: 'u-3', user: 'me@c6.com', date: new Date() }]
-            };
-            campModule.handlePricingHistory(req, nextSpy, doneSpy);
-            expect(req.body.pricingHistory).not.toBeDefined();
-            expect(nextSpy).toHaveBeenCalledWith();
-        });
-        
-        it('should update the latest pricingHistory entry if the status is draft', function() {
-            req.body.status = Status.Draft;
-            campModule.handlePricingHistory(req, nextSpy, doneSpy);
-            expect(req.body.pricingHistory).toEqual([{
-                pricing: {
-                    budget: 1000,
-                    dailyLimit: 200,
-                    model: 'cpv',
-                    cost: 0.1
-                },
-                userId: 'u-1',
-                user: 'foo@bar.com',
-                date: jasmine.any(Date)
-            }]);
-            expect(req.body.pricingHistory[0].date).toBeGreaterThan(oldDate);
-            expect(nextSpy).toHaveBeenCalledWith();
-        });
-        
-        it('should be able to use the status on the origObj', function() {
-            delete req.body.status;
-            req.origObj.status = Status.Draft;
-            campModule.handlePricingHistory(req, nextSpy, doneSpy);
-            expect(req.body.pricingHistory).toEqual([{
-                pricing: {
-                    budget: 1000,
-                    dailyLimit: 200,
-                    model: 'cpv',
-                    cost: 0.1
-                },
-                userId: 'u-1',
-                user: 'foo@bar.com',
-                date: jasmine.any(Date)
-            }]);
-            expect(req.body.pricingHistory[0].date).toBeGreaterThan(oldDate);
-            expect(nextSpy).toHaveBeenCalledWith();
         });
     });
     
@@ -1467,13 +1325,12 @@ describe('ads-campaigns (UT)', function() {
             req.protocol = 'https';
             req.headers = { cookie: { c6Auth: 'qwer1234' } };
             resp = { response: { statusCode: 204 } };
-            spyOn(requestUtils, 'qRequest').and.callFake(function() { return q(resp); });
+            spyOn(requestUtils, 'proxyRequest').and.callFake(function() { return q(resp); });
         });
         
         it('should send a delete request to the content service', function(done) {
             campModule.sendDeleteRequest(req, 'e-1', 'experiences').then(function() {
-                expect(requestUtils.qRequest).toHaveBeenCalledWith('delete', {headers: {cookie: {c6Auth: 'qwer1234'}},
-                    url: 'https://test.com/api/content/experiences/e-1'});
+                expect(requestUtils.proxyRequest).toHaveBeenCalledWith(req, 'delete', { url: 'https://test.com/api/content/experiences/e-1' });
                 expect(mockLog.warn).not.toHaveBeenCalled();
                 expect(mockLog.error).not.toHaveBeenCalled();
             }).catch(function(error) {
@@ -1492,7 +1349,7 @@ describe('ads-campaigns (UT)', function() {
         });
 
         it('should reject if the request fails', function(done) {
-            requestUtils.qRequest.and.returnValue(q.reject('I GOT A PROBLEM'));
+            requestUtils.proxyRequest.and.returnValue(q.reject('I GOT A PROBLEM'));
             campModule.sendDeleteRequest(req, 'e-1', 'experiences').then(function() {
                 expect('resolved').not.toBe('resolved');
             }).catch(function(error) {

@@ -246,8 +246,8 @@
             return q({code: 400, body: 'No query in request'});
         }
 
-        log.info('[%1] User %2 is searching for %3 videos %4with query: %5; starting at result %6',
-                 req.uuid, req.user.id, limit, sites ? 'from ' + sites.join(',') + ' ' : '',
+        log.info('[%1] %2 is searching for %3 videos %4with query: %5; starting at result %6',
+                 req.uuid, req.requester.id, limit, sites ? 'from ' + sites.join(',') + ' ' : '',
                  query, start);
 
         return search.findVideosWithGoogle(req, opts, config.google, secrets.googleKey)
@@ -280,7 +280,7 @@
         app.use(expressUtils.basicMiddleware());
         app.use(bodyParser.json());
 
-        var authSearch = authUtils.middlewarify({});
+        var authSearch = authUtils.middlewarify({ allowApps: true });
         app.get('/api/search/videos', state.sessions, authSearch, audit, function(req, res) {
             search.findVideos(req, state.config, state.secrets)
             .then(function(resp) {

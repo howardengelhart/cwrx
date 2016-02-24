@@ -60,9 +60,10 @@
             mountPath   = '/api/sites?'; // prefix to all endpoints declared here
         
         router.use(jobManager.setJobTimeout.bind(jobManager));
+        
+        var authMidware = authUtils.crudMidware('sites', {});
 
-        var authGetSite = authUtils.middlewarify({sites: 'read'});
-        router.get('/:id', sessions, authGetSite, audit, function(req, res) {
+        router.get('/:id', sessions, authMidware.read, audit, function(req, res) {
             var promise = svc.getObjs({id: req.params.id}, req, false);
             promise.finally(function() {
                 jobManager.endJob(req, res, promise.inspect())
@@ -72,7 +73,7 @@
             });
         });
 
-        router.get('/', sessions, authGetSite, audit, function(req, res) {
+        router.get('/', sessions, authMidware.read, audit, function(req, res) {
             var query = {};
             ['name', 'org', 'host'].forEach(function(field) {
                 if (req.query[field]) {
@@ -89,8 +90,7 @@
             });
         });
 
-        var authPostSite = authUtils.middlewarify({sites: 'create'});
-        router.post('/', sessions, authPostSite, audit, function(req, res) {
+        router.post('/', sessions, authMidware.create, audit, function(req, res) {
             var promise = svc.createObj(req);
             promise.finally(function() {
                 jobManager.endJob(req, res, promise.inspect())
@@ -100,8 +100,7 @@
             });
         });
 
-        var authPutSite = authUtils.middlewarify({sites: 'edit'});
-        router.put('/:id', sessions, authPutSite, audit, function(req, res) {
+        router.put('/:id', sessions, authMidware.edit, audit, function(req, res) {
             var promise = svc.editObj(req);
             promise.finally(function() {
                 jobManager.endJob(req, res, promise.inspect())
@@ -111,8 +110,7 @@
             });
         });
 
-        var authDelSite = authUtils.middlewarify({sites: 'delete'});
-        router.delete('/:id', sessions, authDelSite, audit, function(req, res) {
+        router.delete('/:id', sessions, authMidware.delete, audit, function(req, res) {
             var promise = svc.deleteObj(req);
             promise.finally(function() {
                 jobManager.endJob(req, res, promise.inspect())

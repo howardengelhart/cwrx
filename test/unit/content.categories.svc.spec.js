@@ -77,13 +77,13 @@ describe('content-categories (UT)', function() {
     describe('adminCreateCheck', function() {
         var req, nextSpy, doneSpy;
         beforeEach(function() {
-            req = { uuid: '1234', user: { id: 'u1', permissions: {} } };
+            req = { uuid: '1234', user: { id: 'u-1' }, requester: { id: 'u-1', permissions: {} } };
             nextSpy = jasmine.createSpy('next');
             doneSpy = jasmine.createSpy('done');
         });
         
         it('should allow admins to create categories', function() {
-            req.user.permissions.categories = { create: Scope.All };
+            req.requester.permissions.categories = { create: Scope.All };
             catModule.adminCreateCheck(req, nextSpy, doneSpy);
             expect(nextSpy).toHaveBeenCalled();
             expect(doneSpy).not.toHaveBeenCalled();
@@ -91,9 +91,9 @@ describe('content-categories (UT)', function() {
         
         it('should prevent anyone else from creating categories', function() {
             catModule.adminCreateCheck(req, nextSpy, doneSpy);
-            req.user.permissions.categories = {};
+            req.requester.permissions.categories = {};
             catModule.adminCreateCheck(req, nextSpy, doneSpy);
-            req.user.permissions.categories = {create: Scope.Own};
+            req.requester.permissions.categories = {create: Scope.Own};
             catModule.adminCreateCheck(req, nextSpy, doneSpy);
             expect(nextSpy).not.toHaveBeenCalled();
             expect(doneSpy.calls.count()).toBe(3);

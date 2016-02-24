@@ -10,7 +10,7 @@ var q               = require('q'),
     };
 
 describe('content category endpoints (E2E):', function() {
-    var e2eUserJar, somePermsJar, adminJar, mockUsers, mockCats;
+    var e2eUserJar, somePermsJar, adminJar, mockUsers, mockCats, mockApp, appCreds;
 
     beforeEach(function(done) {
         jasmine.DEFAULT_TIMEOUT_INTERVAL = 5000;
@@ -107,13 +107,27 @@ describe('content category endpoints (E2E):', function() {
                 }
             }
         ];
+        mockApp = {
+            id: 'app-e2e-cats',
+            key: 'e2e-cats',
+            status: 'active',
+            secret: 'wowsuchsecretverysecureamaze',
+            permissions: {
+                categories: { read: 'all', create: 'all', edit: 'all', delete: 'all' }
+            }
+        };
+        appCreds = { key: mockApp.key, secret: mockApp.secret };
+
         var logins = [
             {url:config.authUrl + '/auth/login',jar:e2eUserJar,json: {email:'contente2euser',password:'password'}},
             {url:config.authUrl + '/auth/login',jar:somePermsJar,json: {email:'somepermsuser',password:'password'}},
             {url:config.authUrl + '/auth/login',jar:adminJar,json: {email:'admine2euser',password:'password'}}
         ];
             
-        testUtils.resetCollection('users', mockUsers).then(function(resp) {
+        q.all([
+            testUtils.resetCollection('users', mockUsers),
+            testUtils.mongoUpsert('applications', { key: mockApp.key }, mockApp)
+        ]).then(function(resp) {
             return q.all(logins.map(function(opts) { return requestUtils.qRequest('post', opts); }));
         }).done(function(results) {
             done();
@@ -235,6 +249,31 @@ describe('content category endpoints (E2E):', function() {
         it('should return a 401 error if the user is not authenticated', function(done) {
             var options = { url: config.contentUrl + '/content/category/e2e-id1' };
             requestUtils.qRequest('get', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(401);
+                expect(resp.body).toBe('Unauthorized');
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
+
+        it('should allow an app to get a category', function(done) {
+            var options = {url: config.contentUrl + '/content/category/e2e-id1'};
+            requestUtils.makeSignedRequest(appCreds, 'get', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.body).toEqual(jasmine.objectContaining({
+                    id: 'e2e-id1',
+                    name: 'snuffles',
+                    label: 'Snuffles the Cat',
+                }));
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should fail if an app uses the wrong secret to make a request', function(done) {
+            var options = {url: config.contentUrl + '/content/cards/e2e-getid1'};
+            var badCreds = { key: mockApp.key, secret: 'WRONG' };
+            requestUtils.makeSignedRequest(badCreds, 'get', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(401);
                 expect(resp.body).toBe('Unauthorized');
             }).catch(function(error) {
@@ -481,6 +520,21 @@ describe('content category endpoints (E2E):', function() {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
+
+        it('should allow an app to get categories', function(done) {
+            delete options.jar;
+            requestUtils.makeSignedRequest(appCreds, 'get', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.body.length).toBe(4);
+                expect(resp.body[0].name).toBe('snuffles');
+                expect(resp.body[1].name).toBe('fluffles');
+                expect(resp.body[2].name).toBe('puffles');
+                expect(resp.body[3].name).toBe('meowser');
+                expect(resp.response.headers['content-range']).toBe('items 1-4/4');
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
     });
 
     describe('POST /api/content/categories', function() {
@@ -578,6 +632,25 @@ describe('content category endpoints (E2E):', function() {
             }).done(done);
         });
 
+        it('should allow an app to create a category', function(done) {
+            delete options.jar;
+            requestUtils.makeSignedRequest(appCreds, 'post', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(201);
+                expect(resp.body).toEqual({
+                    id: jasmine.any(String),
+                    status: 'active',
+                    created: jasmine.any(String),
+                    lastUpdated: jasmine.any(String),
+                    name: 'snuffles',
+                    type: 'content',
+                    label: 'Snuffles The Cat',
+                    source: 'IABTier2',
+                    externalId: 'IAB30'
+                });
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
     });
 
     describe('PUT /api/content/category/:id', function() {
@@ -681,6 +754,19 @@ describe('content category endpoints (E2E):', function() {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
+
+        it('should allow an app to edit a category', function(done) {
+            delete options.jar;
+            requestUtils.makeSignedRequest(appCreds, 'put', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.body).not.toEqual(mockCats[0]);
+                expect(resp.body.id).toBe('e2e-id1');
+                expect(resp.body.name).toBe('snuffles');
+                expect(resp.body.label).toBe('rover');
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
     });
 
     describe('DELETE /api/content/category/:id', function() {
@@ -771,11 +857,19 @@ describe('content category endpoints (E2E):', function() {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
-    });
-});
 
-describe('test cleanup', function() {
-    it('should close db connections', function(done) {
-        testUtils.closeDbs().done(done);
+        it('should allow an app to delete a category', function(done) {
+            requestUtils.makeSignedRequest(appCreds, 'delete', {url: config.contentUrl + '/content/category/e2e-id1'})
+            .then(function(resp) {
+                expect(resp.response.statusCode).toBe(204);
+                expect(resp.body).toBe('');
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
+    });
+    
+    afterAll(function(done) {
+        testUtils.closeDbs().done(done, done.fail);
     });
 });

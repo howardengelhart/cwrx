@@ -626,9 +626,11 @@
                     }
                 });
         });
+        
+        var authMidware = authUtils.crudMidware('elections', {});
 
-        var authGetElec = authUtils.middlewarify({elections: 'read'});
-        webServer.get('/api/election/:electionId', sessions, authGetElec, audit, function(req,res) {
+        webServer.get('/api/election/:electionId', sessions, authMidware.read, audit,
+                                                                              function(req, res) {
             if (!req.params || !req.params.electionId ) {
                 res.send(400, 'You must provide the electionId in the request url.\n');
                 return;
@@ -655,8 +657,7 @@
                 });
         });
 
-        var authPostElec = authUtils.middlewarify({elections: 'create'});
-        webServer.post('/api/election', sessions, authPostElec, audit, function(req, res) {
+        webServer.post('/api/election', sessions, authMidware.create, audit, function(req, res) {
             app.createElection(req, elections)
             .then(function(resp) {
                 res.send(resp.code, resp.body);
@@ -668,8 +669,7 @@
             });
         });
         
-        var authPutElec = authUtils.middlewarify({elections: 'edit'});
-        webServer.put('/api/election/:id', sessions, authPutElec, audit, function(req, res) {
+        webServer.put('/api/election/:id', sessions, authMidware.edit, audit, function(req, res) {
             app.updateElection(req, elections)
             .then(function(resp) {
                 res.send(resp.code, resp.body);
@@ -681,8 +681,7 @@
             });
         });
         
-        var authDelElec = authUtils.middlewarify({elections: 'delete'});
-        webServer.delete('/api/election/:id', sessions, authDelElec, audit, function(req, res) {
+        webServer.delete('/api/election/:id', sessions, authMidware.delete, audit,function(req,res){
             app.deleteElection(req, elections)
             .then(function(resp) {
                 res.send(resp.code, resp.body);

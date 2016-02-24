@@ -1,5 +1,7 @@
 # Ads Service Changelog
 
+* Support app authentication: [#798](https://github.com/cinema6/cwrx/pull/798)
+
 ### 4.4.2: Tue Feb 16 18:00:10 EST 2016
 * Validate targeting zipcodes using geo service: [#786](https://github.com/cinema6/cwrx/issues/786)
 * Extra deployment steps: None

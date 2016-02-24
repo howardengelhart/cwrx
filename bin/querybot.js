@@ -10,12 +10,12 @@ var q                 = require('q'),
     pg                = require('pg.js'),
     inherits          = require('util').inherits,
     expressUtils      = require('../lib/expressUtils'),
-    requestUtils      = require('../lib/requestUtils'),
     cloudwatchMetrics = expressUtils.cloudwatchMetrics,
 //    CloudWatchReporter = require('../lib/cloudWatchReporter'),
     dbpass            = require('../lib/dbpass'),
     logger            = require('../lib/logger'),
     authUtils         = require('../lib/authUtils'),
+    requestUtils      = require('../lib/requestUtils'),
     service           = require('../lib/service'),
     inspect           = require('util').inspect,
     state   = {},
@@ -36,7 +36,7 @@ ServiceError.prototype.toString = function toString() {
 state.defaultConfig = {
     appName: 'querybot',
     appDir: __dirname,
-    caches : { //TODO: may want to rename this now...
+    caches : {
         run     : path.normalize('/usr/local/share/cwrx/' + state.name + '/caches/run/'),
     },
     sessions: {
@@ -190,9 +190,8 @@ lib.queryParamsFromRequest = function(req){
 
     idList = ids.join(',');
     log.trace('[%1] campaign check: %2, ids=%3', req.uuid,urlBase , idList);
-    return requestUtils.qRequest('get', {
+    return requestUtils.proxyRequest(req, 'get', {
         url: urlBase,
-        headers: { cookie: req.headers.cookie },
         qs : {
             ids    : idList,
             fields : 'id'
@@ -542,10 +541,13 @@ lib.main = function(state) {
     });
     
     var sessions = state.sessions;
-
     
-    var authAnalCamp = authUtils.middlewarify({campaigns: 'read'});
-    app.get('/api/analytics/campaigns/:id', sessions, authAnalCamp, cwCampaignSummarySingle,
+    var authGetCamp = authUtils.middlewarify({
+        allowApps: true,
+        permissions: { campaigns: 'read' }
+    });
+
+    app.get('/api/analytics/campaigns/:id', sessions, authGetCamp, cwCampaignSummarySingle,
         function(req, res, next) {
         lib.getCampaignSummaryAnalytics(req)
         .then(function(){
@@ -572,7 +574,7 @@ lib.main = function(state) {
         });
     });
     
-    app.get('/api/analytics/campaigns/', sessions, authAnalCamp, cwCampaignSummaryMulti,
+    app.get('/api/analytics/campaigns/', sessions, authGetCamp, cwCampaignSummaryMulti,
         function(req, res, next) {
         lib.getCampaignSummaryAnalytics(req)
         .then(function(){

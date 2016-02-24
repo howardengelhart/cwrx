@@ -425,7 +425,7 @@ describe('campaignUtils', function() {
             requester = { id: 'u-1' };
             payMethodUrl = 'https://test.com/api/payments/methods/';
             mockResp = { response: { statusCode: 200 }, body: [{ token: 'abc' }, { token: 'def' }] };
-            spyOn(requestUtils, 'qRequest').and.callFake(function() { return q(mockResp); });
+            spyOn(requestUtils, 'proxyRequest').and.callFake(function() { return q(mockResp); });
             req.headers = { cookie: 'asdf1234' };
         });
         
@@ -438,7 +438,7 @@ describe('campaignUtils', function() {
             it('should pass without making any request', function(done) {
                 campaignUtils.validatePaymentMethod(body, undefined, requester, payMethodUrl, req).then(function(resp) {
                     expect(resp).toEqual({ isValid: true, reason: undefined });
-                    expect(requestUtils.qRequest).not.toHaveBeenCalled();
+                    expect(requestUtils.proxyRequest).not.toHaveBeenCalled();
                     expect(mockLog.warn).not.toHaveBeenCalled();
                     expect(mockLog.error).not.toHaveBeenCalled();
                 }).catch(function(error) {
@@ -455,7 +455,7 @@ describe('campaignUtils', function() {
             it('should copy the original payment method and pass without making any request', function(done) {
                 campaignUtils.validatePaymentMethod(body, origObj, requester, payMethodUrl, req).then(function(resp) {
                     expect(resp).toEqual({ isValid: true, reason: undefined });
-                    expect(requestUtils.qRequest).not.toHaveBeenCalled();
+                    expect(requestUtils.proxyRequest).not.toHaveBeenCalled();
                     expect(body.paymentMethod).toBe('def');
                     expect(mockLog.warn).not.toHaveBeenCalled();
                     expect(mockLog.error).not.toHaveBeenCalled();
@@ -473,7 +473,7 @@ describe('campaignUtils', function() {
             it('should pass without making any request', function(done) {
                 campaignUtils.validatePaymentMethod(body, origObj, requester, payMethodUrl, req).then(function(resp) {
                     expect(resp).toEqual({ isValid: true, reason: undefined });
-                    expect(requestUtils.qRequest).not.toHaveBeenCalled();
+                    expect(requestUtils.proxyRequest).not.toHaveBeenCalled();
                     expect(mockLog.warn).not.toHaveBeenCalled();
                     expect(mockLog.error).not.toHaveBeenCalled();
                 }).catch(function(error) {
@@ -485,10 +485,9 @@ describe('campaignUtils', function() {
         it('should lookup the org\'s paymentMethods and return valid if the chosen method exists', function(done) {
             campaignUtils.validatePaymentMethod(body, origObj, requester, payMethodUrl, req).then(function(resp) {
                 expect(resp).toEqual({ isValid: true, reason: undefined });
-                expect(requestUtils.qRequest).toHaveBeenCalledWith('get', {
+                expect(requestUtils.proxyRequest).toHaveBeenCalledWith(req, 'get', {
                     url: 'https://test.com/api/payments/methods/',
-                    qs: { org: 'o-1' },
-                    headers: { cookie: 'asdf1234' }
+                    qs: { org: 'o-1' }
                 });
                 expect(body.paymentMethod).toBe('abc');
                 expect(mockLog.warn).not.toHaveBeenCalled();
@@ -502,7 +501,7 @@ describe('campaignUtils', function() {
             body.paymentMethod = 'ghi';
             campaignUtils.validatePaymentMethod(body, origObj, requester, payMethodUrl, req).then(function(resp) {
                 expect(resp).toEqual({ isValid: false, reason: 'paymentMethod ghi does not exist for o-1' });
-                expect(requestUtils.qRequest).toHaveBeenCalled();
+                expect(requestUtils.proxyRequest).toHaveBeenCalled();
                 expect(mockLog.warn).not.toHaveBeenCalled();
                 expect(mockLog.error).not.toHaveBeenCalled();
             }).catch(function(error) {
@@ -515,7 +514,7 @@ describe('campaignUtils', function() {
             mockResp.body = 'Forbidden';
             campaignUtils.validatePaymentMethod(body, origObj, requester, payMethodUrl, req).then(function(resp) {
                 expect(resp).toEqual({ isValid: false, reason: 'cannot fetch payment methods for this org' });
-                expect(requestUtils.qRequest).toHaveBeenCalled();
+                expect(requestUtils.proxyRequest).toHaveBeenCalled();
                 expect(mockLog.warn).toHaveBeenCalled();
                 expect(mockLog.error).not.toHaveBeenCalled();
             }).catch(function(error) {
@@ -524,12 +523,12 @@ describe('campaignUtils', function() {
         });
         
         it('should reject if the request fails', function(done) {
-            requestUtils.qRequest.and.returnValue(q.reject('I GOT A PROBLEM'));
+            requestUtils.proxyRequest.and.returnValue(q.reject('I GOT A PROBLEM'));
             campaignUtils.validatePaymentMethod(body, origObj, requester, payMethodUrl, req).then(function(resp) {
                 expect(resp).not.toBeDefined();
             }).catch(function(error) {
                 expect(error).toBe('Error fetching payment methods');
-                expect(requestUtils.qRequest).toHaveBeenCalled();
+                expect(requestUtils.proxyRequest).toHaveBeenCalled();
                 expect(mockLog.error).toHaveBeenCalled();
             }).done(done);
         });
@@ -544,7 +543,7 @@ describe('campaignUtils', function() {
             requester = { id: 'u-1' };
             zipUrl = 'https://test.com/api/geo/zipcodes/';
             mockResp = { response: { statusCode: 200 }, body: [{ zipcode: '08540' }, { zipcode: '07078' }] };
-            spyOn(requestUtils, 'qRequest').and.callFake(function() { return q(mockResp); });
+            spyOn(requestUtils, 'proxyRequest').and.callFake(function() { return q(mockResp); });
             req.headers = { cookie: 'asdf1234' };
         });
         
@@ -560,7 +559,7 @@ describe('campaignUtils', function() {
                     expect(resp).toEqual({ isValid: true, reason: undefined });
                 });
             })).then(function(results) {
-                expect(requestUtils.qRequest).not.toHaveBeenCalled();
+                expect(requestUtils.proxyRequest).not.toHaveBeenCalled();
                 expect(mockLog.warn).not.toHaveBeenCalled();
                 expect(mockLog.error).not.toHaveBeenCalled();
             }).catch(function(error) {
@@ -571,10 +570,9 @@ describe('campaignUtils', function() {
         it('should lookup the zipcodes and return valid if they all exist', function(done) {
             campaignUtils.validateZipcodes(body, origObj, requester, zipUrl, req).then(function(resp) {
                 expect(resp).toEqual({ isValid: true, reason: undefined });
-                expect(requestUtils.qRequest).toHaveBeenCalledWith('get', {
+                expect(requestUtils.proxyRequest).toHaveBeenCalledWith(req, 'get', {
                     url: 'https://test.com/api/geo/zipcodes/',
-                    qs: { zipcodes: '08540,07078', fields: 'zipcode' },
-                    headers: { cookie: 'asdf1234' }
+                    qs: { zipcodes: '08540,07078', fields: 'zipcode' }
                 });
                 expect(mockLog.warn).not.toHaveBeenCalled();
                 expect(mockLog.error).not.toHaveBeenCalled();
@@ -587,7 +585,7 @@ describe('campaignUtils', function() {
             body.targeting.geo.zipcodes.codes.push('66666');
             campaignUtils.validateZipcodes(body, origObj, requester, zipUrl, req).then(function(resp) {
                 expect(resp).toEqual({ isValid: false, reason: 'These zipcodes were not found: [66666]' });
-                expect(requestUtils.qRequest).toHaveBeenCalled();
+                expect(requestUtils.proxyRequest).toHaveBeenCalled();
                 expect(mockLog.warn).not.toHaveBeenCalled();
                 expect(mockLog.error).not.toHaveBeenCalled();
             }).catch(function(error) {
@@ -600,7 +598,7 @@ describe('campaignUtils', function() {
             mockResp.body = 'Forbidden';
             campaignUtils.validateZipcodes(body, origObj, requester, zipUrl, req).then(function(resp) {
                 expect(resp).toEqual({ isValid: false, reason: 'cannot fetch zipcodes' });
-                expect(requestUtils.qRequest).toHaveBeenCalled();
+                expect(requestUtils.proxyRequest).toHaveBeenCalled();
                 expect(mockLog.warn).toHaveBeenCalled();
                 expect(mockLog.error).not.toHaveBeenCalled();
             }).catch(function(error) {
@@ -609,12 +607,12 @@ describe('campaignUtils', function() {
         });
         
         it('should reject if the request fails', function(done) {
-            requestUtils.qRequest.and.returnValue(q.reject('I GOT A PROBLEM'));
+            requestUtils.proxyRequest.and.returnValue(q.reject('I GOT A PROBLEM'));
             campaignUtils.validateZipcodes(body, origObj, requester, zipUrl, req).then(function(resp) {
                 expect(resp).not.toBeDefined();
             }).catch(function(error) {
                 expect(error).toBe('Error fetching zipcodes');
-                expect(requestUtils.qRequest).toHaveBeenCalled();
+                expect(requestUtils.proxyRequest).toHaveBeenCalled();
                 expect(mockLog.error).toHaveBeenCalled();
             }).done(done);
         });

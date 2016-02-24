@@ -9,8 +9,8 @@
         campaignUtils   = require('../lib/campaignUtils'),
         requestUtils    = require('../lib/requestUtils'),
         mongoUtils      = require('../lib/mongoUtils'),
-        signatures      = require('../lib/signatures'),
         authUtils       = require('../lib/authUtils'),
+        historian       = require('../lib/historian'),
         objUtils        = require('../lib/objUtils'),
         CrudSvc         = require('../lib/crudSvc'),
         logger          = require('../lib/logger'),
@@ -74,8 +74,7 @@
             );
         });
 
-        var authenticator = new signatures.Authenticator(appCreds),
-            coll = db.collection('campaignUpdates'),
+        var coll = db.collection('campaignUpdates'),
             svc = new CrudSvc(coll, 'ur', { statusHistory: true }, updateModule.updateSchema);
         svc._db = db;
         
@@ -88,7 +87,7 @@
             handleInitialSubmit = updateModule.handleInitialSubmit.bind(updateModule, svc),
             lockCampaign        = updateModule.lockCampaign.bind(updateModule, svc),
             unlockCampaign      = updateModule.unlockCampaign.bind(updateModule, svc),
-            applyUpdate         = updateModule.applyUpdate.bind(updateModule, svc, authenticator),
+            applyUpdate         = updateModule.applyUpdate.bind(updateModule, svc, appCreds),
             notifyOwner         = updateModule.notifyOwner.bind(updateModule, svc);
             
         svc.use('create', fetchCamp);
@@ -120,7 +119,7 @@
         svc.use('autoApprove', updateModule.enforceLock);
         svc.use('autoApprove', updateModule.validatePaymentMethod);
         svc.use('autoApprove', updateModule.validateZipcodes);
-        svc.use('autoApprove', svc.handleStatusHistory);
+        svc.use('autoApprove', historian.middlewarify('status', 'statusHistory'));
         svc.use('autoApprove', applyUpdate);
         
         return svc;
@@ -148,9 +147,10 @@
     updateModule.canAutoApprove = function(req) {
         return (
             // Can auto-approve if user has entitlement + ability to set campaign status
-            req.user.entitlements.autoApproveUpdates === true &&
-            req.user.fieldValidation.campaigns && req.user.fieldValidation.campaigns.status &&
-            req.user.fieldValidation.campaigns.status.__allowed === true
+            req.requester.entitlements.autoApproveUpdates === true &&
+            req.requester.fieldValidation.campaigns &&
+            req.requester.fieldValidation.campaigns.status &&
+            req.requester.fieldValidation.campaigns.status.__allowed === true
         ) || (
             // Otherwise, can auto-approve if body solely consists of paymentMethod
            req.body && req.body.data && !!req.body.data.paymentMethod &&
@@ -165,9 +165,8 @@
             campId = req.params.campId;
             
         log.trace('[%1] Fetching campaign %2', req.uuid, String(campId));
-        return requestUtils.qRequest('get', {
-            url: urlUtils.resolve(updateModule.config.api.campaigns.baseUrl, campId),
-            headers: { cookie: req.headers.cookie }
+        return requestUtils.proxyRequest(req, 'get', {
+            url: urlUtils.resolve(updateModule.config.api.campaigns.baseUrl, campId)
         })
         .then(function(resp) {
             if (resp.response.statusCode !== 200) {
@@ -182,9 +181,9 @@
                 return done({ code: 400, body: 'Update request does not apply to this campaign' });
             }
             
-            if (!campSvc.checkScope(req.user, req.campaign, 'edit')) {
-                log.info('[%1] User %2 does not have permission to edit %3',
-                         req.uuid, req.user.id, req.campaign.id);
+            if (!campSvc.checkScope(req, req.campaign, 'edit')) {
+                log.info('[%1] Requester %2 does not have permission to edit %3',
+                         req.uuid, req.requester.id, req.campaign.id);
                 return done({ code: 403, body: 'Not authorized to edit this campaign' });
             }
             
@@ -228,7 +227,7 @@
         req.body.data = mergedData;
         delete req.body.data.rejectionReason;
 
-        var validateResp = model.validate('create', req.body.data, req.campaign, req.user);
+        var validateResp = model.validate('create', req.body.data, req.campaign, req.requester);
 
         if (validateResp.isValid) {
             return q(next());
@@ -243,8 +242,8 @@
         
         var validResps = [
             campaignUtils.ensureUniqueIds(req.body.data),
-            campaignUtils.validateAllDates(req.body.data, req.campaign, req.user, req.uuid),
-            campaignUtils.validatePricing(req.body.data, req.campaign, req.user, model, true),
+            campaignUtils.validateAllDates(req.body.data, req.campaign, req.requester, req.uuid),
+            campaignUtils.validatePricing(req.body.data, req.campaign, req.requester, model, true),
         ];
         
         for (var i = 0; i < validResps.length; i++) {
@@ -268,15 +267,15 @@
         }
         
         // get non-personalized schema, as we will construct a model that personalizes it here
-        return requestUtils.qRequest('get', {
-            url: urlUtils.resolve(updateModule.config.api.cards.baseUrl, 'schema'),
-            headers: { cookie: req.headers.cookie }
+        return requestUtils.proxyRequest(req, 'get', {
+            url: urlUtils.resolve(updateModule.config.api.cards.baseUrl, 'schema')
         })
         .then(function(resp) {
-            if (resp.response.statusCode !== 200) {
+            var code = resp.response.statusCode;
+            if (code !== 200) {
                 log.info('[%1] Could not get card schema for %2, bailing: %3, %4',
-                         req.uuid, req.user.id, resp.response.statusCode, util.inspect(resp.body));
-                return done({ code: resp.response.statusCode, body: resp.body });
+                         req.uuid, req.requester.id, code, util.inspect(resp.body));
+                return done({ code: code, body: resp.body });
             }
             
             var cardModel = new Model('cards', resp.body);
@@ -294,7 +293,7 @@
                     !!origCard ? 'edit' : 'create',
                     req.body.data.cards[i],
                     origCard,
-                    req.user
+                    req.requester
                 );
                 if (!validation.isValid) {
                     log.info('[%1] Card %2 in update data is invalid', req.uuid, i);
@@ -320,7 +319,7 @@
         return campaignUtils.validatePaymentMethod(
             req.body.data,
             req.campaign,
-            req.user,
+            req.requester,
             updateModule.config.api.paymentMethods.baseUrl,
             req
         )
@@ -341,7 +340,7 @@
         return campaignUtils.validateZipcodes(
             req.body.data,
             req.campaign,
-            req.user,
+            req.requester,
             updateModule.config.api.zipcodes.baseUrl,
             req
         )
@@ -368,7 +367,7 @@
                  
         req.body.initialSubmit = true;
         
-        if (!req.body.data.paymentMethod && !req.user.entitlements.paymentOptional) {
+        if (!req.body.data.paymentMethod && !req.requester.entitlements.paymentOptional) {
             log.info('[%1] Campaign %2 missing required field paymentMethod, cannot submit',
                      req.uuid, req.campaign.id);
             return q(done({ code: 400, body: 'Missing required field: paymentMethod' }));
@@ -385,17 +384,9 @@
             }
         }
         
-        var updateObj = {
-            status: Status.Pending,
-            statusHistory: req.campaign.statusHistory || []
-        };
+        var updateObj = { status: Status.Pending };
         
-        updateObj.statusHistory.unshift({
-            status  : updateObj.status,
-            userId  : req.user.id,
-            user    : req.user.email,
-            date    : new Date()
-        });
+        historian.historify('status', 'statusHistory', updateObj, req.campaign, req);
         
         req.body.data.statusHistory = updateObj.statusHistory;
         
@@ -413,8 +404,7 @@
         return email.newUpdateRequest(
             updateModule.config.emails.sender,
             updateModule.config.emails.supportAddress,
-            req.user.email,
-            req.user.company,
+            req,
             req.campaign.name,
             updateModule.config.emails.reviewLink.replace(':campId', req.campaign.id)
         ).then(function() {
@@ -434,8 +424,8 @@
                 $unset: { rejectionReason: 1 }
             };
             
-        log.info('[%1] Setting updateRequest to %2 for campaign %3 for user %4',
-                 req.uuid, req.body.id, req.campaign.id, req.user.id);
+        log.info('[%1] Setting updateRequest to %2 for campaign %3 for requester %4',
+                 req.uuid, req.body.id, req.campaign.id, req.requester.id);
 
         return q(coll.findOneAndUpdate({ id: req.campaign.id }, updateObj, opts))
         .then(function(/*updated*/) {
@@ -466,8 +456,8 @@
         var log = logger.getLog();
         
         if (rejectingUpdate(req) && !req.body.rejectionReason) {
-            log.info('[%1] User %2 trying to reject %3 without a reason',
-                     req.uuid, req.user.id, req.origObj.id);
+            log.info('[%1] Requester %2 trying to reject %3 without a reason',
+                     req.uuid, req.requester.id, req.origObj.id);
             return done({ code: 400, body: 'Cannot reject update without a reason' });
         }
         
@@ -500,13 +490,10 @@
                          req.uuid, req.origObj.id, req.campaign.id);
 
                 updateObj.$set.status = Status.Draft;
-                updateObj.$set.statusHistory = req.campaign.statusHistory || [];
-                updateObj.$set.statusHistory.unshift({
-                    status  : updateObj.$set.status,
-                    userId  : req.user.id,
-                    user    : req.user.email,
-                    date    : new Date()
-                });
+                
+                historian.historify('status', 'statusHistory', updateObj.$set, req.campaign, req);
+                
+                req.body.data.statusHistory = updateObj.$set.statusHistory;
             }
         }
 
@@ -524,7 +511,7 @@
     /* Apply update request to campaign by proxying a PUT request. Assumes the user editing the
      * campaign update request has permission to edit all campaigns. Fails if any non-200 response
      * is returned from the campaign service, and attempts to re-lock the campaign. */
-    updateModule.applyUpdate = function(svc, authenticator, req, next/*, done*/) {
+    updateModule.applyUpdate = function(svc, appCreds, req, next/*, done*/) {
         var log = logger.getLog(),
             updateId = req.origObj && req.origObj.id || req.body.id,
             campId = req.campaign.id;
@@ -535,7 +522,7 @@
         
         delete req.body.data.updateRequest;
         
-        return authenticator.request('put', {
+        return requestUtils.makeSignedRequest(appCreds, 'put', {
             url: urlUtils.resolve(updateModule.config.api.campaigns.baseUrl, campId),
             json: req.body.data,
             headers: { cookie: req.headers.cookie }
@@ -643,8 +630,8 @@
             return mongoUtils.createObject(svc._coll, req.body)
             .then(svc.transformMongoDoc.bind(svc))
             .then(function(obj) {
-                log.info('[%1] User %2 created auto-approved update request %3 for %4',
-                         req.uuid, req.user.id, obj.id, obj.campaign);
+                log.info('[%1] Requester %2 created auto-approved update request %3 for %4',
+                         req.uuid, req.requester.id, obj.id, obj.campaign);
                 return { code: 201, body: svc.formatOutput(obj) };
             });
         });
@@ -658,9 +645,12 @@
         
         router.use(jobManager.setJobTimeout.bind(jobManager));
         
-        var authGetUpd = authUtils.middlewarify({campaignUpdates: 'read'});
-
-        router.get('/updates?/', sessions, authGetUpd, audit, function(req, res) {
+        var authReadUpd = authUtils.middlewarify({
+            allowApps: true,
+            permissions: { campaignUpdates: 'read' }
+        });
+        
+        router.get('/updates?/', sessions, authReadUpd, audit, function(req, res) {
             var query = {};
             if ('statuses' in req.query) {
                 query.status = String(req.query.statuses).split(',');
@@ -681,7 +671,7 @@
             });
         });
 
-        router.get('/:campId/updates?/:id', sessions, authGetUpd, audit, function(req, res) {
+        router.get('/:campId/updates?/:id', sessions, authReadUpd, audit, function(req, res) {
             var promise = svc.getObjs({id: req.params.id, campaign: req.params.campId}, req, false);
             promise.finally(function() {
                 jobManager.endJob(req, res, promise.inspect())
@@ -691,7 +681,7 @@
             });
         });
 
-        router.get('/:campId/updates?/', sessions, authGetUpd, audit, function(req, res) {
+        router.get('/:campId/updates?/', sessions, authReadUpd, audit, function(req, res) {
             var query = { campaign: req.params.campId };
             if ('statuses' in req.query) {
                 query.status = String(req.query.statuses).split(',');
@@ -708,9 +698,9 @@
                 });
             });
         });
-
-        var authPostUpd = authUtils.middlewarify({campaignUpdates: 'create'});
-        router.post('/:campId/updates?/', sessions, authPostUpd, audit, function(req, res) {
+        
+        var authCreateUpd = authUtils.middlewarify({ permissions: { campaignUpdates: 'create' } });
+        router.post('/:campId/updates?/', sessions, authCreateUpd, audit, function(req, res) {
             var promise;
             
             if (updateModule.canAutoApprove(req)) {
@@ -727,8 +717,8 @@
             });
         });
 
-        var authPutUpd = authUtils.middlewarify({campaignUpdates: 'edit'});
-        router.put('/:campId/updates?/:id', sessions, authPutUpd, audit, function(req, res) {
+        var authEditUpd = authUtils.middlewarify({ permissions: { campaignUpdates: 'edit' } });
+        router.put('/:campId/updates?/:id', sessions, authEditUpd, audit, function(req, res) {
             var promise = svc.editObj(req);
             promise.finally(function() {
                 jobManager.endJob(req, res, promise.inspect())

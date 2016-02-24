@@ -1,4 +1,5 @@
 var q               = require('q'),
+    util            = require('util'),
     request         = require('request'),
     isArray         = require('util').isArray,
     requestUtils    = require('../../lib/requestUtils'),
@@ -37,10 +38,9 @@ function pgQuery(conn,statement) {
 
 describe('querybot (E2E)', function(){
     var pgdata_campaign_summary_hourly, mockUser, mockCamps, pgconn,
-        cookieJar, options, camp1Data, camp2Data, camp5Data;
+        cookieJar, options, camp1Data, camp2Data, camp5Data, mockApp, appCreds;
 
     beforeEach(function(done){
-        // TODO:  Work out what connection config should be!
         pgconn = {
             user    : 'cwrx',
             password: 'password',
@@ -246,6 +246,16 @@ describe('querybot (E2E)', function(){
                 campaigns: { read: 'org', create: 'org', edit: 'org', delete: 'own' }
             }
         };
+        mockApp = {
+            id: 'app-e2e-querybot',
+            key: 'e2e-querybot',
+            status: 'active',
+            secret: 'wowsuchsecretverysecureamaze',
+            permissions: {
+                campaigns: { read: 'all', create: 'all', edit: 'all', delete: 'all' }
+            }
+        };
+        appCreds = { key: mockApp.key, secret: mockApp.secret };
         
         mockCamps = [
             { id: 'cam-1757d5cd13e383', name: 'camp 1', status: 'active',
@@ -269,10 +279,11 @@ describe('querybot (E2E)', function(){
         }
 
         function mongoInsert() {
-            return testUtils.resetCollection('users', mockUser)
-                .then(function() {
-                    return testUtils.resetCollection('campaigns', mockCamps);
-                });
+            return q.all([
+                testUtils.resetCollection('users', mockUser),
+                testUtils.resetCollection('campaigns', mockCamps),
+                testUtils.mongoUpsert('applications', { key: mockApp.key }, mockApp)
+            ]).thenResolve();
         }
 
         pgTruncate().then(pgInsert).then(mongoInsert).then(done,done.fail);
@@ -446,6 +457,28 @@ describe('querybot (E2E)', function(){
             })
             .then(done,done.fail);
         });
+
+        it('should allow an app to get stats', function(done) {
+            delete options.jar;
+            options.url += '/cam-1757d5cd13e383';
+            requestUtils.makeSignedRequest(appCreds, 'get', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.body).toEqual(camp1Data);
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should fail if an app uses the wrong secret to make a request', function(done) {
+            delete options.jar;
+            var badCreds = { key: mockApp.key, secret: 'WRONG' };
+            requestUtils.makeSignedRequest(badCreds, 'get', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(401);
+                expect(resp.body).toBe('Unauthorized');
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
     });
     
     describe('GET /api/analytics/campaigns/?ids=:id', function() {
@@ -502,6 +535,18 @@ describe('querybot (E2E)', function(){
                 expect(resp.body).toContain(jasmine.objectContaining(camp2Data));
             })
             .then(done,done.fail);
+        });
+        
+
+        it('should allow an app to get stats', function(done) {
+            delete options.jar;
+            options.url += '/?ids=cam-1757d5cd13e383';
+            requestUtils.makeSignedRequest(appCreds, 'get', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.body).toEqual([ camp1Data ]);
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
         });
     });
 });

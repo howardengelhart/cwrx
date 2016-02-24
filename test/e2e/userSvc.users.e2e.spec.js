@@ -1767,7 +1767,7 @@ describe('userSvc users (E2E):', function() {
                 { id: 'p-4', name: 'newUserPolicy', status: 'active', priority: 1}
             ];
             q.all([
-                testUtils.resetCollection('users', [mockNewUser, mockAdmin]),
+                testUtils.resetCollection('users', [mockNewUser, mockRequester, mockAdmin]),
                 testUtils.resetCollection('orgs'),
                 testUtils.resetCollection('advertisers'),
                 testUtils.resetCollection('roles', mockRoles),
@@ -1833,7 +1833,7 @@ describe('userSvc users (E2E):', function() {
             });
 
             mockNewUser.activationToken.expires = new Date(0, 11, 25);
-            testUtils.resetCollection('users', mockNewUser).then(function() {
+            testUtils.resetCollection('users', [mockNewUser, mockRequester, mockAdmin]).then(function() {
                 var options = { url: config.usersUrl + '/confirm/u-12345', json: { token: 'valid-token' } };
                 return requestUtils.qRequest('post', options);
             }).then(function(resp) {
@@ -1949,7 +1949,7 @@ describe('userSvc users (E2E):', function() {
                 beforeEach(function(done) {
                     mockNewUser.org = 'o-existent';
                     q.all([
-                        testUtils.resetCollection('users', [mockNewUser, mockAdmin]),
+                        testUtils.resetCollection('users', [mockNewUser, mockRequester, mockAdmin]),
                         testUtils.resetCollection('orgs')
                     ]).done(function() { done(); });
                 });
@@ -1983,7 +1983,7 @@ describe('userSvc users (E2E):', function() {
             describe('if the user has a referralCode', function() {
                 beforeEach(function(done) {
                     mockNewUser.referralCode = 'asdf123456';
-                    testUtils.resetCollection('users', [mockNewUser, mockAdmin]).done(done);
+                    testUtils.resetCollection('users', [mockNewUser, mockRequester, mockAdmin]).done(done);
                 });
 
                 it('should save the referralCode on the org', function(done) {
@@ -2076,7 +2076,7 @@ describe('userSvc users (E2E):', function() {
                     token: 'token'
                 }
             };
-            testUtils.resetCollection('users', newUser)
+            testUtils.resetCollection('users', [newUser, mockRequester, mockAdmin])
                 .then(function() {
                     return requestUtils.qRequest('post', loginOpts);
                 })
@@ -2118,7 +2118,7 @@ describe('userSvc users (E2E):', function() {
             mailman.once(msgSubject, function(msg) {
                 expect(msg).not.toBeDefined();
             });
-            testUtils.resetCollection('users', newUser)
+            testUtils.resetCollection('users', [newUser, mockRequester, mockAdmin])
                 .then(function() {
                     return requestUtils.qRequest('post', resendOpts);
                 })

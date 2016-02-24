@@ -187,7 +187,7 @@
                                  state.sessions, audit, jobManager);
         
         // adds endpoints for managing cards
-        cardModule.setupEndpoints(app, cardSvc, state.sessions,audit,state.config,jobManager);
+        cardModule.setupEndpoints(app, cardSvc, state.sessions, audit, state.config, jobManager);
         
         // adds endpoints for managing categories
         catModule.setupEndpoints(app, catSvc, state.sessions, audit, jobManager);

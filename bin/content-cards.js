@@ -149,7 +149,7 @@
         var log = logger.getLog();
 
         if (!req.campaign || permitted.indexOf(req.campaign.status) !== -1 ||
-                             !!req.user.entitlements.directEditCampaigns) {
+                             !!req.requester.entitlements.directEditCampaigns) {
             return next();
         } else {
             log.info('[%1] Action not permitted on %2 campaign', req.uuid, req.campaign.status);
@@ -455,7 +455,7 @@
     };
 
 
-    cardModule.setupEndpoints = function(app, cardSvc, sessions, audit, config, jobManager) {
+    cardModule.setupEndpoints = function(app, cardSvc, sessions, audit, config, jobManager){
         // Public get card; regex at end allows client to optionally specify extension (js|json)
         app.get('/api/public/content/cards?/:id([^.]+).?:ext?', function(req, res) {
             cardModule.handlePublicGet(req, res, cardSvc, config).then(function(resp) {
@@ -481,8 +481,10 @@
             mountPath   = '/api/content/cards?'; // prefix to all endpoints declared here
         
         router.use(jobManager.setJobTimeout.bind(jobManager));
+        
+        var authMidware = authUtils.crudMidware('cards', { allowApps: true });
 
-        var authGetSchema = authUtils.middlewarify({});
+        var authGetSchema = authUtils.middlewarify({ allowApps: true });
         router.get('/schema', sessions, authGetSchema, function(req, res) {
             var promise = cardSvc.getSchema(req);
             promise.finally(function() {
@@ -493,8 +495,7 @@
             });
         });
 
-        var authGetCard = authUtils.middlewarify({cards: 'read'});
-        router.get('/:id', sessions, authGetCard, audit, function(req, res) {
+        router.get('/:id', sessions, authMidware.read, audit, function(req, res) {
             var promise = cardSvc.getObjs({id: req.params.id}, req, false);
             promise.finally(function() {
                 jobManager.endJob(req, res, promise.inspect())
@@ -504,7 +505,7 @@
             });
         });
 
-        router.get('/', sessions, authGetCard, audit, function(req, res) {
+        router.get('/', sessions, authMidware.read, audit, function(req, res) {
             var query = {};
             ['org', 'user', 'campaignId'].forEach(function(field) {
                 if (req.query[field]) {
@@ -524,8 +525,7 @@
             });
         });
 
-        var authPostCard = authUtils.middlewarify({cards: 'create'});
-        router.post('/', sessions, authPostCard, audit, function(req, res) {
+        router.post('/', sessions, authMidware.create, audit, function(req, res) {
             var promise = cardSvc.createObj(req);
             promise.finally(function() {
                 jobManager.endJob(req, res, promise.inspect())
@@ -535,8 +535,7 @@
             });
         });
 
-        var authPutCard = authUtils.middlewarify({cards: 'edit'});
-        router.put('/:id', sessions, authPutCard, audit, function(req, res) {
+        router.put('/:id', sessions, authMidware.edit, audit, function(req, res) {
             var promise = cardSvc.editObj(req);
             promise.finally(function() {
                 jobManager.endJob(req, res, promise.inspect())
@@ -546,8 +545,7 @@
             });
         });
 
-        var authDelCard = authUtils.middlewarify({cards: 'delete'});
-        router.delete('/:id', sessions, authDelCard, audit, function(req, res) {
+        router.delete('/:id', sessions, authMidware.delete, audit, function(req, res) {
             var promise = cardSvc.deleteObj(req);
             promise.finally(function() {
                 jobManager.endJob(req, res, promise.inspect())

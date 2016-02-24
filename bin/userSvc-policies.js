@@ -94,10 +94,10 @@
     // Set properties that track who created + last updated the policy
     polModule.setChangeTrackProps = function(req, next/*, done*/) {
         if (!req.origObj) {
-            req.body.createdBy = req.user.id;
+            req.body.createdBy = req.requester.id;
         }
         
-        req.body.lastUpdatedBy = req.user.id;
+        req.body.lastUpdatedBy = req.requester.id;
         
         return next();
     };
@@ -193,8 +193,9 @@
 
         router.use(jobManager.setJobTimeout.bind(jobManager));
         
-        var authGetPol = authUtils.middlewarify({policies: 'read'});
-        router.get('/:id', sessions, authGetPol, audit, function(req, res) {
+        var authMidware = authUtils.crudMidware('policies', {});
+        
+        router.get('/:id', sessions, authMidware.read, audit, function(req, res) {
             var promise = svc.getObjs({ id: req.params.id }, req, false);
             promise.finally(function() {
                 jobManager.endJob(req, res, promise.inspect())
@@ -204,7 +205,7 @@
             });
         });
 
-        router.get('/', sessions, authGetPol, audit, function(req, res) {
+        router.get('/', sessions, authMidware.read, audit, function(req, res) {
             var query = {};
             if (req.query.name) {
                 query.name = String(req.query.name);
@@ -219,8 +220,7 @@
             });
         });
 
-        var authPostPol = authUtils.middlewarify({policies: 'create'});
-        router.post('/', sessions, authPostPol, audit, function(req, res) {
+        router.post('/', sessions, authMidware.create, audit, function(req, res) {
             var promise = svc.createObj(req);
             promise.finally(function() {
                 jobManager.endJob(req, res, promise.inspect())
@@ -230,8 +230,7 @@
             });
         });
 
-        var authPutPol = authUtils.middlewarify({policies: 'edit'});
-        router.put('/:id', sessions, authPutPol, audit, function(req, res) {
+        router.put('/:id', sessions, authMidware.edit, audit, function(req, res) {
             var promise = svc.editObj(req);
             promise.finally(function() {
                 jobManager.endJob(req, res, promise.inspect())
@@ -241,8 +240,7 @@
             });
         });
 
-        var authDelPol = authUtils.middlewarify({policies: 'delete'});
-        router.delete('/:id', sessions, authDelPol, audit, function(req, res) {
+        router.delete('/:id', sessions, authMidware.delete, audit, function(req, res) {
             var promise = svc.deleteObj(req);
             promise.finally(function() {
                 jobManager.endJob(req, res, promise.inspect())

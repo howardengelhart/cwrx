@@ -29,7 +29,7 @@ describe('geo (UT)', function() {
         res = {
             header: jasmine.createSpy('res.header()'),
             send: jasmine.createSpy('res.send()')
-        }
+        };
         next = jasmine.createSpy('next');
     });
 
@@ -55,12 +55,12 @@ describe('geo (UT)', function() {
     });
     
     describe('main', function() {
-        var state, mockExpress, expressApp, mockSvc, basicMidware, errorHandler, fakeJournal;
+        var state, mockExpress, expressApp, expressRoutes, mockSvc, basicMidware, errorHandler, fakeJournal;
         beforeEach(function() {
             function getCollSpy() {
                 return jasmine.createSpy('db.collection()').and.callFake(function(collName) {
                     return { db: this, collectionName: collName };
-                })
+                });
             }
             state = {
                 clusterMaster: false,

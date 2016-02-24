@@ -1,12 +1,13 @@
 var flush = true;
 describe('auth (UT)', function() {
-    var auth, mockLog, req, users, q, uuid, logger, mongoUtils, authUtils, email, enums,
+    var auth, mockLog, req, users, q, uuid, logger, mongoUtils, authUtils, email, enums, crypto,
         Status, bcrypt, anyFunc, auditJournal, mockCache, config;
         
     beforeEach(function() {
         if (flush) { for (var m in require.cache){ delete require.cache[m]; } flush = false; }
         q           = require('q');
         crypto      = require('crypto');
+        bcrypt      = require('bcrypt');
         uuid        = require('../../lib/uuid');
         logger      = require('../../lib/logger');
         mongoUtils  = require('../../lib/mongoUtils');
@@ -15,7 +16,6 @@ describe('auth (UT)', function() {
         email       = require('../../lib/email');
         enums       = require('../../lib/enums');
         Status      = enums.Status;
-        bcrypt      = require('bcrypt');
         
         mockLog = {
             trace : jasmine.createSpy('log_trace'),
@@ -234,7 +234,7 @@ describe('auth (UT)', function() {
                 mockCache.add.and.returnValue(q.reject('error'));
 
                 auth.login(req, users, config, auditJournal, mockCache).then(function(resp) {
-                    expect(resp).toEqual({code:401,body:'Invalid email or password'})
+                    expect(resp).toEqual({code:401,body:'Invalid email or password'});
                     expect(mockLog.warn).toHaveBeenCalled();
                 }).catch(function(error) {
                     expect(error.toString()).not.toBeDefined();
@@ -246,7 +246,7 @@ describe('auth (UT)', function() {
                 email.failedLogins.and.returnValue(q.reject('error'));
 
                 auth.login(req, users, config, auditJournal, mockCache).then(function(resp) {
-                    expect(resp).toEqual({code:401,body:'Invalid email or password'})
+                    expect(resp).toEqual({code:401,body:'Invalid email or password'});
                     expect(mockLog.warn).toHaveBeenCalled();
                 }).catch(function(error) {
                     expect(error.toString()).not.toBeDefined();

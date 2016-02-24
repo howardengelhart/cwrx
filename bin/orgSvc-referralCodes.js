@@ -57,9 +57,10 @@
             mountPath   = '/api/referral-codes?'; // prefix to all endpoints declared here
             
         router.use(jobManager.setJobTimeout.bind(jobManager));
+        
+        var authMidware = authUtils.crudMidware('referralCodes', { allowApps: true });
 
-        var authGetRef = authUtils.middlewarify({ referralCodes: 'read' });
-        router.get('/:id', sessions, authGetRef, audit, function(req, res) {
+        router.get('/:id', sessions, authMidware.read, audit, function(req, res) {
             var promise = svc.getObjs({ id: req.params.id }, req, false);
             promise.finally(function() {
                 jobManager.endJob(req, res, promise.inspect())
@@ -69,7 +70,7 @@
             });
         });
 
-        router.get('/', sessions, authGetRef, audit, function(req, res) {
+        router.get('/', sessions, authMidware.read, audit, function(req, res) {
             var query = {};
             if ('ids' in req.query) {
                 query.id = String(req.query.ids).split(',');
@@ -89,8 +90,7 @@
             });
         });
 
-        var authPostRef = authUtils.middlewarify({ referralCodes: 'create' });
-        router.post('/', sessions, authPostRef, audit, function(req, res) {
+        router.post('/', sessions, authMidware.create, audit, function(req, res) {
             var promise = svc.createObj(req);
             promise.finally(function() {
                 jobManager.endJob(req, res, promise.inspect())
@@ -100,8 +100,7 @@
             });
         });
 
-        var authPutRef = authUtils.middlewarify({ referralCodes: 'edit' });
-        router.put('/:id', sessions, authPutRef, audit, function(req, res) {
+        router.put('/:id', sessions, authMidware.edit, audit, function(req, res) {
             var promise = svc.editObj(req);
             promise.finally(function() {
                 jobManager.endJob(req, res, promise.inspect())
@@ -111,8 +110,7 @@
             });
         });
 
-        var authDelRef = authUtils.middlewarify({ referralCodes: 'delete' });
-        router.delete('/:id', sessions, authDelRef, audit, function(req, res) {
+        router.delete('/:id', sessions, authMidware.delete, audit, function(req, res) {
             var promise = svc.deleteObj(req);
             promise.finally(function() {
                 jobManager.endJob(req, res, promise.inspect())

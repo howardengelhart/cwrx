@@ -66,8 +66,9 @@
     orgModule.createPermCheck = function(req, next, done) {
         var log = logger.getLog();
 
-        if (req.user.permissions.orgs.create !== Scope.All) {
-            log.info('[%1] User %2 is not authorized to create orgs', req.uuid, req.user.id);
+        if (req.requester.permissions.orgs.create !== Scope.All) {
+            log.info('[%1] Requester %2 is not authorized to create orgs',
+                     req.uuid, req.requester.id);
             return q(done({ code: 403, body: 'Not authorized to create orgs' }));
         }
 
@@ -96,13 +97,13 @@
     orgModule.deletePermCheck = function(req, next, done) {
         var log = logger.getLog();
         
-        if (req.params.id === req.user.org) {
-            log.info('[%1] User %2 tried to delete their own org', req.uuid, req.user.id);
+        if (req.user && req.params.id === req.user.org) {
+            log.info('[%1] User %2 tried to delete their own org', req.uuid, req.requester.id);
             return q(done({ code: 400, body: 'You cannot delete your own org' }));
         }
 
-        if (req.user.permissions.orgs.delete !== Scope.All) {
-            log.info('[%1] User %2 is not authorized to delete orgs', req.uuid, req.user.id);
+        if (req.requester.permissions.orgs.delete !== Scope.All) {
+            log.info('[%1] User %2 is not authorized to delete orgs', req.uuid, req.requester.id);
             return q(done({ code: 403, body: 'Not authorized to delete orgs' }));
         }
 
@@ -204,9 +205,10 @@
             mountPath   = '/api/account/orgs?'; // prefix to all endpoints declared here
             
         router.use(jobManager.setJobTimeout.bind(jobManager));
+        
+        var authMidware = authUtils.crudMidware('orgs', { allowApps: true });
 
-        var authGetOrg = authUtils.middlewarify({orgs: 'read'});
-        router.get('/:id', sessions, authGetOrg, audit, function(req, res) {
+        router.get('/:id', sessions, authMidware.read, audit, function(req, res) {
             var promise = svc.getObjs({ id: req.params.id }, req, false);
             promise.finally(function() {
                 jobManager.endJob(req, res, promise.inspect())
@@ -216,7 +218,7 @@
             });
         });
 
-        router.get('/', sessions, authGetOrg, audit, function(req, res) {
+        router.get('/', sessions, authMidware.read, audit, function(req, res) {
             var query = {};
             if ('ids' in req.query) {
                 query.id = String(req.query.ids).split(',');
@@ -234,8 +236,7 @@
             });
         });
 
-        var authPostOrg = authUtils.middlewarify({orgs: 'create'});
-        router.post('/', sessions, authPostOrg, audit, function(req, res) {
+        router.post('/', sessions, authMidware.create, audit, function(req, res) {
             var promise = svc.createObj(req);
             promise.finally(function() {
                 jobManager.endJob(req, res, promise.inspect())
@@ -245,8 +246,7 @@
             });
         });
 
-        var authPutOrg = authUtils.middlewarify({orgs: 'edit'});
-        router.put('/:id', sessions, authPutOrg, audit, function(req, res) {
+        router.put('/:id', sessions, authMidware.edit, audit, function(req, res) {
             var promise = svc.editObj(req);
             promise.finally(function() {
                 jobManager.endJob(req, res, promise.inspect())
@@ -256,8 +256,7 @@
             });
         });
 
-        var authDelOrg = authUtils.middlewarify({orgs: 'delete'});
-        router.delete('/:id', sessions, authDelOrg, audit, function(req, res) {
+        router.delete('/:id', sessions, authMidware.delete, audit, function(req, res) {
             var promise = svc.deleteObj(req);
             promise.finally(function() {
                 jobManager.endJob(req, res, promise.inspect())

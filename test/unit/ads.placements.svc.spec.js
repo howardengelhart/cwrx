@@ -1,6 +1,7 @@
 var flush = true;
 describe('ads-placements (UT)', function() {
-    var mockLog, CrudSvc, QueryCache, Model, Status, logger, q, placeModule, mockDb, nextSpy, doneSpy, errorSpy, req;
+    var mockLog, CrudSvc, QueryCache, Model, Status, logger, q, placeModule, historian,
+        mockDb, nextSpy, doneSpy, errorSpy, req;
 
     beforeEach(function() {
         if (flush) { for (var m in require.cache){ delete require.cache[m]; } flush = false; }
@@ -8,6 +9,7 @@ describe('ads-placements (UT)', function() {
         logger          = require('../../lib/logger');
         placeModule     = require('../../bin/ads-placements');
         CrudSvc         = require('../../lib/crudSvc');
+        historian       = require('../../lib/historian');
         QueryCache      = require('../../lib/queryCache');
         Model           = require('../../lib/model');
         Status          = require('../../lib/enums').Status;
@@ -45,7 +47,7 @@ describe('ads-placements (UT)', function() {
     });
 
     describe('setupSvc', function() {
-        var svc, config;
+        var svc, config, costHistMidware;
         beforeEach(function() {
             config = { cacheTTLs: {
                 placements: { freshTTL: 10, maxTTL: 40 },
@@ -53,6 +55,10 @@ describe('ads-placements (UT)', function() {
             } };
             spyOn(placeModule.validateExtRefs, 'bind').and.returnValue(placeModule.validateExtRefs);
             spyOn(placeModule.getPublicPlacement, 'bind').and.returnValue(placeModule.getPublicPlacement);
+            
+            costHistMidware = jasmine.createSpy('handleCostHist');
+            spyOn(historian, 'middlewarify').and.returnValue(costHistMidware);
+            
             svc = placeModule.setupSvc(mockDb, config);
         });
 
@@ -88,8 +94,9 @@ describe('ads-placements (UT)', function() {
         });
         
         it('should manage the costHistory on create and edit', function() {
-            expect(svc._middleware.create).toContain(placeModule.handleCostHistory);
-            expect(svc._middleware.edit).toContain(placeModule.handleCostHistory);
+            expect(historian.middlewarify).toHaveBeenCalledWith('externalCost', 'costHistory');
+            expect(svc._middleware.create).toContain(costHistMidware);
+            expect(svc._middleware.edit).toContain(costHistMidware);
         });
     });
     
@@ -393,85 +400,6 @@ describe('ads-placements (UT)', function() {
                 expect(collections.cards.count).toHaveBeenCalled();
                 expect(mockLog.error.calls.count()).toBe(2);
             }).done(done);
-        });
-    });
-    
-    describe('handleCostHistory', function() {
-        var oldDate;
-        beforeEach(function() {
-            req.body = {
-                tagParams: { container: 'box', campaign: 'cam-1' },
-                externalCost: { event: 'click', cost: 0.1 }
-            };
-
-            oldDate = new Date(new Date().valueOf() - 5000);
-            req.origObj = {
-                externalCost: { event: 'click', cost: 0.5 },
-                costHistory: [{
-                    externalCost: { event: 'click', cost: 0.5 },
-                    userId: 'u-2',
-                    user: 'admin@c6.com',
-                    date: oldDate
-                }]
-            };
-            req.user = { id: 'u-1', email: 'foo@bar.com' };
-        });
-        
-        it('should do nothing if req.body.externalCost is not defined', function() {
-            delete req.body.externalCost;
-            placeModule.handleCostHistory(req, nextSpy, doneSpy);
-            expect(req.body.costHistory).not.toBeDefined();
-            expect(nextSpy).toHaveBeenCalledWith();
-        });
-
-        it('should do nothing if the externalCost is unchanged', function() {
-            req.body.externalCost.cost = 0.5;
-            placeModule.handleCostHistory(req, nextSpy, doneSpy);
-            expect(req.body.costHistory).not.toBeDefined();
-            expect(nextSpy).toHaveBeenCalledWith();
-        });
-        
-        it('should add an entry to the costHistory', function() {
-            placeModule.handleCostHistory(req, nextSpy, doneSpy);
-            expect(req.body.costHistory).toEqual([
-                {
-                    externalCost: { event: 'click', cost: 0.1 },
-                    userId: 'u-1',
-                    user: 'foo@bar.com',
-                    date: jasmine.any(Date)
-                },
-                {
-                    externalCost: { event: 'click', cost: 0.5 },
-                    userId: 'u-2',
-                    user: 'admin@c6.com',
-                    date: oldDate
-                }
-            ]);
-            expect(req.body.costHistory[0].date).toBeGreaterThan(oldDate);
-            expect(nextSpy).toHaveBeenCalledWith();
-        });
-        
-        it('should initalize the costHistory if not defined', function() {
-            delete req.origObj;
-            placeModule.handleCostHistory(req, nextSpy, doneSpy);
-            expect(req.body.costHistory).toEqual([
-                {
-                    externalCost: { event: 'click', cost: 0.1 },
-                    userId: 'u-1',
-                    user: 'foo@bar.com',
-                    date: jasmine.any(Date)
-                }
-            ]);
-            expect(nextSpy).toHaveBeenCalledWith();
-        });
-
-        it('should delete the existing costHistory off req.body', function() {
-            delete req.body.externalCost;
-            req.body.costHistory = [{ externalCost: 'yes', userId: 'u-3', user: 'me@c6.com', date: new Date() }];
-
-            placeModule.handleCostHistory(req, nextSpy, doneSpy);
-            expect(req.body.costHistory).not.toBeDefined();
-            expect(nextSpy).toHaveBeenCalledWith();
         });
     });
     

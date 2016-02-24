@@ -407,11 +407,14 @@
             });
         });
 
-        var authGetUser = authUtils.middlewarify({}, null, [Status.Active, Status.New]),
-            audit = auditJournal.middleware.bind(auditJournal);
+        var audit = auditJournal.middleware.bind(auditJournal),
+            authGetStatus = authUtils.middlewarify({
+                userStatuses: [Status.Active, Status.New],
+                allowApps: true
+            });
 
-        app.get('/api/auth/status', state.sessions, authGetUser, audit, function(req, res) {
-            res.send(200, req.user); // errors handled entirely by authGetUser
+        app.get('/api/auth/status', state.sessions, authGetStatus, audit, function(req, res) {
+            res.send(200, req.user || req.application);
         });
         
         app.post('/api/auth/password/forgot', function(req, res) {

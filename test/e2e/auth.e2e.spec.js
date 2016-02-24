@@ -13,7 +13,7 @@ var q               = require('q'),
     };
 
 describe('auth (E2E):', function() {
-    var now, mockUser, mockPol, mailman;
+    var now, mockUser, mockPol, mockApp, appCreds, mailman;
     beforeEach(function(done) {
         jasmine.DEFAULT_TIMEOUT_INTERVAL = 30000;
 
@@ -36,8 +36,19 @@ describe('auth (E2E):', function() {
                 users: { read: 'all' }
             }
         };
+        mockApp = {
+            id: 'app-e2e-authsvc',
+            key: 'e2e-authsvc',
+            status: 'active',
+            secret: 'wowsuchsecretverysecureamaze'
+        };
+        appCreds = { key: mockApp.key, secret: mockApp.secret };
         
-        testUtils.resetCollection('policies', mockPol).done(done);
+        return q.all([
+            testUtils.resetCollection('policies', mockPol),
+            testUtils.mongoUpsert('applications', { key: mockApp.key }, mockApp)
+        ])
+        .done(function() { done(); });
     });
     
     beforeEach(function(done) {
@@ -322,7 +333,7 @@ describe('auth (E2E):', function() {
                 }).then(function(value) {
                     expect(value).not.toBeDefined();
                 }).catch(function(error) {
-                    expect(error).not.toBeDefined();
+                    expect(util.inspect(error)).not.toBeDefined();
                 }).done(done);
             });
         });
@@ -540,6 +551,36 @@ describe('auth (E2E):', function() {
                 done();
             });
         });
+        
+        describe('if an app is making the request', function(done) {
+            var options;
+            beforeEach(function() {
+                options = { url: config.authUrl + '/status' };
+            });
+            
+            it('should show the app', function(done) {
+                requestUtils.makeSignedRequest(appCreds, 'get', options).then(function(resp) {
+                    expect(resp.response.statusCode).toBe(200);
+                    expect(resp.body).toEqual({
+                        id: 'app-e2e-authsvc',
+                        key: 'e2e-authsvc',
+                        status: 'active'
+                    });
+                }).catch(function(error) {
+                    expect(util.inspect(error)).not.toBeDefined();
+                }).done(done);
+            });
+            
+            it('should return a 401 if the secret used is incorrect', function(done) {
+                var badCreds = { key: mockApp.key, secret: 'WRONG' };
+                requestUtils.makeSignedRequest(badCreds, 'get', options).then(function(resp) {
+                    expect(resp.response.statusCode).toBe(401);
+                    expect(resp.body).toBe('Unauthorized');
+                }).catch(function(error) {
+                    expect(util.inspect(error)).not.toBeDefined();
+                }).done(done);
+            });
+        });
     });
     
     describe('/api/auth/password/forgot', function() {
@@ -567,7 +608,7 @@ describe('auth (E2E):', function() {
                     expect(resp.body).toBe('Need to provide email and target in the request');
                 });
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
+                expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
         
@@ -580,7 +621,7 @@ describe('auth (E2E):', function() {
                 expect(resp.response.statusCode).toBe(400);
                 expect(resp.body).toBe('Need to provide email and target in the request');
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
+                expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
         
@@ -593,7 +634,7 @@ describe('auth (E2E):', function() {
                 expect(resp.response.statusCode).toBe(400);
                 expect(resp.body).toBe('Invalid target');
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
+                expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
         
@@ -606,7 +647,7 @@ describe('auth (E2E):', function() {
                 expect(resp.response.statusCode).toBe(404);
                 expect(resp.body).toBe('That user does not exist');
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
+                expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
         
@@ -615,7 +656,7 @@ describe('auth (E2E):', function() {
                 expect(resp.response.statusCode).toBe(200);
                 expect(resp.body).toBe('Successfully generated reset token');
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
+                expect(util.inspect(error)).not.toBeDefined();
                 done();
             });
             mailman.once(msgSubject, function(msg) {
@@ -655,7 +696,7 @@ describe('auth (E2E):', function() {
                 expect(resp.response.statusCode).toBe(200);
                 expect(resp.body).toBe('Successfully generated reset token');
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
+                expect(util.inspect(error)).not.toBeDefined();
                 done();
             });
             mailman.once(msgSubject, function(msg) {
@@ -699,7 +740,7 @@ describe('auth (E2E):', function() {
                     expect(resp.body).toBe('Must provide id, token, and newPassword');
                 });
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
+                expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
         
@@ -712,7 +753,7 @@ describe('auth (E2E):', function() {
                 expect(resp.response.statusCode).toBe(400);
                 expect(resp.body).toBe('Must provide id, token, and newPassword');
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
+                expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
         
@@ -738,7 +779,7 @@ describe('auth (E2E):', function() {
                 expect(resp.response.headers['set-cookie'].length).toBe(1);
                 expect(resp.response.headers['set-cookie'][0]).toMatch(/^c6Auth=.+/);
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
+                expect(util.inspect(error)).not.toBeDefined();
                 done();
             });
 
@@ -759,7 +800,7 @@ describe('auth (E2E):', function() {
                     expect(resp.body).toBeDefined();
                     expect(resp.response.headers['set-cookie'].length).toBe(1);
                 }).catch(function(error) {
-                    expect(error).not.toBeDefined();
+                    expect(util.inspect(error)).not.toBeDefined();
                 }).done(done);
             });
         });
@@ -795,7 +836,7 @@ describe('auth (E2E):', function() {
                 expect(resp.response.statusCode).toBe(404);
                 expect(resp.body).toBe('That user does not exist');
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
+                expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
         
@@ -810,7 +851,7 @@ describe('auth (E2E):', function() {
                 expect(resp.response.statusCode).toBe(403);
                 expect(resp.body).toBe('No reset token found');
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
+                expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
         
@@ -825,7 +866,7 @@ describe('auth (E2E):', function() {
                 expect(resp.response.statusCode).toBe(403);
                 expect(resp.body).toBe('Reset token expired');
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
+                expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
         
@@ -840,7 +881,7 @@ describe('auth (E2E):', function() {
                 expect(resp.response.statusCode).toBe(403);
                 expect(resp.body).toBe('Invalid request token');
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
+                expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
         
@@ -853,7 +894,7 @@ describe('auth (E2E):', function() {
                 expect(resp.response.headers['set-cookie'].length).toBe(1);
                 expect(resp.response.headers['set-cookie'][0]).toMatch(/^c6Auth=.+/);
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
+                expect(util.inspect(error)).not.toBeDefined();
             });
 
             mailman.once(msgSubject, function(msg) {
@@ -862,7 +903,7 @@ describe('auth (E2E):', function() {
                     expect(resp.response.statusCode).toBe(403);
                     expect(resp.body).toBe('No reset token found');
                 }).catch(function(error) {
-                    expect(error).not.toBeDefined();
+                    expect(util.inspect(error)).not.toBeDefined();
                 }).done(done);
             });
         });
@@ -879,7 +920,7 @@ describe('auth (E2E):', function() {
                 expect(resp.response.statusCode).toBe(200);
                 expect(resp.body).toBe('Successfully generated reset token');
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
+                expect(util.inspect(error)).not.toBeDefined();
                 done();
             });
 
@@ -895,7 +936,7 @@ describe('auth (E2E):', function() {
                     expect(resp.response.headers['set-cookie'].length).toBe(1);
                     expect(resp.response.headers['set-cookie'][0]).toMatch(/^c6Auth=.+/);
                 }).catch(function(error) {
-                    expect(error).not.toBeDefined();
+                    expect(util.inspect(error)).not.toBeDefined();
                 }).done(done);
             });
         });
@@ -929,7 +970,7 @@ describe('auth (E2E):', function() {
             }).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
+                expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
     });

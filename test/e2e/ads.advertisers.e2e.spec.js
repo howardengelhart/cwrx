@@ -10,7 +10,7 @@ var q               = require('q'),
     };
 
 describe('ads advertisers endpoints (E2E):', function() {
-    var cookieJar, nonAdminJar;
+    var cookieJar, nonAdminJar, mockApp, appCreds;
 
     beforeEach(function(done) {
         jasmine.DEFAULT_TIMEOUT_INTERVAL = 10000;
@@ -57,6 +57,17 @@ describe('ads advertisers endpoints (E2E):', function() {
                 }
             }
         ];
+        mockApp = {
+            id: 'app-e2e-adverts',
+            key: 'e2e-adverts',
+            status: 'active',
+            secret: 'wowsuchsecretverysecureamaze',
+            permissions: {
+                advertisers: { read: 'all', create: 'all', edit: 'all', delete: 'all' }
+            }
+        };
+        appCreds = { key: mockApp.key, secret: mockApp.secret };
+
         var logins = [
             {url: config.authUrl + '/login', json: {email: mockUser.email, password: 'password'}, jar: cookieJar},
             {url: config.authUrl + '/login', json: {email: nonAdmin.email, password: 'password'}, jar: nonAdminJar},
@@ -64,7 +75,8 @@ describe('ads advertisers endpoints (E2E):', function() {
         
         q.all([
             testUtils.resetCollection('users', [mockUser, nonAdmin]),
-            testUtils.resetCollection('policies', testPolicies)
+            testUtils.resetCollection('policies', testPolicies),
+            testUtils.mongoUpsert('applications', { key: mockApp.key }, mockApp)
         ]).then(function(results) {
             return q.all(logins.map(function(opts) { return requestUtils.qRequest('post', opts); }));
         }).done(function(results) {
@@ -172,6 +184,27 @@ describe('ads advertisers endpoints (E2E):', function() {
                 expect(resp.body).toEqual('Object not found');
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
+            }).done(done);
+        });
+
+        it('should allow an app to get an advertiser', function(done) {
+            delete options.jar;
+            requestUtils.makeSignedRequest(appCreds, 'get', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.body).toEqual({id: 'e2e-a-1', name: 'advert 1', status: 'active', org: 'o-selfie'});
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should fail if an app uses the wrong secret to make a request', function(done) {
+            delete options.jar;
+            var badCreds = { key: mockApp.key, secret: 'WRONG' };
+            requestUtils.makeSignedRequest(badCreds, 'get', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(401);
+                expect(resp.body).toBe('Unauthorized');
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
     });
@@ -330,6 +363,20 @@ describe('ads advertisers endpoints (E2E):', function() {
                 expect(error).not.toBeDefined();
             }).done(done);
         });
+
+        it('should allow an app to get advertisers', function(done) {
+            delete options.jar;
+            requestUtils.makeSignedRequest(appCreds, 'get', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.body.length).toBe(3);
+                expect(resp.body[0].id).toBe('e2e-a-1');
+                expect(resp.body[1].id).toBe('e2e-a-2');
+                expect(resp.body[2].id).toBe('e2e-a-3');
+                expect(resp.response.headers['content-range']).toBe('items 1-3/3');
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
     });
 
     describe('POST /api/account/advertisers', function() {
@@ -439,6 +486,24 @@ describe('ads advertisers endpoints (E2E):', function() {
                 expect(resp.body).toBe('Unauthorized');
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
+            }).done(done);
+        });
+
+        it('should allow an app to create an advertiser', function(done) {
+            delete options.jar;
+            requestUtils.makeSignedRequest(appCreds, 'post', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(201);
+                expect(resp.body.id).toBeDefined();
+                expect(resp.body.name).toBe('fake advert');
+                expect(resp.body.org).not.toBeDefined();
+                expect(resp.body.defaultLinks).toEqual({
+                    facebook: 'http://facebook.com'
+                });
+                expect(resp.body.defaultLogos).toEqual({
+                    square: 'square.png'
+                });
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
     });
@@ -568,6 +633,20 @@ describe('ads advertisers endpoints (E2E):', function() {
                 expect(error).not.toBeDefined();
             }).done(done);
         });
+
+        it('should allow an app to edit an advertiser', function(done) {
+            delete options.jar;
+            requestUtils.makeSignedRequest(appCreds, 'put', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.body.id).toBe('e2e-a-1');
+                expect(resp.body.name).toBe('new name');
+                expect(resp.body.defaultLogos).toEqual({
+                    square: 'rhombus.png'
+                });
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
     });
 
     describe('DELETE /api/account/advertisers/:id', function() {
@@ -664,6 +743,16 @@ describe('ads advertisers endpoints (E2E):', function() {
                 expect(resp.body).toBe('Unauthorized');
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
+            }).done(done);
+        });
+
+        it('should allow an app to delete an advertiser', function(done) {
+            requestUtils.makeSignedRequest(appCreds, 'delete', {url: config.adsUrl + '/account/advertisers/e2e-a-1'})
+            .then(function(resp) {
+                expect(resp.response.statusCode).toBe(204);
+                expect(resp.body).toBe('');
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
     });

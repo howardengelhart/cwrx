@@ -49,10 +49,11 @@
     // only allow admins to create categories
     catModule.adminCreateCheck = function(req, next, done) {
         var log = logger.getLog();
-        if (!(req.user.permissions &&
-              req.user.permissions.categories &&
-              req.user.permissions.categories.create === Scope.All)) {
-            log.info('[%1] User %2 not authorized to create categories', req.uuid, req.user.id);
+        if (!(req.requester.permissions &&
+              req.requester.permissions.categories &&
+              req.requester.permissions.categories.create === Scope.All)) {
+            log.info('[%1] Requester %2 not authorized to create categories',
+                     req.uuid, req.requester.id);
             return done({code: 403, body: 'Not authorized to create categories'});
         }
         
@@ -64,8 +65,11 @@
             mountPath   = '/api/content/categor(y|ies)'; // prefix to all endpoints declared here
         
         router.use(jobManager.setJobTimeout.bind(jobManager));
+        
+        var authMidware = authUtils.crudMidware('categories', { allowApps: true });
 
-        var authGetCat = authUtils.middlewarify({});
+        // want to allow anyone to get categories, so require no permissions
+        var authGetCat = authUtils.middlewarify({ allowApps: true });
         router.get('/:id', sessions, authGetCat, audit, function(req, res) {
             var promise = catSvc.getObjs({id: req.params.id}, req, false);
             promise.finally(function() {
@@ -96,8 +100,7 @@
             });
         });
 
-        var authPostCat = authUtils.middlewarify({categories: 'create'});
-        router.post('/', sessions, authPostCat, audit, function(req, res) {
+        router.post('/', sessions, authMidware.create, audit, function(req, res) {
             var promise = catSvc.createObj(req);
             promise.finally(function() {
                 jobManager.endJob(req, res, promise.inspect())
@@ -107,8 +110,7 @@
             });
         });
 
-        var authPutCat = authUtils.middlewarify({categories: 'edit'});
-        router.put('/:id', sessions, authPutCat, audit, function(req, res) {
+        router.put('/:id', sessions, authMidware.edit, audit, function(req, res) {
             var promise = catSvc.editObj(req);
             promise.finally(function() {
                 jobManager.endJob(req, res, promise.inspect())
@@ -118,8 +120,7 @@
             });
         });
 
-        var authDelCat = authUtils.middlewarify({categories: 'delete'});
-        router.delete('/:id', sessions, authDelCat, audit, function(req, res) {
+        router.delete('/:id', sessions, authMidware.delete, audit, function(req, res) {
             var promise = catSvc.deleteObj(req);
             promise.finally(function() {
                 jobManager.endJob(req, res, promise.inspect())

@@ -204,7 +204,7 @@ describe('querybot (UT)', function() {
 
             queryOpts = null;
            
-            spyOn(requestUtils,'qRequest').and.callFake(function(method,opts){
+            spyOn(requestUtils, 'proxyRequest').and.callFake(function(req, method, opts) {
                 queryOpts = opts;
                 return q(mockResponse);
             });
@@ -297,7 +297,7 @@ describe('querybot (UT)', function() {
         it('will reject if there are no ids on the request',function(done){
             lib.queryParamsFromRequest(req)
             .then(done.fail,function(err){
-                expect(requestUtils.qRequest).not.toHaveBeenCalled();
+                expect(requestUtils.proxyRequest).not.toHaveBeenCalled();
                 expect(err).toEqual(new Error('At least one campaignId is required.'));
                 expect(err.status).toEqual(400);
                 done();
@@ -364,7 +364,7 @@ describe('querybot (UT)', function() {
             req.query.startDate = '01/01/2016';
             lib.queryParamsFromRequest(req)
             .then(done.fail,function(err){
-                expect(requestUtils.qRequest).not.toHaveBeenCalled();
+                expect(requestUtils.proxyRequest).not.toHaveBeenCalled();
                 expect(err).toEqual(new Error('Invalid startDate format, expecting YYYY-MM-DD.'));
                 expect(err.status).toEqual(400);
                 done();
@@ -376,7 +376,7 @@ describe('querybot (UT)', function() {
             req.query.startDate = '2016-01-01;delete * from *;';
             lib.queryParamsFromRequest(req)
             .then(done.fail,function(err){
-                expect(requestUtils.qRequest).not.toHaveBeenCalled();
+                expect(requestUtils.proxyRequest).not.toHaveBeenCalled();
                 expect(err).toEqual(new Error('Invalid startDate format, expecting YYYY-MM-DD.'));
                 expect(err.status).toEqual(400);
                 done();
@@ -388,7 +388,7 @@ describe('querybot (UT)', function() {
             req.query.startDate = 'delete * from *;2016-01-01';
             lib.queryParamsFromRequest(req)
             .then(done.fail,function(err){
-                expect(requestUtils.qRequest).not.toHaveBeenCalled();
+                expect(requestUtils.proxyRequest).not.toHaveBeenCalled();
                 expect(err).toEqual(new Error('Invalid startDate format, expecting YYYY-MM-DD.'));
                 expect(err.status).toEqual(400);
                 done();
@@ -400,7 +400,7 @@ describe('querybot (UT)', function() {
             req.query.endDate = '01/01/2016';
             lib.queryParamsFromRequest(req)
             .then(done.fail,function(err){
-                expect(requestUtils.qRequest).not.toHaveBeenCalled();
+                expect(requestUtils.proxyRequest).not.toHaveBeenCalled();
                 expect(err).toEqual(new Error('Invalid endDate format, expecting YYYY-MM-DD.'));
                 expect(err.status).toEqual(400);
                 done();
@@ -412,7 +412,7 @@ describe('querybot (UT)', function() {
             req.query.endDate = '2016-01-01;delete * from *;';
             lib.queryParamsFromRequest(req)
             .then(done.fail,function(err){
-                expect(requestUtils.qRequest).not.toHaveBeenCalled();
+                expect(requestUtils.proxyRequest).not.toHaveBeenCalled();
                 expect(err).toEqual(new Error('Invalid endDate format, expecting YYYY-MM-DD.'));
                 expect(err.status).toEqual(400);
                 done();
@@ -424,7 +424,7 @@ describe('querybot (UT)', function() {
             req.query.endDate = 'delete * from *;2016-01-01';
             lib.queryParamsFromRequest(req)
             .then(done.fail,function(err){
-                expect(requestUtils.qRequest).not.toHaveBeenCalled();
+                expect(requestUtils.proxyRequest).not.toHaveBeenCalled();
                 expect(err).toEqual(new Error('Invalid endDate format, expecting YYYY-MM-DD.'));
                 expect(err.status).toEqual(400);
                 done();
