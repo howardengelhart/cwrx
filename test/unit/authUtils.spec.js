@@ -1,7 +1,7 @@
 var flush = true;
 describe('authUtils', function() {
     var mockUser, q, authUtils, uuid, logger, mongoUtils, mockLog, bcrypt, mockColl, signatures,
-        enums, Status, Scope, anyFunc, res, next;
+        enums, Status, Scope, anyFunc, mockDb, res, next;
     
     beforeEach(function() {
         jasmine.clock().install();
@@ -40,7 +40,7 @@ describe('authUtils', function() {
         authUtils._db = mockDb;
         spyOn(mongoUtils, 'safeUser').and.callThrough();
         spyOn(mongoUtils, 'unescapeKeys').and.callThrough();
-        spyOn(mongoUtils, 'findObject').and.callFake(function() { return q(mockUser) });
+        spyOn(mongoUtils, 'findObject').and.callFake(function() { return q(mockUser); });
         anyFunc = jasmine.any(Function);
 
         mockLog = {
@@ -240,7 +240,7 @@ describe('authUtils', function() {
         });
         
         it('should handle mongo not finding any active roles or policies', function(done) {
-            mockRoles = [], mockPolicies = [];
+            mockRoles = []; mockPolicies = [];
             authUtils.decorateUser(mockUser).then(function(user) {
                 expect(user).toBe(mockUser);
                 expect(user).toEqual({
@@ -761,13 +761,13 @@ describe('authUtils', function() {
             var perms = { experiences: 'read' };
             expect(authUtils._compare(perms, userPerms)).toBe(true);
             
-            var perms = {experiences: 'edit', orgs: 'read' };
+            perms = {experiences: 'edit', orgs: 'read' };
             expect(authUtils._compare(perms, userPerms)).toBe(true);
             
-            var perms = { orgs: 'edit' };
+            perms = { orgs: 'edit' };
             expect(authUtils._compare(perms, userPerms)).toBe(false);
             
-            var perms = {users: 'read' };
+            perms = {users: 'read' };
             expect(authUtils._compare(perms, userPerms)).toBe(false);
         });
         

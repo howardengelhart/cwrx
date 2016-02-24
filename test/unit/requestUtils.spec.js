@@ -284,7 +284,7 @@ describe('requestUtils', function() {
             };
             spyOn(signatures, 'setAuthHeaders').and.callThrough();
             spyOn(uuid, 'hashText').and.returnValue('hashbrowns');
-            spyOn(uuid, 'createUuid').and.returnValue('uuuuuuuuuuuuuuuuuuid');
+            spyOn(uuid, 'randomUuid').and.returnValue('uuuuuuuuuuuuuuuuuuid');
             spyOn(signatures, 'signData').and.returnValue('johnhancock');
             spyOn(requestUtils, 'qRequest').and.returnValue(q({
                 response: { statusCode: 200 },

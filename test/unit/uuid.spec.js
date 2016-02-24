@@ -26,7 +26,7 @@ describe('uuid', function() {
     
     describe('hashText', function() {
         it('should create the same random hash for the same text', function() {
-            var txt = "abc123",
+            var txt = 'abc123',
                 hash1 = uuid.hashText(txt),
                 hash2 = uuid.hashText(txt);
             
@@ -35,8 +35,8 @@ describe('uuid', function() {
         });
         
         it('should create different hashes for different text', function() {
-            var txt1 = "abc123",
-                txt2 = "def456",
+            var txt1 = 'abc123',
+                txt2 = 'def456',
                 hash1 = uuid.hashText(txt1),
                 hash2 = uuid.hashText(txt2);
 
@@ -111,7 +111,7 @@ describe('uuid', function() {
                 expect(error).toBe('I GOT A PROBLEM');
                 expect(fakeHash.update).toHaveBeenCalledWith('asdf');
                 expect(fakeHash.digest).not.toHaveBeenCalled();
-            }).done(done)
+            }).done(done);
         });
     });
 
@@ -155,9 +155,9 @@ describe('uuid', function() {
         
         it('should throw an error if the string is not a valid uuid', function() {
             var msg = 'str is not a valid uuid';
-            expect(function() { uuid.parseUuid('foo') }).toThrow(new Error(msg));
-            expect(function() { uuid.parseUuid('1234567890abcdefg') }).toThrow(new Error(msg));
-            expect(function() { uuid.parseUuid('1234567890abcde*') }).toThrow(new Error(msg));
+            expect(function() { uuid.parseUuid('foo'); }).toThrow(new Error(msg));
+            expect(function() { uuid.parseUuid('1234567890abcdefg'); }).toThrow(new Error(msg));
+            expect(function() { uuid.parseUuid('1234567890abcde*'); }).toThrow(new Error(msg));
         });
     });
     

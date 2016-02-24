@@ -1,6 +1,6 @@
 var flush = true;
 describe('hostUtils', function() {
-    var cp, hostname, os;
+    var hostUtils, cp, hostname, os;
     
     beforeEach(function() {
         if (flush){ for (var m in require.cache){ delete require.cache[m]; } flush = false; }
@@ -26,7 +26,7 @@ describe('hostUtils', function() {
                 expect(cp.exec.calls.all()[0].args[0]).toBe('hostname');
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
-            }).done(done)
+            }).done(done);
         });
         
         it('should get the fqdn if called with full = true', function(done) {
@@ -40,7 +40,7 @@ describe('hostUtils', function() {
                 expect(cp.exec.calls.all()[0].args[0]).toBe('hostname --fqdn');
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
-            }).done(done)
+            }).done(done);
         });
         
         it('should handle failures', function(done) {
