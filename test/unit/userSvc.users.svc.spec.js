@@ -1,7 +1,7 @@
 var flush = true;
 describe('userSvc (UT)', function() {
     var userModule, q, bcrypt, mockLog, uuid, logger, CrudSvc, Model, mongoUtils, email, crypto, authUtils,
-        CacheMutex, requestUtils, objUtils, req, userSvc, mockDb, mockConfig, nextSpy, doneSpy, errorSpy, mockCache;
+        CacheMutex, requestUtils, objUtils, req, userSvc, mockDb, mockConfig, nextSpy, doneSpy, errorSpy, mockCache, appCreds;
 
     var enums = require('../../lib/enums'),
         Status = enums.Status,
@@ -71,6 +71,10 @@ describe('userSvc (UT)', function() {
                 }
             }
         };
+        appCreds = {
+            key: 'e2e-user-service',
+            secret: 'omgsosecret'
+        };
     });
 
     describe('setupSvc', function() {
@@ -132,7 +136,7 @@ describe('userSvc (UT)', function() {
                 
             };
 
-            result = userModule.setupSvc(mockDb, mockConfig, mockCache);
+            result = userModule.setupSvc(mockDb, mockConfig, mockCache, appCreds);
         });
 
         it('should return a CrudSvc', function() {
@@ -241,8 +245,8 @@ describe('userSvc (UT)', function() {
         });
 
         it('should give linked entities on user confirm', function() {
-            expect(userModule.createLinkedEntities.bind).toHaveBeenCalledWith(userModule, mockConfig, mockCache, result);
-            expect(result._middleware.confirmUser).toContain(getBoundFn(userModule.createLinkedEntities, [userModule, mockConfig, mockCache, result]));
+            expect(userModule.createLinkedEntities.bind).toHaveBeenCalledWith(userModule, mockConfig, mockCache, result, appCreds);
+            expect(result._middleware.confirmUser).toContain(getBoundFn(userModule.createLinkedEntities, [userModule, mockConfig, mockCache, result, appCreds]));
         });
 
         it('should send confirmation email on user confirm', function() {
@@ -264,7 +268,7 @@ describe('userSvc (UT)', function() {
     describe('user validation', function() {
         var svc, newObj, origObj, requester;
         beforeEach(function() {
-            svc = userModule.setupSvc(mockDb, mockConfig);
+            svc = userModule.setupSvc(mockDb, mockConfig, mockCache, appCreds);
             newObj = { email: 'test@me.com', password: 'pass' };
             origObj = {};
             requester = { fieldValidation: { users: {} } };
@@ -462,7 +466,7 @@ describe('userSvc (UT)', function() {
     describe('createSignupModel', function() {
         var svc;
         beforeEach(function() {
-            svc = userModule.setupSvc(mockDb, mockConfig, mockCache);
+            svc = userModule.setupSvc(mockDb, mockConfig, mockCache, appCreds);
         });
 
         it('should return a new model with an altered user schema', function() {
@@ -616,12 +620,11 @@ describe('userSvc (UT)', function() {
             req.user = { id: 'u-12345', company: 'some company' };
             req.requester = { id: 'u-12345', permissions: {} };
             svc = { _coll: 'fakeColl' };
-            spyOn(userModule, 'getSixxySession').and.returnValue(q('sixxy cookie'));
             spyOn(CacheMutex.prototype, '_init');
             spyOn(CacheMutex.prototype, 'acquire').and.returnValue(q(true));
             spyOn(CacheMutex.prototype, 'release').and.returnValue(q());
             spyOn(mongoUtils, 'editObject').and.returnValue(q());
-            spyOn(requestUtils, 'qRequest').and.callFake(function(method, opts) {
+            spyOn(requestUtils, 'makeSignedRequest').and.callFake(function(creds, method, opts) {
                 var object = opts.url.match(/orgs|advertisers/)[0];
                 return q({
                     response: { statusCode: 201 },
@@ -631,7 +634,7 @@ describe('userSvc (UT)', function() {
         });
         
         it('should create an advertiser and org', function(done) {
-            userModule.createLinkedEntities(mockConfig, mockCache, svc, req, nextSpy, doneSpy).catch(errorSpy).finally(function() {
+            userModule.createLinkedEntities(mockConfig, mockCache, svc, appCreds, req, nextSpy, doneSpy).catch(errorSpy).finally(function() {
                 expect(nextSpy).toHaveBeenCalled();
                 expect(doneSpy).not.toHaveBeenCalled();
                 expect(errorSpy).not.toHaveBeenCalled();
@@ -639,18 +642,15 @@ describe('userSvc (UT)', function() {
                 
                 expect(CacheMutex.prototype._init).toHaveBeenCalledWith(mockCache, 'confirmUser:u-12345', 60000);
                 expect(CacheMutex.prototype.acquire).toHaveBeenCalled();
-                expect(userModule.getSixxySession).toHaveBeenCalledWith(req, 3500);
 
-                expect(requestUtils.qRequest.calls.count()).toBe(2);
-                expect(requestUtils.qRequest).toHaveBeenCalledWith('post', {
+                expect(requestUtils.makeSignedRequest.calls.count()).toBe(2);
+                expect(requestUtils.makeSignedRequest).toHaveBeenCalledWith(appCreds, 'post', {
                     url: 'http://localhost/api/account/orgs',
-                    json: { name: 'some company (u-12345)' },
-                    headers: { cookie: 'sixxy cookie' }
+                    json: { name: 'some company (u-12345)' }
                 });
-                expect(requestUtils.qRequest).toHaveBeenCalledWith('post', {
+                expect(requestUtils.makeSignedRequest).toHaveBeenCalledWith(appCreds, 'post', {
                     url: 'http://localhost/api/account/advertisers',
-                    json: { name: 'some company (u-12345)', org: 'orgs-id-123' },
-                    headers: { cookie: 'sixxy cookie' }
+                    json: { name: 'some company (u-12345)', org: 'orgs-id-123' }
                 });
 
                 expect(mongoUtils.editObject).not.toHaveBeenCalled();
@@ -661,28 +661,14 @@ describe('userSvc (UT)', function() {
         
         it('should call done if it cannot acquire a mutex lock', function(done) {
             CacheMutex.prototype.acquire.and.returnValue(q(false));
-            userModule.createLinkedEntities(mockConfig, mockCache, svc, req, nextSpy, doneSpy).catch(errorSpy).finally(function() {
+            userModule.createLinkedEntities(mockConfig, mockCache, svc, appCreds, req, nextSpy, doneSpy).catch(errorSpy).finally(function() {
                 expect(nextSpy).not.toHaveBeenCalled();
                 expect(doneSpy).toHaveBeenCalledWith({ code: 400, body: 'Another operation is already in progress' });
                 expect(errorSpy).not.toHaveBeenCalled();
-                expect(userModule.getSixxySession).not.toHaveBeenCalled();
-                expect(requestUtils.qRequest).not.toHaveBeenCalled();
+                expect(requestUtils.makeSignedRequest).not.toHaveBeenCalled();
                 expect(mongoUtils.editObject).not.toHaveBeenCalled();
                 expect(mockLog.error).not.toHaveBeenCalled();
                 expect(CacheMutex.prototype.release).not.toHaveBeenCalled();
-            }).done(done);
-        });
-        
-        it('should reject if it cannot get a session for the sixxy user', function(done) {
-            userModule.getSixxySession.and.returnValue(q.reject('I GOT A PROBLEM'));
-            userModule.createLinkedEntities(mockConfig, mockCache, svc, req, nextSpy, doneSpy).catch(errorSpy).finally(function() {
-                expect(nextSpy).not.toHaveBeenCalled();
-                expect(doneSpy).not.toHaveBeenCalled();
-                expect(errorSpy).toHaveBeenCalledWith('Failed creating linked entities');
-                expect(requestUtils.qRequest).not.toHaveBeenCalled();
-                expect(mongoUtils.editObject).not.toHaveBeenCalled();
-                expect(mockLog.error).toHaveBeenCalled();
-                expect(CacheMutex.prototype.release).toHaveBeenCalled();
             }).done(done);
         });
         
@@ -692,18 +678,18 @@ describe('userSvc (UT)', function() {
             });
 
             it('should not attempt to create another org', function(done) {
-                userModule.createLinkedEntities(mockConfig, mockCache, svc, req, nextSpy, doneSpy).catch(errorSpy)
+                userModule.createLinkedEntities(mockConfig, mockCache, svc, appCreds, req, nextSpy, doneSpy).catch(errorSpy)
                 .finally(function() {
                     expect(nextSpy).toHaveBeenCalled();
                     expect(doneSpy).not.toHaveBeenCalled();
                     expect(errorSpy).not.toHaveBeenCalled();
                     expect(req.user.org).toBe('o-existing');
 
-                    expect(requestUtils.qRequest.calls.count()).toBe(1);
-                    expect(requestUtils.qRequest).not.toHaveBeenCalledWith('post', jasmine.objectContaining({
+                    expect(requestUtils.makeSignedRequest.calls.count()).toBe(1);
+                    expect(requestUtils.makeSignedRequest).not.toHaveBeenCalledWith(appCreds, 'post', jasmine.objectContaining({
                         url: 'http://localhost/api/account/orgs'
                     }));
-                    expect(requestUtils.qRequest).toHaveBeenCalledWith('post', jasmine.objectContaining({
+                    expect(requestUtils.makeSignedRequest).toHaveBeenCalledWith(appCreds, 'post', jasmine.objectContaining({
                         url: 'http://localhost/api/account/advertisers'
                     }));
 
@@ -720,20 +706,19 @@ describe('userSvc (UT)', function() {
             });
 
             it('should save the code on the org', function(done) {
-                userModule.createLinkedEntities(mockConfig, mockCache, svc, req, nextSpy, doneSpy).catch(errorSpy)
+                userModule.createLinkedEntities(mockConfig, mockCache, svc, appCreds, req, nextSpy, doneSpy).catch(errorSpy)
                 .finally(function() {
                     expect(nextSpy).toHaveBeenCalled();
                     expect(doneSpy).not.toHaveBeenCalled();
                     expect(errorSpy).not.toHaveBeenCalled();
                     expect(req.user.org).toBe('orgs-id-123');
 
-                    expect(requestUtils.qRequest).toHaveBeenCalledWith('post', {
+                    expect(requestUtils.makeSignedRequest).toHaveBeenCalledWith(appCreds, 'post', {
                         url: 'http://localhost/api/account/orgs',
                         json: {
                             name: 'some company (u-12345)',
                             referralCode: 'asdf123456'
-                        },
-                        headers: { cookie: 'sixxy cookie' }
+                        }
                     });
 
                     expect(mongoUtils.editObject).not.toHaveBeenCalled();
@@ -744,8 +729,8 @@ describe('userSvc (UT)', function() {
         });
         
         ['4xx response', 'rejection'].forEach(function(failType) {
-            function failRequestFor(entity, method, opts) {
-                return function(method, opts) {
+            function failRequestFor(entity, creds, method, opts) {
+                return function(creds, method, opts) {
                     var object = opts.url.match(/orgs|advertisers/)[0];
                     if (object === (entity + 's')) {
                         if (/reject/.test(failType)) {
@@ -767,19 +752,19 @@ describe('userSvc (UT)', function() {
 
             describe('if creating an org fails with a ' + failType, function() {
                 beforeEach(function() {
-                    requestUtils.qRequest.and.callFake(failRequestFor('org'));
+                    requestUtils.makeSignedRequest.and.callFake(failRequestFor('org'));
                 });
                 
                 it('should reject without attempting to save the user', function(done) {
-                    userModule.createLinkedEntities(mockConfig, mockCache, svc, req, nextSpy, doneSpy).catch(errorSpy)
+                    userModule.createLinkedEntities(mockConfig, mockCache, svc, appCreds, req, nextSpy, doneSpy).catch(errorSpy)
                     .finally(function() {
                         expect(nextSpy).not.toHaveBeenCalled();
                         expect(doneSpy).not.toHaveBeenCalled();
                         expect(errorSpy).toHaveBeenCalledWith('Failed creating linked entities');
                         expect(req.user.org).not.toBeDefined();
 
-                        expect(requestUtils.qRequest.calls.count()).toBe(1);
-                        expect(requestUtils.qRequest).toHaveBeenCalledWith('post', jasmine.objectContaining({
+                        expect(requestUtils.makeSignedRequest.calls.count()).toBe(1);
+                        expect(requestUtils.makeSignedRequest).toHaveBeenCalledWith(appCreds, 'post', jasmine.objectContaining({
                             url: 'http://localhost/api/account/orgs'
                         }));
                         expect(mongoUtils.editObject).not.toHaveBeenCalled();
@@ -799,18 +784,18 @@ describe('userSvc (UT)', function() {
             
             describe('if creating an advertiser fails with a ' + failType, function() {
                 beforeEach(function() {
-                    requestUtils.qRequest.and.callFake(failRequestFor('advertiser'));
+                    requestUtils.makeSignedRequest.and.callFake(failRequestFor('advertiser'));
                 });
                 
                 it('should attempt to save the org id on the user', function(done) {
-                    userModule.createLinkedEntities(mockConfig, mockCache, svc, req, nextSpy, doneSpy).catch(errorSpy)
+                    userModule.createLinkedEntities(mockConfig, mockCache, svc, appCreds, req, nextSpy, doneSpy).catch(errorSpy)
                     .finally(function() {
                         expect(nextSpy).not.toHaveBeenCalled();
                         expect(doneSpy).not.toHaveBeenCalled();
                         expect(errorSpy).toHaveBeenCalledWith('Failed creating linked entities');
                         expect(req.user.org).toBe('orgs-id-123');
 
-                        expect(requestUtils.qRequest.calls.count()).toBe(2);
+                        expect(requestUtils.makeSignedRequest.calls.count()).toBe(2);
                         expect(mongoUtils.editObject).toHaveBeenCalledWith('fakeColl', { org: 'orgs-id-123' }, 'u-12345');
                         
                         expect(mockLog.error).toHaveBeenCalled();
@@ -827,7 +812,7 @@ describe('userSvc (UT)', function() {
 
                 it('should reject with the same message if saving the user fails', function(done) {
                     mongoUtils.editObject.and.returnValue(q.reject('Honey you got a big storm coming'));
-                    userModule.createLinkedEntities(mockConfig, mockCache, svc, req, nextSpy, doneSpy).catch(errorSpy)
+                    userModule.createLinkedEntities(mockConfig, mockCache, svc, appCreds, req, nextSpy, doneSpy).catch(errorSpy)
                     .finally(function() {
                         expect(nextSpy).not.toHaveBeenCalled();
                         expect(doneSpy).not.toHaveBeenCalled();
@@ -866,7 +851,7 @@ describe('userSvc (UT)', function() {
             spyOn(uuid, 'createUuid').and.returnValue('abcdefghijklmnopqrstuvwxyz');
             var newUserRoles = ['newUserRole1', 'newUserRole2'];
             var newUserPols = ['newUserPol1', 'newUserPol2'];
-            svc = userModule.setupSvc(mockDb, mockConfig);
+            svc = userModule.setupSvc(mockDb, mockConfig, mockCache, appCreds);
             req = {
                 body: { }
             };
@@ -1451,7 +1436,7 @@ describe('userSvc (UT)', function() {
     describe('validateRoles(svc, req, next, done)', function() {
         var roleColl, roles, svc;
         beforeEach(function() {
-            svc = userModule.setupSvc(mockDb, mockConfig);
+            svc = userModule.setupSvc(mockDb, mockConfig, mockCache, appCreds);
             roles = [
                 { id: 'r-1', name: 'role1' },
                 { id: 'r-2', name: 'role2' },
@@ -1528,7 +1513,7 @@ describe('userSvc (UT)', function() {
     describe('validatePolicies(svc, req, next, done)', function() {
         var polColl, pols, svc;
         beforeEach(function() {
-            svc = userModule.setupSvc(mockDb, mockConfig);
+            svc = userModule.setupSvc(mockDb, mockConfig, mockCache, appCreds);
             pols = [
                 { id: 'p-1', name: 'pol1' },
                 { id: 'p-2', name: 'pol2' },
@@ -2111,139 +2096,6 @@ describe('userSvc (UT)', function() {
                 }).catch(function(error) {
                     expect(error).not.toBeDefined();
                 }).finally(done);
-            });
-        });
-    });
-
-    describe('getSixxySession(req, port)', function() {
-        var req, port, mockResponse;
-        
-        beforeEach(function() {
-            spyOn(crypto, 'randomBytes').and.callFake(function(num, cb) {
-                cb(null, new Buffer('abcdefghijklmnopqrstuvwxyz'.substring(0, num)));
-            });
-            mockResponse = {
-                response: {
-                    statusCode: 204,
-                    headers: {
-                        'set-cookie': [
-                            'c6Auth cookie'
-                        ]
-                    }
-                }
-            };
-            spyOn(requestUtils, 'qRequest').and.returnValue(mockResponse);
-            req = {
-                uuid: 'uuid'
-            };
-            port = 3500;
-        });
-        
-        it('should set a random nonce string for the request', function(done) {
-            userModule.getSixxySession(req, port).then(function() {
-                expect(crypto.randomBytes).toHaveBeenCalledWith(24, jasmine.any(Function));
-                expect(userModule._nonces.uuid).toBe('6162636465666768696a6b6c6d6e6f707172737475767778');
-            }).catch(function(error) {
-                expect(error).not.toBeDefined();
-            }).done(done);
-        });
-        
-        it('should send a request to get the sixxy user session', function(done) {
-            userModule.getSixxySession(req, port).then(function() {
-                expect(requestUtils.qRequest).toHaveBeenCalledWith('post', {
-                    url: 'http://localhost:3500/__internal/sixxyUserSession',
-                    json: {uuid:'uuid',nonce:'6162636465666768696a6b6c6d6e6f707172737475767778'}
-                });
-            }).catch(function(error) {
-                expect(error).not.toBeDefined();
-            }).done(done);
-        });
-        
-        it('should reject if the statusCode of the response is not a 204', function(done) {
-            mockResponse.response.statusCode = 400;
-            userModule.getSixxySession(req, port).then(function(result) {
-                expect(result).not.toBeDefined();
-            }).catch(function(error) {
-                expect(error).toBe('Failed to request sixxy session: code = 400, body = undefined');
-            }).done(done);
-        });
-        
-        it('should reject if there is no c6Auth cookie', function(done) {
-            mockResponse.response.headers['set-cookie'] = [];
-            userModule.getSixxySession(req, port).then(function(result) {
-                expect(result).not.toBeDefined();
-            }).catch(function(error) {
-                expect(error).toBe('No c6Auth cookie in response');
-            }).done(done);
-        });
-        
-        it('should return the c6Auth cookie', function(done) {
-            userModule.getSixxySession(req, port).then(function(result) {
-                expect(result).toBe('c6Auth cookie');
-            }).catch(function(error) {
-                expect(error).not.toBeDefined();
-            }).done(done);
-        });
-    });
-    
-    describe('insertSixxySession(req, res, config)', function() {
-        var req, res, config;
-        
-        beforeEach(function() {
-            req = {
-                body: {
-                    
-                },
-                session: {
-                    regenerate: jasmine.createSpy('regenerate()').and.callFake(function(cb) {
-                        cb(null, null);
-                    }),
-                    cookie: { }
-                }
-            };
-            res = {
-                send: jasmine.createSpy('send()')
-            };
-            config = {
-                systemUserId: 'u-sixxy'
-            };
-        });
-        
-        it('should 400 if there is no nonce on the body of the request', function() {
-            req.body.uuid = 'uuid';
-            userModule.insertSixxySession(req, res, config);
-            expect(res.send).toHaveBeenCalledWith(400);
-            expect(mockLog.warn).toHaveBeenCalled();
-        });
-        
-        it('should 400 if there is no uuid on the body of the request', function() {
-            req.body.nonce = 'nonce';
-            userModule.insertSixxySession(req, res, config);
-            expect(res.send).toHaveBeenCalledWith(400);
-            expect(mockLog.warn).toHaveBeenCalled();
-        });
-        
-        it('should 400 if the provided nonce does not match', function() {
-            req.body.nonce = 'nonce';
-            req.body.uuid = 'uuid';
-            userModule._nonces.uuid = 'random bytes';
-            userModule.insertSixxySession(req, res, config);
-            expect(res.send).toHaveBeenCalledWith(400);
-            expect(mockLog.warn).toHaveBeenCalled();
-        });
-        
-        it('should regenerate the session and login the sixxy user', function(done) {
-            req.body.nonce = 'nonce';
-            req.body.uuid = 'uuid';
-            userModule._nonces.uuid = 'nonce';
-            userModule.insertSixxySession(req, res, config);
-            process.nextTick(function() {
-                expect(req.session.regenerate).toHaveBeenCalled();
-                expect(req.session.user).toBe('u-sixxy');
-                expect(req.session.cookie.maxAge).toBe(60000);
-                expect(req.session.cookie.secure).toBe(false);
-                expect(res.send).toHaveBeenCalledWith(204);
-                done();
             });
         });
     });
