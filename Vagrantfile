@@ -74,6 +74,9 @@ Vagrant.configure("2") do |config|
             :source => {
                 :branch => "#{ENV['CWRX_DEV_BRANCH'] || 'master'}"
             },
+            :deploy => {
+                :keptReleases => 1
+            },
             :mongo => {
                 :c6Db => { :host => "127.0.0.1" },
                 :c6Journal => { :host => "127.0.0.1" }
@@ -86,6 +89,9 @@ Vagrant.configure("2") do |config|
         :maint => {
             :source => {
                 :branch => "#{ENV['CWRX_DEV_BRANCH'] || 'master'}"
+            },
+            :deploy => {
+                :keptReleases => 1
             },
             :cfg => {
                 :loglevel => "trace"
