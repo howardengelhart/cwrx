@@ -262,6 +262,10 @@ lib.processCampaignSummaryRecord = function(record, obj, startDate, endDate) {
             summary : {
                 impressions : 0,
                 views       : 0,
+                quartile1   : 0,
+                quartile2   : 0,
+                quartile3   : 0,
+                quartile4   : 0,
                 totalSpend  : '0.0000',
                 linkClicks  : {},
                 shareClicks : {}
@@ -269,6 +273,10 @@ lib.processCampaignSummaryRecord = function(record, obj, startDate, endDate) {
             today : {
                 impressions : 0,
                 views       : 0,
+                quartile1   : 0,
+                quartile2   : 0,
+                quartile3   : 0,
+                quartile4   : 0,
                 totalSpend  : '0.0000',
                 linkClicks  : {},
                 shareClicks : {}
@@ -280,6 +288,10 @@ lib.processCampaignSummaryRecord = function(record, obj, startDate, endDate) {
                 endDate     : endDate,
                 impressions : 0,
                 views       : 0,
+                quartile1   : 0,
+                quartile2   : 0,
+                quartile3   : 0,
+                quartile4   : 0,
                 totalSpend  : '0.0000',
                 linkClicks  : {},
                 shareClicks : {}
@@ -298,6 +310,18 @@ lib.processCampaignSummaryRecord = function(record, obj, startDate, endDate) {
     
     if (record.eventType === 'cardView') {
         sub.impressions = eventCount;
+    } else
+    if (record.eventType === 'q1') {
+        sub.quartile1 = eventCount;
+    } else
+    if (record.eventType === 'q2') {
+        sub.quartile2 = eventCount;
+    } else
+    if (record.eventType === 'q3') {
+        sub.quartile3 = eventCount;
+    } else
+    if (record.eventType === 'q4') {
+        sub.quartile4 = eventCount;
     } else
     if (record.eventType === 'completedView') {
         sub.views       = eventCount;
@@ -369,7 +393,7 @@ lib.queryCampaignSummary = function(campaignIds,startDate,endDate) {
     statement.push('order by 1,2');
     log.trace(statement.join('\n'));
     return lib.pgQuery(statement.join('\n'),
-        [campaignIds,['q1','q2','q3','q4','launch','load','play','impression']])
+        [campaignIds,['launch','load','play','impression']])
         .then(function(result){
             var res ;
             result.rows.forEach(function(row){

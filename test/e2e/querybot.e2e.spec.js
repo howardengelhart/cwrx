@@ -53,6 +53,10 @@ describe('querybot (E2E)', function(){
             summary : {
                 impressions: 8409,
                 views      : 6461,
+                quartile1  : 7031,
+                quartile2  : 5820,
+                quartile3  : 1962,
+                quartile4  : 1330,
                 totalSpend : '1227.5900',
                 linkClicks : {
                     action      : 224,
@@ -70,6 +74,10 @@ describe('querybot (E2E)', function(){
             today : {
                 impressions : 7903,
                 views       : 6054,
+                quartile1  : 6362,
+                quartile2  : 5355,
+                quartile3  : 1806,
+                quartile4  : 1240,
                 totalSpend  : '1150.2600',
                 linkClicks : {
                     action      : 220,
@@ -90,6 +98,10 @@ describe('querybot (E2E)', function(){
             summary : {
                 impressions : 612,
                 views       : 512,
+                quartile1  : 574,
+                quartile2  : 560,
+                quartile3  : 538,
+                quartile4  : 511,
                 totalSpend  : '56.3200',
                 linkClicks  : {
                     action : 2,
@@ -104,6 +116,10 @@ describe('querybot (E2E)', function(){
             today : {
                 impressions : 385,
                 views : 318,
+                quartile1  : 359,
+                quartile2  : 349,
+                quartile3  : 336,
+                quartile4  : 318,
                 totalSpend  : '34.9800',
                 linkClicks  : {
                     action : 2,
@@ -119,6 +135,10 @@ describe('querybot (E2E)', function(){
             summary : {
                 impressions: 99,
                 views      : 69,
+                quartile1  : 84,
+                quartile2  : 74,
+                quartile3  : 52,
+                quartile4  : 30,
                 totalSpend : '3.4500',
                 linkClicks : {
                     website     : 6
@@ -127,7 +147,11 @@ describe('querybot (E2E)', function(){
             },
             today : {
                 impressions: 0,
-                views       : 0,
+                views      : 0,
+                quartile1  : 0,
+                quartile2  : 0,
+                quartile3  : 0,
+                quartile4  : 0,
                 totalSpend  : '0.0000',
                 linkClicks  : {},
                 shareClicks : {}
@@ -376,14 +400,18 @@ describe('querybot (E2E)', function(){
         });
         
         it('returns single doc with initialized range data if the campaigns GET is singular with dates with no data',function(done){
-            options.url += '/cam-1757d5cd13e383?startDate=2010-12-01&endDate=2010-12-02';
+            options.url += '/cam-1757d5cd13e383?startDate=2000-09-01&endDate=2000-09-02';
             requestUtils.qRequest('get', options)
             .then(function(resp) {
                 camp1Data.range = {
-                    startDate  : '2010-12-01',
-                    endDate    : '2010-12-02',
+                    startDate  : '2000-09-01',
+                    endDate    : '2000-09-02',
                     impressions: 0,
                     views      : 0,
+                    quartile1  : 0,
+                    quartile2  : 0,
+                    quartile3  : 0,
+                    quartile4  : 0,
                     totalSpend : '0.0000',
                     linkClicks : {},
                     shareClicks : {}
@@ -403,6 +431,10 @@ describe('querybot (E2E)', function(){
                     endDate    : '2015-12-01',
                     impressions: 0,
                     views      : 0,
+                    quartile1  : 0,
+                    quartile2  : 0,
+                    quartile3  : 0,
+                    quartile4  : 0,
                     totalSpend : '0.0000',
                     linkClicks : {},
                     shareClicks : {}
@@ -422,6 +454,10 @@ describe('querybot (E2E)', function(){
                     endDate    : '2015-12-02',
                     impressions: 283,
                     views      : 209,
+                    quartile1  : 223,
+                    quartile2  : 155,
+                    quartile3  : 52,
+                    quartile4  : 30,
                     totalSpend : '39.7100',
                     linkClicks : {
                         action : 3 
@@ -446,6 +482,10 @@ describe('querybot (E2E)', function(){
                     endDate    : '2015-12-31',
                     impressions: 99,
                     views      : 69,
+                    quartile1  : 84,
+                    quartile2  : 74,
+                    quartile3  : 52,
+                    quartile4  : 30,
                     totalSpend : '3.4500',
                     linkClicks : {
                         website     : 6

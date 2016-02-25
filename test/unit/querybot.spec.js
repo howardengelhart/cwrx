@@ -630,6 +630,10 @@ describe('querybot (UT)', function() {
                 summary : {
                     impressions : 100,
                     views : 0,
+                    quartile1 : 0,
+                    quartile2 : 0,
+                    quartile3 : 0,
+                    quartile4 : 0,
                     totalSpend : '0.0000',
                     linkClicks : {},
                     shareClicks : {}
@@ -637,6 +641,10 @@ describe('querybot (UT)', function() {
                 today : {
                     impressions : 0,
                     views : 0,
+                    quartile1 : 0,
+                    quartile2 : 0,
+                    quartile3 : 0,
+                    quartile4 : 0,
                     totalSpend : '0.0000',
                     linkClicks : {},
                     shareClicks : {}
@@ -652,6 +660,10 @@ describe('querybot (UT)', function() {
                 summary : {
                     impressions : 0,
                     views : 0,
+                    quartile1 : 0,
+                    quartile2 : 0,
+                    quartile3 : 0,
+                    quartile4 : 0,
                     totalSpend : '0.0000',
                     linkClicks : {},
                     shareClicks : {}
@@ -659,6 +671,10 @@ describe('querybot (UT)', function() {
                 today : {
                     impressions : 0,
                     views : 0,
+                    quartile1 : 0,
+                    quartile2 : 0,
+                    quartile3 : 0,
+                    quartile4 : 0,
                     totalSpend : '0.0000',
                     linkClicks : {},
                     shareClicks : {}
@@ -668,6 +684,10 @@ describe('querybot (UT)', function() {
                     endDate   : '2016-01-01',
                     impressions : 100,
                     views : 0,
+                    quartile1 : 0,
+                    quartile2 : 0,
+                    quartile3 : 0,
+                    quartile4 : 0,
                     totalSpend : '0.0000',
                     linkClicks : {},
                     shareClicks : {}
@@ -684,6 +704,10 @@ describe('querybot (UT)', function() {
                 summary : {
                     impressions : 100,
                     views : 100,
+                    quartile1 : 0,
+                    quartile2 : 0,
+                    quartile3 : 0,
+                    quartile4 : 0,
                     totalSpend : '25.2500',
                     linkClicks : {},
                     shareClicks : {}
@@ -691,6 +715,10 @@ describe('querybot (UT)', function() {
                 today : {
                     impressions : 0,
                     views : 0,
+                    quartile1 : 0,
+                    quartile2 : 0,
+                    quartile3 : 0,
+                    quartile4 : 0,
                     totalSpend : '0.0000',
                     linkClicks : {},
                     shareClicks : {}
@@ -703,6 +731,10 @@ describe('querybot (UT)', function() {
                 summary : {
                     impressions : 100,
                     views : 100,
+                    quartile1 : 0,
+                    quartile2 : 0,
+                    quartile3 : 0,
+                    quartile4 : 0,
                     totalSpend : '25.2500',
                     linkClicks : {},
                     shareClicks : {}
@@ -710,6 +742,10 @@ describe('querybot (UT)', function() {
                 today : {
                     impressions : 0,
                     views : 100,
+                    quartile1 : 0,
+                    quartile2 : 0,
+                    quartile3 : 0,
+                    quartile4 : 0,
                     totalSpend : '25.2500',
                     linkClicks : {},
                     shareClicks : {}
@@ -726,6 +762,10 @@ describe('querybot (UT)', function() {
                 summary : {
                     impressions : 100,
                     views : 0,
+                    quartile1 : 0,
+                    quartile2 : 0,
+                    quartile3 : 0,
+                    quartile4 : 0,
                     totalSpend : '0.0000',
                     linkClicks : {
                         facebook : 100
@@ -735,6 +775,10 @@ describe('querybot (UT)', function() {
                 today : {
                     impressions : 0,
                     views : 0,
+                    quartile1 : 0,
+                    quartile2 : 0,
+                    quartile3 : 0,
+                    quartile4 : 0,
                     totalSpend : '0.0000',
                     linkClicks : {},
                     shareClicks : {}
@@ -752,6 +796,10 @@ describe('querybot (UT)', function() {
                 summary : {
                     impressions : 100,
                     views : 0,
+                    quartile1 : 0,
+                    quartile2 : 0,
+                    quartile3 : 0,
+                    quartile4 : 0,
                     totalSpend : '0.0000',
                     linkClicks : { },
                     shareClicks : {
@@ -761,6 +809,10 @@ describe('querybot (UT)', function() {
                 today : {
                     impressions : 0,
                     views : 0,
+                    quartile1 : 0,
+                    quartile2 : 0,
+                    quartile3 : 0,
+                    quartile4 : 0,
                     totalSpend : '0.0000',
                     linkClicks : {},
                     shareClicks : {}
@@ -770,13 +822,17 @@ describe('querybot (UT)', function() {
 
         it('ignores eventTypes it is not concerned with',function(){
             var obj = lib.processCampaignSummaryRecord(record);
-            record.eventType = 'q1';
+            record.eventType = 'videoImpression';
             lib.processCampaignSummaryRecord(record,obj);
             expect(obj).toEqual({
                 campaignId : 'abc',
                 summary : {
                     impressions : 100,
                     views : 0,
+                    quartile1 : 0,
+                    quartile2 : 0,
+                    quartile3 : 0,
+                    quartile4 : 0,
                     totalSpend : '0.0000',
                     linkClicks : { },
                     shareClicks : { }
@@ -784,6 +840,10 @@ describe('querybot (UT)', function() {
                 today : {
                     impressions : 0,
                     views : 0,
+                    quartile1 : 0,
+                    quartile2 : 0,
+                    quartile3 : 0,
+                    quartile4 : 0,
                     totalSpend : '0.0000',
                     linkClicks : {},
                     shareClicks : {}
@@ -800,6 +860,10 @@ describe('querybot (UT)', function() {
                 summary : {
                     impressions : 0,
                     views : 0,
+                    quartile1 : 0,
+                    quartile2 : 0,
+                    quartile3 : 0,
+                    quartile4 : 0,
                     totalSpend : '0.0000',
                     linkClicks : { },
                     shareClicks : { }
@@ -807,6 +871,10 @@ describe('querybot (UT)', function() {
                 today : {
                     impressions : 0,
                     views : 0,
+                    quartile1 : 0,
+                    quartile2 : 0,
+                    quartile3 : 0,
+                    quartile4 : 0,
                     totalSpend : '0.0000',
                     linkClicks : {},
                     shareClicks : {}
@@ -828,7 +896,7 @@ describe('querybot (UT)', function() {
             lib.queryCampaignSummary(['abc','def']);
             expect(lib.pgQuery.calls.mostRecent().args[1]).toEqual([
                 ['abc','def'],
-                ['q1','q2','q3','q4','launch','load','play','impression']
+                ['launch','load','play','impression']
             ]);
         });
     });

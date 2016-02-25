@@ -19,6 +19,11 @@ export PGPASSWORD=abc12345
 export PGDATABASE=template1
 
 if [  "$1" = "-init" ] || [ "$1" = "--init" ]; then
+
+    if [ -n "$2" ]; then
+        export PGHOST=$2
+    fi
+    
     # These are things you should only do once, just after you've
     # installed pg on your vagrant box (using the c6postgres cookbook)
     psql -c "alter user c6admin with encrypted password 'password' valid until 'infinity';"
@@ -29,7 +34,10 @@ if [  "$1" = "-init" ] || [ "$1" = "--init" ]; then
     psql -c "CREATE USER cwrx WITH CREATEDB LOGIN PASSWORD 'password';"
     psql -c "CREATE USER sixxy WITH NOCREATEDB NOCREATEROLE LOGIN PASSWORD 'password';"
     psql -c "GRANT viewer TO sixxy;"
+elif [ -n "$1" ]; then
+    export PGHOST=$1
 fi
+
 
 # From here down we're destroying and recreating our test db
 export PGUSER=cwrx
