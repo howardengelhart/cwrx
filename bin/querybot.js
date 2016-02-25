@@ -51,6 +51,7 @@ state.defaultConfig = {
         }
     },
     secretsPath: path.join(process.env.HOME,'.querybot.secrets.json'),
+    rcAppCredsPath: path.join(process.env.HOME,'.rcAppCreds.json'),
     mongo: {
         c6Db: {
             host: null,

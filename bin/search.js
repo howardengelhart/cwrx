@@ -44,6 +44,7 @@
             }
         },
         secretsPath: path.join(process.env.HOME,'.search.secrets.json'),
+        rcAppCredsPath: path.join(process.env.HOME,'.rcAppCreds.json'),
         mongo: {
             c6Db: {
                 host: null,

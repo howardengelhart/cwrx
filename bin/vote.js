@@ -40,6 +40,7 @@
         requestTimeout : 2000,
         idleSyncTimeout : 60000,
         secretsPath: path.join(process.env.HOME,'.vote.secrets.json'),
+        rcAppCredsPath: path.join(process.env.HOME,'.rcAppCreds.json'),
         sessions: {
             key: 'c6Auth',
             maxAge: 30*60*1000,         // 30 minutes; unit here is milliseconds

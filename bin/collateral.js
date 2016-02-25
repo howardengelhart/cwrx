@@ -72,6 +72,7 @@
             }
         },
         secretsPath: path.join(process.env.HOME,'.collateral.secrets.json'),
+        rcAppCredsPath: path.join(process.env.HOME,'.rcAppCreds.json'),
         mongo: {
             c6Db: {
                 host: null,

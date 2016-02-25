@@ -70,6 +70,7 @@
         },
         trackingPixel: '//s3.amazonaws.com/c6.dev/e2e/1x1-pixel.gif',
         secretsPath: path.join(process.env.HOME,'.content.secrets.json'),
+        rcAppCredsPath: path.join(process.env.HOME,'.rcAppCreds.json'),
         mongo: {
             c6Db: {
                 host: null,

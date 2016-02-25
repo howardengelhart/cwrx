@@ -74,6 +74,7 @@
             }
         },
         secretsPath: path.join(process.env.HOME,'.ads.secrets.json'),
+        rcAppCredsPath: path.join(process.env.HOME,'.rcAppCreds.json'),
         mongo: {
             c6Db: {
                 host: null,
@@ -114,7 +115,7 @@
         log.info('Running as cluster worker, proceed with setting up web server.');
 
         var app          = express(),
-            appCreds     = state.secrets.rcAppCredentials,
+            appCreds     = state.rcAppCreds,
             jobManager   = new JobManager(state.cache, state.config.jobTimeouts),
             advertSvc    = advertModule.setupSvc(state.dbs.c6Db.collection('advertisers')),
             campSvc      = campModule.setupSvc(state.dbs.c6Db, state.config),
