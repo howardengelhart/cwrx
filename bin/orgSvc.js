@@ -38,6 +38,7 @@
             }
         },
         secretsPath: path.join(process.env.HOME,'.orgSvc.secrets.json'),
+        rcAppCredsPath: path.join(process.env.HOME,'.rcAppCreds.json'),
         mongo: {
             c6Db: {
                 host: null,

@@ -114,6 +114,9 @@ Vagrant.configure("2") do |config|
 
         chef.run_list.push("recipe[#{svc}]")
         chef.json[svc] = {
+            :deploy => {
+                :keptReleases => 1
+            },
             :awsAuth => JSON.parse(File.read("#{ENV['HOME']}/.aws.json")),
             :source => {
                 :branch => "#{ENV['CWRX_DEV_BRANCH'] || 'master'}"

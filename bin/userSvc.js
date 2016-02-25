@@ -44,6 +44,7 @@
             }
         },
         secretsPath: path.join(process.env.HOME,'.userSvc.secrets.json'),
+        rcAppCredsPath: path.join(process.env.HOME,'.rcAppCreds.json'),
         mongo: {
             c6Db: {
                 host: null,
@@ -117,7 +118,7 @@
         log.info('Running as cluster worker, proceed with setting up web server.');
 
         var app          = express(),
-            appCreds     = state.secrets.rcAppCredentials,
+            appCreds     = state.rcAppCreds,
             jobManager   = new JobManager(state.cache, state.config.jobTimeouts),
             userSvc      = userModule.setupSvc(state.dbs.c6Db, state.config, state.cache, appCreds),
             roleSvc      = roleModule.setupSvc(state.dbs.c6Db),

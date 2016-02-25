@@ -285,6 +285,41 @@ describe('service (UT)',function(){
                     expect(fs.readJsonSync).toHaveBeenCalledWith('/opt/sixxy/ut.secrets.json');
                 }).done(done);
         });
+        
+        describe('if an appCredsPath is defined', function(done) {
+            beforeEach(function() {
+                state.defaultConfig = {
+                    rcAppCredsPath: '/opt/sixxy/.appcreds.json'
+                };
+                spyOn(fs, 'readJsonSync').and.returnValue({ key: 'foo', secret: 'bar' });
+                fs.existsSync.and.returnValue(true);
+            });
+            
+            it('should load the credentials if the file exists', function(done) {
+                q.fcall(service.configure, state)
+                    .then(resolveSpy, rejectSpy)
+                    .finally(function() {
+                        expect(resolveSpy).toHaveBeenCalledWith(state);
+                        expect(rejectSpy).not.toHaveBeenCalled();
+                        expect(state.rcAppCreds).toEqual({ key: 'foo', secret: 'bar' });
+                        expect(fs.existsSync).toHaveBeenCalledWith('/opt/sixxy/.appcreds.json');
+                        expect(fs.readJsonSync).toHaveBeenCalledWith('/opt/sixxy/.appcreds.json');
+                    }).done(done);
+            });
+
+            it('should not attempt to load the credentials if the file does not exist', function(done) {
+                fs.existsSync.and.returnValue(false);
+                q.fcall(service.configure, state)
+                    .then(resolveSpy, rejectSpy)
+                    .finally(function() {
+                        expect(resolveSpy).toHaveBeenCalledWith(state);
+                        expect(rejectSpy).not.toHaveBeenCalled();
+                        expect(state.rcAppCreds).not.toBeDefined();
+                        expect(fs.existsSync).toHaveBeenCalledWith('/opt/sixxy/.appcreds.json');
+                        expect(fs.readJsonSync).not.toHaveBeenCalled();
+                    }).done(done);
+            });
+        });
 
         it('will show configuartion and exit if cmdl.showConfig is true',function(done){
             process.argv[1] = 'test';

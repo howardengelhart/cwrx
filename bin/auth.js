@@ -81,7 +81,8 @@
             ttl: 15*60*1000,            // 15 minutes; unit here is milliseconds
             threshold: 3
         },
-        secretsPath     : path.join(process.env.HOME,'.auth.secrets.json')
+        secretsPath     : path.join(process.env.HOME,'.auth.secrets.json'),
+        rcAppCredsPath: path.join(process.env.HOME,'.rcAppCreds.json'),
     };
 
     auth.login = function(req, users, config, auditJournal, cache) {

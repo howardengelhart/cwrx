@@ -32,6 +32,7 @@
         },
         maxReadLimit: 500,
         secretsPath: path.join(process.env.HOME,'.geo.secrets.json'),
+        rcAppCredsPath: path.join(process.env.HOME,'.rcAppCreds.json'),
         mongo: {
             c6Db: {
                 host: null,
