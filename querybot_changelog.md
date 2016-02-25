@@ -2,6 +2,9 @@
 
 * Support app authentication: [#798](https://github.com/cinema6/cwrx/pull/798)
 
+### 1.3.0: Thu Feb 25 15:06:26 EST 2016
+* [FEATURE] : Adds quartiles to data. : [#800](https://github.com/cinema6/cwrx/issues/800)
+
 ### 1.2.1: Tue Jan 19 12:33:29 EST 2016
 * [FIX] : Fixed cloudwatch metrics (wrong metric going to wrong name) : [#743](https://github.com/cinema6/cwrx/issues/743)
 
