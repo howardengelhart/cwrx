@@ -12,10 +12,10 @@
         request     = require('request'),
         express     = require('express'),
         bodyParser  = require('body-parser'),
+        uuid        = require('rc-uuid'),
         expressUtils= require('../lib/expressUtils'),
         logger      = require('../lib/logger'),
         daemon      = require('../lib/daemon'),
-        uuid        = require('../lib/uuid'),
         cwrxConfig  = require('../lib/config'),
         app         = express(),
 

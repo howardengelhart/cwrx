@@ -1,5 +1,5 @@
 describe('collateral (UT):', function() {
-    var mockLog, uuid, logger, collateral, q, fs, glob, phantom, handlebars, s3util, path, enums, Scope, anyFunc, os, util;
+    var mockLog, uuid, hashUtils, logger, collateral, q, fs, glob, phantom, handlebars, s3util, path, enums, Scope, anyFunc, os, util;
     var request, spidey;
     var EventEmitter;
     var Promise;
@@ -30,7 +30,8 @@ describe('collateral (UT):', function() {
 
         EventEmitter= require('events').EventEmitter;
         request     = require('request-promise');
-        uuid        = require('../../lib/uuid');
+        uuid        = require('rc-uuid');
+        hashUtils   = require('../../lib/hashUtils');
         logger      = require('../../lib/logger');
         s3util      = require('../../lib/s3util');
         os          = require('os');
@@ -79,14 +80,14 @@ describe('collateral (UT):', function() {
             };
             config = { s3: { bucket: 'bkt' }, cacheControl: { default: 'max-age=31556926' } };
             fileOpts = { name: 'foo.txt', path: '/ut/foo.txt', type: 'text/plain' };
-            spyOn(uuid, 'hashFile').and.returnValue(q('fakeHash'));
+            spyOn(hashUtils, 'hashFile').and.returnValue(q('fakeHash'));
             spyOn(s3util, 'putObject').and.returnValue(q({ETag: '"qwer1234"'}));
         });
         
         it('should upload a file', function(done) {
             collateral.upload(req, 'ut/o-1', fileOpts, s3, config).then(function(response) {
                 expect(response).toEqual({key: 'ut/o-1/fakeHash.txt', md5: 'qwer1234'});
-                expect(uuid.hashFile).toHaveBeenCalledWith('/ut/foo.txt');
+                expect(hashUtils.hashFile).toHaveBeenCalledWith('/ut/foo.txt');
                 expect(s3.headObject).toHaveBeenCalled();
                 expect(s3.headObject.calls.all()[0].args[0]).toEqual({Bucket:'bkt', Key:'ut/o-1/fakeHash.txt'});
                 expect(s3util.putObject).toHaveBeenCalledWith(s3, '/ut/foo.txt',
@@ -102,7 +103,7 @@ describe('collateral (UT):', function() {
             });
             collateral.upload(req, 'ut/o-1', fileOpts, s3, config).then(function(response) {
                 expect(response).toEqual({key: 'ut/o-1/fakeHash.txt', md5: 'qwer1234'});
-                expect(uuid.hashFile).toHaveBeenCalled();
+                expect(hashUtils.hashFile).toHaveBeenCalled();
                 expect(s3.headObject).toHaveBeenCalled();
                 expect(s3util.putObject).not.toHaveBeenCalled();
             }).catch(function(error) {
@@ -111,12 +112,12 @@ describe('collateral (UT):', function() {
         });
         
         it('should fail if hashing the file fails', function(done) {
-            uuid.hashFile.and.returnValue(q.reject('I GOT A PROBLEM'));
+            hashUtils.hashFile.and.returnValue(q.reject('I GOT A PROBLEM'));
             collateral.upload(req, 'ut/o-1', fileOpts, s3, config).then(function(response) {
                 expect(response).not.toBeDefined();
             }).catch(function(error) {
                 expect(error).toBe('I GOT A PROBLEM');
-                expect(uuid.hashFile).toHaveBeenCalled();
+                expect(hashUtils.hashFile).toHaveBeenCalled();
                 expect(s3.headObject).not.toHaveBeenCalled();
                 expect(s3util.putObject).not.toHaveBeenCalled();
             }).done(done);
@@ -128,7 +129,7 @@ describe('collateral (UT):', function() {
                 expect(response).not.toBeDefined();
             }).catch(function(error) {
                 expect(error).toBe('I GOT A PROBLEM');
-                expect(uuid.hashFile).toHaveBeenCalled();
+                expect(hashUtils.hashFile).toHaveBeenCalled();
                 expect(s3.headObject).toHaveBeenCalled();
                 expect(s3util.putObject).toHaveBeenCalled();
             }).done(done);
@@ -1438,7 +1439,7 @@ describe('collateral (UT):', function() {
             templDir = path.join(__dirname, '../../templates/splashTemplates');
             spyOn(glob, 'sync').and.returnValue(['template1', 'template2', 'etc']);
             spyOn(fs, 'readFile').and.callFake(function(fpath, opts, cb) { cb(null, 'fakeTemplate'); });
-            spyOn(uuid, 'hashText').and.returnValue('fakeHash');
+            spyOn(hashUtils, 'hashText').and.returnValue('fakeHash');
             spyOn(collateral, 'chooseTemplateNum').and.callThrough();
             spyOn(collateral, 'generate').and.returnValue(q('/path/on/s3'));
         });

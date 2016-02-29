@@ -1,6 +1,6 @@
 var flush = true;
 describe('signatures', function() {
-    var q, signatures, crypto, mongoUtils, uuid, req, nextSpy;
+    var q, signatures, crypto, mongoUtils, uuid, hashUtils, req, nextSpy;
     
     beforeEach(function() {
         jasmine.clock().install();
@@ -10,7 +10,8 @@ describe('signatures', function() {
         q               = require('q');
         crypto          = require('crypto');
         signatures      = require('../../lib/signatures');
-        uuid            = require('../../lib/uuid');
+        uuid            = require('rc-uuid');
+        hashUtils       = require('../../lib/hashUtils');
         
         req = {
             uuid: '1234',
@@ -107,7 +108,7 @@ describe('signatures', function() {
         var creds, reqOpts;
         beforeEach(function() {
             creds = { key: 'ads-service', secret: 'ipoopmypants' };
-            spyOn(uuid, 'hashText').and.returnValue('hashbrowns');
+            spyOn(hashUtils, 'hashText').and.returnValue('hashbrowns');
             spyOn(uuid, 'randomUuid').and.returnValue('uuuuuuuuuuuuuuuuuuid');
             spyOn(signatures, 'signData').and.returnValue('johnhancock');
             reqOpts = {
@@ -132,7 +133,7 @@ describe('signatures', function() {
                     'x-rc-auth-signature'   : 'johnhancock'
                 }
             });
-            expect(uuid.hashText).toHaveBeenCalledWith('{}', 'SHA256');
+            expect(hashUtils.hashText).toHaveBeenCalledWith('{}', 'SHA256');
             expect(signatures.signData).toHaveBeenCalledWith({
                 appKey      : 'ads-service',
                 bodyHash    : 'hashbrowns',
@@ -222,7 +223,7 @@ describe('signatures', function() {
 
                 expect(reqOpts.body).toEqual('dis body is hot');
                 expect(reqOpts.headers['x-rc-auth-signature']).toBe('johnhancock');
-                expect(uuid.hashText).toHaveBeenCalledWith('dis body is hot', 'SHA256');
+                expect(hashUtils.hashText).toHaveBeenCalledWith('dis body is hot', 'SHA256');
             });
             
             it('should stringify and hash the body if it is an object', function() {
@@ -231,7 +232,7 @@ describe('signatures', function() {
 
                 expect(reqOpts.body).toEqual({ foo: 'bar', num: 123, nest: { birds: 'yes' }, arr: [1,3] });
                 expect(reqOpts.headers['x-rc-auth-signature']).toBe('johnhancock');
-                expect(uuid.hashText).toHaveBeenCalledWith('{"foo":"bar","num":123,"nest":{"birds":"yes"},"arr":[1,3]}', 'SHA256');
+                expect(hashUtils.hashText).toHaveBeenCalledWith('{"foo":"bar","num":123,"nest":{"birds":"yes"},"arr":[1,3]}', 'SHA256');
             });
             
             it('should be able to take the body from the json prop', function() {
@@ -241,7 +242,7 @@ describe('signatures', function() {
                 expect(reqOpts.json).toEqual({ foo: 'bar' });
                 expect(reqOpts.body).not.toBeDefined();
                 expect(reqOpts.headers['x-rc-auth-signature']).toBe('johnhancock');
-                expect(uuid.hashText).toHaveBeenCalledWith('{"foo":"bar"}', 'SHA256');
+                expect(hashUtils.hashText).toHaveBeenCalledWith('{"foo":"bar"}', 'SHA256');
             });
             
             it('should ignore the json prop if it is not an object', function() {
@@ -251,7 +252,7 @@ describe('signatures', function() {
                 expect(reqOpts.json).toEqual(true);
                 expect(reqOpts.body).not.toBeDefined();
                 expect(reqOpts.headers['x-rc-auth-signature']).toBe('johnhancock');
-                expect(uuid.hashText).toHaveBeenCalledWith('{}', 'SHA256');
+                expect(hashUtils.hashText).toHaveBeenCalledWith('{}', 'SHA256');
             });
         });
     });
@@ -294,7 +295,7 @@ describe('signatures', function() {
     describe('verifyRequest', function() {
         var app;
         beforeEach(function() {
-            spyOn(uuid, 'hashText').and.returnValue('hashbrownies');
+            spyOn(hashUtils, 'hashText').and.returnValue('hashbrownies');
             spyOn(signatures, 'signData').and.returnValue('johnhancock');
             req.method = 'get';
             req.originalUrl = '/api/campaigns/cam-1';
@@ -314,7 +315,7 @@ describe('signatures', function() {
 
         it('should return true if the signature is valid', function() {
             expect(signatures.verifyRequest(req, app)).toBe(true);
-            expect(uuid.hashText).toHaveBeenCalledWith('{}', 'SHA256');
+            expect(hashUtils.hashText).toHaveBeenCalledWith('{}', 'SHA256');
             expect(signatures.signData).toHaveBeenCalledWith({
                 appKey: 'ads-service',
                 bodyHash: 'hashbrownies',
@@ -331,14 +332,14 @@ describe('signatures', function() {
                 delete reqCopy.headers[field];
                 expect(signatures.verifyRequest(reqCopy, app)).toBe(false);
             });
-            expect(uuid.hashText).not.toHaveBeenCalled();
+            expect(hashUtils.hashText).not.toHaveBeenCalled();
             expect(signatures.signData).not.toHaveBeenCalled();
         });
         
         it('should correctly parse a query string out of the url', function() {
             req.originalUrl = '/api/campaigns?foo=bar&orgs=o-1,o-2';
             expect(signatures.verifyRequest(req, app)).toBe(true);
-            expect(uuid.hashText).toHaveBeenCalledWith('{}', 'SHA256');
+            expect(hashUtils.hashText).toHaveBeenCalledWith('{}', 'SHA256');
             expect(signatures.signData).toHaveBeenCalledWith({
                 appKey: 'ads-service',
                 bodyHash: 'hashbrownies',
@@ -352,7 +353,7 @@ describe('signatures', function() {
         it('should stringify and hash the body', function() {
             req.body = { foo: 'bar', arr: [3, 1], d: new Date('Wed Jan 27 2016 18:51:08 GMT-0500 (EST)') };
             expect(signatures.verifyRequest(req, app)).toBe(true);
-            expect(uuid.hashText).toHaveBeenCalledWith('{"foo":"bar","arr":[3,1],"d":"2016-01-27T23:51:08.000Z"}', 'SHA256');
+            expect(hashUtils.hashText).toHaveBeenCalledWith('{"foo":"bar","arr":[3,1],"d":"2016-01-27T23:51:08.000Z"}', 'SHA256');
             expect(signatures.signData).toHaveBeenCalledWith({
                 appKey: 'ads-service',
                 bodyHash: 'hashbrownies',
@@ -366,7 +367,7 @@ describe('signatures', function() {
         it('should also handle a string body', function() {
             req.body = 'yo body is ridiculous';
             expect(signatures.verifyRequest(req, app)).toBe(true);
-            expect(uuid.hashText).toHaveBeenCalledWith('yo body is ridiculous', 'SHA256');
+            expect(hashUtils.hashText).toHaveBeenCalledWith('yo body is ridiculous', 'SHA256');
             expect(signatures.signData).toHaveBeenCalledWith({
                 appKey: 'ads-service',
                 bodyHash: 'hashbrownies',

@@ -4,8 +4,9 @@
     var q               = require('q'),
         express         = require('express'),
         urlUtils        = require('url'),
+        uuid            = require('rc-uuid'),
         logger          = require('../lib/logger'),
-        uuid            = require('../lib/uuid'),
+        hashUtils       = require('../lib/hashUtils'),
         mongoUtils      = require('../lib/mongoUtils'),
         authUtils       = require('../lib/authUtils'),
         objUtils        = require('../lib/objUtils'),
@@ -15,7 +16,7 @@
         Access          = enums.Access,
         Scope           = enums.Scope,
 
-        expModule = { brandCache: {} };
+        expModule = {};
 
     // Find and parse the origin, storing useful properties on the request
     expModule.parseOrigin = function(req, siteExceptions) {
@@ -404,7 +405,7 @@
         }
         obj.data = obj.data || {};
 
-        var versionId = uuid.hashText(JSON.stringify(obj.data)).substr(0, 8);
+        var versionId = hashUtils.hashText(JSON.stringify(obj.data)).substr(0, 8);
         obj.data = [ { user: user.email, userId: user.id, date: now,
                        data: obj.data, versionId: versionId } ];
 
@@ -436,7 +437,7 @@
 
         if (updates.data) {
             if (!objUtils.compareObjects(orig.data[0].data, updates.data)) {
-                var versionId = uuid.hashText(JSON.stringify(updates.data)).substr(0, 8),
+                var versionId = hashUtils.hashText(JSON.stringify(updates.data)).substr(0, 8),
                     dataWrapper = { user: user.email, userId: user.id, date: now,
                                     data: updates.data, versionId: versionId };
                 updates.data = [ dataWrapper ];

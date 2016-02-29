@@ -13,7 +13,7 @@ describe('userSvc (UT)', function() {
         q               = require('q');
         bcrypt          = require('bcrypt');
         crypto          = require('crypto');
-        uuid            = require('../../lib/uuid');
+        uuid            = require('rc-uuid');
         logger          = require('../../lib/logger');
         CrudSvc         = require('../../lib/crudSvc.js');
         Model           = require('../../lib/model.js');
@@ -21,7 +21,6 @@ describe('userSvc (UT)', function() {
         authUtils       = require('../../lib/authUtils.js');
         objUtils        = require('../../lib/objUtils');
         email           = require('../../lib/email');
-        uuid            = require('../../lib/uuid');
         CacheMutex      = require('../../lib/cacheMutex.js');
         requestUtils    = require('../../lib/requestUtils.js');
 

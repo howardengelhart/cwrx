@@ -41,6 +41,7 @@
     "q": "^1.4.1",
     "rc-app-builder": "^1.2.1",
     "rc-browser-info": "^1.0.0",
+    "rc-uuid": "^1.0.0",
     "replacestream": "^4.0.0",
     "request": "^2.69.0",
     "request-promise": "~0.4.2",

@@ -19,9 +19,9 @@ describe('expressUtils', function() {
     beforeEach(function() {
         util = require('util');
         EventEmitter = require('events').EventEmitter;
+        uuid = require('rc-uuid');
         extend = require('../../lib/objUtils').extend;
         logger = require('../../lib/logger');
-        uuid = require('../../lib/uuid');
 
         mockLog = {
             trace : jasmine.createSpy('log.trace()'),

@@ -1,6 +1,6 @@
 var flush = true;
 describe('requestUtils', function() {
-    var requestUtils, fs, q, net, events, signatures, uuid;
+    var requestUtils, fs, q, net, events, signatures, uuid, hashUtils;
     
     beforeEach(function() {
         jasmine.clock().install();
@@ -12,7 +12,8 @@ describe('requestUtils', function() {
         q               = require('q');
         net             = require('net');
         events          = require('events');
-        uuid            = require('../../lib/uuid');
+        uuid            = require('rc-uuid');
+        hashUtils       = require('../../lib/hashUtils');
         signatures      = require('../../lib/signatures');
     });
 
@@ -283,7 +284,7 @@ describe('requestUtils', function() {
                 secret: 'omgsosecret'
             };
             spyOn(signatures, 'setAuthHeaders').and.callThrough();
-            spyOn(uuid, 'hashText').and.returnValue('hashbrowns');
+            spyOn(hashUtils, 'hashText').and.returnValue('hashbrowns');
             spyOn(uuid, 'randomUuid').and.returnValue('uuuuuuuuuuuuuuuuuuid');
             spyOn(signatures, 'signData').and.returnValue('johnhancock');
             spyOn(requestUtils, 'qRequest').and.returnValue(q({

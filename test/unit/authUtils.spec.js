@@ -1,6 +1,6 @@
 var flush = true;
 describe('authUtils', function() {
-    var mockUser, q, authUtils, uuid, logger, mongoUtils, mockLog, bcrypt, mockColl, signatures,
+    var mockUser, q, authUtils, logger, mongoUtils, mockLog, bcrypt, mockColl, signatures,
         enums, Status, Scope, anyFunc, mockDb, res, next;
     
     beforeEach(function() {
@@ -14,7 +14,6 @@ describe('authUtils', function() {
         mongoUtils  = require('../../lib/mongoUtils');
         signatures  = require('../../lib/signatures');
         logger      = require('../../lib/logger');
-        uuid        = require('../../lib/uuid');
         enums       = require('../../lib/enums');
         Status      = enums.Status;
         Scope       = enums.Scope;

@@ -6,10 +6,10 @@ describe('CrudSvc', function() {
     beforeEach(function() {
         if (flush){ for (var m in require.cache){ delete require.cache[m]; } flush = false; }
         q               = require('q');
+        uuid            = require('rc-uuid');
         CrudSvc         = require('../../lib/crudSvc');
         enums           = require('../../lib/enums');
         logger          = require('../../lib/logger');
-        uuid            = require('../../lib/uuid');
         mongoUtils      = require('../../lib/mongoUtils');
         FieldValidator  = require('../../lib/fieldValidator');
         historian       = require('../../lib/historian');

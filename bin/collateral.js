@@ -16,9 +16,10 @@
         express         = require('express'),
         bodyParser      = require('body-parser'),
         multer          = require('multer'),
+        uuid            = require('rc-uuid'),
         expressUtils    = require('../lib/expressUtils'),
         logger          = require('../lib/logger'),
-        uuid            = require('../lib/uuid'),
+        hashUtils       = require('../lib/hashUtils'),
         authUtils       = require('../lib/authUtils'),
         journal         = require('../lib/journal'),
         service         = require('../lib/service'),
@@ -109,7 +110,7 @@
     }
 
     /**
-     * Upload a single file to S3. If versionate is true, this will use uuid.hashFile to create a
+     * Upload a file to S3. If versionate is true, this will use hashUtils.hashFile to create a
      * new versioned file name, check S3 for an existing file with this name, and upload if missing.
      * If versionate is false, this will just upload the file directly to S3 (overwriting any
      * existing file with that unmodified file name).
@@ -119,7 +120,7 @@
             outParams = {},
             headParams = {};
 
-        return uuid.hashFile(fileOpts.path)
+        return hashUtils.hashFile(fileOpts.path)
         .then(function(hash) {
             return q(hash + path.extname(fileOpts.path));
         })
@@ -794,7 +795,7 @@
                 ratio   : imgSpec.ratio,
                 templ   : template
             }, md5, cacheKey;
-            cacheKey = uuid.hashText(JSON.stringify(splashSpec));
+            cacheKey = hashUtils.hashText(JSON.stringify(splashSpec));
             md5 = collateral.splashCache[cacheKey] && collateral.splashCache[cacheKey].md5;
             log.trace('[%1] Splash image hashes to %2', req.uuid, cacheKey);
             

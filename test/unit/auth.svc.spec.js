@@ -1,6 +1,6 @@
 var flush = true;
 describe('auth (UT)', function() {
-    var auth, mockLog, req, users, q, uuid, logger, mongoUtils, authUtils, email, enums, crypto,
+    var auth, mockLog, req, users, q, logger, mongoUtils, authUtils, email, enums, crypto,
         Status, bcrypt, anyFunc, auditJournal, mockCache, config;
         
     beforeEach(function() {
@@ -8,7 +8,6 @@ describe('auth (UT)', function() {
         q           = require('q');
         crypto      = require('crypto');
         bcrypt      = require('bcrypt');
-        uuid        = require('../../lib/uuid');
         logger      = require('../../lib/logger');
         mongoUtils  = require('../../lib/mongoUtils');
         authUtils   = require('../../lib/authUtils');

@@ -2,14 +2,13 @@
     'use strict';
 
     var express         = require('express'),
-        uuid            = require('../lib/uuid'),
         CrudSvc         = require('../lib/crudSvc'),
         authUtils       = require('../lib/authUtils'),
         
         refModule = {};
         
     // Used to generate codes: produces a max 2-character string when converted to base 36
-    refModule.counter = uuid.randInt(1296);
+    refModule.counter = Math.floor(Math.random() * 1296);
 
     refModule.refSchema = {
         name: {

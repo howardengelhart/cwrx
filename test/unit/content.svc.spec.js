@@ -1,12 +1,13 @@
 var flush = true;
 describe('content (UT)', function() {
-    var mockLog, experiences, uuid, logger, expModule, q, objUtils,
+    var mockLog, experiences, uuid, hashUtils, logger, expModule, q, objUtils,
         mongoUtils, enums, Status, Scope, Access, req;
 
     beforeEach(function() {
         if (flush) { for (var m in require.cache){ delete require.cache[m]; } flush = false; }
         q               = require('q');
-        uuid            = require('../../lib/uuid');
+        uuid            = require('rc-uuid');
+        hashUtils       = require('../../lib/hashUtils');
         logger          = require('../../lib/logger');
         expModule       = require('../../bin/content-experiences');
         mongoUtils      = require('../../lib/mongoUtils');
@@ -515,7 +516,7 @@ describe('content (UT)', function() {
             spyOn(mongoUtils, 'createObject').and.callFake(function(coll, obj) { return q(obj); });
             spyOn(uuid, 'createUuid').and.returnValue('1234');
             spyOn(expModule.createValidator, 'validate').and.returnValue(true);
-            spyOn(uuid, 'hashText').and.returnValue('fakeVersion');
+            spyOn(hashUtils, 'hashText').and.returnValue('fakeVersion');
             spyOn(expModule, 'checkScope').and.returnValue(false);
         });
 
@@ -611,7 +612,7 @@ describe('content (UT)', function() {
             spyOn(expModule, 'formatUpdates').and.callThrough();
             spyOn(expModule, 'checkScope').and.returnValue(true);
             spyOn(expModule.updateValidator, 'validate').and.returnValue(true);
-            spyOn(uuid, 'hashText').and.returnValue('fakeVersion');
+            spyOn(hashUtils, 'hashText').and.returnValue('fakeVersion');
         });
 
         it('should fail with a 400 if no update object is provided', function(done) {
@@ -753,7 +754,7 @@ describe('content (UT)', function() {
             req.user = {id: 'u-1234', email: 'johnny'};
             spyOn(mongoUtils, 'findObject').and.callFake(function() { return q(oldExp); });
             spyOn(mongoUtils, 'editObject').and.returnValue(q());
-            spyOn(uuid, 'hashText').and.returnValue('fakeHash');
+            spyOn(hashUtils, 'hashText').and.returnValue('fakeHash');
             spyOn(expModule, 'formatUpdates').and.callThrough();
             spyOn(expModule, 'checkScope').and.returnValue(true);
         });

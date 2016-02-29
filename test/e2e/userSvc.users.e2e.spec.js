@@ -2015,7 +2015,7 @@ describe('userSvc users (E2E):', function() {
                 var userId;
 
                 mailman.once('Welcome to Reelcontent Video Ads!', function(msg) {
-                    var match = msg.html.match(/href="https?:\/\/.*id=(u-[0-9a-z]+).*token=([0-9a-f]{48})(?=")/);
+                    var match = msg.html.match(/href="https?:\/\/.*id=(u-[^&]+).*token=([0-9a-f]{48})(?=")/);
                     if (!match || match.length === 0) {
                         return done.fail('No url with token + user id found in message');
                     }

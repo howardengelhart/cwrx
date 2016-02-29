@@ -3,7 +3,7 @@ var request = require('request'),
     path    = require('path'),
     q       = require('q'),
     fs      = require('fs-extra'),
-    uuid    = require('../lib/uuid'),
+    uuid    = require('rc-uuid'),
     MVC     = require('../lib/mvc');
 
 function log(){
