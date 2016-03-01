@@ -1,8 +1,11 @@
 # Search Service Changelog
 
-* Support app authentication: [#798](https://github.com/cinema6/cwrx/pull/798)
+### 1.4.0: Tue Mar  1 10:37:56 EST 2016
+* Update UUIDs: [#768](https://github.com/cinema6/cwrx/issues/768)
+* [FEATURE]: Support app authentication: [#798](https://github.com/cinema6/cwrx/pull/798)
 * [REMOVAL]: Remove support for yahoo, rumble, and aol vidoes: [#669](https://github.com/cinema6/cwrx/issues/669)
-* Upgrade mongo driver to 2.x, fixing reconnect issues: [#717](https://github.com/cinema6/cwrx/pull/717)
+* [FIX]: Upgrade mongo driver to 2.x, fixing reconnect issues: [#717](https://github.com/cinema6/cwrx/pull/717)
+* Extra deployment steps: None
 
 ### 1.3.8: Tue Nov 10 11:25:27 EST 2015
 * [FIX]: Stop faking referer on calls to google: [#621](https://github.com/cinema6/cwrx/issues/621)

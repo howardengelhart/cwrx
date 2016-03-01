@@ -1,5 +1,9 @@
 # QueryBot Service Changelog
 
+### 1.3.1: Tue Mar  1 10:37:56 EST 2016
+* Update UUIDs: [#768](https://github.com/cinema6/cwrx/issues/768)
+* Extra deployment steps: None
+
 ### 1.3.0: Thu Feb 25 15:06:26 EST 2016
 * [FEATURE] : Adds quartiles to data. : [#800](https://github.com/cinema6/cwrx/issues/800)
 * [FEATURE] : Support app authentication: [#798](https://github.com/cinema6/cwrx/pull/798)
@@ -8,7 +12,7 @@
 * [FIX] : Fixed cloudwatch metrics (wrong metric going to wrong name) : [#743](https://github.com/cinema6/cwrx/issues/743)
 
 ### 1.2.0: Fri Jan 15 13:55:57 EST 2016
-* Upgrade mongo driver to 2.x, fixing reconnect issues: [#717](https://github.com/cinema6/cwrx/pull/717)
+* [FIX]: Upgrade mongo driver to 2.x, fixing reconnect issues: [#717](https://github.com/cinema6/cwrx/pull/717)
 * [FEATURE] : Support dates in query params, add data to campaign summary response : [#719](https://github.com/cinema6/cwrx/issues/719)
 * [FEATURE] : Add cloudwatch metric gathering for api method response times.
 

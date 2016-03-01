@@ -1,7 +1,9 @@
 # User Service Changelog
 
-* Support app authentication: [#798](https://github.com/cinema6/cwrx/pull/798)
-* Update `/confirm` endpoint to use app authentication instead of sixxy user
+### 3.2.0: Tue Mar  1 10:37:56 EST 2016
+* Update UUIDs: [#768](https://github.com/cinema6/cwrx/issues/768)
+* [FEATURE]: Support app authentication: [#798](https://github.com/cinema6/cwrx/pull/798)
+* Update `/confirm` endpoint to use app authentication instead of sixxy user: [#799](https://github.com/cinema6/cwrx/pull/799)
 * Extra deployment steps:
     * Deploy c6env cookbook version 2.16.0
     * Deploy userSvc cookbook version 1.4.0
@@ -15,7 +17,7 @@
 ### 3.0.1: Mon Jan 11 12:36:22 EST 2016
 * [FIX]: Cease recursive validation if a field is unchanged: [#728](https://github.com/cinema6/cwrx/pull/728)
 * Add support for `decorated` query param on POST + PUT user endpoints: [#729](https://github.com/cinema6/cwrx/pull/729)
-* Upgrade mongo driver to 2.x, fixing reconnect issues: [#717](https://github.com/cinema6/cwrx/pull/717)
+* [FIX]: Upgrade mongo driver to 2.x, fixing reconnect issues: [#717](https://github.com/cinema6/cwrx/pull/717)
 
 ### 3.0.0: Fri Dec 18 10:57:31 EST 2015
 * [BREAKING CHANGE]: Do not create customers on user confirmation: [#697](https://github.com/cinema6/cwrx/pull/697)

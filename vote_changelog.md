@@ -1,7 +1,10 @@
 # Vote Service Changelog
 
-* Support app authentication: [#798](https://github.com/cinema6/cwrx/pull/798)
-* Upgrade mongo driver to 2.x, fixing reconnect issues: [#717](https://github.com/cinema6/cwrx/pull/717)
+### 1.5.0: Tue Mar  1 10:37:56 EST 2016
+* Update UUIDs: [#768](https://github.com/cinema6/cwrx/issues/768)
+* [FEATURE]: Support app authentication: [#798](https://github.com/cinema6/cwrx/pull/798)
+* [FIX]: Upgrade mongo driver to 2.x, fixing reconnect issues: [#717](https://github.com/cinema6/cwrx/pull/717)
+* Extra deployment steps: None
 
 ### 1.4.3: Thu Oct 15 13:24:56 EDT 2015
 * [FIX]: Stop logging cookie header: [#539](https://github.com/cinema6/cwrx/issues/539)

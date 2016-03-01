@@ -1,5 +1,9 @@
 # Player Service Changelog
 
+### 2.7.1: Tue Mar  1 10:37:56 EST 2016
+* Update UUIDs: [#768](https://github.com/cinema6/cwrx/issues/768)
+* Extra deployment steps: None
+
 ### 2.7.0: Thu Feb 18 11:49:08 EST 2016
 * Add `{context}` macro to tracking pixels to track the UI element that
   generated the event: [#797](https://github.com/cinema6/cwrx/pull/797)

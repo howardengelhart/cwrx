@@ -1,6 +1,9 @@
 # Org Service Changelog
 
-* Support app authentication: [#798](https://github.com/cinema6/cwrx/pull/798)
+### 1.6.0: Tue Mar  1 10:37:56 EST 2016
+* Update UUIDs: [#768](https://github.com/cinema6/cwrx/issues/768)
+* [FEATURE]: Support app authentication: [#798](https://github.com/cinema6/cwrx/pull/798)
+* Extra deployment steps: None
 
 ### 1.5.2: Mon Feb  8 13:39:09 EST 2016
 * Do not allow deleting paymentMethods for completed/outOfBudget campaigns: [#784](https://github.com/cinema6/cwrx/issues/784)
@@ -21,7 +24,7 @@
 
 ### 1.4.3: Mon Jan 11 12:36:22 EST 2016
 * [FIX]: Cease recursive validation if a field is unchanged: [#728](https://github.com/cinema6/cwrx/pull/728)
-* Upgrade mongo driver to 2.x, fixing reconnect issues: [#717](https://github.com/cinema6/cwrx/pull/717)
+* [FIX]: Upgrade mongo driver to 2.x, fixing reconnect issues: [#717](https://github.com/cinema6/cwrx/pull/717)
 
 ### 1.4.2: Fri Nov 13 11:03:21 EST 2015
 * Set extra identifying info on braintree customers: [#627](https://github.com/cinema6/cwrx/pull/627)

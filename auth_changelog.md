@@ -1,7 +1,10 @@
 # Auth Service Changelog
 
-* Support app authentication: [#798](https://github.com/cinema6/cwrx/pull/798)
-* Upgrade mongo driver to 2.x, fixing reconnect issues: [#717](https://github.com/cinema6/cwrx/pull/717)
+### 1.6.0: Tue Mar  1 10:37:56 EST 2016
+* Update UUIDs: [#768](https://github.com/cinema6/cwrx/issues/768)
+* [FEATURE]: Support app authentication: [#798](https://github.com/cinema6/cwrx/pull/798)
+* [FIX]: Upgrade mongo driver to 2.x, fixing reconnect issues: [#717](https://github.com/cinema6/cwrx/pull/717)
+* Extra deployment steps: None
 
 ### 1.5.3: Tue Nov 24 17:00:03 EST 2015
 * [FIX]: Do not fail successful login if cache is down: [#661](https://github.com/cinema6/cwrx/issues/661)
