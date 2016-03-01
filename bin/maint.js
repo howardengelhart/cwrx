@@ -12,10 +12,10 @@
         request     = require('request'),
         express     = require('express'),
         bodyParser  = require('body-parser'),
+        uuid        = require('rc-uuid'),
         expressUtils= require('../lib/expressUtils'),
         logger      = require('../lib/logger'),
         daemon      = require('../lib/daemon'),
-        uuid        = require('../lib/uuid'),
         cwrxConfig  = require('../lib/config'),
         app         = express(),
 
@@ -272,7 +272,7 @@
         });
 
         app.use(function(req, res, next) {
-            req.uuid = uuid.createUuid().substr(0,10);
+            req.uuid = uuid.createUuid();
             if (!req.headers['user-agent'] ||
                 !req.headers['user-agent'].match(/^ELB-HealthChecker/)) {
                 log.info('REQ: [%1] %2 %3 %4 %5', req.uuid, JSON.stringify(req.headers),

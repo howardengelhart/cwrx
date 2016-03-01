@@ -7,9 +7,9 @@
         util            = require('util'),
         express         = require('express'),
         bodyParser      = require('body-parser'),
+        uuid            = require('rc-uuid'),
         expressUtils    = require('../lib/expressUtils'),
         service         = require('../lib/service'),
-        uuid            = require('../lib/uuid'),
         promise         = require('../lib/promise'),
         logger          = require('../lib/logger'),
         mongoUtils      = require('../lib/mongoUtils'),
@@ -413,7 +413,7 @@
             log.trace('obj: %1  |  requester: %2', JSON.stringify(obj), JSON.stringify(user));
             return q({code: 400, body: 'Invalid request body'});
         }
-        obj.id = 'el-' + uuid.createUuid().substr(0,14);
+        obj.id = 'el-' + uuid.createUuid();
         log.trace('[%1] User %2 is creating election %3', req.uuid, user.id, obj.id);
         obj.created = now;
         obj.lastUpdated = now;

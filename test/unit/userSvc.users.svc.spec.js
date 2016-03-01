@@ -13,7 +13,7 @@ describe('userSvc (UT)', function() {
         q               = require('q');
         bcrypt          = require('bcrypt');
         crypto          = require('crypto');
-        uuid            = require('../../lib/uuid');
+        uuid            = require('rc-uuid');
         logger          = require('../../lib/logger');
         CrudSvc         = require('../../lib/crudSvc.js');
         Model           = require('../../lib/model.js');
@@ -21,7 +21,6 @@ describe('userSvc (UT)', function() {
         authUtils       = require('../../lib/authUtils.js');
         objUtils        = require('../../lib/objUtils');
         email           = require('../../lib/email');
-        uuid            = require('../../lib/uuid');
         CacheMutex      = require('../../lib/cacheMutex.js');
         requestUtils    = require('../../lib/requestUtils.js');
 
@@ -848,7 +847,7 @@ describe('userSvc (UT)', function() {
         var svc, req, next, done;
 
         beforeEach(function() {
-            spyOn(uuid, 'createUuid').and.returnValue('abcdefghijklmnopqrstuvwxyz');
+            spyOn(uuid, 'createUuid').and.returnValue('1234567890abcdef');
             var newUserRoles = ['newUserRole1', 'newUserRole2'];
             var newUserPols = ['newUserPol1', 'newUserPol2'];
             svc = userModule.setupSvc(mockDb, mockConfig, mockCache, appCreds);
@@ -861,7 +860,7 @@ describe('userSvc (UT)', function() {
         });
 
         it('should give the object an id', function() {
-            expect(req.body.id).toBe('u-abcdefghijklmn');
+            expect(req.body.id).toBe('u-1234567890abcdef');
         });
 
         it('should set the created date of the object', function() {

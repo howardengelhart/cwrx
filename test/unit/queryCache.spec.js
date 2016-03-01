@@ -5,7 +5,7 @@ describe('QueryCache', function() {
     beforeEach(function() {
         if (flush){ for (var m in require.cache){ delete require.cache[m]; } flush = false; }
         q           = require('q');
-        uuid        = require('../../lib/uuid');
+        hashUtils   = require('../../lib/hashUtils');
         promise     = require('../../lib/promise');
         objUtils    = require('../../lib/objUtils');
         QueryCache  = require('../../lib/queryCache');
@@ -59,7 +59,7 @@ describe('QueryCache', function() {
             query = { id: "e-1234" };
             opts = { sort: { id: 1 }, limit: 0, skip: 0 };
             cache = new QueryCache(1, 2, fakeColl);
-            spyOn(uuid, 'hashText').and.returnValue('fakeHash');
+            spyOn(hashUtils, 'hashText').and.returnValue('fakeHash');
             fakeCursor = {
                 toArray: jasmine.createSpy('cursor.toArray()').and.returnValue(q([{ id: 'e-1234' }]))
             };
@@ -75,7 +75,7 @@ describe('QueryCache', function() {
                 expect(exps).toEqual([{id: 'e-1234'}]);
                 var keyObj = { query: {id: 'e-1234'}, sort: {id: 1}, limit:0, skip:0};
                 var key = JSON.stringify(keyObj);
-                expect(uuid.hashText).toHaveBeenCalledWith(key);
+                expect(hashUtils.hashText).toHaveBeenCalledWith(key);
                 expect(fakeColl.find).not.toHaveBeenCalled();
                 done();
             }).catch(function(error) {
@@ -90,7 +90,7 @@ describe('QueryCache', function() {
                 expect(exps).toEqual([{id: 'e-1234'}]);
                 expect(fakeColl.find).toHaveBeenCalledWith(query, opts);
                 expect(fakeCursor.toArray).toHaveBeenCalled();
-                expect(uuid.hashText).toHaveBeenCalled();
+                expect(hashUtils.hashText).toHaveBeenCalled();
                 expect(cache._keeper._deferreds.fakeHash).toBeDefined();
                 expect(cache._keeper.pendingCount).toBe(0);
                 expect(cache._keeper.fulfilledCount).toBe(1);
@@ -181,7 +181,7 @@ describe('QueryCache', function() {
                 expect(error).toBe('Error!');
                 expect(fakeColl.find).toHaveBeenCalled();
                 expect(fakeCursor.toArray).toHaveBeenCalled();
-                expect(uuid.hashText).toHaveBeenCalled();
+                expect(hashUtils.hashText).toHaveBeenCalled();
                 expect(cache._keeper._deferreds.fakeHash).toBeDefined();
                 expect(cache._keeper.rejectedCount).toBe(1);
                 jasmine.clock().tick(10*1000);

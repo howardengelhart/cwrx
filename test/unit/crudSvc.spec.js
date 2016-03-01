@@ -6,10 +6,10 @@ describe('CrudSvc', function() {
     beforeEach(function() {
         if (flush){ for (var m in require.cache){ delete require.cache[m]; } flush = false; }
         q               = require('q');
+        uuid            = require('rc-uuid');
         CrudSvc         = require('../../lib/crudSvc');
         enums           = require('../../lib/enums');
         logger          = require('../../lib/logger');
-        uuid            = require('../../lib/uuid');
         mongoUtils      = require('../../lib/mongoUtils');
         FieldValidator  = require('../../lib/fieldValidator');
         historian       = require('../../lib/historian');
@@ -582,7 +582,7 @@ describe('CrudSvc', function() {
 
         it('should setup some properties on the object and call next', function() {
             svc.setupObj(req, nextSpy, doneSpy);
-            expect(req.body).toEqual({id: 't-1234567890abcd', created: anyDate, foo: 'bar',
+            expect(req.body).toEqual({id: 't-1234567890abcdef', created: anyDate, foo: 'bar',
                                       lastUpdated: anyDate, status: Status.Active});
             expect(nextSpy).toHaveBeenCalledWith();
             expect(doneSpy).not.toHaveBeenCalled();
@@ -592,7 +592,7 @@ describe('CrudSvc', function() {
         it('should allow a custom status', function() {
             req.body.status = Status.Pending;
             svc.setupObj(req, nextSpy, doneSpy);
-            expect(req.body).toEqual({id: 't-1234567890abcd', created: anyDate, foo: 'bar',
+            expect(req.body).toEqual({id: 't-1234567890abcdef', created: anyDate, foo: 'bar',
                                       lastUpdated: anyDate, status: Status.Pending});
             expect(nextSpy).toHaveBeenCalledWith();
         });
@@ -600,7 +600,7 @@ describe('CrudSvc', function() {
         it('should default in the user and org if those props are enabled', function() {
             svc._userProp = true; svc._orgProp = true;
             svc.setupObj(req, nextSpy, doneSpy);
-            expect(req.body).toEqual({id: 't-1234567890abcd', created: anyDate, foo: 'bar', user: 'u1',
+            expect(req.body).toEqual({id: 't-1234567890abcdef', created: anyDate, foo: 'bar', user: 'u1',
                                       org: 'o1', lastUpdated: anyDate, status: Status.Active});
             expect(nextSpy).toHaveBeenCalledWith();
         });
@@ -609,7 +609,7 @@ describe('CrudSvc', function() {
             svc._userProp = true; svc._orgProp = true;
             delete req.user;
             svc.setupObj(req, nextSpy, doneSpy);
-            expect(req.body).toEqual({id: 't-1234567890abcd', created: anyDate, foo: 'bar',
+            expect(req.body).toEqual({id: 't-1234567890abcdef', created: anyDate, foo: 'bar',
                                       lastUpdated: anyDate, status: Status.Active});
             expect(nextSpy).toHaveBeenCalledWith();
         });

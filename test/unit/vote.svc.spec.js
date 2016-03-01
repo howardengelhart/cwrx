@@ -9,7 +9,7 @@ describe('vote (UT)',function(){
         
         q             = require('q');
         logger        = require('../../lib/logger');
-        uuid          = require('../../lib/uuid');
+        uuid          = require('rc-uuid');
         VotingBooth   = require('../../bin/vote').VotingBooth;
         mongoUtils    = require('../../lib/mongoUtils');
         app           = require('../../bin/vote').app;

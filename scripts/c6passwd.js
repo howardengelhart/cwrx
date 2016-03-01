@@ -34,7 +34,7 @@ script = [  'c6Db=db.getSiblingDB("c6Db");',
                 'printjson( cursor.next() );'
             ].join('');
 
-scriptPath = path.join(os.tmpdir(),makeid().substr(0,14) + '.js');
+scriptPath = path.join(os.tmpdir(),makeid() + '.js');
 
 fs.writeFileSync(scriptPath,script);
 spawn('mongo',[dbserver + '/admin',scriptPath,'-u',dbuser,'-p'],{ stdio : 'inherit' })

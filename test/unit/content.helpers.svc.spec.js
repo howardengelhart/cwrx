@@ -1,13 +1,13 @@
 var flush = true;
 describe('content (UT)', function() {
-    var urlUtils, mockLog, mockLogger, uuid, logger, expModule, q, FieldValidator, mongoUtils,
+    var urlUtils, mockLog, mockLogger, hashUtils, logger, expModule, q, FieldValidator, mongoUtils,
         enums, Status, Scope, Access, req;
     
     beforeEach(function() {
         if (flush) { for (var m in require.cache){ delete require.cache[m]; } flush = false; }
         urlUtils        = require('url');
         q               = require('q');
-        uuid            = require('../../lib/uuid');
+        hashUtils       = require('../../lib/hashUtils');
         logger          = require('../../lib/logger');
         expModule       = require('../../bin/content-experiences');
         mongoUtils      = require('../../lib/mongoUtils');
@@ -657,7 +657,7 @@ describe('content (UT)', function() {
                 status: [{user: 'johnny', userId: 'u-2', date: start, status: Status.Pending}]
             };
             user = { id: 'u-1', email: 'otter' };
-            spyOn(uuid, 'hashText').and.callFake(function(dataString) {
+            spyOn(hashUtils, 'hashText').and.callFake(function(dataString) {
                 return dataString === JSON.stringify({foo:'bar'}) ? 'version1.0' : 'version2.0';
             });
         });

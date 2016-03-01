@@ -3,7 +3,7 @@ var request = require('request'),
     path    = require('path'),
     q       = require('q'),
     fs      = require('fs-extra'),
-    uuid    = require('../lib/uuid'),
+    uuid    = require('rc-uuid'),
     MVC     = require('../lib/mvc');
 
 function log(){
@@ -190,7 +190,7 @@ function NewUserController(api){
             {
                 label : 'organization',
                 alias : 'orgId',
-                defaultVal : 'o-' + uuid.createUuid().substr(0,14)
+                defaultVal : 'o-' + uuid.createUuid()
             },
             {
                 label : 'branding'
