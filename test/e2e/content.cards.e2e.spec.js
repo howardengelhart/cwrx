@@ -121,25 +121,25 @@ describe('content card endpoints (E2E):', function() {
         var mockCards, mockCamps, options;
         beforeEach(function(done) {
             mockCards = [
-                { id: 'rc-pubget1', campaign: { minViewTime: 3 }, campaignId: 'cam-cards-e2e1', status: 'active', user: 'e2e-user', org: 'e2e-org' },
-                { id: 'rc-pubget2', campaign: { minViewTime: 3 }, campaignId: 'cam-cards-multi', status: 'active', user: 'e2e-user', org: 'e2e-org' },
-                { id: 'rc-pubget3', campaign: { minViewTime: 3 }, campaignId: 'cam-cards-multi', status: 'active', user: 'e2e-user', org: 'e2e-org' },
-                { id: 'rc-pubget4', campaign: { minViewTime: 3 }, campaignId: 'cam-cards-multi', status: 'active', user: 'e2e-user', org: 'e2e-org' },
-                { id: 'rc-pubgetInactive', campaignId: 'cam-cards-e2e1', status: 'inactive', user: 'e2e-user', org: 'e2e-org' },
-                { id: 'rc-pubgetDeleted', campaignId: 'cam-cards-e2e1', status: 'deleted', user: 'e2e-user', org: 'e2e-org' },
+                { id: 'rc-pubget1', campaign: { minViewTime: 3 }, campaignId: 'cam-pub-e2e1', status: 'active', user: 'e2e-user', org: 'e2e-org' },
+                { id: 'rc-pubget2', campaign: { minViewTime: 3 }, campaignId: 'cam-pub-multi', status: 'active', user: 'e2e-user', org: 'e2e-org' },
+                { id: 'rc-pubget3', campaign: { minViewTime: 3 }, campaignId: 'cam-pub-multi', status: 'active', user: 'e2e-user', org: 'e2e-org' },
+                { id: 'rc-pubget4', campaign: { minViewTime: 3 }, campaignId: 'cam-pub-multi', status: 'active', user: 'e2e-user', org: 'e2e-org' },
+                { id: 'rc-pubgetInactive', campaignId: 'cam-pub-e2e1', status: 'inactive', user: 'e2e-user', org: 'e2e-org' },
+                { id: 'rc-pubgetDeleted', campaignId: 'cam-pub-e2e1', status: 'deleted', user: 'e2e-user', org: 'e2e-org' },
                 { id: 'rc-draftCamp', campaign: { minViewTime: 3 }, campaignId: 'cam-cards-e2e2', status: 'active', user: 'e2e-user', org: 'e2e-org' },
                 { id: 'rc-deletedCamp', campaign: { minViewTime: 3 }, campaignId: 'cam-cards-deleted', status: 'active', user: 'e2e-user', org: 'e2e-org' },
             ];
             mockCamps = [
                 {
-                    id: 'cam-cards-e2e1',
+                    id: 'cam-pub-e2e1',
                     status: 'active',
                     advertiserId: 'a-1',
                     advertiserDisplayName: 'Heinz',
                     cards: [{ id: 'rc-pubget1' }]
                 },
                 {
-                    id: 'cam-cards-multi',
+                    id: 'cam-pub-multi',
                     status: 'active',
                     advertiserDisplayName: 'Skippy',
                     cards: [{ id: 'rc-pubget2' }, { id: 'rc-pubget3' }, { id: 'rc-pubget4' }]
@@ -175,7 +175,7 @@ describe('content card endpoints (E2E):', function() {
                     expect(resp.body).toEqual({
                         id: 'rc-pubget1',
                         status: 'active',
-                        campaignId: 'cam-cards-e2e1',
+                        campaignId: 'cam-pub-e2e1',
                         params: { sponsor: 'Heinz' },
                         campaign: {
                             minViewTime: 3
@@ -215,7 +215,7 @@ describe('content card endpoints (E2E):', function() {
                     expect(resp.body).toEqual({
                         id: 'rc-pubget1',
                         status: 'active',
-                        campaignId: 'cam-cards-e2e1',
+                        campaignId: 'cam-pub-e2e1',
                         params: { sponsor: 'Heinz' },
                         campaign: jasmine.any(Object)
                     });
@@ -429,7 +429,7 @@ describe('content card endpoints (E2E):', function() {
                         expect(resp.body).toEqual({
                             id: 'rc-pubget1',
                             status: 'active',
-                            campaignId: 'cam-cards-e2e1',
+                            campaignId: 'cam-pub-e2e1',
                             params: { sponsor: 'Heinz' },
                             campaign: jasmine.any(Object),
                         });
@@ -449,7 +449,7 @@ describe('content card endpoints (E2E):', function() {
                     url: config.contentUrl + '/public/content/cards/',
                     headers: { origin: 'http://test.com' },
                     qs: {
-                        campaign: 'cam-cards-multi',
+                        campaign: 'cam-pub-multi',
                         container: 'embed',
                         placement: 'pl-1',
                         hostApp: 'Mapsaurus',
@@ -1027,7 +1027,8 @@ describe('content card endpoints (E2E):', function() {
         
         it('should be able to create a VAST card with meta data', function(done) {
             options.json.data = { 
-                vast: 'https://s3.amazonaws.com/c6.dev/e2e/vast_test.xml'
+                vast: 'https://s3.amazonaws.com/c6.dev/e2e/vast_test.xml',
+                duration: 666
             };
             options.json.type = 'adUnit';
             requestUtils.qRequest('post', options).then(function(resp) {
@@ -1040,7 +1041,8 @@ describe('content card endpoints (E2E):', function() {
 
         it('should be able to create a VAST card with protocol relative url', function(done) {
             options.json.data = { 
-                vast: '//s3.amazonaws.com/c6.dev/e2e/vast_test.xml'
+                vast: '//s3.amazonaws.com/c6.dev/e2e/vast_test.xml',
+                duration: 666
             };
             options.json.type = 'adUnit';
             requestUtils.qRequest('post', options).then(function(resp) {
@@ -1053,12 +1055,27 @@ describe('content card endpoints (E2E):', function() {
 
         it('should be able to create a youtube card with meta data', function(done) {
             options.json.data = { 
-                videoid: 'OQ83Wz_mrD0'
+                videoid: 'OQ83Wz_mrD0',
+                duration: 666
             };
             options.json.type = 'youtube';
             requestUtils.qRequest('post', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(201);
                 expect(resp.body.data.duration).toEqual(12);
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should be able to set a custom duration for a video that has no duration', function(done) {
+            options.json.data = { 
+                videoid: 'probablynotarealyoutubevideo',
+                duration: 666
+            };
+            options.json.type = 'youtube';
+            requestUtils.qRequest('post', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(201);
+                expect(resp.body.data.duration).toEqual(666);
             }).catch(function(error) {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
@@ -1353,7 +1370,7 @@ describe('content card endpoints (E2E):', function() {
                 json: { 
                     data: { 
                         vast: 'https://s3.amazonaws.com/c6.dev/e2e/vast_test.xml' ,
-                        duration : 1
+                        duration : 666
                     },
                     type : 'adUnit'
                 },
@@ -1375,7 +1392,7 @@ describe('content card endpoints (E2E):', function() {
                 json: { 
                     data: { 
                         vast: 'https://s3.amazonaws.com/c6.dev/e2e/vast_test.xml' ,
-                        duration : 1
+                        duration : 666
                     },
                     type : 'adUnit'
                 },
@@ -1385,7 +1402,7 @@ describe('content card endpoints (E2E):', function() {
                 expect(resp.response.statusCode).toBe(200);
                 expect(resp.body).not.toEqual(mockCards[3]);
                 expect(resp.body.id).toBe('rc-putDur2');
-                expect(resp.body.data.duration).toEqual(1);
+                expect(resp.body.data.duration).toEqual(666);
             }).catch(function(error) {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);

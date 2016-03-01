@@ -1,10 +1,13 @@
 # Collateral Service Changelog
 
-* Support app authentication: [#798](https://github.com/cinema6/cwrx/pull/798)
+### 2.2.0: Tue Mar  1 10:37:56 EST 2016
+* Update UUIDs: [#768](https://github.com/cinema6/cwrx/issues/768)
+* [FEATURE]: Support app authentication: [#798](https://github.com/cinema6/cwrx/pull/798)
+* Extra deployment steps: None
 
 ### 2.1.1: Fri Jan 15 11:20:29 EST 2016
 * Improve the accuracy of social link web-scraping: [#740](https://github.com/cinema6/cwrx/pull/740)
-* Upgrade mongo driver to 2.x, fixing reconnect issues: [#717](https://github.com/cinema6/cwrx/pull/717)
+* [FIX]: Upgrade mongo driver to 2.x, fixing reconnect issues: [#717](https://github.com/cinema6/cwrx/pull/717)
 
 ### 2.1.0: Fri Nov 20 15:48:37 EST 2015
 * [FIX]: Suppoprt re-uploading URIs with query parameters: [#640](https://github.com/cinema6/cwrx/issues/640)

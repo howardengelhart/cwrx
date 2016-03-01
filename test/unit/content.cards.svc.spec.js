@@ -527,7 +527,7 @@ describe('content-cards (UT)', function() {
         var mockReq, mockData, mockNext, mockDone ;
         beforeEach(function(){
             mockReq = { body : { data : {} }, uuid : 'testid-0000' };
-            mockData = {};
+            mockData = { type: 'vast', duration: 666 };
             mockNext = jasmine.createSpy('nextSpy');
             mockDone = jasmine.createSpy('doneSpy');
             cardModule.metagetta = jasmine.createSpy('metagettaSpy').and.callFake(function(){
@@ -606,6 +606,7 @@ describe('content-cards (UT)', function() {
                     '[%1] - Cannot get youtube duration without secrets.googleKey.',
                     'testid-0000'
                 );
+                expect(mockReq.body.data.duration).toBe(-1);
             })
             .then(done,done.fail);
         });
@@ -627,6 +628,7 @@ describe('content-cards (UT)', function() {
             .then(function(){
                 expect(cardModule.metagetta).not.toHaveBeenCalled();
                 expect(mockNext).toHaveBeenCalled();
+                expect(mockReq.body.data.duration).toBe(29);
             })
             .then(done,done.fail);
         });
@@ -646,6 +648,7 @@ describe('content-cards (UT)', function() {
             cardModule.getMetaData(mockReq,mockNext,mockDone)
             .then(function(){
                 expect(cardModule.metagetta).toHaveBeenCalled();
+                expect(mockReq.body.data.duration).toBe(666);
             })
             .then(done,done.fail);
         });
@@ -666,6 +669,7 @@ describe('content-cards (UT)', function() {
             cardModule.getMetaData(mockReq,mockNext,mockDone)
             .then(function(){
                 expect(cardModule.metagetta).toHaveBeenCalled();
+                expect(mockReq.body.data.duration).toBe(666);
             })
             .then(done,done.fail);
         });
@@ -686,6 +690,7 @@ describe('content-cards (UT)', function() {
             cardModule.getMetaData(mockReq,mockNext,mockDone)
             .then(function(){
                 expect(cardModule.metagetta).toHaveBeenCalled();
+                expect(mockReq.body.data.duration).toBe(666);
             })
             .then(done,done.fail);
         });
@@ -706,6 +711,7 @@ describe('content-cards (UT)', function() {
             cardModule.getMetaData(mockReq,mockNext,mockDone)
             .then(function(){
                 expect(cardModule.metagetta).toHaveBeenCalled();
+                expect(mockReq.body.data.duration).toBe(666);
             })
             .then(done,done.fail);
         });
@@ -714,16 +720,13 @@ describe('content-cards (UT)', function() {
             mockReq.body.data.vast  = 'https://myvast/is/vast.xml';
             mockReq.body.type       = 'adUnit';
 
-            mockData.type       = 'vast';
-            mockData.duration   = 29;
-
             cardModule.getMetaData(mockReq,mockNext,mockDone)
             .then(function(){
                 expect(cardModule.metagetta).toHaveBeenCalledWith(jasmine.objectContaining({
                     type : 'vast',
                     uri : 'https://myvast/is/vast.xml'
                 }));
-                expect(mockReq.body.data.duration).toEqual(29);
+                expect(mockReq.body.data.duration).toEqual(666);
                 expect(mockNext).toHaveBeenCalled();
             })
             .then(done,done.fail);
@@ -733,16 +736,13 @@ describe('content-cards (UT)', function() {
             mockReq.body.data.vast  = '//myvast/is/vast.xml';
             mockReq.body.type       = 'adUnit';
 
-            mockData.type       = 'vast';
-            mockData.duration   = 29;
-
             cardModule.getMetaData(mockReq,mockNext,mockDone)
             .then(function(){
                 expect(cardModule.metagetta).toHaveBeenCalledWith(jasmine.objectContaining({
                     type : 'vast',
                     uri : 'http://myvast/is/vast.xml'
                 }));
-                expect(mockReq.body.data.duration).toEqual(29);
+                expect(mockReq.body.data.duration).toEqual(666);
                 expect(mockNext).toHaveBeenCalled();
             })
             .then(done,done.fail);
@@ -767,6 +767,7 @@ describe('content-cards (UT)', function() {
                     type: 'vzaar',
                     id: 'def456'
                 });
+                expect(mockReq.body.data.duration).toBe(666);
             })
             .then(done,done.fail);
         });
@@ -820,6 +821,77 @@ describe('content-cards (UT)', function() {
                 expect(mockNext).toHaveBeenCalled();
             })
             .then(done,done.fail);
+        });
+        
+        describe('if the requester is attempting to set a custom duration', function() {
+            beforeEach(function() {
+                mockReq.body = {
+                    type: 'adUnit',
+                    data: {
+                        vast: 'https://myvast/is/vast.xml',
+                        duration: 123
+                    }
+                };
+                mockReq.origObj = {
+                    data : {
+                        vast : 'https://myvast/is/vast.xml'
+                    },
+                    type : 'adUnit',
+                    lastUpdated : new Date(1446063211664)
+                };
+                jasmine.clock().mockDate(mockReq.origObj.lastUpdated);
+
+            });
+            
+            it('should overwrite the custom duration if metagetta succeeds', function(done) {
+                cardModule.getMetaData(mockReq,mockNext,mockDone)
+                .then(function() {
+                    expect(cardModule.metagetta).toHaveBeenCalled();
+                    expect(mockReq.body.data.duration).toBe(666);
+                })
+                .then(done,done.fail);
+            });
+            
+            it('should not overwrite the custom duration if metagetta has no google key', function(done) {
+                cardModule.metagetta.hasGoogleKey = false;
+                mockReq.body = { type: 'youtube', data: { duration: 123, videoid: 'def123' } };
+                cardModule.getMetaData(mockReq,mockNext,mockDone)
+                .then(function() {
+                    expect(cardModule.metagetta).not.toHaveBeenCalled();
+                    expect(mockReq.body.data.duration).toBe(123);
+                })
+                .then(done,done.fail);
+            });
+            
+            it('should not overwrite the custom duration if the card type is unsupported', function(done) {
+                mockReq.body.type = 'instagram';
+                cardModule.getMetaData(mockReq,mockNext,mockDone)
+                .then(function() {
+                    expect(cardModule.metagetta).not.toHaveBeenCalled();
+                    expect(mockReq.body.data.duration).toBe(123);
+                })
+                .then(done,done.fail);
+            });
+            
+            it('should not overwrite the custom duration if metagetta gets no duration', function(done) {
+                delete mockData.duration;
+                cardModule.getMetaData(mockReq,mockNext,mockDone)
+                .then(function() {
+                    expect(cardModule.metagetta).toHaveBeenCalled();
+                    expect(mockReq.body.data.duration).toBe(123);
+                })
+                .then(done,done.fail);
+            });
+            
+            it('should not overwrite the custom duration if metagetta fails', function(done) {
+                cardModule.metagetta.and.returnValue(q.reject(new Error('I GOT A PROBLEM')));
+                cardModule.getMetaData(mockReq,mockNext,mockDone)
+                .then(function() {
+                    expect(cardModule.metagetta).toHaveBeenCalled();
+                    expect(mockReq.body.data.duration).toBe(123);
+                })
+                .then(done,done.fail);
+            });
         });
     });
     

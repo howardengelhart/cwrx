@@ -211,6 +211,7 @@
                     (req.origObj.data.duration > -1) &&
                     (Date.now() - req.origObj.lastUpdated.valueOf() < 60000) ) {
                 log.trace('[%1] - Video unchanged, no need to get metadata.',req.uuid);
+                req.body.data.duration = req.body.data.duration || req.origObj.data.duration;
                 return q(next());
             }
         }
@@ -225,7 +226,7 @@
         } else
         if (req.body.type === 'youtube') {
             if (!cardModule.metagetta.hasGoogleKey) {
-                req.body.data.duration = -1;
+                req.body.data.duration = req.body.data.duration || -1;
                 log.warn('[%1] - Cannot get youtube duration without secrets.googleKey.',
                     req.uuid);
                 return q(next());
@@ -245,7 +246,7 @@
             opts.type = 'vzaar';
             opts.id   = req.body.data.videoid;
         } else {
-            req.body.data.duration = -1;
+            req.body.data.duration = req.body.data.duration || -1;
             log.info('[%1] - MetaData unsupported for CardType [%2].',req.uuid,req.body.type);
             return q(next());
         }
@@ -265,7 +266,7 @@
         })
         .catch(function(err){
             delete opts.youtube;
-            req.body.data.duration = -1;
+            req.body.data.duration = req.body.data.duration || -1;
             log.warn('[%1] - [%2] [%3]', req.uuid, err.message, JSON.stringify(opts));
             return next();
         });

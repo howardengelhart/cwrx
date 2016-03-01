@@ -1,6 +1,10 @@
 # Content Service Changelog
 
-* Support app authentication: [#798](https://github.com/cinema6/cwrx/pull/798)
+### 4.1.0: Tue Mar  1 10:37:56 EST 2016
+* Allow card duration to be set by requester when not auto-set: [#804](https://github.com/cinema6/cwrx/issues/804)
+* Update UUIDs: [#768](https://github.com/cinema6/cwrx/issues/768)
+* [FEATURE]: Support app authentication: [#798](https://github.com/cinema6/cwrx/pull/798)
+* Extra deployment steps: None
 
 ### 4.0.2: Mon Feb  8 13:39:09 EST 2016
 * Do not allow deleting cards for completed/outOfBudget campaigns: [#784](https://github.com/cinema6/cwrx/issues/784)
@@ -27,7 +31,7 @@
 
 ### 3.5.1: Mon Jan 11 12:36:22 EST 2016
 * [FIX]: Cease recursive validation if a field is unchanged: [#728](https://github.com/cinema6/cwrx/pull/728)
-* Upgrade mongo driver to 2.x, fixing reconnect issues: [#717](https://github.com/cinema6/cwrx/pull/717)
+* [FIX]: Upgrade mongo driver to 2.x, fixing reconnect issues: [#717](https://github.com/cinema6/cwrx/pull/717)
 
 ### 3.5.0: Wed Dec 16 18:28:59 EST 2015
 * [FEATURE]: Add public endpoint for retrieving multiple cards: [#673](https://github.com/cinema6/cwrx/issues/673)
