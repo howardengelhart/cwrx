@@ -568,10 +568,10 @@ describe('ads campaignUpdates endpoints (E2E):', function() {
                 jar: selfieJar
             };
             var mockUpdates = [
-                { id: 'ur-getQry1', campaign: 'cam-getQry1', status: 'pending', user: 'e2e-user', org: 'o-selfie', data: {} },
+                { id: 'ur-getQry1', campaign: 'cam-getQry1', status: 'paused', user: 'e2e-user', org: 'o-selfie', data: {} },
                 { id: 'ur-getQry2', campaign: 'cam-getQry1', status: 'pending', user: 'not-e2e-user', org: 'o-admin', data: {} },
                 { id: 'ur-getQry3', campaign: 'cam-getQry2', status: 'approved', user: 'e2e-user', org: 'o-selfie', data: {} },
-                { id: 'ur-getQry4', campaign: 'cam-getQry2', status: 'approved', user: 'e2e-user', org: 'o-selfie', data: {} },
+                { id: 'ur-getQry4', campaign: 'cam-getQry2', status: 'canceled', user: 'e2e-user', org: 'o-selfie', data: {} },
                 { id: 'ur-getQry5', campaign: 'cam-getQry3', status: 'rejected', user: 'e2e-user', org: 'o-selfie', data: {} }
             ];
             testUtils.resetCollection('campaignUpdates', mockUpdates).done(done, done.fail);
@@ -616,9 +616,9 @@ describe('ads campaignUpdates endpoints (E2E):', function() {
             requestUtils.qRequest('get', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
                 expect(resp.body.length).toBe(4);
-                expect(resp.body[0]).toEqual({ id: 'ur-getQry1', status: 'pending', user: 'e2e-user' });
+                expect(resp.body[0]).toEqual({ id: 'ur-getQry1', status: 'paused', user: 'e2e-user' });
                 expect(resp.body[1]).toEqual({ id: 'ur-getQry3', status: 'approved', user: 'e2e-user' });
-                expect(resp.body[2]).toEqual({ id: 'ur-getQry4', status: 'approved', user: 'e2e-user' });
+                expect(resp.body[2]).toEqual({ id: 'ur-getQry4', status: 'canceled', user: 'e2e-user' });
                 expect(resp.body[3]).toEqual({ id: 'ur-getQry5', status: 'rejected', user: 'e2e-user' });
                 expect(resp.response.headers['content-range']).toBe('items 1-4/4');
             }).catch(function(error) {
@@ -627,7 +627,7 @@ describe('ads campaignUpdates endpoints (E2E):', function() {
         });
         
         it('should get updates by list of statuses', function(done) {
-            options.qs.statuses = 'pending,rejected';
+            options.qs.statuses = 'paused,rejected';
             requestUtils.qRequest('get', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
                 expect(resp.body.length).toBe(2);
@@ -703,8 +703,8 @@ describe('ads campaignUpdates endpoints (E2E):', function() {
             }).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
                 expect(resp.body.length).toBe(2);
-                expect(resp.body[0].id).toBe('ur-getQry3');
-                expect(resp.body[1].id).toBe('ur-getQry4');
+                expect(resp.body[0].id).toBe('ur-getQry4');
+                expect(resp.body[1].id).toBe('ur-getQry3');
                 expect(resp.response.headers['content-range']).toBe('items 3-4/4');
             }).catch(function(error) {
                 expect(util.inspect(error)).not.toBeDefined();
