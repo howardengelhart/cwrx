@@ -567,6 +567,10 @@ Player.startService = function startService() {
             app: {
                 version: 'master'
             },
+            precache: {
+                concurrency: 2,
+                profiles: []
+            },
             cloudwatch: {
                 namespace: 'C6/Player',
                 region: 'us-east-1',
@@ -707,6 +711,8 @@ Player.startService = function startService() {
             }
         });
 
+        player.precache();
+
         app.listen(state.cmdl.port);
         log.info('Service is listening on port: %1', state.cmdl.port);
 
@@ -740,6 +746,38 @@ Player.startService = function startService() {
 
             return route(state);
         });
+};
+
+Player.prototype.precache = function precache() {
+    var self = this;
+    var log = logger.getLog();
+    var concurrency = this.config.precache.concurrency;
+    var profiles = this.config.precache.profiles;
+
+    function doBuild(start, players) {
+        var end = start + concurrency;
+        var chunk = profiles.slice(start, end);
+
+        if (chunk.length === 0) {
+            return q(players);
+        }
+
+        return q.all(chunk.map(function(profile) {
+            return self.__getPlayer__(profile, profile.card.types !== null, null);
+        })).then(function recurse(newPlayers) {
+            return doBuild(end, players.concat(newPlayers));
+        });
+    }
+
+    log.info('Pre-caching %1 players.', profiles.length);
+
+    return doBuild(0, []).tap(function logSuccess() {
+        log.info('Finished building %1 players.', profiles.length);
+    }).catch(function logError(reason) {
+        log.error('Failed to pre-cache players: %1', inspect(reason));
+
+        throw reason;
+    });
 };
 
 Player.prototype.middlewareify = function middlewareify(method) {
