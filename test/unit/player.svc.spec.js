@@ -210,7 +210,7 @@ describe('player service', function() {
                         spyOn(service, 'cluster').and.callFake(whenIndentity);
 
                         spyOn(AWS.config, 'update').and.callThrough();
-                        
+
                         mockErrHandler = jasmine.createSpy('handleError()');
                         spyOn(expressUtils, 'errorHandler').and.returnValue(mockErrHandler);
 
@@ -322,6 +322,10 @@ describe('player service', function() {
                                 app: {
                                     version: 'master'
                                 },
+                                precache: {
+                                    concurrency: 2,
+                                    profiles: []
+                                },
                                 cloudwatch: {
                                     namespace: 'C6/Player',
                                     region: 'us-east-1',
@@ -385,7 +389,7 @@ describe('player service', function() {
                     it('should make express trust the 1st proxy', function() {
                         expect(expressApp.set).toHaveBeenCalledWith('trust proxy', 1);
                     });
-                    
+
                     it('should include an error handler', function() {
                         expect(expressUtils.errorHandler).toHaveBeenCalledWith();
                         expect(expressApp.use).toHaveBeenCalledWith(mockErrHandler);
@@ -939,6 +943,10 @@ describe('player service', function() {
                     entry: '/opt/sixxy/install/mini-reel-player/current/public/main.html',
                     config: require.resolve('./helpers/build.json')
                 },
+                precache: {
+                    concurrency: 2,
+                    profiles: []
+                },
                 cloudwatch: {
                     namespace: 'C6/Player',
                     region: 'us-east-1',
@@ -1102,6 +1110,207 @@ describe('player service', function() {
             });
 
             describe('methods:', function() {
+                describe('precache()', function() {
+                    var success, failure;
+                    var deferreds;
+                    var result;
+
+                    function getMockResponse(profile) {
+                        return new HTMLDocument('<html><head></head><body></body></html')
+                            .addResource('build-profile', 'application/json', profile);
+                    }
+
+                    beforeEach(function(done) {
+                        success = jasmine.createSpy('success()');
+                        failure = jasmine.createSpy('failure()');
+
+                        deferreds = [];
+
+                        player.config.precache.profiles = [
+                            {
+                                type: 'light',
+                                context: 'studio',
+
+                                debug: false,
+                                secure: true,
+
+                                isMiniReel: null,
+                                card: {
+                                    types: null,
+                                    modules: null
+                                }
+                            },
+                            {
+                                type: 'mobile',
+                                context: 'studio',
+
+                                debug: false,
+                                secure: true,
+
+                                isMiniReel: null,
+                                card: {
+                                    types: null,
+                                    modules: null
+                                }
+                            },
+                            {
+                                type: 'desktop-card',
+                                context: 'vpaid',
+
+                                debug: false,
+                                secure: true,
+
+                                isMiniReel: false,
+                                card: {
+                                    types: ['youtube'],
+                                    modules: []
+                                }
+                            },
+                            {
+                                type: 'mobile',
+                                context: 'mraid',
+
+                                debug: false,
+                                secure: true,
+
+                                isMiniReel: false,
+                                card: {
+                                    types: ['youtube'],
+                                    modules: []
+                                }
+                            },
+                            {
+                                type: 'mobile',
+                                context: 'mraid',
+
+                                debug: false,
+                                secure: true,
+
+                                isMiniReel: false,
+                                card: {
+                                    types: ['adUnit'],
+                                    modules: []
+                                }
+                            },
+                            {
+                                type: 'mobile',
+                                context: 'standalone',
+
+                                debug: false,
+                                secure: true,
+
+                                isMiniReel: false,
+                                card: {
+                                    types: ['youtube'],
+                                    modules: []
+                                }
+                            },
+                            {
+                                type: 'mobile',
+                                context: 'standalone',
+
+                                debug: false,
+                                secure: true,
+
+                                isMiniReel: false,
+                                card: {
+                                    types: ['adUnit'],
+                                    modules: []
+                                }
+                            }
+                        ];
+
+                        player.__getPlayer__.and.callFake(function() {
+                            var deferred = q.defer();
+
+                            deferreds.push(deferred);
+
+                            return deferred.promise;
+                        });
+
+                        jasmine.clock().uninstall();
+
+                        result = player.precache();
+                        result.then(success, failure);
+
+                        process.nextTick(done);
+                    });
+
+                    afterEach(function() {
+                        jasmine.clock().install();
+                    });
+
+                    it('should build players concurrently', function() {
+                        expect(player.__getPlayer__.calls.count()).toBe(2, '__getPlayer__() not called twice');
+                        expect(player.__getPlayer__).toHaveBeenCalledWith(player.config.precache.profiles[0], false, null);
+                        expect(player.__getPlayer__).toHaveBeenCalledWith(player.config.precache.profiles[1], false, null);
+                    });
+
+                    describe('when those players are done being built', function() {
+                        beforeEach(function(done) {
+                            player.__getPlayer__.calls.reset();
+
+                            deferreds[0].resolve(getMockResponse(player.config.precache.profiles[0]));
+                            deferreds[1].resolve(getMockResponse(player.config.precache.profiles[1]));
+
+                            q.all([deferreds[0].promise, deferreds[1].promise]).delay(5).then(done, done.fail);
+                        });
+
+                        it('should build the next set of players', function() {
+                            expect(player.__getPlayer__.calls.count()).toBe(2, '__getPlayer__() not called twice');
+                            expect(player.__getPlayer__).toHaveBeenCalledWith(player.config.precache.profiles[2], true, null);
+                            expect(player.__getPlayer__).toHaveBeenCalledWith(player.config.precache.profiles[3], true, null);
+                        });
+
+                        describe('if something goes wrong', function() {
+                            var reason;
+
+                            beforeEach(function(done) {
+                                reason = new Error('THERE WAS A PROBLEM');
+                                deferreds[3].reject(reason);
+
+                                result.finally(done);
+                            });
+
+                            it('should reject with the error', function() {
+                                expect(failure).toHaveBeenCalledWith(reason);
+                            });
+
+                            it('should log an error', function() {
+                                expect(log.error).toHaveBeenCalled();
+                            });
+                        });
+
+                        describe('when all the players are built', function() {
+                            beforeEach(function(done) {
+                                player.__getPlayer__.calls.reset();
+
+                                player.__getPlayer__.and.callFake(function(profile) {
+                                    return q(getMockResponse(profile));
+                                });
+
+                                deferreds[2].resolve(getMockResponse(player.config.precache.profiles[2]));
+                                deferreds[3].resolve(getMockResponse(player.config.precache.profiles[3]));
+
+                                result.then(done, done.fail);
+                            });
+
+                            it('should build each player once', function() {
+                                expect(player.__getPlayer__.calls.count()).toBe(3, '__getPlayer__() not called thrice');
+                                player.config.precache.profiles.slice(4).forEach(function(profile) {
+                                    expect(player.__getPlayer__).toHaveBeenCalledWith(profile, true, null);
+                                });
+                            });
+
+                            it('should fulfill with all of the players', function() {
+                                expect(success).toHaveBeenCalledWith(player.config.precache.profiles.map(function(profile) {
+                                    return getMockResponse(profile);
+                                }));
+                            });
+                        });
+                    });
+                });
+
                 describe('middlewareify(method)', function() {
                     var method;
                     var result;
