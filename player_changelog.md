@@ -1,5 +1,9 @@
 # Player Service Changelog
 
+### 2.7.2: Thu Mar  3 15:45:20 EST 2016
+* Increase speed of initial player responses by pre-caching some common
+  players when the service starts: [#808](https://github.com/cinema6/cwrx/pull/808)
+
 ### 2.7.1: Tue Mar  1 10:37:56 EST 2016
 * Update UUIDs: [#768](https://github.com/cinema6/cwrx/issues/768)
 * Extra deployment steps: None
