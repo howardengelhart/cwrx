@@ -240,6 +240,7 @@ describe('player service', function() {
                         MockPlayer = require.cache[require.resolve('../../bin/player')].exports = jasmine.createSpy('MockPlayer()').and.callFake(function(config) {
                             player = new Player(config);
                             spyOn(player, 'middlewareify').and.callThrough();
+                            spyOn(player, 'precache').and.returnValue(q([]));
 
                             return player;
                         });
@@ -384,6 +385,10 @@ describe('player service', function() {
 
                     it('should create a Player instance', function() {
                         expect(MockPlayer).toHaveBeenCalledWith(service.daemonize.calls.mostRecent().args[0].config);
+                    });
+
+                    it('should precache some player builds', function() {
+                        expect(player.precache).toHaveBeenCalledWith();
                     });
 
                     it('should make express trust the 1st proxy', function() {

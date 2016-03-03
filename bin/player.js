@@ -711,6 +711,8 @@ Player.startService = function startService() {
             }
         });
 
+        player.precache();
+
         app.listen(state.cmdl.port);
         log.info('Service is listening on port: %1', state.cmdl.port);
 
