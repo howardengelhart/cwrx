@@ -27,7 +27,7 @@ describe('CloudWatchReporter(namespace, data)', function() {
     });
 
     describe('instance:', function() {
-        var namespace, data;
+        var namespace, data, options;
         var reporter;
 
         beforeEach(function() {
@@ -36,8 +36,11 @@ describe('CloudWatchReporter(namespace, data)', function() {
                 MetricName: 'SomeMetric',
                 Unit: 'Milliseconds'
             };
+            options = {
+                region: 'Narnia'
+            };
 
-            reporter = new CloudWatchReporter(namespace, data);
+            reporter = new CloudWatchReporter(namespace, data, options);
         });
 
         it('should be an Aggregator', function() {
@@ -48,6 +51,10 @@ describe('CloudWatchReporter(namespace, data)', function() {
             describe('cloudwatch', function() {
                 it('should be a CloudWatch instance', function() {
                     expect(reporter.cloudwatch).toEqual(jasmine.any(CloudWatch));
+                });
+                
+                it('should call CloudWatch with the provided options', function() {
+                    expect(reporter.cloudwatch.config.region).toBe('Narnia');
                 });
             });
 
