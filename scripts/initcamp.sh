@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 # This script will setup a postgres test db to use for querybot.  You can run this
 # after the first time you run (after a vagrant destroy):
 #
@@ -30,10 +30,10 @@ if [  "$1" = "-init" ] || [ "$1" = "--init" ]; then
 
     export PGPASSWORD=password
 
-    psql -c "CREATE ROLE viewer NOSUPERUSER INHERIT NOCREATEDB NOCREATEROLE NOREPLICATION;"
+    psql -c "CREATE ROLE editor NOSUPERUSER INHERIT NOCREATEDB NOCREATEROLE NOREPLICATION;"
     psql -c "CREATE USER cwrx WITH CREATEDB LOGIN PASSWORD 'password';"
     psql -c "CREATE USER sixxy WITH NOCREATEDB NOCREATEROLE LOGIN PASSWORD 'password';"
-    psql -c "GRANT viewer TO sixxy;"
+    psql -c "GRANT editor TO sixxy;"
 elif [ -n "$1" ]; then
     export PGHOST=$1
 fi
@@ -49,7 +49,7 @@ createdb 'campfire_cwrx'
 export PGDATABASE='campfire_cwrx'
 
 psql -c "CREATE SCHEMA rpt;"
-psql -c "GRANT USAGE ON SCHEMA rpt TO viewer;"
+psql -c "GRANT USAGE ON SCHEMA rpt TO editor;"
 
 read -r -d '' campaign_summary_hourly <<- EOM
 CREATE TABLE rpt.campaign_summary_hourly
@@ -64,4 +64,45 @@ CREATE TABLE rpt.campaign_summary_hourly
 EOM
 
 psql -c "${campaign_summary_hourly}"
-psql -c "GRANT SELECT ON TABLE rpt.campaign_summary_hourly TO viewer;"
+psql -c "GRANT SELECT ON TABLE rpt.campaign_summary_hourly TO editor;"
+
+
+psql -c "CREATE SCHEMA dim;"
+psql -c "GRANT USAGE ON SCHEMA dim TO editor;"
+
+read -r -d '' transactions <<- EOM
+CREATE TABLE dim.transactions
+(
+    -- rec_key bigserial NOT NULL,
+    id character varying(20) NOT NULL,
+    rec_ts timestamp with time zone NOT NULL,
+    amount numeric(16, 4),
+    units integer,
+    org_id character varying(20) NOT NULL,
+    campaign_id character varying(20),
+    braintree_id character varying(20),
+    promotion_id character varying(20),
+    description text
+    -- CONSTRAINT pkey_transactions PRIMARY KEY (rec_key)
+) WITH ( OIDS=FALSE);
+EOM
+
+psql -c "${transactions}"
+psql -c "GRANT SELECT, INSERT ON TABLE dim.transactions TO editor;"
+
+# TODO: re-add this...
+#read -r -d '' transactions_rec_key <<- EOM
+#CREATE SEQUENCE dim.transactions_rec_key_seq
+#    START WITH 1
+#    INCREMENT BY 1
+#    NO MINVALUE
+#    NO MAXVALUE
+#    CACHE 1;
+
+#ALTER SEQUENCE transactions_rec_key_seq OWNED BY dim.transactions.rec_key;
+#GRANT ALL ON TABLE transactions_rec_key_seq TO viewer;
+#EOM
+
+#psql -c "${transactions}"
+#psql -c "GRANT SELECT, INSERT ON TABLE dim.transactions TO editor;"
+

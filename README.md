@@ -113,6 +113,7 @@ In order to run a service locally, you'll need to setup a few things:
  | Service name | Port |
  | ------------ | ---- |
  | ads          | 3900 |
+ | accounting   | 4300 |
  | auth         | 3200 |
  | collateral   | 3600 |
  | content      | 3300 |
