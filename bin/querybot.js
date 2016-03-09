@@ -7,13 +7,12 @@ var q                 = require('q'),
     url               = require('url'),
     express           = require('express'),
     bodyParser        = require('body-parser'),
-    pg                = require('pg.js'),
     inherits          = require('util').inherits,
     expressUtils      = require('../lib/expressUtils'),
     cloudwatchMetrics = expressUtils.cloudwatchMetrics,
 //    CloudWatchReporter = require('../lib/cloudWatchReporter'),
-    dbpass            = require('../lib/dbpass'),
     logger            = require('../lib/logger'),
+    pgUtils           = require('../lib/pgUtils'),
     authUtils         = require('../lib/authUtils'),
     requestUtils      = require('../lib/requestUtils'),
     service           = require('../lib/service'),
@@ -94,60 +93,6 @@ lib.campaignCacheSet = function(key,val) {
         return state.cache.set(key,val,state.config.campaignCacheTTL);
     }
     return q();
-};
-
-lib.pgInit = function(state) {
-    var lookup = dbpass.open();
-
-    ['database','host','user'].forEach(function(key){
-        if (!(!!state.config.pg.defaults[key])){
-            throw new Error('Missing configuration: pg.defaults.' + key);
-        } else {
-            pg.defaults[key] = state.config.pg.defaults[key];
-        }
-    });
-
-    ['port','poolSize','poolIdleTimeout','reapIntervalMillis'].forEach(function(key){
-        if (state.config.pg.defaults[key]) {
-            pg.defaults[key] = state.config.pg.defaults[key];
-        }
-    });
-
-    pg.defaults.password = lookup(
-        pg.defaults.host,pg.defaults.port,
-        pg.defaults.database,pg.defaults.user
-    );
-
-    pg.on('error',function(e){
-        var log = logger.getLog();
-        log.error('pg-error: %1', e.message);
-    });
-
-    return state;
-};
-
-lib.pgQuery = function(statement,params){
-    var deferred = q.defer(), log = logger.getLog();
-
-    pg.connect(function(err, client, done) {
-        if (err) {
-            log.error('pg.connect error: %1',err.message);
-            return deferred.reject(new ServiceError('Internal Error',500));
-        }
-
-        client.query(statement,params,function(err,result){
-            done();
-            if (err) {
-                log.error('pg.client.query error: %1, %2, %3',
-                    err.message, statement, params);
-                deferred.reject(new ServiceError('Internal Error',500));
-            } else {
-                deferred.resolve(result);
-            }
-        });
-    });
-
-    return deferred.promise;
 };
 
 lib.queryParamsFromRequest = function(req){
@@ -393,7 +338,7 @@ lib.queryCampaignSummary = function(campaignIds,startDate,endDate) {
     }
     statement.push('order by 1,2');
     log.trace(statement.join('\n'));
-    return lib.pgQuery(statement.join('\n'),
+    return pgUtils.query(statement.join('\n'),
         [campaignIds,['launch','load','play','impression']])
         .then(function(result){
             var res ;
@@ -641,7 +586,7 @@ if (!__ut__){
     .then(service.initSessions)
     .then(service.initPubSubChannels)
     .then(service.initCache)
-    .then(lib.pgInit)
+    .then(service.initPostgres)
     .then(lib.main)
     .catch(function(err) {
         var log = logger.getLog();
