@@ -160,7 +160,7 @@ describe('querybot (E2E)', function(){
  
         var today = ((new Date()).toISOString()).substr(0,10);
         pgdata_campaign_summary_hourly = [
-            'INSERT INTO rpt.campaign_summary_hourly_all VALUES',
+            'INSERT INTO rpt.campaign_summary_hourly VALUES',
             '(\'' + today + ' 01:00:00+00\',\'cam-1757d5cd13e383\',\'cardView\',2032,0.0000),',
             '(\'' + today + ' 01:00:00+00\',\'cam-1757d5cd13e383\',\'completedView\',1542,292.9800),',
             '(\'' + today + ' 01:00:00+00\',\'cam-1757d5cd13e383\',\'launch\',2032,0.0000),',
@@ -295,7 +295,7 @@ describe('querybot (E2E)', function(){
         ];
 
         function pgTruncate(){
-            return pgQuery(pgconn,'TRUNCATE TABLE rpt.campaign_summary_hourly_all');
+            return pgQuery(pgconn,'TRUNCATE TABLE rpt.campaign_summary_hourly');
         }
 
         function pgInsert() {

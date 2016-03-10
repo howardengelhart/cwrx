@@ -1,5 +1,8 @@
 # QueryBot Service Changelog
 
+### 1.3.2: Thu Mar 10 11:11:28 EST 2016
+* Changed ref to rpt.campaign_summary_hourly_all to rpt.campaign_summary_hourly: [#744](https://github.com/cinema6/cwrx/issues/744)
+
 ### 1.3.1: Tue Mar  1 10:37:56 EST 2016
 * Update UUIDs: [#768](https://github.com/cinema6/cwrx/issues/768)
 * Extra deployment steps: None
