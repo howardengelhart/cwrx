@@ -1,12 +1,13 @@
 var flush = true;
 describe('JobManager', function() {
-    var JobManager, q, expressUtils, logger, mockLog, mockCache, req, res, nextSpy, events, jobMgr;
+    var JobManager, q, expressUtils, zlib, logger, mockLog, mockCache, req, res, nextSpy, events, jobMgr;
     
     beforeEach(function() {
         jasmine.clock().install();
 
         if (flush){ for (var m in require.cache){ delete require.cache[m]; } flush = false; }
         events      = require('events');
+        zlib        = require('zlib');
         q           = require('q');
         logger      = require('../../lib/logger');
         JobManager  = require('../../lib/jobManager');
@@ -22,6 +23,9 @@ describe('JobManager', function() {
         };
         spyOn(logger, 'createLog').and.returnValue(mockLog);
         spyOn(logger, 'getLog').and.returnValue(mockLog);
+        
+        spyOn(zlib, 'gunzip').and.callFake(function(str, cb) { cb(null, JSON.stringify({ code: 200, body: 'BIIIIG Data' })); });
+        spyOn(zlib, 'gzip').and.callFake(function(str, cb) { cb(null, 'smol data'); });
 
         req = { uuid: '1234' };
         res = new events.EventEmitter();
@@ -105,7 +109,8 @@ describe('JobManager', function() {
                 jasmine.clock().tick(jobMgr.cfg.timeout + 1);
                 process.nextTick(function() {
                     expect(req._job.timedOut).toBe(true);
-                    expect(mockCache.add).toHaveBeenCalledWith('req:1234', {code: 202, body: {url: '/api/job/1234'}}, jobMgr.cfg.cacheTTL);
+                    expect(zlib.gzip).toHaveBeenCalledWith(JSON.stringify({ code: 202, body: { url: '/api/job/1234' } }), jasmine.any(Function));
+                    expect(mockCache.add).toHaveBeenCalledWith('req:1234', 'smol data', jobMgr.cfg.cacheTTL);
                     expect(expressUtils.sendResponse).toHaveBeenCalledWith(res, {code: 202, body: {url: '/api/job/1234'}});
                     expect(mockLog.error).not.toHaveBeenCalled();
                     done();
@@ -120,7 +125,23 @@ describe('JobManager', function() {
                 jasmine.clock().tick(jobMgr.cfg.timeout + 1);
                 process.nextTick(function() {
                     expect(req._job.timedOut).toBe(false);
+                    expect(zlib.gzip).toHaveBeenCalled();
                     expect(mockCache.add).toHaveBeenCalled();
+                    expect(expressUtils.sendResponse).not.toHaveBeenCalled();
+                    expect(mockLog.warn).toHaveBeenCalled();
+                    done();
+                });
+            });
+
+            it('should log a warning and set timedOut to false if compressing the data fails', function(done) {
+                zlib.gzip.and.callFake(function(data, cb) { cb('I GOT A PROBLEM') });
+                jobMgr.setJobTimeout(req, res, nextSpy);
+                expect(req._job.timedOut).toBe(false);
+                expect(nextSpy).toHaveBeenCalled();
+                jasmine.clock().tick(jobMgr.cfg.timeout + 1);
+                process.nextTick(function() {
+                    expect(req._job.timedOut).toBe(false);
+                    expect(mockCache.add).not.toHaveBeenCalled();
                     expect(expressUtils.sendResponse).not.toHaveBeenCalled();
                     expect(mockLog.warn).toHaveBeenCalled();
                     done();
@@ -153,14 +174,16 @@ describe('JobManager', function() {
         it('should do nothing if req timeouts are not enabled', function(done) {
             jobMgr.cfg.enabled = false;
             jasmine.clock().tick(jobMgr.cfg.timeout + 1000);
-            jobMgr.endJob(req, res, promiseResult).then(function() {
-                expect(req._job.timedOut).toBe(true);
-                expect(mockCache.set).not.toHaveBeenCalled();
-                expect(expressUtils.sendResponse.calls.count()).toBe(2);
-                expect(expressUtils.sendResponse).toHaveBeenCalledWith(res, {code: 200, body: 'all good'});
-            }).catch(function(error) {
-                expect(error.toString()).not.toBeDefined();
-            }).done(done);
+            process.nextTick(function() {
+                jobMgr.endJob(req, res, promiseResult).then(function() {
+                    expect(req._job.timedOut).toBe(true);
+                    expect(mockCache.set).not.toHaveBeenCalled();
+                    expect(expressUtils.sendResponse.calls.count()).toBe(2);
+                    expect(expressUtils.sendResponse).toHaveBeenCalledWith(res, {code: 200, body: 'all good'});
+                }).catch(function(error) {
+                    expect(error.toString()).not.toBeDefined();
+                }).done(done);
+            });
         });
 
         it('should just clear the timeout if it has not fired yet', function(done) {
@@ -180,10 +203,12 @@ describe('JobManager', function() {
         
         it('should write the final result to the cache', function(done) {
             jasmine.clock().tick(jobMgr.cfg.timeout + 1000);
-            expect(mockCache.add).toHaveBeenCalled();
             jobMgr.endJob(req, res, promiseResult).then(function() {
                 expect(req._job.timedOut).toBe(true);
-                expect(mockCache.set).toHaveBeenCalledWith('req:1234', {code: 200, body: 'all good'}, jobMgr.cfg.cacheTTL);
+                expect(mockCache.add).toHaveBeenCalledWith('req:1234', 'smol data', jobMgr.cfg.cacheTTL);
+                expect(zlib.gzip).toHaveBeenCalledWith(JSON.stringify({code: 202, body: { url: '/api/job/1234' } }), jasmine.any(Function));
+                expect(zlib.gzip).toHaveBeenCalledWith(JSON.stringify({code: 200, body: 'all good'}), jasmine.any(Function));
+                expect(mockCache.set).toHaveBeenCalledWith('req:1234', 'smol data', jobMgr.cfg.cacheTTL);
                 expect(expressUtils.sendResponse.calls.count()).toBe(1);
                 expect(expressUtils.sendResponse).not.toHaveBeenCalledWith(res, {code: 200, body: 'all good'});
                 expect(mockLog.error).not.toHaveBeenCalled();
@@ -196,9 +221,11 @@ describe('JobManager', function() {
             promiseResult = q.reject('I GOT A PROBLEM').inspect();
             jasmine.clock().tick(jobMgr.cfg.timeout + 1000);
             jobMgr.endJob(req, res, promiseResult).then(function() {
-                expect(mockCache.set).toHaveBeenCalledWith('req:1234',
-                    { code: 500, body: { error: 'Internal Error', detail: '\'I GOT A PROBLEM\'' } },
-                    jobMgr.cfg.cacheTTL);
+                expect(zlib.gzip).toHaveBeenCalledWith(
+                    JSON.stringify({ code: 500, body: { error: 'Internal Error', detail: '\'I GOT A PROBLEM\'' } }),
+                    jasmine.any(Function)
+                );
+                expect(mockCache.set).toHaveBeenCalledWith('req:1234', 'smol data', jobMgr.cfg.cacheTTL);
                 expect(expressUtils.sendResponse.calls.count()).toBe(1);
                 expect(mockLog.error).not.toHaveBeenCalled();
             }).catch(function(error) {
@@ -217,13 +244,24 @@ describe('JobManager', function() {
                 expect(error.toString()).not.toBeDefined();
             }).done(done);
         });
+
+        it('should just log an error if zlib.gzip fails', function(done) {
+            zlib.gzip.and.callFake(function(data, cb) { cb('I GOT A PROBLEM'); });
+            jasmine.clock().tick(jobMgr.cfg.timeout + 1000);
+            jobMgr.endJob(req, res, promiseResult).then(function() {
+                expect(mockCache.set).not.toHaveBeenCalled();
+                expect(mockLog.warn).toHaveBeenCalled();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
+        });
     });
     
     describe('getJobResult', function() {
         it('should get a result from the cache', function(done) {
-            mockCache.get.and.returnValue(q({code: 200, body: 'yes'}));
+            mockCache.get.and.returnValue(q('QklJSUcgRGF0YQ=='));
             jobMgr.getJobResult(req, res, '5678').then(function(resp) {
-                expect(expressUtils.sendResponse).toHaveBeenCalledWith(res, {code: 200, body: 'yes'});
+                expect(expressUtils.sendResponse).toHaveBeenCalledWith(res, { code: 200, body: 'BIIIIG Data' });
                 expect(mockCache.get).toHaveBeenCalledWith('req:5678');
                 expect(mockLog.error).not.toHaveBeenCalled();
                 expect(mockLog.warn).not.toHaveBeenCalled();
@@ -258,6 +296,20 @@ describe('JobManager', function() {
         
         it('should handle cache errors', function(done) {
             mockCache.get.and.returnValue(q.reject('I GOT A PROBLEM'));
+            jobMgr.getJobResult(req, res, '5678').then(function(resp) {
+                expect('resolved').not.toBe('resolved');
+            }).catch(function(error) {
+                expect(error).toBe('Cache error');
+                expect(expressUtils.sendResponse).not.toHaveBeenCalled();
+                expect(mockCache.get).toHaveBeenCalledWith('req:5678');
+                expect(mockLog.error).not.toHaveBeenCalled();
+                expect(mockLog.warn).toHaveBeenCalled();
+            }).done(done);
+        });
+
+        it('should handle zlib errors', function(done) {
+            mockCache.get.and.returnValue(q('QklJSUcgRGF0YQ=='));
+            zlib.gunzip.and.callFake(function(data, cb) { cb('I GOT A PROBLEM'); });
             jobMgr.getJobResult(req, res, '5678').then(function(resp) {
                 expect('resolved').not.toBe('resolved');
             }).catch(function(error) {
