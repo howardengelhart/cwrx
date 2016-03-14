@@ -1,4 +1,5 @@
 var q               = require('q'),
+    zlib            = require('zlib'),
     util            = require('util'),
     cacheLib        = require('../../lib/cacheLib'),
     requestUtils    = require('../../lib/requestUtils'),
@@ -19,7 +20,9 @@ describe('/api/adjobs/:reqId', function() {
         cacheConn = new cacheLib.Cache(cacheServer, { read: 5000, write: 5000 });
         cacheConn.checkConnection().then(function() {
             return q.all(Object.keys(mockData).map(function(key) {
-                return cacheConn.set('req:' + key, mockData[key], 10*1000);
+                return q.npost(zlib, 'gzip', [ JSON.stringify(mockData[key]) ]).then(function(buff) {
+                    return cacheConn.set('req:' + key, buff.toString('base64'), 10*1000);
+                });
             }));
         }).thenResolve().done(done);
     });

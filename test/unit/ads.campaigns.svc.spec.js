@@ -233,7 +233,7 @@ describe('ads-campaigns (UT)', function() {
     });
     
     describe('decorateWithCards', function() {
-        var campResp, c6Cards;
+        var campResp, c6Cards, mockColl, MockCursor, svc;
         beforeEach(function() {
             c6Cards = {
                 'rc-1': { id: 'rc-1', title: 'card 1' },
@@ -250,17 +250,28 @@ describe('ads-campaigns (UT)', function() {
                     cards: [ { id: 'rc-1' }, { id: 'rc-2' } ]
                 }
             };
-            spyOn(requestUtils, 'proxyRequest').and.callFake(function(req, method, opts) {
-                var cards = opts.qs.ids.split(',').map(function(id) { return c6Cards[id]; }).filter(function(card) { return !!card; });
-                return q({
-                    response: { statusCode: 200 },
-                    body: cards
-                });
-            });
+
+            mockColl = {
+                find: jasmine.createSpy('coll.find()').and.callFake(function(query) {
+                    return new MockCursor(query.id.$in);
+                })
+            };
+            MockCursor = function(ids) {
+                this.ids = ids;
+            }
+            MockCursor.prototype.toArray = function() {
+                var cards = this.ids.map(function(id) { return c6Cards[id]; })
+                                               .filter(function(card) { return !!card; });
+
+                return q(cards);
+            }
+
+            svc = { _db: mockDb };
+            mockDb.collection.and.returnValue(mockColl);
         });
         
         it('should decorate the cards array with entities fetched from the content svc', function(done) {
-            campModule.decorateWithCards(req, campResp).then(function(resp) {
+            campModule.decorateWithCards(req, campResp, svc).then(function(resp) {
                 expect(resp.code).toBe(200);
                 expect(resp.body).toEqual({
                     id: 'cam-1',
@@ -270,10 +281,7 @@ describe('ads-campaigns (UT)', function() {
                         { id: 'rc-2', title: 'card 2' }
                     ]
                 });
-                expect(requestUtils.proxyRequest).toHaveBeenCalledWith(req, 'get', {
-                    url: 'https://test.com/api/content/cards/',
-                    qs: { ids: 'rc-1,rc-2' }
-                });
+                expect(mockColl.find).toHaveBeenCalledWith({ id: { $in: ['rc-1', 'rc-2'] } });
                 expect(mockLog.warn).not.toHaveBeenCalled();
                 expect(mockLog.error).not.toHaveBeenCalled();
             }).catch(function(error) {
@@ -289,7 +297,7 @@ describe('ads-campaigns (UT)', function() {
                 { id: 'cam-1', name: 'camp 1', cards: [ { id: 'rc-4' }, { id: 'rc-5' } ] },
             ];
 
-            campModule.decorateWithCards(req, campResp).then(function(resp) {
+            campModule.decorateWithCards(req, campResp, svc).then(function(resp) {
                 expect(resp.code).toBe(200);
                 expect(resp.body).toEqual([
                     { id: 'cam-1', name: 'camp 1', cards: [ { id: 'rc-1', title: 'card 1' }, { id: 'rc-2', title: 'card 2' } ] },
@@ -297,10 +305,7 @@ describe('ads-campaigns (UT)', function() {
                     { id: 'cam-1', name: 'camp 1', cards: [ { id: 'rc-3', title: 'card 3' } ] },
                     { id: 'cam-1', name: 'camp 1', cards: [ { id: 'rc-4', title: 'card 4' }, { id: 'rc-5', title: 'card 5' } ] },
                 ]);
-                expect(requestUtils.proxyRequest).toHaveBeenCalledWith(req, 'get', {
-                    url: 'https://test.com/api/content/cards/',
-                    qs: { ids: 'rc-1,rc-2,rc-3,rc-4,rc-5' }
-                });
+                expect(mockColl.find).toHaveBeenCalledWith({ id: { $in: ['rc-1', 'rc-2', 'rc-3', 'rc-4', 'rc-5'] } });
                 expect(mockLog.warn).not.toHaveBeenCalled();
                 expect(mockLog.error).not.toHaveBeenCalled();
             }).catch(function(error) {
@@ -310,10 +315,10 @@ describe('ads-campaigns (UT)', function() {
                 
         it('should skip if the response is non-2xx', function(done) {
             campResp = { code: 400, body: 'you did a bad thing' };
-            campModule.decorateWithCards(req, campResp).then(function(resp) {
+            campModule.decorateWithCards(req, campResp, svc).then(function(resp) {
                 expect(resp.code).toBe(400);
                 expect(resp.body).toBe('you did a bad thing');
-                expect(requestUtils.proxyRequest).not.toHaveBeenCalled();
+                expect(mockColl.find).not.toHaveBeenCalled();
                 expect(mockLog.warn).not.toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
@@ -322,10 +327,10 @@ describe('ads-campaigns (UT)', function() {
         
         it('should skip if there are no cards on the response body', function(done) {
             delete campResp.body.cards;
-            campModule.decorateWithCards(req, campResp).then(function(resp) {
+            campModule.decorateWithCards(req, campResp, svc).then(function(resp) {
                 expect(resp.code).toBe(200);
                 expect(resp.body).toEqual({ id: 'cam-1', name: 'my camp' });
-                expect(requestUtils.proxyRequest).not.toHaveBeenCalled();
+                expect(mockColl.find).not.toHaveBeenCalled();
                 expect(mockLog.warn).not.toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
@@ -334,7 +339,7 @@ describe('ads-campaigns (UT)', function() {
         
         it('should not refetch any cards it already has', function(done) {
             req._cards = { 'rc-1': c6Cards['rc-1'] };
-            campModule.decorateWithCards(req, campResp).then(function(resp) {
+            campModule.decorateWithCards(req, campResp, svc).then(function(resp) {
                 expect(resp.code).toBe(200);
                 expect(resp.body).toEqual({
                     id: 'cam-1',
@@ -344,10 +349,7 @@ describe('ads-campaigns (UT)', function() {
                         { id: 'rc-2', title: 'card 2' }
                     ]
                 });
-                expect(requestUtils.proxyRequest).toHaveBeenCalledWith(req, 'get', {
-                    url: 'https://test.com/api/content/cards/',
-                    qs: { ids: 'rc-2' }
-                });
+                expect(mockColl.find).toHaveBeenCalledWith({ id: { $in: ['rc-2'] } });
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
             }).done(done);
@@ -355,7 +357,7 @@ describe('ads-campaigns (UT)', function() {
         
         it('should log.warn if any cards are not found', function(done) {
             delete c6Cards['rc-2'];
-            campModule.decorateWithCards(req, campResp).then(function(resp) {
+            campModule.decorateWithCards(req, campResp, svc).then(function(resp) {
                 expect(resp.code).toBe(200);
                 expect(resp.body).toEqual({
                     id: 'cam-1',
@@ -366,20 +368,20 @@ describe('ads-campaigns (UT)', function() {
                     ]
                 });
                 expect(mockLog.warn).toHaveBeenCalled();
-                expect(requestUtils.proxyRequest).toHaveBeenCalled();
+                expect(mockColl.find).toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
             }).done(done);
         });
         
-        it('should reject if any requests fail', function(done) {
-            requestUtils.proxyRequest.and.returnValue(q.reject('I GOT A PROBLEM'));
-            campModule.decorateWithCards(req, campResp).then(function(resp) {
+        it('should reject if fetching from the db fails', function(done) {
+            spyOn(MockCursor.prototype, 'toArray').and.returnValue(q.reject('I GOT A PROBLEM'));
+            campModule.decorateWithCards(req, campResp, svc).then(function(resp) {
                 expect(resp).not.toBeDefined();
             }).catch(function(error) {
                 expect(error).toBe('Error fetching cards');
                 expect(mockLog.error).toHaveBeenCalled();
-                expect(requestUtils.proxyRequest).toHaveBeenCalled();
+                expect(mockColl.find).toHaveBeenCalled();
             }).done(done);
         });
     });

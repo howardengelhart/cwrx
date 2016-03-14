@@ -207,10 +207,9 @@
     };
     
     // Replace entries in cards array with fetched C6 cards. Should be called just before response
-    campModule.decorateWithCards = function(req, campResp) {
+    campModule.decorateWithCards = function(req, campResp, svc) {
         var log = logger.getLog(),
-            cardIds = [],
-            fetchFailed = false;
+            cardIds = [];
             
         req._cards = req._cards || {};
         
@@ -218,27 +217,18 @@
             return q(campResp);
         }
         
-        // Fetch list of cards through GET /api/content/cards?ids=...
+        // Fetch list of cards through the db
         function fetchCards(ids) {
             if (ids.length === 0) {
                 return q();
             }
         
             log.trace('[%1] Decorating campaigns, fetching cards [%2]', req.uuid, ids);
-            return requestUtils.proxyRequest(req, 'get', {
-                url: campModule.config.api.cards.baseUrl,
-                qs: { ids: ids.join(',') }
-            })
-            .then(function(resp) {
-                if (resp.response.statusCode !== 200) {
-                    log.warn('[%1] Could not fetch cards to decorate campaigns for %2: %3, %4',
-                             req.uuid, req.requester.id, resp.response.statusCode, resp.body);
-                    fetchFailed = true;
-                    return;
-                }
-                
-                resp.body.forEach(function(card) {
-                    req._cards[card.id] = card;
+            return q(svc._db.collection('cards').find({ id: { $in: ids } }).toArray())
+            .then(function(cards) {
+                cards.forEach(function(card) {
+                    delete card._id;
+                    req._cards[card.id] = mongoUtils.unescapeKeys(card);
                 });
             })
             .catch(function(error) {
@@ -266,7 +256,7 @@
                 
                 camp.cards = camp.cards.map(function(cardEntry) {
                     // warn if a card not fetched, unless already warned b/c fetch failed
-                    if (!req._cards[cardEntry.id] && !fetchFailed) {
+                    if (!req._cards[cardEntry.id]) {
                         log.warn('[%1] Card %2 not fetched', req.uuid, cardEntry.id);
                     }
                     
@@ -772,7 +762,7 @@
 
         router.get('/:id', sessions, authMidware.read, audit, function(req, res) {
             var promise = svc.getObjs({id: req.params.id}, req, false).then(function(resp) {
-                return campModule.decorateWithCards(req, resp);
+                return campModule.decorateWithCards(req, resp, svc);
             });
             promise.finally(function() {
                 jobManager.endJob(req, res, promise.inspect())
@@ -809,7 +799,7 @@
             }
 
             var promise = svc.getObjs(query, req, true).then(function(resp) {
-                return campModule.decorateWithCards(req, resp);
+                return campModule.decorateWithCards(req, resp, svc);
             });
             promise.finally(function() {
                 jobManager.endJob(req, res, promise.inspect())
@@ -821,7 +811,7 @@
 
         router.post('/', sessions, authMidware.create, audit, function(req, res) {
             var promise = svc.createObj(req).then(function(resp) {
-                return campModule.decorateWithCards(req, resp);
+                return campModule.decorateWithCards(req, resp, svc);
             });
             promise.finally(function() {
                 jobManager.endJob(req, res, promise.inspect())
@@ -833,7 +823,7 @@
 
         router.put('/:id', sessions, authMidware.edit, audit, function(req, res) {
             var promise = svc.editObj(req).then(function(resp) {
-                return campModule.decorateWithCards(req, resp);
+                return campModule.decorateWithCards(req, resp, svc);
             });
             promise.finally(function() {
                 jobManager.endJob(req, res, promise.inspect())

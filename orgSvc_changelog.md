@@ -1,5 +1,9 @@
 # Org Service Changelog
 
+### 1.6.1: Mon Mar 14 11:43:43 EDT 2016
+* [FIX]: Compress job results written to memcached: [#819](https://github.com/cinema6/cwrx/issues/819)
+* Extra deployment steps: None
+
 ### 1.6.0: Tue Mar  1 10:37:56 EST 2016
 * Update UUIDs: [#768](https://github.com/cinema6/cwrx/issues/768)
 * [FEATURE]: Support app authentication: [#798](https://github.com/cinema6/cwrx/pull/798)
