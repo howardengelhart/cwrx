@@ -1,5 +1,7 @@
 # Player Service Changelog
 
+* [FIX]: Log signal + exit code when worker dies unexpectedly: [#821](https://github.com/cinema6/cwrx/pull/821)
+
 ### 2.7.2: Thu Mar  3 15:45:20 EST 2016
 * Increase speed of initial player responses by pre-caching some common
   players when the service starts: [#808](https://github.com/cinema6/cwrx/pull/808)
