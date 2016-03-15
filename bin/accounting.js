@@ -4,6 +4,7 @@
     var __ut__      = (global.jasmine !== undefined) ? true : false;
     
     var q               = require('q'),
+        urlUtils        = require('url'),
         util            = require('util'),
         path            = require('path'),
         express         = require('express'),
@@ -16,6 +17,8 @@
         pgUtils         = require('../lib/pgUtils'),
         authUtils       = require('../lib/authUtils'),
         expressUtils    = require('../lib/expressUtils'),
+        requestUtils    = require('../lib/requestUtils'),
+        Status          = require('../lib/enums').Status,
         
         state = {},
         accounting = {}; // for exporting functions to unit tests
@@ -24,6 +27,12 @@
         appName: 'accounting', //TODO: or 'accountant'?
         appDir: __dirname,
         pidDir: path.resolve(__dirname, '../pids'),
+        api: {
+            root: 'http://localhost',   // for proxying requests
+            campaigns: {
+                endpoint: '/api/campaigns/'
+            }
+        },
         sessions: { //TODO: do we even need user sessions?
             key: 'c6Auth',
             maxAge: 30*60*1000,         // 30 minutes; unit here is milliseconds
@@ -93,6 +102,7 @@
             id          : row.id,
             created     : new Date(row.rec_ts),
             amount      : row.amount,
+            units       : row.units,
             org         : row.org_id,
             campaign    : row.campaign_id,
             braintreeId : row.braintree_id,
@@ -116,9 +126,41 @@
             });
         }
         
+        if (req.body.amount > 0 && !req.body.promotion && !req.body.braintreeId) {
+            log.info('[%1] %2 attempting to create credit not tied to promotion or payment',
+                     req.uuid, req.requester.id);
+            return q({
+                code: 400,
+                body: 'Cannot create unlinked credit'
+            });
+        }
+        
         req.body.id = 't-' + uuid.createUuid();
         req.body.created = new Date();
-        req.body.units = 1; //TODO: ensure this is ok?
+        req.body.units = 1;
+
+        // ensure these id fields are not too long
+        //TODO: we sure bout this? or verify these are real?
+        ['org', 'campaign', 'braintreeId', 'promotion'].forEach(function(field) {
+            if (typeof req.body[field] === 'string') {
+                req.body[field] = req.body[field].substr(0, 20);
+            }
+        });
+        
+        // If no provided description, auto-generate based on amount + linked entities
+        if (!req.body.description) {
+            var src = (!!req.body.braintreeId ? ('payment ' + req.body.braintreeId) : null) ||
+                      (!!req.body.promotion ? ('promotion ' + req.body.promotion) : null) ||
+                      (!!req.body.campaign ? ('campaign ' + req.body.campaign) : null) ||
+                      'unknown source';
+
+            req.body.description = util.format(
+                'Account %s for %s from %s',
+                (amount > 0) ? 'credit' : 'debit',
+                req.body.org,
+                src
+            );
+        }
         
         var statement = [
             'INSERT INTO dim.transactions ',
@@ -132,10 +174,10 @@
             req.body.created.toISOString(),
             req.body.amount,
             req.body.units,
-            req.body.org.substr(0, 20), //TODO: we sure bout this? or verify these are real?
-            req.body.campaign.substr(0, 20),
-            req.body.braintreeId.substr(0, 20),
-            req.body.promotion.substr(0, 20),
+            req.body.org,
+            req.body.campaign,
+            req.body.braintreeId,
+            req.body.promotion,
             req.body.description
         ];
         
@@ -150,6 +192,120 @@
         });
     };
 
+    /*
+     * TODO: can probably have one endpoint that gets balance + oustandingBudget + calls both these
+     * functions, but I would double check how endpoint(s) would be used first
+     */
+    accounting.getBalance = function(req) {
+        var log = logger.getLog();
+        
+        req.query.org = req.query.org || (req.user && req.user.org);
+        if (!req.query.org || typeof req.query.org !== 'string') {
+            return q({ code: 400, body: 'Must provide an org id' });
+        }
+        
+        //TODO: should probably attempt to fetch org from orgSvc for permissions?
+        
+        var statement = [
+            'SELECT sum(amount) as balance from dim.transactions',
+            'where org_id = $1'
+        ];
+        var values = [ req.query.org ];
+        
+        return pgUtils.query(statement.join('\n'), values)
+        .then(function(result) {
+            log.info('[%1] Successfuly got balance for %2', req.uuid, req.query.org);
+            return q({
+                code: 200,
+                body: { balance: parseFloat(result.rows[0].balance) }
+            });
+        });
+    };
+    
+    //TODO: break up this big ass function? use middleware somehow?
+    accounting.getOutstandingBudget = function(req, config) {
+        var log = logger.getLog();
+        
+        req.query.org = req.query.org || (req.user && req.user.org);
+        if (!req.query.org || typeof req.query.org !== 'string') {
+            return q({ code: 400, body: 'Must provide an org id' });
+        }
+        
+        var statuses = [Status.Active, Status.Paused]; //TODO: reconsider? include Status.Error?
+        
+        // TODO: rely on user being able to fetch org's campaigns? or authenticate as an app here?
+        return requestUtils.proxyRequest(req, 'get', {
+            url: urlUtils.resolve(config.api.root, config.api.campaigns.endpoint),
+            qs: {
+                org: req.query.org,
+                statuses: statuses.join(','),
+                fields: 'id,pricing'
+            }
+        })
+        .then(function(resp) {
+            if (resp.response.statusCode !== 200) {
+                log.info(
+                    '[%1] Requester %2 could not fetch campaigns for %3: %4, %5',
+                    req.uuid,
+                    req.requester.id,
+                    req.query.org,
+                    resp.response.statusCode,
+                    resp.body
+                );
+                return q({
+                    code: 400,
+                    body: 'Cannot fetch campaigns for this org'
+                });
+            }
+            log.trace('[%1] Requester %2 fetched %3 campaigns for org %4',
+                      req.uuid, req.requester.id, resp.body.length, req.query.org);
+            
+            var totalBudget = 0, campIds = [];
+            
+            resp.body.forEach(function(camp) {
+                totalBudget += (camp.pricing && camp.pricing.budget) || 0;
+                campIds.push(camp.id);
+            });
+            
+            // If sum of campaign budgets is 0, don't need to fetch transactions
+            if (totalBudget === 0) {
+                return q({
+                    code: 200,
+                    body: {
+                        outstandingBudget: 0
+                    }
+                });
+            }
+            
+            var statement = [
+                'SELECT sum(amount) as spend from dim.transactions',
+                'where org_id = $1',
+                'and campaign_id = ANY($2::text[])',
+                'and amount < 0'
+            ];
+            var values = [ req.query.org, campIds ];
+            
+            return pgUtils.query(statement.join('\n'), values)
+            .then(function(result) {
+                var spend = parseFloat(result.rows[0].spend || 0),
+                    outstandingBudget = totalBudget + spend;
+                    
+                log.info('[%1] Got outstandingBudget of %2 for %3',
+                         req.uuid, outstandingBudget, req.query.org);
+                
+                return q({
+                    code: 200,
+                    body: {
+                        outstandingBudget: outstandingBudget
+                    }
+                });
+            });
+        }, function(error) {
+            log.error('[%1] Failed fetching campaigns for %2: %3',
+                      req.uuid, req.query.org, util.inspect(error));
+            return q.reject('Error fetching campaigns');
+        });
+    };
 
     accounting.main = function(state) {
         var log = logger.getLog(),
@@ -206,8 +362,39 @@
                 });
             });
         });
+
+        var authGetBal = authUtils.middlewarify({ allowApps: true, permissions: { orgs: 'read' } });
+        app.get('/api/accounting/balance', state.sessions, authGetBal, audit, function(req, res) {
+            return accounting.getBalance(req).then(function(resp) {
+                expressUtils.sendResponse(res, resp);
+            }).catch(function(error) {
+                expressUtils.sendResponse(res, {
+                    code: 500,
+                    body: {
+                        error: 'Error getting balance',
+                        detail: error
+                    }
+                });
+            });
+        });
         
-        
+        var authGetBudg = authUtils.middlewarify({
+            allowApps: true,
+            permissions: { orgs: 'read', campaigns: 'read' }
+        });
+        app.get('/api/accounting/budget', state.sessions, authGetBudg, audit, function(req, res) {
+            return accounting.getOutstandingBudget(req, state.config).then(function(resp) {
+                expressUtils.sendResponse(res, resp);
+            }).catch(function(error) {
+                expressUtils.sendResponse(res, {
+                    code: 500,
+                    body: {
+                        error: 'Error getting balance',
+                        detail: error
+                    }
+                });
+            });
+        });
         
         app.use(expressUtils.errorHandler());
         
