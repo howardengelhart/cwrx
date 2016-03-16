@@ -9,7 +9,7 @@ var q               = require('q'),
     };
 
 describe('userSvc roles endpoints (E2E):', function() {
-    var cookieJar, mockRequester, roleAdminPol;
+    var cookieJar, mockRequester, roleAdminPol, mockApp, appCreds;
 
     beforeEach(function(done) {
         jasmine.DEFAULT_TIMEOUT_INTERVAL = 10000;
@@ -35,6 +35,18 @@ describe('userSvc roles endpoints (E2E):', function() {
                 roles: { read: 'all', create: 'all', edit: 'all', delete: 'all' }
             }
         };
+
+        mockApp = {
+            id: 'app-e2e-roles',
+            key: 'e2e-roles',
+            status: 'active',
+            secret: 'wowsuchsecretverysecureamaze',
+            permissions: {
+                roles: { read: 'all', create: 'all', edit: 'all', delete: 'all' }
+            }
+        };
+        appCreds = { key: mockApp.key, secret: mockApp.secret };
+
         var loginOpts = {
             url: config.authUrl + '/login',
             jar: cookieJar,
@@ -46,7 +58,8 @@ describe('userSvc roles endpoints (E2E):', function() {
         q.all([
             testUtils.resetCollection('users', mockRequester),
             testUtils.resetCollection('policies', roleAdminPol),
-            testUtils.resetCollection('roles')
+            testUtils.resetCollection('roles'),
+            testUtils.mongoUpsert('applications', { key: mockApp.key }, mockApp)
         ]).then(function(resp) {
             return requestUtils.qRequest('post', loginOpts);
         }).done(function(resp) {
@@ -136,6 +149,27 @@ describe('userSvc roles endpoints (E2E):', function() {
         it('should return a 401 if the user is not authenticated', function(done) {
             var options = { url: config.rolesUrl + '/r-e2e-get1' };
             requestUtils.qRequest('get', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(401);
+                expect(resp.body).toBe('Unauthorized');
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
+
+        it('should allow an app to get a role', function(done) {
+            var options = { url: config.rolesUrl + '/r-e2e-get1' };
+            requestUtils.makeSignedRequest(appCreds, 'get', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.body).toEqual({id: 'r-e2e-get1', name: 'role1', status: 'active'});
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should fail if an app uses the wrong secret to make a request', function(done) {
+            var options = { url: config.rolesUrl + '/r-e2e-get1' };
+            var badCreds = { key: mockApp.key, secret: 'WRONG' };
+            requestUtils.makeSignedRequest(badCreds, 'get', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(401);
                 expect(resp.body).toBe('Unauthorized');
             }).catch(function(error) {
@@ -268,6 +302,20 @@ describe('userSvc roles endpoints (E2E):', function() {
                 expect(resp.response.statusCode).toBe(401);
                 expect(resp.body).toBe('Unauthorized');
                 expect(resp.response.headers['content-range']).not.toBeDefined();
+            }).catch(function(error) {
+                expect(error).not.toBeDefined();
+            }).done(done);
+        });
+
+        it('should allow an app to get all roles', function(done) {
+            delete options.jar;
+            requestUtils.makeSignedRequest(appCreds, 'get', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.body.length).toBe(3);
+                expect(resp.body[0].id).toBe('r-e2e-getQry1');
+                expect(resp.body[1].id).toBe('r-e2e-getQry2');
+                expect(resp.body[2].id).toBe('r-e2e-getQry3');
+                expect(resp.response.headers['content-range']).toBe('items 1-3/3');
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
             }).done(done);
@@ -406,6 +454,25 @@ describe('userSvc roles endpoints (E2E):', function() {
                 expect(resp.body).toBe('Unauthorized');
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
+            }).done(done);
+        });
+
+        it('should allow an app to create a role', function(done) {
+            delete options.jar;
+            requestUtils.makeSignedRequest(appCreds, 'post', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(201);
+                expect(resp.body).toEqual({
+                    id: jasmine.any(String),
+                    status: 'active',
+                    name: 'e2eCreatedRole',
+                    created: jasmine.any(String),
+                    lastUpdated: jasmine.any(String),
+                    createdBy: 'app-e2e-roles',
+                    lastUpdatedBy: 'app-e2e-roles',
+                    policies: ['testPol1', 'testPol2']
+                });
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
     });
@@ -552,6 +619,17 @@ describe('userSvc roles endpoints (E2E):', function() {
                 expect(error).not.toBeDefined();
             }).done(done);
         });
+
+        it('should allow an app to edit a role', function(done) {
+            delete options.jar;
+            requestUtils.makeSignedRequest(appCreds, 'put', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.body.id).toBe('r-e2e-put1');
+                expect(resp.body.policies).toEqual(['testPol3', 'testPol2']);
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
     });
 
     describe('DELETE /api/account/roles/:id', function() {
@@ -651,6 +729,16 @@ describe('userSvc roles endpoints (E2E):', function() {
                 expect(resp.body).toBe('Unauthorized');
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
+            }).done(done);
+        });
+
+        it('should allow an app to delete a role', function(done) {
+            delete options.jar;
+            requestUtils.makeSignedRequest(appCreds, 'delete', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(204);
+                expect(resp.body).toBe('');
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
     });

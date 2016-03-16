@@ -9,7 +9,7 @@ var q               = require('q'),
     };
 
 describe('userSvc policies endpoints (E2E):', function() {
-    var cookieJar, mockRequester, polAdminPol;
+    var cookieJar, mockRequester, polAdminPol, mockApp, appCreds;
 
     beforeEach(function(done) {
         jasmine.DEFAULT_TIMEOUT_INTERVAL = 10000;
@@ -64,6 +64,18 @@ describe('userSvc policies endpoints (E2E):', function() {
                 }
             }
         };
+
+        mockApp = {
+            id: 'app-e2e-pols',
+            key: 'e2e-pols',
+            status: 'active',
+            secret: 'wowsuchsecretverysecureamaze',
+            permissions: {
+                policies: { read: 'all', create: 'all', edit: 'all', delete: 'all' }
+            }
+        };
+        appCreds = { key: mockApp.key, secret: mockApp.secret };
+
         var loginOpts = {
             url: config.authUrl + '/login',
             jar: cookieJar,
@@ -74,7 +86,8 @@ describe('userSvc policies endpoints (E2E):', function() {
         };
         q.all([
             testUtils.resetCollection('users', mockRequester),
-            testUtils.resetCollection('policies', polAdminPol)
+            testUtils.resetCollection('policies', polAdminPol),
+            testUtils.mongoUpsert('applications', { key: mockApp.key }, mockApp)
         ]).then(function(resp) {
             return requestUtils.qRequest('post', loginOpts);
         }).done(function(resp) {
@@ -165,6 +178,27 @@ describe('userSvc policies endpoints (E2E):', function() {
         it('should return a 401 if the user is not authenticated', function(done) {
             var options = { url: config.polsUrl + '/p-e2e-get1' };
             requestUtils.qRequest('get', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(401);
+                expect(resp.body).toBe('Unauthorized');
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
+
+        it('should allow an app to get a policy', function(done) {
+            var options = { url: config.polsUrl + '/p-e2e-get1' };
+            requestUtils.makeSignedRequest(appCreds, 'get', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.body).toEqual({id: 'p-e2e-get1', name: 'pol1', priority: 1, status: 'active'});
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should fail if an app uses the wrong secret to make a request', function(done) {
+            var options = { url: config.polsUrl + '/p-e2e-get1' };
+            var badCreds = { key: mockApp.key, secret: 'WRONG' };
+            requestUtils.makeSignedRequest(badCreds, 'get', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(401);
                 expect(resp.body).toBe('Unauthorized');
             }).catch(function(error) {
@@ -286,6 +320,21 @@ describe('userSvc policies endpoints (E2E):', function() {
                 expect(resp.response.statusCode).toBe(401);
                 expect(resp.body).toBe('Unauthorized');
                 expect(resp.response.headers['content-range']).not.toBeDefined();
+            }).catch(function(error) {
+                expect(error).not.toBeDefined();
+            }).done(done);
+        });
+
+        it('should allow an app to get all policies', function(done) {
+            delete options.jar;
+            requestUtils.makeSignedRequest(appCreds, 'get', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.body.length).toBe(4);
+                expect(resp.body[0].id).toBe('p-e2e-admin');
+                expect(resp.body[1].id).toBe('p-e2e-getQry1');
+                expect(resp.body[2].id).toBe('p-e2e-getQry2');
+                expect(resp.body[3].id).toBe('p-e2e-getQry3');
+                expect(resp.response.headers['content-range']).toBe('items 1-4/4');
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
             }).done(done);
@@ -467,6 +516,25 @@ describe('userSvc policies endpoints (E2E):', function() {
                 expect(resp.body).toBe('Unauthorized');
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
+            }).done(done);
+        });
+
+        it('should allow an app to create a policy', function(done) {
+            delete options.jar;
+            requestUtils.makeSignedRequest(appCreds, 'post', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(201);
+                expect(resp.body).toEqual(jasmine.objectContaining({
+                    id: jasmine.any(String),
+                    name: 'e2eCreatedPol',
+                    status: 'active',
+                    priority: 3,
+                    createdBy: 'app-e2e-pols',
+                    lastUpdatedBy: 'app-e2e-pols',
+                    permissions: {},
+                    fieldValidation: {}
+                }));
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
     });
@@ -662,6 +730,18 @@ describe('userSvc policies endpoints (E2E):', function() {
                 expect(error).not.toBeDefined();
             }).done(done);
         });
+
+        it('should allow an app to edit a policy', function(done) {
+            delete options.jar;
+            requestUtils.makeSignedRequest(appCreds, 'put', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.body.id).toBe('p-e2e-put1');
+                expect(resp.body.priority).toBe(10);
+                expect(resp.body.entitlements).not.toBeDefined();
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
     });
 
     describe('DELETE /api/account/policies/:id', function() {
@@ -771,6 +851,16 @@ describe('userSvc policies endpoints (E2E):', function() {
                 expect(resp.body).toBe('Unauthorized');
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
+            }).done(done);
+        });
+
+        it('should allow an app to delete a policy', function(done) {
+            delete options.jar;
+            requestUtils.makeSignedRequest(appCreds, 'delete', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(204);
+                expect(resp.body).toBe('');
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
     });

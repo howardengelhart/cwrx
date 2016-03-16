@@ -1,5 +1,7 @@
 # Ads Service Changelog
 
+* [FIX]: Stop requiring advertiser names to be unique: [#806](https://github.com/cinema6/cwrx/issues/806)
+
 ### 4.5.2: Tue Mar 15 19:44:01 EDT 2016
 * [FIX]: Fix characters of uuids to be url-safe: [#822](https://github.com/cinema6/cwrx/pull/822)
 * Extra deployment steps:

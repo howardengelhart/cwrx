@@ -649,7 +649,7 @@ describe('userSvc (UT)', function() {
                 });
                 expect(requestUtils.makeSignedRequest).toHaveBeenCalledWith(appCreds, 'post', {
                     url: 'http://localhost/api/account/advertisers',
-                    json: { name: 'some company (u-12345)', org: 'orgs-id-123' }
+                    json: { name: 'some company', org: 'orgs-id-123' }
                 });
 
                 expect(mongoUtils.editObject).not.toHaveBeenCalled();
