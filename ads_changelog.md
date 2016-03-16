@@ -1,5 +1,6 @@
 # Ads Service Changelog
 
+* Update container model to support nested `defaultTagParams`: [#824](https://github.com/cinema6/cwrx/pull/824)
 * [FIX]: Stop requiring advertiser names to be unique: [#806](https://github.com/cinema6/cwrx/issues/806)
 
 ### 4.5.2: Tue Mar 15 19:44:01 EDT 2016

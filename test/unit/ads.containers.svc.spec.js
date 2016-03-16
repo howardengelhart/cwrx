@@ -157,23 +157,6 @@ describe('ads-containers (UT)', function() {
                     .toEqual({ isValid: true, reason: undefined });
                 expect(newObj.defaultTagParams).toEqual({ big: 'yes' });
             });
-            
-            describe('subfield container', function() {
-                it('should trim the field if set', function() {
-                    newObj.defaultTagParams = { foo: 'bar', container: 'UPS flat rate box' };
-                    expect(svc.model.validate('create', newObj, origObj, requester))
-                        .toEqual({ isValid: true, reason: undefined });
-                    expect(newObj.defaultTagParams).toEqual({ foo: 'bar' });
-                });
-
-                it('should not allow any requesters to set the field', function() {
-                    requester.fieldValidation.containers.defaultTagParams.container = { __allowed: true };
-                    newObj.defaultTagParams = { foo: 'bar', container: 'UPS flat rate box' };
-                    expect(svc.model.validate('create', newObj, origObj, requester))
-                        .toEqual({ isValid: true, reason: undefined });
-                    expect(newObj.defaultTagParams).toEqual({ foo: 'bar' });
-                });
-            });
         });
     });
     
@@ -181,11 +164,16 @@ describe('ads-containers (UT)', function() {
         beforeEach(function() {
             req.body = {
                 name: 'heavy duty box',
-                defaultTagParams: { foo: 'bar' }
+                defaultTagParams: {
+                    mraid: { network: 'google' },
+                    vpaid: { network: 'facebook' }
+                }
             };
             req.origObj = {
                 name: 'small box',
-                defaultTagParams: { foo: 'bar', container: 'small box' }
+                defaultTagParams: {
+                    mraid: { network: 'goooooooooooogle', container: 'small box' }
+                }
             };
         });
         
@@ -194,7 +182,10 @@ describe('ads-containers (UT)', function() {
             expect(nextSpy).toHaveBeenCalled();
             expect(req.body).toEqual({
                 name: 'heavy duty box',
-                defaultTagParams: { foo: 'bar', container: 'heavy duty box' }
+                defaultTagParams: {
+                    mraid: { network: 'google', container: 'heavy duty box' },
+                    vpaid: { network: 'facebook', container: 'heavy duty box' },
+                }
             });
         });
         
@@ -203,7 +194,10 @@ describe('ads-containers (UT)', function() {
             conModule.copyName(req, nextSpy, doneSpy);
             expect(nextSpy).toHaveBeenCalled();
             expect(req.body).toEqual({
-                defaultTagParams: { foo: 'bar', container: 'small box' }
+                defaultTagParams: {
+                    mraid: { network: 'google', container: 'small box' },
+                    vpaid: { network: 'facebook', container: 'small box' }
+                }
             });
         });
     });
