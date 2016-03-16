@@ -27,11 +27,6 @@
         var opts = { userProp: false },
             svc = new CrudSvc(coll, 'a', opts, advertModule.advertSchema);
         
-        var validateUniqueName = svc.validateUniqueProp.bind(svc, 'name', null);
-        
-        svc.use('create', validateUniqueName);
-        svc.use('edit', validateUniqueName);
-        
         return svc;
     };
     

@@ -31,7 +31,6 @@ describe('ads-advertisers (UT)', function() {
     describe('setupSvc', function() {
         var svc, mockColl;
         beforeEach(function() {
-            spyOn(CrudSvc.prototype.validateUniqueProp, 'bind').and.returnValue(CrudSvc.prototype.validateUniqueProp);
             mockColl = { collectionName: 'advertisers' };
             svc = advertModule.setupSvc(mockColl);
         });
@@ -46,12 +45,6 @@ describe('ads-advertisers (UT)', function() {
             expect(svc._allowPublic).toBe(false);
             expect(svc.model).toEqual(jasmine.any(Model));
             expect(svc.model.schema).toBe(advertModule.advertSchema);
-        });
-
-        it('should make sure the name is unique on create and edit', function() {
-            expect(svc._middleware.create).toContain(svc.validateUniqueProp);
-            expect(svc._middleware.edit).toContain(svc.validateUniqueProp);
-            expect(CrudSvc.prototype.validateUniqueProp.bind).toHaveBeenCalledWith(svc, 'name', null);
         });
     });
     

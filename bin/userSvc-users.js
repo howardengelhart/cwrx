@@ -254,7 +254,7 @@
                 return postEntity('advertiser', {
                     url: urlUtils.resolve(config.api.root, config.api.advertisers.endpoint),
                     json: {
-                        name: (company ? company : 'newAdvertiser') + ' (' + id + ')',
+                        name: (company ? company : 'newAdvertiser'),
                         org: orgId
                     }
                 });

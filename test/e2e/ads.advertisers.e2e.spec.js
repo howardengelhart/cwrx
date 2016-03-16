@@ -447,20 +447,7 @@ describe('ads advertisers endpoints (E2E):', function() {
                 expect(error).not.toBeDefined();
             }).done(done);
         });
-        
-        it('should return a 400 if the name is not unique', function(done) {
-            requestUtils.qRequest('post', options).then(function(resp) {
-                expect(resp.response.statusCode).toBe(201);
-                expect(resp.body.name).toBe('fake advert');
-                return requestUtils.qRequest('post', options);
-            }).then(function(resp) {
-                expect(resp.response.statusCode).toBe(409);
-                expect(resp.body).toBe('An object with that name already exists');
-            }).catch(function(error) {
-                expect(error).not.toBeDefined();
-            }).done(done);
-        });
-        
+
         it('should trim off forbidden fields', function(done) {
             options.json.id = 'a-fake';
             options.json._id = '_WEORIULSKJF';
@@ -553,16 +540,6 @@ describe('ads advertisers endpoints (E2E):', function() {
                 expect(results[0].version).toEqual(jasmine.any(String));
                 expect(results[0].data).toEqual({route: 'PUT /api/account/advertisers/:id',
                                                  params: { id: 'e2e-a-1' }, query: {} });
-            }).catch(function(error) {
-                expect(error).not.toBeDefined();
-            }).done(done);
-        });
-        
-        it('should not allow changing the name to one already in use', function(done) {
-            options.json.name = 'advert 2';
-            requestUtils.qRequest('put', options).then(function(resp) {
-                expect(resp.response.statusCode).toBe(409);
-                expect(resp.body).toBe('An object with that name already exists');
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
             }).done(done);

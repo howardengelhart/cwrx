@@ -1,6 +1,7 @@
 # User Service Changelog
 
-* [FEATURE]: Support app authentication: [#](https://github.com/cinema6/cwrx/pull/)
+* [FEATURE]: Support app authentication: [#](https://github.com/cinema6/cwrx/pull/) TODO
+* [FIX]: Stop jamming user id into new advertisers on signup: [#806](https://github.com/cinema6/cwrx/issues/806)
 
 ### 3.2.2: Tue Mar 15 19:44:01 EDT 2016
 * [FIX]: Fix characters of uuids to be url-safe: [#822](https://github.com/cinema6/cwrx/pull/822)

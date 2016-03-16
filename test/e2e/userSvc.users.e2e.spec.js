@@ -2033,7 +2033,7 @@ describe('userSvc users (E2E):', function() {
                     if (!advertiser) {
                         expect(advertiser).toBeDefined();
                     } else {
-                        expect(advertiser.name).toBe('e2e-tests-company (u-12345)');
+                        expect(advertiser.name).toBe('e2e-tests-company');
                         expect(advertiser.org).toBe(confirmedUser.org);
                     }
                 })
@@ -2060,7 +2060,7 @@ describe('userSvc users (E2E):', function() {
                             testUtils.mongoFind('advertisers', { org: 'o-existent' }),
                         ]).spread(function(orgResult, advertResult) {
                             expect(orgResult).toEqual([]);
-                            expect(advertResult).toEqual([jasmine.objectContaining({ name: 'e2e-tests-company (u-12345)' })]);
+                            expect(advertResult).toEqual([jasmine.objectContaining({ name: 'e2e-tests-company' })]);
                         }).done(done);
                     });
                     
