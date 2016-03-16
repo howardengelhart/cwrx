@@ -67,42 +67,33 @@ psql -c "${campaign_summary_hourly}"
 psql -c "GRANT SELECT ON TABLE rpt.campaign_summary_hourly TO editor;"
 
 
-psql -c "CREATE SCHEMA dim;"
-psql -c "GRANT USAGE ON SCHEMA dim TO editor;"
+psql -c "CREATE SCHEMA fct;"
+psql -c "GRANT USAGE ON SCHEMA fct TO editor;"
 
 read -r -d '' transactions <<- EOM
-CREATE TABLE dim.transactions
+CREATE TABLE fct.billing_transactions
 (
-    -- rec_key bigserial NOT NULL,
-    id character varying(20) NOT NULL,
-    rec_ts timestamp with time zone NOT NULL,
-    amount numeric(16, 4),
-    units integer,
-    org_id character varying(20) NOT NULL,
-    campaign_id character varying(20),
-    braintree_id character varying(20),
-    promotion_id character varying(20),
-    description text
-    -- CONSTRAINT pkey_transactions PRIMARY KEY (rec_key)
-) WITH ( OIDS=FALSE);
+  rec_key bigserial NOT NULL,
+  rec_ts timestamp with time zone NOT NULL,
+  transaction_id character varying(20) NOT NULL,
+  transaction_ts timestamp with time zone NOT NULL,
+  org_id character varying(20) NOT NULL,
+  amount numeric(16,4),
+  sign smallint,
+  units integer,
+  campaign_id character varying(20),
+  braintree_id character varying(20),
+  promotion_id character varying(20),
+  description text,
+  CONSTRAINT pkey_billing_transactions PRIMARY KEY (rec_key),
+  CONSTRAINT check_sign CHECK (sign = 1 OR sign = (-1))
+)
+WITH (
+  OIDS=FALSE
+);
 EOM
 
 psql -c "${transactions}"
-psql -c "GRANT SELECT, INSERT ON TABLE dim.transactions TO editor;"
-
-# TODO: re-add this...
-#read -r -d '' transactions_rec_key <<- EOM
-#CREATE SEQUENCE dim.transactions_rec_key_seq
-#    START WITH 1
-#    INCREMENT BY 1
-#    NO MINVALUE
-#    NO MAXVALUE
-#    CACHE 1;
-
-#ALTER SEQUENCE transactions_rec_key_seq OWNED BY dim.transactions.rec_key;
-#GRANT ALL ON TABLE transactions_rec_key_seq TO viewer;
-#EOM
-
-#psql -c "${transactions}"
-#psql -c "GRANT SELECT, INSERT ON TABLE dim.transactions TO editor;"
+psql -c "GRANT SELECT, INSERT ON TABLE fct.billing_transactions TO editor;"
+psql -c "GRANT USAGE, SELECT ON fct.billing_transactions_rec_key_seq TO editor;"
 

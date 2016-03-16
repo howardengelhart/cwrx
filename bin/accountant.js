@@ -21,10 +21,10 @@
         Status          = require('../lib/enums').Status,
         
         state = {},
-        accounting = {}; // for exporting functions to unit tests
+        accountant = {}; // for exporting functions to unit tests
 
     state.defaultConfig = {
-        appName: 'accounting', //TODO: or 'accountant'?
+        appName: 'accountant',
         appDir: __dirname,
         pidDir: path.resolve(__dirname, '../pids'),
         api: {
@@ -33,7 +33,7 @@
                 endpoint: '/api/campaigns/'
             }
         },
-        sessions: { //TODO: do we even need user sessions?
+        sessions: {
             key: 'c6Auth',
             maxAge: 30*60*1000,         // 30 minutes; unit here is milliseconds
             minAge: 60*1000,            // TTL for cookies for unauthenticated users
@@ -44,7 +44,7 @@
                 retryConnect : true
             }
         },
-        secretsPath: path.join(process.env.HOME,'.accounting.secrets.json'),
+        secretsPath: path.join(process.env.HOME,'.accountant.secrets.json'),
         rcAppCredsPath: path.join(process.env.HOME,'.rcAppCreds.json'),
         mongo: {
             c6Db: {
@@ -66,11 +66,23 @@
         }
     };
     
-    accounting.transactionSchema = { //TODO: are id, created, or units necessary here?
+    accountant.transactionSchema = {
         amount: {
             __allowed: true,
-            __type: 'number', //TODO: min/max?
-            __required: true
+            __type: 'number',
+            __required: true,
+            __min: 0
+        },
+        sign: {
+            __allowed: false,
+            __type: 'number',
+            __default: 1,
+            __acceptableValues: [ 1, -1 ]
+        },
+        units: {
+            __allowed: false,
+            __type: 'number',
+            __default: 1
         },
         org: {
             __allowed: true,
@@ -96,25 +108,27 @@
     };
     
 
-    accounting.formatTransOutput = function(row) { //TODO: rename?
+    accountant.formatTransOutput = function(row) {
         /* jshint camelcase: false */
         return {
-            id          : row.id,
-            created     : new Date(row.rec_ts),
-            amount      : row.amount,
-            units       : row.units,
-            org         : row.org_id,
-            campaign    : row.campaign_id,
-            braintreeId : row.braintree_id,
-            promotion   : row.promotion_id,
-            description : row.description
+            id              : row.transaction_id,
+            created         : new Date(row.rec_ts),
+            transactionTS   : new Date(row.transaction_ts),
+            amount          : row.amount,
+            sign            : row.sign,
+            units           : row.units,
+            org             : row.org_id,
+            campaign        : row.campaign_id,
+            braintreeId     : row.braintree_id,
+            promotion       : row.promotion_id,
+            description     : row.description
         };
         /* jshint camelcase: true */
     };
 
-    accounting.createTransaction = function(req) {
+    accountant.createTransaction = function(req) {
         var log = logger.getLog(),
-            model = new Model('transactions', accounting.transactionSchema);
+            model = new Model('transactions', accountant.transactionSchema);
         
         var validResp = model.validate('create', req.body, {}, req.requester);
         
@@ -126,7 +140,7 @@
             });
         }
         
-        if (req.body.amount > 0 && !req.body.promotion && !req.body.braintreeId) {
+        if (req.body.sign === 1 && !req.body.promotion && !req.body.braintreeId) {
             log.info('[%1] %2 attempting to create credit not tied to promotion or payment',
                      req.uuid, req.requester.id);
             return q({
@@ -137,7 +151,6 @@
         
         req.body.id = 't-' + uuid.createUuid();
         req.body.created = new Date();
-        req.body.units = 1;
 
         // ensure these id fields are not too long
         //TODO: we sure bout this? or verify these are real?
@@ -149,32 +162,28 @@
         
         // If no provided description, auto-generate based on amount + linked entities
         if (!req.body.description) {
-            var src = (!!req.body.braintreeId ? ('payment ' + req.body.braintreeId) : null) ||
-                      (!!req.body.promotion ? ('promotion ' + req.body.promotion) : null) ||
-                      (!!req.body.campaign ? ('campaign ' + req.body.campaign) : null) ||
-                      'unknown source';
+            var src = (!!req.body.braintreeId && 'braintree') ||
+                      (!!req.body.promotion && 'promotion');
 
-            req.body.description = util.format(
-                'Account %s for %s from %s',
-                (amount > 0) ? 'credit' : 'debit',
-                req.body.org,
-                src
-            );
+            req.body.description = JSON.stringify({ eventType: 'credit', source: src });
         }
         
         var statement = [
-            'INSERT INTO dim.transactions ',
-            '    (id,rec_ts,amount,units,org_id,campaign_id,braintree_id,promotion_id,description)',
-            'VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9)',
+            'INSERT INTO fct.billing_transactions ',
+            '    (rec_ts,transaction_id,transaction_ts,org_id,amount,sign,units,campaign_id,',
+            '     braintree_id,promotion_id,description)',
+            'VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)',
             'RETURNING *'
         ];
         
         var values = [
+            req.body.created.toISOString(),
             req.body.id,
             req.body.created.toISOString(),
-            req.body.amount,
-            req.body.units,
             req.body.org,
+            req.body.amount,
+            req.body.sign,
+            req.body.units,
             req.body.campaign,
             req.body.braintreeId,
             req.body.promotion,
@@ -183,7 +192,7 @@
         
         return pgUtils.query(statement.join('\n'), values)
         .then(function(result) {
-            var formatted = accounting.formatTransOutput(result.rows[0]);
+            var formatted = accountant.formatTransOutput(result.rows[0]);
             log.info('[%1] Created transaction %2', req.uuid, formatted.id);
             
             //TODO: remember to add watchman publishing
@@ -196,7 +205,7 @@
      * TODO: can probably have one endpoint that gets balance + oustandingBudget + calls both these
      * functions, but I would double check how endpoint(s) would be used first
      */
-    accounting.getBalance = function(req) {
+    accountant.getBalance = function(req) {
         var log = logger.getLog();
         
         req.query.org = req.query.org || (req.user && req.user.org);
@@ -207,7 +216,7 @@
         //TODO: should probably attempt to fetch org from orgSvc for permissions?
         
         var statement = [
-            'SELECT sum(amount) as balance from dim.transactions',
+            'SELECT sum(amount * sign) as balance from fct.billing_transactions',
             'where org_id = $1'
         ];
         var values = [ req.query.org ];
@@ -223,7 +232,7 @@
     };
     
     //TODO: break up this big ass function? use middleware somehow?
-    accounting.getOutstandingBudget = function(req, config) {
+    accountant.getOutstandingBudget = function(req, config) {
         var log = logger.getLog();
         
         req.query.org = req.query.org || (req.user && req.user.org);
@@ -278,10 +287,10 @@
             }
             
             var statement = [
-                'SELECT sum(amount) as spend from dim.transactions',
+                'SELECT sum(amount * sign) as spend from fct.billing_transactions',
                 'where org_id = $1',
                 'and campaign_id = ANY($2::text[])',
-                'and amount < 0'
+                'and sign = -1'
             ];
             var values = [ req.query.org, campIds ];
             
@@ -307,7 +316,7 @@
         });
     };
 
-    accounting.main = function(state) {
+    accountant.main = function(state) {
         var log = logger.getLog(),
             started = new Date();
         if (state.clusterMaster){
@@ -350,7 +359,7 @@
         //TODO: hahaha these perms are def not right, come back to this
         var authPostTrans = authUtils.middlewarify({ allowApps: true });
         app.post('/api/transaction', state.sessions, authPostTrans, audit, function(req, res) {
-            return accounting.createTransaction(req).then(function(resp) {
+            return accountant.createTransaction(req).then(function(resp) {
                 expressUtils.sendResponse(res, resp);
             }).catch(function(error) {
                 expressUtils.sendResponse(res, {
@@ -365,7 +374,7 @@
 
         var authGetBal = authUtils.middlewarify({ allowApps: true, permissions: { orgs: 'read' } });
         app.get('/api/accounting/balance', state.sessions, authGetBal, audit, function(req, res) {
-            return accounting.getBalance(req).then(function(resp) {
+            return accountant.getBalance(req).then(function(resp) {
                 expressUtils.sendResponse(res, resp);
             }).catch(function(error) {
                 expressUtils.sendResponse(res, {
@@ -383,7 +392,7 @@
             permissions: { orgs: 'read', campaigns: 'read' }
         });
         app.get('/api/accounting/budget', state.sessions, authGetBudg, audit, function(req, res) {
-            return accounting.getOutstandingBudget(req, state.config).then(function(resp) {
+            return accountant.getOutstandingBudget(req, state.config).then(function(resp) {
                 expressUtils.sendResponse(res, resp);
             }).catch(function(error) {
                 expressUtils.sendResponse(res, {
@@ -414,7 +423,7 @@
         .then(service.initMongo)
         .then(service.initSessions)
         .then(service.initPostgres)
-        .then(accounting.main)
+        .then(accountant.main)
         .catch(function(err) {
             var log = logger.getLog();
             console.log(err.stack || err);
@@ -428,6 +437,6 @@
             log.info('ready to serve');
         });
     } else {
-        module.exports = accounting;
+        module.exports = accountant;
     }
 }());
