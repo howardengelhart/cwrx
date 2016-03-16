@@ -1,5 +1,10 @@
 # Ads Service Changelog
 
+### 4.5.2: Tue Mar 15 19:44:01 EDT 2016
+* [FIX]: Fix characters of uuids to be url-safe: [#822](https://github.com/cinema6/cwrx/pull/822)
+* Extra deployment steps:
+    * Search through existing ids and convert '~' to '-' and '!' to '_'
+
 ### 4.5.1: Mon Mar 14 11:43:43 EDT 2016
 * [FIX]: Decorate campaigns with cards by fetching from db: [#818](https://github.com/cinema6/cwrx/issues/818)
 * [FIX]: Compress job results written to memcached: [#819](https://github.com/cinema6/cwrx/issues/819)

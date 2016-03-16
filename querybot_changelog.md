@@ -1,5 +1,10 @@
 # QueryBot Service Changelog
 
+### 1.3.3: Tue Mar 15 19:44:01 EDT 2016
+* [FIX]: Fix characters of uuids to be url-safe: [#822](https://github.com/cinema6/cwrx/pull/822)
+* Extra deployment steps:
+    * Search through existing ids and convert '~' to '-' and '!' to '_'
+
 ### 1.3.2: Thu Mar 10 11:11:28 EST 2016
 * Changed ref to rpt.campaign_summary_hourly_all to rpt.campaign_summary_hourly: [#744](https://github.com/cinema6/cwrx/issues/744)
 

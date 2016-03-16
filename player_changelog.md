@@ -1,6 +1,10 @@
 # Player Service Changelog
 
+### 2.7.3: Tue Mar 15 19:44:01 EDT 2016
+* [FIX]: Fix characters of uuids to be url-safe: [#822](https://github.com/cinema6/cwrx/pull/822)
 * [FIX]: Log signal + exit code when worker dies unexpectedly: [#821](https://github.com/cinema6/cwrx/pull/821)
+* Extra deployment steps:
+    * Search through existing ids and convert '~' to '-' and '!' to '_'
 
 ### 2.7.2: Thu Mar  3 15:45:20 EST 2016
 * Increase speed of initial player responses by pre-caching some common
