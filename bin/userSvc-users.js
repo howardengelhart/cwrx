@@ -772,7 +772,7 @@
 
         router.use(jobManager.setJobTimeout.bind(jobManager));
         
-        var authMidware = authUtils.crudMidware('users', {});
+        var authMidware = authUtils.crudMidware('users', { allowApps: true });
         
         var credsChecker = authUtils.userPassChecker();
         router.post('/email', credsChecker, audit, function(req, res) {

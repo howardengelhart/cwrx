@@ -12,7 +12,7 @@ var q               = require('q'),
     };
 
 describe('userSvc users (E2E):', function() {
-    var cookieJar, adminJar, mockRequester, mockAdmin, mockServiceUser, testPolicies, mailman, mailman2, urlRegex;
+    var cookieJar, adminJar, mockRequester, mockAdmin, mockServiceUser, testPolicies, mailman, mailman2, urlRegex, mockApp, appCreds;
 
     beforeEach(function(done) {
         jasmine.DEFAULT_TIMEOUT_INTERVAL = 30000;
@@ -94,6 +94,18 @@ describe('userSvc users (E2E):', function() {
                 }
             }
         ];
+
+        mockApp = {
+            id: 'app-e2e-users',
+            key: 'e2e-users',
+            status: 'active',
+            secret: 'wowsuchsecretverysecureamaze',
+            permissions: {
+                users: { read: 'all', create: 'all', edit: 'all', delete: 'all' }
+            }
+        };
+        appCreds = { key: mockApp.key, secret: mockApp.secret };
+
         var loginOpts = {
             url: config.authUrl + '/login',
             jar: cookieJar,
@@ -112,7 +124,8 @@ describe('userSvc users (E2E):', function() {
         };
         q.all([
             testUtils.resetCollection('users', [mockRequester, mockAdmin]),
-            testUtils.resetCollection('policies', testPolicies)
+            testUtils.resetCollection('policies', testPolicies),
+            testUtils.mongoUpsert('applications', { key: mockApp.key }, mockApp)
         ]).then(function(resp) {
             return q.all([
                 requestUtils.qRequest('post', loginOpts),
@@ -293,6 +306,29 @@ describe('userSvc users (E2E):', function() {
         it('should return a 401 error if the user is not authenticated', function(done) {
             delete options.jar;
             requestUtils.qRequest('get', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(401);
+                expect(resp.body).toBe('Unauthorized');
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
+
+        it('should allow an app to get a user', function(done) {
+            delete options.jar;
+            requestUtils.makeSignedRequest(appCreds, 'get', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.body).toEqual({
+                    id: 'u-e2e-get1', status: 'active', org: 'o-1234', email: 'user1'
+                });
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should fail if an app uses the wrong secret to make a request', function(done) {
+            delete options.jar;
+            var badCreds = { key: mockApp.key, secret: 'WRONG' };
+            requestUtils.makeSignedRequest(badCreds, 'get', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(401);
                 expect(resp.body).toBe('Unauthorized');
             }).catch(function(error) {
@@ -503,6 +539,29 @@ describe('userSvc users (E2E):', function() {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
+
+        it('should allow an app to get all users', function(done) {
+            delete options.jar;
+            requestUtils.makeSignedRequest(appCreds, 'get', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.body.length).toBe(6);
+                expect(resp.body[0].id).toBe('e2e-admin-user');
+                expect(resp.body[0].password).not.toBeDefined();
+                expect(resp.body[1].id).toBe('e2e-user');
+                expect(resp.body[1].password).not.toBeDefined();
+                expect(resp.body[2].id).toBe('u-e2e-get1');
+                expect(resp.body[2].password).not.toBeDefined();
+                expect(resp.body[3].id).toBe('u-e2e-get2');
+                expect(resp.body[3].password).not.toBeDefined();
+                expect(resp.body[4].id).toBe('u-e2e-get3');
+                expect(resp.body[4].password).not.toBeDefined();
+                expect(resp.body[5].id).toBe('u-e2e-get4');
+                expect(resp.body[5].password).not.toBeDefined();
+                expect(resp.response.headers['content-range']).toBe('items 1-6/6');
+            }).catch(function(error) {
+                expect(error).not.toBeDefined();
+            }).done(done);
+        });
     });
 
     describe('POST /api/account/users', function() {
@@ -711,6 +770,23 @@ describe('userSvc users (E2E):', function() {
             requestUtils.qRequest('post', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(401);
                 expect(resp.body).toBe('Unauthorized');
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
+
+        it('should allow an app to create a user', function(done) {
+            delete options.jar;
+            requestUtils.makeSignedRequest(appCreds, 'post', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(201);
+                expect(resp.body).toEqual(jasmine.objectContaining({
+                    id: jasmine.any(String),
+                    email: 'testpostuser',
+                    status: 'active',
+                    config: {},
+                    roles: [],
+                    policies: []
+                }));
             }).catch(function(error) {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
@@ -975,6 +1051,18 @@ describe('userSvc users (E2E):', function() {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
+
+        it('should allow an app to edit a policy', function(done) {
+            delete options.jar;
+            options.json = { tag: 'foo' };
+            requestUtils.makeSignedRequest(appCreds, 'put', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.body.id).toBe('u-e2e-put1');
+                expect(resp.body.tag).toBe('foo');
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
     });
 
     describe('DELETE /api/account/users/:id', function() {
@@ -1084,6 +1172,16 @@ describe('userSvc users (E2E):', function() {
             requestUtils.qRequest('delete', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(401);
                 expect(resp.body).toBe('Unauthorized');
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
+
+        it('should allow an app to delete a policy', function(done) {
+            var options = { url: config.usersUrl + '/u-e2e-del1' };
+            requestUtils.makeSignedRequest(appCreds, 'delete', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(204);
+                expect(resp.body).toBe('');
             }).catch(function(error) {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
