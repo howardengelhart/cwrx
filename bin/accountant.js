@@ -19,6 +19,7 @@
         expressUtils    = require('../lib/expressUtils'),
         requestUtils    = require('../lib/requestUtils'),
         Status          = require('../lib/enums').Status,
+        Scope           = require('../lib/enums').Scope,
         
         state = {},
         accountant = {}; // for exporting functions to unit tests
@@ -31,6 +32,9 @@
             root: 'http://localhost',   // for proxying requests
             campaigns: {
                 endpoint: '/api/campaigns/'
+            },
+            orgs: {
+                endpoint: '/api/account/orgs/'
             }
         },
         sessions: {
@@ -58,7 +62,7 @@
                 retryConnect : true
             }
         },
-        pg: { //TODO: understand + modify these values
+        pg: {
             defaults: {
                 poolSize        : 20,
                 poolIdleTimeout : 900000
@@ -67,6 +71,11 @@
     };
     
     accountant.transactionSchema = {
+        org: {
+            __allowed: true,
+            __type: 'string',
+            __required: true
+        },
         amount: {
             __allowed: true,
             __type: 'number',
@@ -76,18 +85,15 @@
         sign: {
             __allowed: false,
             __type: 'number',
+            __required: true,
             __default: 1,
             __acceptableValues: [ 1, -1 ]
         },
         units: {
             __allowed: false,
             __type: 'number',
+            __required: true,
             __default: 1
-        },
-        org: {
-            __allowed: true,
-            __type: 'string',
-            __required: true
         },
         braintreeId: {
             __allowed: true,
@@ -153,7 +159,7 @@
         req.body.created = new Date();
 
         // ensure these id fields are not too long
-        //TODO: we sure bout this? or verify these are real?
+        //TODO: extra validation? should we even be truncating?
         ['org', 'campaign', 'braintreeId', 'promotion'].forEach(function(field) {
             if (typeof req.body[field] === 'string') {
                 req.body[field] = req.body[field].substr(0, 20);
@@ -165,7 +171,10 @@
             var src = (!!req.body.braintreeId && 'braintree') ||
                       (!!req.body.promotion && 'promotion');
 
-            req.body.description = JSON.stringify({ eventType: 'credit', source: src });
+            req.body.description = JSON.stringify({
+                eventType: req.body.sign === 1 ? 'credit' : -1 ,
+                source: src
+            });
         }
         
         var statement = [
@@ -195,43 +204,72 @@
             var formatted = accountant.formatTransOutput(result.rows[0]);
             log.info('[%1] Created transaction %2', req.uuid, formatted.id);
             
-            //TODO: remember to add watchman publishing
+            //TODO: add watchman publishing
             
-            return q({ code: 200, body: formatted });
+            return q({ code: 201, body: formatted });
         });
     };
 
-    /*
-     * TODO: can probably have one endpoint that gets balance + oustandingBudget + calls both these
-     * functions, but I would double check how endpoint(s) would be used first
-     */
-    accountant.getBalance = function(req) {
-        var log = logger.getLog();
+    accountant.getAccountBalance = function(req, config) {
+        var log = logger.getLog(),
+            promise;
         
         req.query.org = req.query.org || (req.user && req.user.org);
         if (!req.query.org || typeof req.query.org !== 'string') {
             return q({ code: 400, body: 'Must provide an org id' });
         }
         
-        //TODO: should probably attempt to fetch org from orgSvc for permissions?
-        
-        var statement = [
-            'SELECT sum(amount * sign) as balance from fct.billing_transactions',
-            'where org_id = $1'
-        ];
-        var values = [ req.query.org ];
-        
-        return pgUtils.query(statement.join('\n'), values)
-        .then(function(result) {
-            log.info('[%1] Successfuly got balance for %2', req.uuid, req.query.org);
-            return q({
-                code: 200,
-                body: { balance: parseFloat(result.rows[0].balance) }
+        // Check that requester can read their org, for permissions purposes
+        if (req.requester.permissions.orgs.read !== Scope.All) {
+            var url = urlUtils.resolve(
+                urlUtils.resolve(config.api.root, config.api.orgs.endpoint),
+                req.query.org
+            );
+            promise = requestUtils.proxyRequest(req, 'get', {
+                url: url,
+                qs: { fields: 'id' }
             });
+        } else { // unless requester can read all orgs
+            promise = q();
+        }
+            
+        return promise.then(function(resp) {
+            if (resp && resp.response.statusCode !== 200) {
+                log.info(
+                    '[%1] Requester %2 could not fetch org %3: %4, %5',
+                    req.uuid,
+                    req.requester.id,
+                    req.query.org,
+                    resp.response.statusCode,
+                    resp.body
+                );
+                return q({
+                    code: 400,
+                    body: 'Cannot fetch balance for this org'
+                });
+            }
+
+            var statement = [
+                'SELECT sum(amount * sign) as balance from fct.billing_transactions',
+                'where org_id = $1'
+            ];
+            var values = [ req.query.org ];
+        
+            return pgUtils.query(statement.join('\n'), values)
+            .then(function(result) {
+                log.info('[%1] Successfuly got balance for %2', req.uuid, req.query.org);
+                return q({
+                    code: 200,
+                    body: parseFloat(result.rows[0].balance)
+                });
+            });
+        }, function(error) {
+            log.error('[%1] Failed fetching org %2: %3',
+                      req.uuid, req.query.org, util.inspect(error));
+            return q.reject('Error fetching org');
         });
     };
     
-    //TODO: break up this big ass function? use middleware somehow?
     accountant.getOutstandingBudget = function(req, config) {
         var log = logger.getLog();
         
@@ -242,7 +280,6 @@
         
         var statuses = [Status.Active, Status.Paused]; //TODO: reconsider? include Status.Error?
         
-        // TODO: rely on user being able to fetch org's campaigns? or authenticate as an app here?
         return requestUtils.proxyRequest(req, 'get', {
             url: urlUtils.resolve(config.api.root, config.api.campaigns.endpoint),
             qs: {
@@ -280,9 +317,7 @@
             if (totalBudget === 0) {
                 return q({
                     code: 200,
-                    body: {
-                        outstandingBudget: 0
-                    }
+                    body: 0
                 });
             }
             
@@ -304,9 +339,7 @@
                 
                 return q({
                     code: 200,
-                    body: {
-                        outstandingBudget: outstandingBudget
-                    }
+                    body: outstandingBudget
                 });
             });
         }, function(error) {
@@ -315,17 +348,40 @@
             return q.reject('Error fetching campaigns');
         });
     };
+    
+    accountant.getBalanceStats = function(req, config) {
+        //TODO: still unsure about structure of this...
+        return q.all([
+            accountant.getAccountBalance(req, config),
+            accountant.getOutstandingBudget(req, config)
+        ])
+        .spread(function(balanceResp, budgetResp) {
+            if (balanceResp.code !== 200) {
+                return q(balanceResp);
+            } else if (budgetResp.code !== 200) {
+                return q(budgetResp);
+            }
+            
+            return q({
+                code: 200,
+                body: {
+                    balance: balanceResp.body,
+                    outstandingBudget: budgetResp.body,
+                }
+            });
+        });
+    };
 
     accountant.main = function(state) {
         var log = logger.getLog(),
             started = new Date();
-        if (state.clusterMaster){
+        if (state.clusterMaster) {
             log.info('Cluster master, not a worker');
             return state;
         }
         log.info('Running as cluster worker, proceed with setting up web server.');
 
-        var app     = express(),
+        var app = express(),
             auditJournal = new journal.AuditJournal(
                 state.dbs.c6Journal.collection('audit'),
                 state.config.appVersion,
@@ -355,10 +411,12 @@
 
         app.use(bodyParser.json());
 
-        
-        //TODO: hahaha these perms are def not right, come back to this
-        var authPostTrans = authUtils.middlewarify({ allowApps: true });
-        app.post('/api/transaction', state.sessions, authPostTrans, audit, function(req, res) {
+        //TODO: do we need further restrictions on this endpoint? maybe remove sessions midware?
+        var authPostTrans = authUtils.middlewarify({
+            allowApps: true,
+            permissions: { transactions: 'create' }
+        });
+        app.post('/api/transactions?', state.sessions, authPostTrans, audit, function(req, res) {
             return accountant.createTransaction(req).then(function(resp) {
                 expressUtils.sendResponse(res, resp);
             }).catch(function(error) {
@@ -372,33 +430,18 @@
             });
         });
 
-        var authGetBal = authUtils.middlewarify({ allowApps: true, permissions: { orgs: 'read' } });
-        app.get('/api/accounting/balance', state.sessions, authGetBal, audit, function(req, res) {
-            return accountant.getBalance(req).then(function(resp) {
-                expressUtils.sendResponse(res, resp);
-            }).catch(function(error) {
-                expressUtils.sendResponse(res, {
-                    code: 500,
-                    body: {
-                        error: 'Error getting balance',
-                        detail: error
-                    }
-                });
-            });
-        });
-        
-        var authGetBudg = authUtils.middlewarify({
+        var authGetBal = authUtils.middlewarify({
             allowApps: true,
             permissions: { orgs: 'read', campaigns: 'read' }
         });
-        app.get('/api/accounting/budget', state.sessions, authGetBudg, audit, function(req, res) {
-            return accountant.getOutstandingBudget(req, state.config).then(function(resp) {
+        app.get('/api/accounting/balance', state.sessions, authGetBal, audit, function(req, res) {
+            return accountant.getBalanceStats(req, state.config).then(function(resp) {
                 expressUtils.sendResponse(res, resp);
             }).catch(function(error) {
                 expressUtils.sendResponse(res, {
                     code: 500,
                     body: {
-                        error: 'Error getting balance',
+                        error: 'Error retrieving balance',
                         detail: error
                     }
                 });
