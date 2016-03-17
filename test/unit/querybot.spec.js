@@ -1,7 +1,7 @@
 var flush = true;
 describe('querybot (UT)', function() {
-    var mockLog, logger, q, pg, nextSpy, doneSpy, errorSpy, req, mockState, dbpass,
-        mockLookup, mockDefer, mockClient, mockDone, mockPromise, mockCache, requestUtils;
+    var mockLog, logger, q, pg, nextSpy, doneSpy, errorSpy, req, lib,
+        mockPromise, mockDefer, mockCache, requestUtils, pgUtils;
 
     beforeEach(function() {
         if (flush) { for (var m in require.cache){ delete require.cache[m]; } flush = false; }
@@ -9,19 +9,8 @@ describe('querybot (UT)', function() {
         pg              = require('pg.js');
         lib             = require('../../bin/querybot');
         logger          = require('../../lib/logger');
-        dbpass          = require('../../lib/dbpass');
+        pgUtils         = require('../../lib/pgUtils');
         requestUtils    = require('../../lib/requestUtils');
-
-
-        mockClient = {
-            query : jasmine.createSpy('client.query')
-        };
-
-        mockDone = jasmine.createSpy('pg.connect.done');
-
-        spyOn(pg,'connect').and.callFake(function(cb){
-            cb(null,mockClient,mockDone);   
-        });
 
         mockDefer = {
             promise : {},
@@ -48,25 +37,15 @@ describe('querybot (UT)', function() {
             log   : jasmine.createSpy('log_log')
         };
 
-        mockLookup = jasmine.createSpy('dbpass.lookup');
 
         spyOn(logger, 'createLog').and.returnValue(mockLog);
         spyOn(logger, 'getLog').and.returnValue(mockLog);
-        spyOn(dbpass, 'open').and.returnValue(mockLookup);
 
         req = { uuid: '1234' };
         
         nextSpy = jasmine.createSpy('next');
         doneSpy = jasmine.createSpy('done');
         errorSpy = jasmine.createSpy('caught error');
-
-        mockState = {
-            config : {
-                pg : {
-                    defaults : {}
-                }
-            }
-        }
 
         mockCache = {
             set : jasmine.createSpy('cache.set'),
@@ -110,71 +89,6 @@ describe('querybot (UT)', function() {
 
     });
 
-    describe('pgInit',function(){
-        beforeEach(function(){
-            mockState.config.pg.defaults = {
-                poolSize    : 21,
-                poolIdleTimeout : 4440,
-                reapIntervalMillis : 1200,
-                user        : 'myUser',
-                database    : 'mydb',
-                host        : 'myhost',
-                port        : 6666
-            };
-        });
-
-        it('throws an exception if missing defaults database setting',function(){
-            delete mockState.config.pg.defaults.database;
-            expect(function(){
-                lib.pgInit(mockState);
-            }).toThrow(new Error('Missing configuration: pg.defaults.database'));
-
-        });
-
-        it('throws an exception if missing defaults user setting',function(){
-            delete mockState.config.pg.defaults.user;
-            expect(function(){
-                lib.pgInit(mockState);
-            }).toThrow(new Error('Missing configuration: pg.defaults.user'));
-
-        });
-
-        it('throws an exception if missing defaults host setting',function(){
-            delete mockState.config.pg.defaults.host;
-            expect(function(){
-                lib.pgInit(mockState);
-            }).toThrow(new Error('Missing configuration: pg.defaults.host'));
-
-        });
-
-        it('sets the defauts on the pg object based on config defaults',function(){
-            lib.pgInit(mockState);
-            expect(pg.defaults.poolSize).toEqual(21);
-            expect(pg.defaults.poolIdleTimeout).toEqual(4440);
-            expect(pg.defaults.reapIntervalMillis).toEqual(1200);
-            expect(pg.defaults.database).toEqual('mydb');
-            expect(pg.defaults.user).toEqual('myUser');
-            expect(pg.defaults.host).toEqual('myhost');
-            expect(pg.defaults.port).toEqual(6666);
-        });
-
-        it('ignores settings that are not supported',function(){
-            mockState.config.pg.defaults.swimmingPoolSize = 100;
-            lib.pgInit(mockState);
-            expect(pg.defaults.poolSize).toEqual(21);
-            expect(pg.defaults.swimmingPoolSize).not.toBeDefined();
-        });
-
-        it('sets the default password based on other defaults and pgpass',function(){
-            mockLookup.and.returnValue('password');
-            lib.pgInit(mockState);
-            expect(dbpass.open).toHaveBeenCalled();
-            expect(mockLookup).toHaveBeenCalledWith('myhost',6666,'mydb','myUser');            
-            expect(pg.defaults.password).toEqual('password');
-        });
-
-    });
-
     describe('queryParamsFromRequest',function(){
         var req, mockResponse, result, queryOpts, setResult ;
         beforeEach(function(){
@@ -187,7 +101,7 @@ describe('querybot (UT)', function() {
             };
 
             lib._state.config.api = {
-                root : campaignHost = 'https://local'
+                root : 'https://local'
             };
 
             mockResponse = {
@@ -198,7 +112,7 @@ describe('querybot (UT)', function() {
                 body : {}
             };
 
-            setResult = function(r) { result = r; return result; }
+            setResult = function(r) { result = r; return result; };
 
             result = null;
 
@@ -453,42 +367,6 @@ describe('querybot (UT)', function() {
         it('return clause with range if there are is startDate and endDate',function(){
             expect(lib.datesToDateClause('2016-01-01','2016-01-03','rec_ts'))
                 .toEqual('rec_ts >= \'2016-01-01\' AND rec_ts < (date \'2016-01-03\' + interval \'1 day\')');
-        });
-    });
-
-    describe('pgQuery',function(){
-        it('will reject if the connect rejects',function(){
-            var err = new Error('Failed to Connect!');
-            pg.connect.and.callFake(function(cb){
-                cb(err,mockClient,mockDone);   
-            });
-            lib.pgQuery('abc','param1');
-            expect(mockDefer.reject).toHaveBeenCalledWith(new Error('Internal Error'));
-            expect(mockLog.error).toHaveBeenCalledWith('pg.connect error: %1', err.message);
-            expect(mockClient.query).not.toHaveBeenCalled();
-        });
-
-        it('will reject if the client query errs',function(){
-            var err = new Error('Failed to Query!');
-            mockClient.query.and.callFake(function(statement,args,cb){
-                cb(err,null); 
-            });
-            lib.pgQuery('abc','param1');
-            expect(mockClient.query).toHaveBeenCalled();
-            expect(mockLog.error).toHaveBeenCalledWith(
-                'pg.client.query error: %1, %2, %3', err.message, 'abc', 'param1'
-            );
-            expect(mockDefer.reject).toHaveBeenCalledWith(new Error('Internal Error'));
-        });
-
-        it('will return results if query does not error',function(){
-            var results = { rows : [] };
-            mockClient.query.and.callFake(function(statement,args,cb){
-                cb(null,results); 
-            });
-            lib.pgQuery(req);
-            expect(mockClient.query).toHaveBeenCalled();
-            expect(mockDefer.resolve).toHaveBeenCalledWith(results);
         });
     });
 
@@ -889,12 +767,12 @@ describe('querybot (UT)', function() {
             req = { 
                 campaignIds : ['id1','id2']
             };
-            spyOn(lib,'pgQuery').and.returnValue(mockPromise);
+            spyOn(pgUtils,'query').and.returnValue(mockPromise);
         });
 
         it('will pass campaignIds as parameters',function(){
             lib.queryCampaignSummary(['abc','def']);
-            expect(lib.pgQuery.calls.mostRecent().args[1]).toEqual([
+            expect(pgUtils.query.calls.mostRecent().args[1]).toEqual([
                 ['abc','def'],
                 ['launch','load','play','impression']
             ]);
@@ -902,9 +780,9 @@ describe('querybot (UT)', function() {
     });
 
     describe('getCampaignSummaryAnalytics',function(){
-        var req, fakeCacheData, fakeQueryData ;
+        var req, fakeCacheData, fakeQueryData;
         beforeEach(function(){
-            req = {},
+            req = {};
             fakeCacheData = {
                 'abc' : { campaignId : 'abc', summary : {} },
                 'def' : { campaignId : 'def', summary : {} },
