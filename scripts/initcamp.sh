@@ -82,7 +82,7 @@ CREATE TABLE fct.billing_transactions
   sign smallint,
   units integer,
   campaign_id character varying(20),
-  braintree_id character varying(20),
+  braintree_id character varying(36),
   promotion_id character varying(20),
   description text,
   CONSTRAINT pkey_billing_transactions PRIMARY KEY (rec_key),
