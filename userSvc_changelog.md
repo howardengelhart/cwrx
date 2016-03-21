@@ -1,5 +1,9 @@
 # User Service Changelog
 
+* Add flag to toggle email notifications: [#825](https://github.com/cinema6/cwrx/pull/825)
+* Extra deployment steps:
+    * Deploy userSvc cookbook with email option
+
 ### 3.3.0: Wed Mar 16 16:07:41 EDT 2016
 * [FEATURE]: Support app authentication: [#823](https://github.com/cinema6/cwrx/pull/823)
 * [FIX]: Stop jamming user id into new advertisers on signup: [#806](https://github.com/cinema6/cwrx/issues/806)

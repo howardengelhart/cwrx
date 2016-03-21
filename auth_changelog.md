@@ -1,5 +1,9 @@
 # Auth Service Changelog
 
+* Add flag to toggle email notifications: [#825](https://github.com/cinema6/cwrx/pull/825)
+* Extra deployment steps:
+    * Deploy auth cookbook with email option
+
 ### 1.6.1: Tue Mar 15 19:44:01 EDT 2016
 * [FIX]: Fix characters of uuids to be url-safe: [#822](https://github.com/cinema6/cwrx/pull/822)
 * Extra deployment steps:
