@@ -26,6 +26,12 @@
         caches : {
             run     : path.normalize('/usr/local/share/cwrx/orgSvc/caches/run/'),
         },
+        api: {
+            root: 'http://localhost',   // for proxying requests
+            transactions: {
+                endpoint: '/api/transactions/'
+            }
+        },
         sessions: {
             key: 'c6Auth',
             maxAge: 30*60*1000,         // 30 minutes; unit here is milliseconds
@@ -93,7 +99,7 @@
                                                     state.config.appVersion, state.config.appName);
         authUtils._db = state.dbs.c6Db;
         
-        payModule.extendSvc(orgSvc, gateway);
+        payModule.extendSvc(orgSvc, gateway, state.config);
 
         app.set('trust proxy', 1);
         app.set('json spaces', 2);
@@ -123,7 +129,8 @@
 
         app.use(bodyParser.json());
 
-        payModule.setupEndpoints(app, orgSvc, gateway, state.sessions, audit, jobManager);
+        payModule.setupEndpoints(app, orgSvc, gateway, state.rcAppCreds, state.sessions,
+                                 audit, jobManager);
         orgModule.setupEndpoints(app, orgSvc, state.sessions, audit, jobManager);
         refModule.setupEndpoints(app, refSvc, state.sessions, audit, jobManager);
 
