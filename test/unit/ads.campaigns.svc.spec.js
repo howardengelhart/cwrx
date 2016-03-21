@@ -76,7 +76,7 @@ describe('ads-campaigns (UT)', function() {
     });
     
     describe('setupSvc', function() {
-        var svc, boundFns, statHistMidware, priceHistMidware;
+        var config, svc, boundFns, statHistMidware, priceHistMidware;
 
         function getBoundFn(original, argParams) {
             var boundObj = boundFns.filter(function(call) {
@@ -87,11 +87,12 @@ describe('ads-campaigns (UT)', function() {
         }
 
         beforeEach(function() {
-            var config = {
+            config = {
                 emails: {
                     sender: 'email.sender',
                     manageLink: 'manage.this/:campId/manage',
-                    dashboardLink: 'dash.board'
+                    dashboardLink: 'dash.board',
+                    enabled: true
                 },
                 api: {
                     root: 'https://foo.com',
@@ -155,7 +156,8 @@ describe('ads-campaigns (UT)', function() {
             expect(campModule.config.emails).toEqual({
                 sender: 'email.sender',
                 manageLink: 'manage.this/:campId/manage',
-                dashboardLink: 'dash.board'
+                dashboardLink: 'dash.board',
+                enabled: true
             });
         });
         
@@ -217,8 +219,11 @@ describe('ads-campaigns (UT)', function() {
             expect(svc._middleware.edit).toContain(campModule.updateCards);
         });
         
-        it('should potentially notify the owner when the campaign ends', function() {
+        it('should conditionally notify the owner when the campaign ends', function() {
             expect(svc._middleware.edit).toContain(getBoundFn(campModule.notifyEnded, [campModule, svc]));
+            config.emails.enabled = false;
+            svc = campModule.setupSvc(mockDb, config);
+            expect(svc._middleware.edit).not.toContain(getBoundFn(campModule.notifyEnded, [campModule, svc]));
         });
         
         it('should include middleware for handling the pricingHistory', function() {
@@ -1410,4 +1415,3 @@ describe('ads-campaigns (UT)', function() {
         });
     });
 });
-

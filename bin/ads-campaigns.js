@@ -170,6 +170,8 @@
         var extraValidation = campModule.extraValidation.bind(campModule, svc),
             notifyEnded     = campModule.notifyEnded.bind(campModule, svc),
             pricingHistory  = historian.middlewarify('pricing', 'pricingHistory');
+
+        var emailingEnabled = campModule.config.emails.enabled;
         
         svc.use('read', campModule.formatTextQuery);
         
@@ -191,7 +193,9 @@
         svc.use('edit', campModule.cleanMiniReels);
         svc.use('edit', campModule.setCardDates);
         svc.use('edit', campModule.updateCards);
-        svc.use('edit', notifyEnded);
+        if(emailingEnabled) {
+            svc.use('edit', notifyEnded);
+        }
         svc.use('edit', pricingHistory);
 
         svc.use('delete', campModule.statusCheck.bind(campModule, [

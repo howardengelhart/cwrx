@@ -36,6 +36,10 @@ describe('userSvc (UT)', function() {
         spyOn(logger, 'getLog').and.returnValue(mockLog);
         spyOn(mongoUtils, 'escapeKeys').and.callThrough();
         spyOn(mongoUtils, 'unescapeKeys').and.callThrough();
+        spyOn(email, 'passwordChanged');
+        spyOn(email, 'accountWasActivated');
+        spyOn(email, 'activateAccount');
+        spyOn(email, 'emailChanged');
         req = {uuid: '1234'};
         nextSpy = jasmine.createSpy('next()');
         doneSpy = jasmine.createSpy('done()');
@@ -51,7 +55,8 @@ describe('userSvc (UT)', function() {
                 region: 'us-east-1',
                 sender: 'support@cinema6.com',
                 activationTarget: 'https://www.selfie.cinema6.com/activate',
-                dashboardLink: 'http://seflie.c6.com/review/campaigns'
+                dashboardLink: 'http://seflie.c6.com/review/campaigns',
+                enabled: true
             },
             port: 3500,
             activationTokenTTL: 60000,
@@ -233,9 +238,12 @@ describe('userSvc (UT)', function() {
             expect(result._middleware.signupUser).toContain(getBoundFn(userModule.giveActivationToken, [userModule, 60000]));
         });
 
-        it('should send an activation email when signing up a user', function() {
+        it('should send an conditionally activation email when signing up a user', function() {
             expect(userModule.sendActivationEmail.bind).toHaveBeenCalledWith(userModule, 'support@cinema6.com', 'https://www.selfie.cinema6.com/activate');
             expect(result._middleware.signupUser).toContain(getBoundFn(userModule.sendActivationEmail, [userModule, 'support@cinema6.com', 'https://www.selfie.cinema6.com/activate']));
+            mockConfig.emails.enabled = false;
+            result = userModule.setupSvc(mockDb, mockConfig, mockCache, appCreds);
+            expect(result._middleware.signupUser).not.toContain(getBoundFn(userModule.sendActivationEmail, [userModule, 'support@cinema6.com', 'https://www.selfie.cinema6.com/activate']));
         });
 
         it('should check validity of token on user confirm', function() {
@@ -248,9 +256,12 @@ describe('userSvc (UT)', function() {
             expect(result._middleware.confirmUser).toContain(getBoundFn(userModule.createLinkedEntities, [userModule, mockConfig, mockCache, result, appCreds]));
         });
 
-        it('should send confirmation email on user confirm', function() {
+        it('should conditionally send confirmation email on user confirm', function() {
             expect(userModule.sendConfirmationEmail.bind).toHaveBeenCalledWith(userModule, 'support@cinema6.com', 'http://seflie.c6.com/review/campaigns');
             expect(result._middleware.confirmUser).toContain(getBoundFn(userModule.sendConfirmationEmail, [userModule, 'support@cinema6.com', 'http://seflie.c6.com/review/campaigns']));
+            mockConfig.emails.enabled = false;
+            result = userModule.setupSvc(mockDb, mockConfig, mockCache, appCreds);
+            expect(result._middleware.confirmUser).not.toContain(getBoundFn(userModule.sendConfirmationEmail, [userModule, 'support@cinema6.com', 'http://seflie.c6.com/review/campaigns']));
         });
 
         it('should give an activation token on resendActivation', function() {
@@ -261,6 +272,9 @@ describe('userSvc (UT)', function() {
         it('should send an activation email on resendActivation', function() {
             expect(userModule.sendActivationEmail.bind).toHaveBeenCalledWith(userModule, 'support@cinema6.com', 'https://www.selfie.cinema6.com/activate');
             expect(result._middleware.resendActivation).toContain(getBoundFn(userModule.sendActivationEmail, [userModule, 'support@cinema6.com', 'https://www.selfie.cinema6.com/activate']));
+            mockConfig.emails.enabled = false;
+            result = userModule.setupSvc(mockDb, mockConfig, mockCache, appCreds);
+            expect(result._middleware.resendActivation).not.toContain(getBoundFn(userModule.sendActivationEmail, [userModule, 'support@cinema6.com', 'https://www.selfie.cinema6.com/activate']));
         });
     });
 
@@ -830,7 +844,7 @@ describe('userSvc (UT)', function() {
 
         beforeEach(function(done) {
             nextSpy = jasmine.createSpy('next()').and.returnValue(q());
-            spyOn(email, 'accountWasActivated').and.returnValue(q());
+            email.accountWasActivated.and.returnValue(q());
             userModule.sendConfirmationEmail('sender', 'http://dash.board', {user:{email:'some email'}}, nextSpy).done(done);
         });
 
@@ -998,7 +1012,7 @@ describe('userSvc (UT)', function() {
                 },
                 tempToken: '6162636465666768696a6b6c6d6e6f707172737475767778'
             };
-            spyOn(email, 'activateAccount').and.returnValue(q());
+            email.activateAccount.and.returnValue(q());
             nextSpy = jasmine.createSpy('next()');
             doneSpy = jasmine.createSpy('done()');
         });
@@ -1643,7 +1657,7 @@ describe('userSvc (UT)', function() {
         });
     });
 
-    describe('changePassword(svc, req, emailSender)', function() {
+    describe('changePassword(svc, req, emailSender, emailingEnabled)', function() {
         var deferred;
         var users;
         var svc, req, emailSender;
@@ -1666,12 +1680,12 @@ describe('userSvc (UT)', function() {
                 },
                 body: {
                     newPassword: 'f081611cbba5acab5d3051b32698238a7c637419ff87a5fc6e66233b',
-                    email: 'evan@cinema6.com'
+                    email: 'someone@domain.com'
                 }
             };
             emailSender = 'johnnytestmonkey@cinema6.com';
 
-            result = userModule.changePassword(svc, req, emailSender, 'support@c6.com');
+            result = userModule.changePassword(svc, req, emailSender, 'support@c6.com', true);
         });
 
         it('should call and return svc.customMethod()', function() {
@@ -1706,7 +1720,6 @@ describe('userSvc (UT)', function() {
 
                 beforeEach(function(done) {
                     error = new Error('It didn\'t work.');
-                    spyOn(email, 'passwordChanged');
 
                     editObjectDeferred.reject(error);
                     editObjectDeferred.promise.finally(done);
@@ -1730,7 +1743,7 @@ describe('userSvc (UT)', function() {
 
                 beforeEach(function(done) {
                     notifyDeffered = q.defer();
-                    spyOn(email, 'passwordChanged').and.returnValue(notifyDeffered.promise);
+                    email.passwordChanged.and.returnValue(notifyDeffered.promise);
 
                     editObjectDeferred.resolve();
                     editObjectDeferred.promise.finally(done);
@@ -1777,6 +1790,16 @@ describe('userSvc (UT)', function() {
                     });
                 });
             });
+            
+            it('should not send an email if emailing is not enabled', function() {
+                result = userModule.changePassword(svc, req, emailSender, 'support@c6.com', false);
+                notifyDeffered = q.defer();
+                editObjectDeferred.resolve();
+                editObjectDeferred.promise.finally(function() {
+                    expect(email.passwordChange).not.toHaveBeenCalled();
+                    done();
+                });
+            });
         });
     });
 
@@ -1808,7 +1831,7 @@ describe('userSvc (UT)', function() {
             };
             emailSender = 'johnnytestmonkey@cinema6.com';
 
-            result = userModule.changeEmail(svc, req, emailSender, 'support@c6.com');
+            result = userModule.changeEmail(svc, req, emailSender, 'support@c6.com', true);
         });
 
         it('should call and return svc.customMethod()', function() {
@@ -1843,7 +1866,6 @@ describe('userSvc (UT)', function() {
 
                 beforeEach(function(done) {
                     error = new Error('I GOT A PROBLEM');
-                    spyOn(email, 'emailChanged');
 
                     editObjectDeferred.reject(error);
 
@@ -1868,7 +1890,7 @@ describe('userSvc (UT)', function() {
 
                 beforeEach(function(done) {
                     emailDeferred = q.defer();
-                    spyOn(email, 'emailChanged').and.returnValue(emailDeferred.promise);
+                    email.emailChanged.and.returnValue(emailDeferred.promise);
 
                     editObjectDeferred.resolve();
                     editObjectDeferred.promise.finally(done);
@@ -1927,6 +1949,16 @@ describe('userSvc (UT)', function() {
                     it('should log an error', function() {
                         expect(mockLog.error.calls.count()).toBe(2);
                     });
+                });
+            });
+            
+            it('should not send an email if emailing is not enabled', function() {
+                result = userModule.changeEmail(svc, req, emailSender, 'support@c6.com', false);
+                notifyDeffered = q.defer();
+                editObjectDeferred.resolve();
+                editObjectDeferred.promise.finally(function() {
+                    expect(email.passwordChange).not.toHaveBeenCalled();
+                    done();
                 });
             });
         });

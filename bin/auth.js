@@ -44,7 +44,8 @@
         emails: {
             awsRegion: 'us-east-1',
             sender: 'no-reply@cinema6.com',
-            supportAddress: 'support@cinema6.com'
+            supportAddress: 'support@cinema6.com',
+            enabled: true
         },
         forgotTargets: {
             portal: 'http://localhost:9000/#/password/reset',
@@ -118,7 +119,7 @@
                         .then(function(numAttempts) {
                             log.info('[%1] Failed login attempt #%2 for user %3: invalid password',
                                      req.uuid, numAttempts, req.body.email);
-                            if (numAttempts === loginAttempts.threshold) {
+                            if (numAttempts === loginAttempts.threshold && config.emails.enabled) {
                                 log.info('[%1] Sending email to %2 suggesting password reset ' +
                                     'after %3 failed login attempts',
                                     req.uuid, req.body.email, numAttempts);
@@ -258,10 +259,12 @@
             .then(function() {
                 log.info('[%1] Saved reset token for %2 to database', req.uuid, reqEmail);
 
-                var url = target + ((target.indexOf('?') === -1) ? '?' : '&') +
-                          'id=' + account.id + '&token=' + token;
+                if(config.emails.enabled) {
+                    var url = target + ((target.indexOf('?') === -1) ? '?' : '&') +
+                              'id=' + account.id + '&token=' + token;
 
-                return email.resetPassword(config.emails.sender, reqEmail, url);
+                    return email.resetPassword(config.emails.sender, reqEmail, url);
+                }
             })
             .then(function() {
                 log.info('[%1] Successfully sent reset email to %2', req.uuid, reqEmail);
@@ -332,16 +335,19 @@
                     updatedAccount = result.value;
                     log.info('[%1] User %2 successfully reset their password', req.uuid, id);
                     
-                    email.passwordChanged(
-                        config.emails.sender,
-                        account.email,
-                        config.emails.supportAddress
-                    )
-                    .then(function() {
-                        log.info('[%1] Notified user of change at %2', req.uuid, account.email);
-                    }).catch(function(error) {
-                        log.error('[%1] Error sending msg to %2: %3',req.uuid,account.email,error);
-                    });
+                    if(config.emails.enabled) {
+                        email.passwordChanged(
+                            config.emails.sender,
+                            account.email,
+                            config.emails.supportAddress
+                        )
+                        .then(function() {
+                            log.info('[%1] Notified user of change at %2', req.uuid, account.email);
+                        }).catch(function(error) {
+                            log.error('[%1] Error sending msg to %2: %3', req.uuid, account.email,
+                                error);
+                        });
+                    }
                     return q(sessions.deleteMany({ 'session.user': id }, { w: 1, j: true }));
                 })
                 .then(function(result) {

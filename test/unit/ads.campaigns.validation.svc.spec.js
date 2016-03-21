@@ -24,7 +24,8 @@ describe('campaign validation', function() {
         };
 
         svc = campModule.setupSvc(mockDb, {
-            api: { root: 'http://test.com', cards: { endpoint: '/cards/' }, experiences: { endpoint: '/experiences/' } }
+            api: { root: 'http://test.com', cards: { endpoint: '/cards/' }, experiences: { endpoint: '/experiences/' } },
+            emails: { enabled: true }
         });
         
         newObj = { advertiserId: 'a-new' };

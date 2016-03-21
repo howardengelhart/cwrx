@@ -1,7 +1,11 @@
 # Ads Service Changelog
 
+### 4.5.3: Mon Mar 21 16:37:19 EDT 2016
+* Add flag to toggle email notifications: [#825](https://github.com/cinema6/cwrx/pull/825)
 * Update container model to support nested `defaultTagParams`: [#824](https://github.com/cinema6/cwrx/pull/824)
 * [FIX]: Stop requiring advertiser names to be unique: [#806](https://github.com/cinema6/cwrx/issues/806)
+* Extra deployment steps:
+    * Deploy ads cookbook 2.1.2 to staging/production envs
 
 ### 4.5.2: Tue Mar 15 19:44:01 EDT 2016
 * [FIX]: Fix characters of uuids to be url-safe: [#822](https://github.com/cinema6/cwrx/pull/822)
