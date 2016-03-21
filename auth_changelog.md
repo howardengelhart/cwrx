@@ -1,5 +1,6 @@
 # Auth Service Changelog
 
+### 1.6.2: Mon Mar 21 16:37:19 EDT 2016
 * Add flag to toggle email notifications: [#825](https://github.com/cinema6/cwrx/pull/825)
 * Extra deployment steps:
     * Deploy auth cookbook 1.3.8 to staging/production envs

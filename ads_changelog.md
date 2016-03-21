@@ -1,5 +1,6 @@
 # Ads Service Changelog
 
+### 4.5.3: Mon Mar 21 16:37:19 EDT 2016
 * Add flag to toggle email notifications: [#825](https://github.com/cinema6/cwrx/pull/825)
 * Update container model to support nested `defaultTagParams`: [#824](https://github.com/cinema6/cwrx/pull/824)
 * [FIX]: Stop requiring advertiser names to be unique: [#806](https://github.com/cinema6/cwrx/issues/806)
