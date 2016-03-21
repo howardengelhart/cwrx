@@ -63,7 +63,8 @@ describe('ads-campaignUpdates (UT)', function() {
             sender: 'no-reply@c6.com',
             supportAddress: 'support@c6.com',
             reviewLink: 'http://selfie.com/campaigns/:campId/admin',
-            dashboardLink: 'http://seflie.c6.com/review/campaigns'
+            dashboardLink: 'http://seflie.c6.com/review/campaigns',
+            enabled: true
         };
         appCreds = {
             key: 'ads-service',
@@ -83,9 +84,9 @@ describe('ads-campaignUpdates (UT)', function() {
     });
     
     describe('setupSvc', function() {
-        var svc, campSvc, fakeCampModel, fakeAutoApproveModel, histMidware;
+        var config, svc, campSvc, fakeCampModel, fakeAutoApproveModel, histMidware;
         beforeEach(function() {
-            var config = JSON.parse(JSON.stringify(updateModule.config));
+            config = JSON.parse(JSON.stringify(updateModule.config));
             updateModule.config = {};
             
             ['fetchCamp', 'validateData', 'extraValidation', 'handleInitialSubmit', 'lockCampaign',
@@ -147,6 +148,9 @@ describe('ads-campaignUpdates (UT)', function() {
             expect(svc._middleware.create).toContain(updateModule.handleInitialSubmit);
             expect(svc._middleware.create).toContain(updateModule.notifySupport);
             expect(svc._middleware.create).toContain(updateModule.lockCampaign);
+            updateModule.config.emails.enabled = false;
+            svc = updateModule.setupSvc(mockDb, campSvc, config, appCreds);
+            expect(svc._middleware.create).not.toContain(updateModule.notifySupport);
         });
         
         it('should include middleware for edit', function() {
@@ -161,6 +165,9 @@ describe('ads-campaignUpdates (UT)', function() {
             expect(svc._middleware.edit).toContain(updateModule.unlockCampaign);
             expect(svc._middleware.edit).toContain(updateModule.applyUpdate);
             expect(svc._middleware.edit).toContain(updateModule.notifyOwner);
+            updateModule.config.emails.enabled = false;
+            svc = updateModule.setupSvc(mockDb, campSvc, config, appCreds);
+            expect(svc._middleware.create).not.toContain(updateModule.notifyOwner);
         });
         
         it('should include middleware for autoApprove', function() {
@@ -1493,4 +1500,3 @@ describe('ads-campaignUpdates (UT)', function() {
         });
     });
 });
-

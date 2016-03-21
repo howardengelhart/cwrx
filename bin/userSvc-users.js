@@ -122,6 +122,8 @@
         var sendConfirmationEmail = userModule.sendConfirmationEmail.bind(userModule,
             config.emails.sender, config.emails.dashboardLink);
 
+        var emailingEnabled = config.emails.enabled;
+
         // override some default CrudSvc methods with custom versions for users
         userSvc.transformMongoDoc = mongoUtils.safeUser;
         userSvc.checkScope = userModule.checkScope;
@@ -152,14 +154,20 @@
         userSvc.use('signupUser', userModule.setupUser);
         userSvc.use('signupUser', validateUniqueEmail);
         userSvc.use('signupUser', giveActivationToken);
-        userSvc.use('signupUser', sendActivationEmail);
+        if(emailingEnabled) {
+            userSvc.use('signupUser', sendActivationEmail);
+        }
 
         userSvc.use('confirmUser', checkValidToken);
         userSvc.use('confirmUser', createLinkedEntities);
-        userSvc.use('confirmUser', sendConfirmationEmail);
+        if(emailingEnabled) {
+            userSvc.use('confirmUser', sendConfirmationEmail);
+        }
 
         userSvc.use('resendActivation', giveActivationToken);
-        userSvc.use('resendActivation', sendActivationEmail);
+        if(emailingEnabled) {
+            userSvc.use('resendActivation', sendActivationEmail);
+        }
 
         return userSvc;
     };
@@ -531,7 +539,8 @@
     };
 
     // Custom method used to change the user's password.
-    userModule.changePassword = function changePassword(svc, req, emailSender, supportContact) {
+    userModule.changePassword = function changePassword(svc, req, emailSender, supportContact,
+            emailingEnabled) {
         var log = logger.getLog();
 
         return svc.customMethod(req, 'changePassword', function doChange() {
@@ -543,16 +552,19 @@
                 .then(function sendEmail() {
                     log.info('[%1] User %2 successfully changed their password', req.uuid, user.id);
 
-                    email.passwordChanged(emailSender, notifyEmail, supportContact)
-                        .then(function logSuccess() {
-                            log.info('[%1] Notified user of change at %2', req.uuid, notifyEmail);
-                        })
-                        .catch(function logError(error) {
-                            log.error(
-                                '[%1] Error sending email to %2: %3',
-                                req.uuid, notifyEmail, inspect(error)
-                            );
-                        });
+                    if(emailingEnabled) {
+                        email.passwordChanged(emailSender, notifyEmail, supportContact)
+                            .then(function logSuccess() {
+                                log.info('[%1] Notified user of change at %2', req.uuid,
+                                    notifyEmail);
+                            })
+                            .catch(function logError(error) {
+                                log.error(
+                                    '[%1] Error sending email to %2: %3',
+                                    req.uuid, notifyEmail, inspect(error)
+                                );
+                            });
+                    }
 
                     return { code: 200, body: 'Successfully changed password' };
                 })
@@ -588,7 +600,8 @@
     };
 
     // Custom method to change the user's email.
-    userModule.changeEmail = function changeEmail(svc, req, emailSender, supportContact) {
+    userModule.changeEmail = function changeEmail(svc, req, emailSender, supportContact,
+            emailingEnabled) {
         var log = logger.getLog();
 
         function notifyEmailChange(recipient, oldEmail, newEmail) {
@@ -610,8 +623,10 @@
                 .then(function succeed() {
                     log.info('[%1] User %2 successfully changed their email', req.uuid, user.id);
 
-                    notifyEmailChange(oldEmail, oldEmail, newEmail);
-                    notifyEmailChange(newEmail, oldEmail, newEmail);
+                    if(emailingEnabled) {
+                        notifyEmailChange(oldEmail, oldEmail, newEmail);
+                        notifyEmailChange(newEmail, oldEmail, newEmail);
+                    }
                     
                     return { code: 200, body: 'Successfully changed email' };
                 })
@@ -777,7 +792,8 @@
         var credsChecker = authUtils.userPassChecker();
         router.post('/email', credsChecker, audit, function(req, res) {
             var promise = userModule.changeEmail(svc, req, config.emails.sender,
-                                                           config.emails.supportAddress);
+                                                           config.emails.supportAddress,
+                                                           config.emails.enabled);
             promise.finally(function() {
                 jobManager.endJob(req, res, promise.inspect())
                 .catch(function(error) {
@@ -788,7 +804,8 @@
 
         router.post('/password', credsChecker, audit, function(req, res) {
             var promise = userModule.changePassword(svc, req, config.emails.sender,
-                                                              config.emails.supportAddress);
+                                                              config.emails.supportAddress,
+                                                              config.emails.enabled);
             promise.finally(function() {
                 jobManager.endJob(req, res, promise.inspect())
                 .catch(function(error) {

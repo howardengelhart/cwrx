@@ -31,6 +31,7 @@
             sender: 'no-reply@cinema6.com',
             activationTarget: 'http://localhost:9000/#/confirm?selfie=selfie',
             dashboardLink: 'http://localhost:9000/#/apps/selfie/campaigns',
+            enabled: true
         },
         sessions: {
             key: 'c6Auth',

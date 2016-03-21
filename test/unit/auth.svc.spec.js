@@ -42,7 +42,8 @@ describe('auth (UT)', function() {
             },
             emails: {
                 sender: 'no-reply@cinema6.com',
-                supportAddress: 'support@cinema6.com'
+                supportAddress: 'support@cinema6.com',
+                enabled: true
             },
             forgotTargets: {
                 portal: 'https://portal.c6.com/forgot',
@@ -250,6 +251,17 @@ describe('auth (UT)', function() {
                 }).catch(function(error) {
                     expect(error.toString()).not.toBeDefined();
                 }).done(done);
+            });
+            
+            it('should not send an email if emaling is not enabled', function(done) {
+                config.emails.enabled = false;
+                mockCache.incrTouch.and.returnValue(3);
+                origUser.external = false;
+                
+                auth.login(req, users, config, auditJournal, mockCache).then(function() {
+                    expect(email.failedLogins).not.toHaveBeenCalled();
+                    done();
+                }).catch(done.fail);
             });
         });
 
@@ -698,6 +710,14 @@ describe('auth (UT)', function() {
                 expect(email.resetPassword).toHaveBeenCalled();
             }).done(done);
         });
+        
+        it('should not send an email if emailing is not enabled', function(done) {
+            config.emails.enabled = false;
+            auth.forgotPassword(req, users, config, auditJournal).then(function() {
+                expect(email.resetPassword).not.toHaveBeenCalled();
+                done();
+            }).catch(done.fail);
+        });
     });
     
     describe('resetPassword', function() {
@@ -965,6 +985,14 @@ describe('auth (UT)', function() {
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
             }).done(done);
+        });
+        
+        it('should not send an email if emailing is not enabled', function(done) {
+            config.emails.enabled = false;
+            auth.resetPassword(req, users, config, auditJournal, sessions).then(function() {
+                expect(email.passwordChanged).not.toHaveBeenCalled();
+                done();
+            }).catch(done.fail);
         });
     });  // end -- describe resetPassword
 });  // end -- describe auth

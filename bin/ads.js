@@ -42,7 +42,8 @@
             supportAddress: 'c6e2eTester@gmail.com',
             reviewLink: 'http://localhost:9000/#/apps/selfie/campaigns/manage/:campId/admin',
             manageLink: 'http://localhost:9000/#/apps/selfie/campaigns/manage/:campId/manage',
-            dashboardLink: 'http://localhost:9000/#/apps/selfie/campaigns'
+            dashboardLink: 'http://localhost:9000/#/apps/selfie/campaigns',
+            enabled: true
         },
         api: {
             root: 'http://localhost',   // for proxying requests

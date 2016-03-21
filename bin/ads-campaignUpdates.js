@@ -89,7 +89,9 @@
             unlockCampaign      = updateModule.unlockCampaign.bind(updateModule, svc),
             applyUpdate         = updateModule.applyUpdate.bind(updateModule, svc, appCreds),
             notifyOwner         = updateModule.notifyOwner.bind(updateModule, svc);
-            
+        
+        var emailingEnabled = updateModule.config.emails.enabled;
+        
         svc.use('create', fetchCamp);
         svc.use('create', updateModule.enforceLock);
         svc.use('create', validateData);
@@ -98,7 +100,9 @@
         svc.use('create', updateModule.validatePaymentMethod);
         svc.use('create', updateModule.validateZipcodes);
         svc.use('create', handleInitialSubmit);
-        svc.use('create', updateModule.notifySupport);
+        if(emailingEnabled) {
+            svc.use('create', updateModule.notifySupport);
+        }
         svc.use('create', lockCampaign);
         
         svc.use('edit', updateModule.ignoreCompleted);
@@ -111,7 +115,9 @@
         svc.use('edit', updateModule.validateZipcodes);
         svc.use('edit', unlockCampaign);
         svc.use('edit', applyUpdate);
-        svc.use('edit', notifyOwner);
+        if(emailingEnabled) {
+            svc.use('edit', notifyOwner);
+        }
         
         svc.use('autoApprove', autoApproveModel.midWare.bind(autoApproveModel, 'create'));
         svc.use('autoApprove', svc.setupObj.bind(svc));
