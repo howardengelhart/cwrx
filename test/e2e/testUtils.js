@@ -32,8 +32,6 @@ testUtils.pgQuery = function(statement, params, userCfg) {
         host        : userCfg.host || (process.env.mongo ? JSON.parse(process.env.mongo).host : '33.33.33.100')
     };
 
-    // console.log(statement); //TODO
-    
     pg.connect(conn, function(err, client, done){
         if (err) {
             return deferred.reject(err);
@@ -54,7 +52,9 @@ testUtils.pgQuery = function(statement, params, userCfg) {
     return deferred.promise;
 };
 
-testUtils.resetPGTable = function(tableName, data, userCfg) { //TODO: comment
+/* Truncate the given table, and then insert the data, if defined. data should be an array of
+ * strings representing the rows to insert. */
+testUtils.resetPGTable = function(tableName, data, userCfg) {
     return testUtils.pgQuery('TRUNCATE TABLE ' + tableName, null, userCfg)
     .then(function() {
         if (!data || !(data instanceof Array)) {

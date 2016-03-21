@@ -171,6 +171,18 @@ module.exports = {
         ],
         checkSsh : [ { host : 'mongo-dev-1' } ]
     },
+    accountant  : {
+        startInstances : [ 'mongo-dev-1' ],
+        runInstances   : [ { name: 'test-accountant', params: 'apiServer' } ],
+        checkHttp : [
+            {
+                host    : 'test-accountant',
+                iface   : 'public',
+                path    : '/api/accounting/meta'
+            }
+        ],
+        checkSsh : [ { host : 'mongo-dev-1' } ]
+    },
     nightly_build : {
         startInstances : [ 'mongo-dev-1' ],
         runInstances   : [ { name: 'nightly_build', params: 'apiServer' } ],

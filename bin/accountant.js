@@ -156,14 +156,6 @@
         
         req.body.id = 't-' + uuid.createUuid();
         req.body.created = new Date();
-
-        // ensure these id fields are not too long
-        //TODO: extra validation? should we even be truncating?
-        ['org', 'campaign', 'braintreeId', 'promotion'].forEach(function(field) {
-            if (typeof req.body[field] === 'string') {
-                req.body[field] = req.body[field].substr(0, 20);
-            }
-        });
         
         // If no provided description, auto-generate based on amount + linked entities
         if (!req.body.description) {
@@ -271,7 +263,7 @@
             return q({ code: 400, body: 'Must provide an org id' });
         }
         
-        var statuses = [Status.Active, Status.Paused]; //TODO: reconsider? include Status.Error?
+        var statuses = [Status.Active, Status.Paused];
         
         return requestUtils.proxyRequest(req, 'get', {
             url: urlUtils.resolve(config.api.root, config.api.campaigns.endpoint),
@@ -343,7 +335,6 @@
     };
     
     accountant.getBalanceStats = function(req, config) {
-        //TODO: still unsure about structure of this...
         return q.all([
             accountant.getAccountBalance(req, config),
             accountant.getOutstandingBudget(req, config)
@@ -404,7 +395,6 @@
 
         app.use(bodyParser.json());
 
-        //TODO: do we need further restrictions on this endpoint? maybe remove sessions midware?
         var authPostTrans = authUtils.middlewarify({
             allowApps: true,
             permissions: { transactions: 'create' }
