@@ -192,7 +192,7 @@ describe('geo (UT)', function() {
                 transaction_id  : 't-1',
                 transaction_ts  : '2016-03-17T20:30:32.100Z',
                 org_id          : 'o-1',
-                amount          : '1000',
+                amount          : '1000.12',
                 sign            : 1,
                 units           : 1,
                 campaign_id     : 'cam-1',
@@ -205,7 +205,7 @@ describe('geo (UT)', function() {
                 created         : new Date('2016-03-17T20:29:06.754Z'),
                 transactionTS   : new Date('2016-03-17T20:30:32.100Z'),
                 org             : 'o-1',
-                amount          : '1000',
+                amount          : 1000.12,
                 sign            : 1,
                 units           : 1,
                 campaign        : 'cam-1',
@@ -383,11 +383,11 @@ describe('geo (UT)', function() {
             }).done(done);
         });
         
-        it('should not bother fetching the org if the requester has read all priviledges', function(done) {
+        it('should still fetch the org if the requester has read all priviledges', function(done) {
             req.requester.permissions.orgs.read = Scope.All;
             accountant.getAccountBalance(req, config).then(function(resp) {
                 expect(resp).toEqual({ code: 200, body: 1234.12 });
-                expect(requestUtils.proxyRequest).not.toHaveBeenCalled();
+                expect(requestUtils.proxyRequest).toHaveBeenCalled();
                 expect(pgUtils.query).toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();

@@ -112,8 +112,8 @@ In order to run a service locally, you'll need to setup a few things:
 
  | Service name | Port |
  | ------------ | ---- |
+ | accountant   | 4300 |
  | ads          | 3900 |
- | accounting   | 4300 |
  | auth         | 3200 |
  | collateral   | 3600 |
  | content      | 3300 |
@@ -137,6 +137,7 @@ In order to run a service locally, you'll need to setup a few things:
 
   | Service    | Dependencies                        |
   | ---------- | ----------------------------------- |
+  | accountant | auth, monitor, ads, orgSvc          |
   | ads        | auth, content, monitor, orgSvc, geo |
   | auth       | monitor                             |
   | collateral | auth, monitor                       |
