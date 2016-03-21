@@ -12,32 +12,8 @@ var q               = require('q'),
             '/api/auth'
     };
 
-function pgQuery(conn,statement) {
-    var pg = require('pg.js'),
-        deferred = q.defer();
-    
-    pg.connect(conn, function(err, client, done){
-        if (err) {
-            return deferred.reject(err);
-        }
-
-        client.query(statement, function(err,res) {
-            if (err) {
-                done();
-                return deferred.reject(err);
-            }
-
-            done();
-            return deferred.resolve(res);
-        });
-
-    });
-
-    return deferred.promise;
-}
-
 describe('querybot (E2E)', function(){
-    var pgdata_campaign_summary_hourly, mockUser, mockCamps, pgconn,
+    var pgdata_campaign_summary_hourly, mockUser, mockCamps,
         cookieJar, options, camp1Data, camp2Data, camp5Data, mockApp, appCreds;
 
     beforeEach(function(done){
@@ -295,11 +271,11 @@ describe('querybot (E2E)', function(){
         ];
 
         function pgTruncate(){
-            return pgQuery(pgconn,'TRUNCATE TABLE rpt.campaign_summary_hourly');
+            return testUtils.pgQuery('TRUNCATE TABLE rpt.campaign_summary_hourly');
         }
 
         function pgInsert() {
-            return pgQuery(pgconn,pgdata_campaign_summary_hourly.join(' '));
+            return testUtils.pgQuery(pgdata_campaign_summary_hourly.join(' '));
         }
 
         function mongoInsert() {

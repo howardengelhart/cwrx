@@ -19,7 +19,6 @@
         expressUtils    = require('../lib/expressUtils'),
         requestUtils    = require('../lib/requestUtils'),
         Status          = require('../lib/enums').Status,
-        Scope           = require('../lib/enums').Scope,
         
         state = {},
         accountant = {}; // for exporting functions to unit tests
@@ -120,7 +119,7 @@
             id              : row.transaction_id,
             created         : new Date(row.rec_ts),
             transactionTS   : new Date(row.transaction_ts),
-            amount          : row.amount,
+            amount          : parseFloat(row.amount),
             sign            : row.sign,
             units           : row.units,
             org             : row.org_id,
@@ -211,8 +210,7 @@
     };
 
     accountant.getAccountBalance = function(req, config) {
-        var log = logger.getLog(),
-            promise;
+        var log = logger.getLog();
         
         req.query.org = req.query.org || (req.user && req.user.org);
         if (!req.query.org || typeof req.query.org !== 'string') {
@@ -220,20 +218,15 @@
         }
         
         // Check that requester can read their org, for permissions purposes
-        if (req.requester.permissions.orgs.read !== Scope.All) {
-            var url = urlUtils.resolve(
-                urlUtils.resolve(config.api.root, config.api.orgs.endpoint),
-                req.query.org
-            );
-            promise = requestUtils.proxyRequest(req, 'get', {
-                url: url,
-                qs: { fields: 'id' }
-            });
-        } else { // unless requester can read all orgs
-            promise = q();
-        }
-            
-        return promise.then(function(resp) {
+        var url = urlUtils.resolve(
+            urlUtils.resolve(config.api.root, config.api.orgs.endpoint),
+            req.query.org
+        );
+        return requestUtils.proxyRequest(req, 'get', {
+            url: url,
+            qs: { fields: 'id' }
+        })
+        .then(function(resp) {
             if (resp && resp.response.statusCode !== 200) {
                 log.info(
                     '[%1] Requester %2 could not fetch org %3: %4, %5',
