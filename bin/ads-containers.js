@@ -21,12 +21,7 @@
         defaultTagParams: {
             __type: 'object',
             __default: {},
-            __required: true,
-            container: {    // set automatically by svc to current object's name
-                __type: 'string',
-                __allowed: false,
-                __locked: true
-            }
+            __required: true
         }
     };
 
@@ -49,8 +44,12 @@
     // copy top-level name to defaultTagParams.container
     conModule.copyName = function(req, next/*, done*/) {
         var name = req.body.name || req.origObj.name;
-
-        req.body.defaultTagParams.container = name;
+        
+        Object.keys(req.body.defaultTagParams).filter(function(key) {
+            return typeof req.body.defaultTagParams[key] === 'object';
+        }).forEach(function(tagType) {
+            req.body.defaultTagParams[tagType].container = name;
+        });
         
         next();
     };
