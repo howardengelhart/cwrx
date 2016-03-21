@@ -14,7 +14,8 @@ var apps = [
         secret: 'ade2cfd7ec2e71d54064fb8cfb1cc92be1d01ffd',
         permissions: {
             orgs: { create: 'all' },
-            advertisers: { create: 'all' }
+            advertisers: { create: 'all' },
+            transactions: { create: 'all' }
         },
         fieldValidation: {
             advertisers: {

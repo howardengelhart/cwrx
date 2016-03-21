@@ -202,7 +202,9 @@ mongoUtils.connect(program.dbHost, program.dbPort, 'c6Db', program.dbUser, progr
         status: 'active',
         permissions: {},
         fieldValidation: {},
-        entitlements: {}
+        entitlements: {
+            makePayment: true
+        }
     };
     
     userPerms.forEach(function(key) {
