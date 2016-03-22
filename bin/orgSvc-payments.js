@@ -10,7 +10,6 @@
         authUtils       = require('../lib/authUtils'),
         mongoUtils      = require('../lib/mongoUtils'),
         requestUtils    = require('../lib/requestUtils'),
-        Status          = require('../lib/enums').Status,
         
         payModule = { config: {} };
 
@@ -43,7 +42,6 @@
         orgSvc.use('deletePaymentMethod', fetchOwnOrg);
         orgSvc.use('deletePaymentMethod', canEditOrg);
         orgSvc.use('deletePaymentMethod', getExistingPayMethod);
-        orgSvc.use('deletePaymentMethod', payModule.checkMethodInUse.bind(payModule, orgSvc));
 
         orgSvc.use('getPayments', fetchAnyOrg);
         
@@ -169,31 +167,6 @@
                           req.uuid, req.org.braintreeCustomer, util.inspect(error));
                 return q.reject('Braintree error');
             }
-        });
-    };
-
-    // Checks if the payment method is in use unfinished campaigns
-    payModule.checkMethodInUse = function(orgSvc, req, next, done) {
-        var log = logger.getLog(),
-            query = {
-                paymentMethod: req.params.token,
-                status: { $nin: [Status.Deleted, Status.Expired, Status.Canceled]}
-            };
-            
-        return q(orgSvc._db.collection('campaigns').count(query))
-        .then(function(campCount    ) {
-            if (campCount > 0) {
-                log.info('[%1] Payment Method %2 still used by %3 campaigns',
-                         req.uuid, req.params.token, campCount);
-
-                return done({ code: 400, body: 'Payment method still in use by campaigns' });
-            }
-            
-            next();
-        })
-        .catch(function(error) {
-            log.error('[%1] Failed querying for campaigns: %2', req.uuid, error);
-            return q.reject(new Error('Mongo error'));
         });
     };
 
