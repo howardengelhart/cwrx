@@ -586,7 +586,7 @@ if (!__ut__){
     .then(service.initSessions)
     .then(service.initPubSubChannels)
     .then(service.initCache)
-    .then(service.initPostgres)
+    .then(pgUtils.initConfig)
     .then(lib.main)
     .catch(function(err) {
         var log = logger.getLog();

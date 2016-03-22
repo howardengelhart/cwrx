@@ -119,7 +119,9 @@ describe('accountant (E2E):', function() {
         
         var testOrgs = [
             { id: 'o-1234', name: 'org 1', status: 'active' },
-            { id: 'o-5678', name: 'org 2', status: 'active' }
+            { id: 'o-5678', name: 'org 2', status: 'active' },
+            { id: 'o-abcd', name: 'org 3', status: 'active' },
+            { id: 'o-efgh', name: 'org 4', status: 'active' },
         ];
         var testCamps = [
             { id: 'cam-1', status: 'active', org: 'o-1234', pricing: { budget: 1000 } },
@@ -145,7 +147,11 @@ describe('accountant (E2E):', function() {
             debitRecord('o-5678', 16, 1, 'cam-3'),
             debitRecord('o-5678', 6000, 666, 'cam-4'),
             debitRecord('o-5678', 1000, 666, 'cam-4'),
-            debitRecord('o-5678', 500, 666, 'cam-4')
+            debitRecord('o-5678', 500, 666, 'cam-4'),
+            
+            creditRecord('o-efgh', 400, null, 'pro-1'),
+            creditRecord('o-efgh', 400, 'pay4'),
+            debitRecord('o-efgh', 56, 1),
         ];
         
         return q.all([
@@ -437,6 +443,36 @@ describe('accountant (E2E):', function() {
             }).catch(function(error) {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
+        });
+        
+        it('should handle orgs without any transactions', function(done) {
+            options.qs.org = 'o-abcd';
+            options.jar = adminJar;
+
+            requestUtils.qRequest('get', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.body).toEqual({
+                    balance: 0,
+                    outstandingBudget: 0
+                });
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done); 
+        });
+        
+        it('should handle orgs without any campaigns', function(done) {
+            options.qs.org = 'o-efgh';
+            options.jar = adminJar;
+
+            requestUtils.qRequest('get', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.body).toEqual({
+                    balance: 744,
+                    outstandingBudget: 0
+                });
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done); 
         });
         
         it('should return a 400 if requesting the balance of a non-existent org', function(done) {
