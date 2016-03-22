@@ -93,7 +93,7 @@ describe('orgSvc-payments (UT)', function() {
     describe('extendSvc', function() {
         beforeEach(function() {
             [payModule.fetchOrg, payModule.canEditOrg, payModule.getExistingPayMethod,
-             payModule.checkMethodInUse].forEach(function(fn) {
+             payModule.canDeletePaymentMethod].forEach(function(fn) {
                 spyOn(fn, 'bind').and.returnValue(fn);
             });
             
@@ -133,8 +133,8 @@ describe('orgSvc-payments (UT)', function() {
         });
         
         it('should add middleware to check if a payment method is in use when deleting a payment method', function() {
-            expect(orgSvc._middleware.deletePaymentMethod).toContain(payModule.checkMethodInUse);
-            expect(payModule.checkMethodInUse.bind).toHaveBeenCalledWith(payModule, orgSvc);
+            expect(orgSvc._middleware.deletePaymentMethod).toContain(payModule.canDeletePaymentMethod);
+            expect(payModule.canDeletePaymentMethod.bind).toHaveBeenCalledWith(payModule, orgSvc);
         });
     });
     
@@ -465,59 +465,6 @@ describe('orgSvc-payments (UT)', function() {
                 expect(req.paymentMethod).not.toBeDefined();
                 expect(mockGateway.customer.find).toHaveBeenCalled();
                 expect(mockLog.warn).not.toHaveBeenCalled();
-                expect(mockLog.error).toHaveBeenCalled();
-                done();
-            });
-        });
-    });
-    
-    describe('checkMethodInUse', function() {
-        var mockColl;
-        beforeEach(function() {
-            req.params = { token: 'asdf1234' };
-        
-            mockColl = {
-                count: jasmine.createSpy('cursor.count').and.returnValue(q(3))
-            };
-            mockDb.collection.and.returnValue(mockColl);
-        });
-        
-        it('should call done if there are campaigns using the payment method', function(done) {
-            payModule.checkMethodInUse(orgSvc, req, nextSpy, doneSpy).catch(errorSpy);
-            process.nextTick(function() {
-                expect(nextSpy).not.toHaveBeenCalled();
-                expect(doneSpy).toHaveBeenCalledWith({ code: 400, body: 'Payment method still in use by campaigns' });
-                expect(errorSpy).not.toHaveBeenCalled();
-                expect(mockDb.collection).toHaveBeenCalledWith('campaigns');
-                expect(mockColl.count).toHaveBeenCalledWith({
-                    paymentMethod: 'asdf1234',
-                    status: { $nin: [Status.Deleted, Status.Expired, Status.Canceled] },
-                });
-                expect(mockLog.error).not.toHaveBeenCalled();
-                done();
-            });
-        });
-        
-        it('should call next if there are no campaigns using the payment method', function(done) {
-            mockColl.count.and.returnValue(q(0));
-        
-            payModule.checkMethodInUse(orgSvc, req, nextSpy, doneSpy).catch(errorSpy);
-            process.nextTick(function() {
-                expect(nextSpy).toHaveBeenCalledWith();
-                expect(doneSpy).not.toHaveBeenCalled();
-                expect(errorSpy).not.toHaveBeenCalled();
-                done();
-            });
-        });
-
-        it('should reject if mongo has an error', function(done) {
-            mockColl.count.and.returnValue(q.reject('I GOT A PROBLEM'));
-        
-            payModule.checkMethodInUse(orgSvc, req, nextSpy, doneSpy).catch(errorSpy);
-            process.nextTick(function() {
-                expect(nextSpy).not.toHaveBeenCalled();
-                expect(doneSpy).not.toHaveBeenCalled();
-                expect(errorSpy).toHaveBeenCalledWith(new Error('Mongo error'));
                 expect(mockLog.error).toHaveBeenCalled();
                 done();
             });
