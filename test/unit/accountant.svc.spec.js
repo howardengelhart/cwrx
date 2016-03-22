@@ -394,6 +394,18 @@ describe('geo (UT)', function() {
             }).done(done);
         });
         
+        it('should handle postgres not returning a balance', function(done) {
+            pgUtils.query.and.returnValue(q({ rows: [{}] }));
+
+            accountant.getAccountBalance(req, config).then(function(resp) {
+                expect(resp).toEqual({ code: 200, body: 0 });
+                expect(requestUtils.proxyRequest).toHaveBeenCalled();
+                expect(pgUtils.query).toHaveBeenCalled();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
+        });
+        
         it('should return a 400 if the org is invalid', function(done) {
             req.query.org = { hax: true };
             accountant.getAccountBalance(req, config).then(function(resp) {

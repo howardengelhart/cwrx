@@ -245,7 +245,7 @@
                 log.info('[%1] Successfuly got balance for %2', req.uuid, req.query.org);
                 return q({
                     code: 200,
-                    body: parseFloat(result.rows[0].balance)
+                    body: parseFloat(result.rows[0].balance || 0)
                 });
             });
         }, function(error) {
@@ -448,7 +448,7 @@
         .then(service.cluster)
         .then(service.initMongo)
         .then(service.initSessions)
-        .then(service.initPostgres)
+        .then(pgUtils.initConfig)
         .then(accountant.main)
         .catch(function(err) {
             var log = logger.getLog();
