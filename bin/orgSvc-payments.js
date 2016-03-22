@@ -231,7 +231,7 @@
     
     /* Attempt to handle expected braintree errors (from invalid input or declined cards).
      * Returns a 400 + msg if the error is handled, otherwise rejects the original error. */
-    payModule.handleBraintreeErrors = function(req, error) {
+    payModule.handlePaymentMethodErrors = function(req, error) {
         var log = logger.getLog(),
             validationErrors = [];
         
@@ -243,7 +243,7 @@
         } catch(e) {}
         
         if (validationErrors.length !== 0) {
-            log.warn(
+            log.info(
                 '[%1] Failed payment method for %2: validation errors: %3',
                 req.uuid,
                 req.org.id,
@@ -255,7 +255,7 @@
         
         // also handle processor declined + gateway rejected errors
         if (error.verification && error.verification.status === 'processor_declined') {
-            log.warn(
+            log.info(
                 '[%1] Failed payment method for %2: processor decline, code - %3, text - %4',
                 req.uuid,
                 req.org.id,
@@ -266,7 +266,7 @@
             return q({ code: 400, body: 'Processor declined payment method' });
         }
         else if (error.verification && error.verification.status === 'gateway_rejected') {
-            log.warn(
+            log.info(
                 '[%1] Failed payment method for %2: gateway rejection: reason - %3',
                 req.uuid,
                 req.org.id,
@@ -389,7 +389,7 @@
                 });
             });
         })
-        .catch(payModule.handleBraintreeErrors.bind(payModule, req))
+        .catch(payModule.handlePaymentMethodErrors.bind(payModule, req))
         .catch(function(error) {
             log.error('[%1] Error creating customer for org %2: %3',
                       req.uuid, req.org.id, util.inspect(error));
@@ -438,7 +438,7 @@
                     body: payModule.formatMethodOutput(result.paymentMethod)
                 });
             })
-            .catch(payModule.handleBraintreeErrors.bind(payModule, req))
+            .catch(payModule.handlePaymentMethodErrors.bind(payModule, req))
             .catch(function(error) {
                 log.error('[%1] Error creating paymentMethod for BT customer %2: %3',
                           req.uuid, req.org.braintreeCustomer, util.inspect(error));
@@ -489,7 +489,7 @@
                     body: payModule.formatMethodOutput(result.paymentMethod)
                 });
             })
-            .catch(payModule.handleBraintreeErrors.bind(payModule, req))
+            .catch(payModule.handlePaymentMethodErrors.bind(payModule, req))
             .catch(function(error) {
                 log.error('[%1] Error editing payment method %2: %3',
                           req.uuid, token, util.inspect(error));
@@ -581,14 +581,44 @@
                     return q(result);
                 }
             })
-            .catch(function(error) {
-                //TODO: NEED TO HANDLE BRAINTREE ERRORS BETTER
-                log.error('[%1] Failed creating BT payment for BT cust %2, org %3: %4',
-                          req.uuid, req.org.braintreeCustomer, req.org.id, util.inspect(error));
+            .catch(function(result) {
+                // Attempt to handle processor decline errors as 400s
+                if (result.success === false && result.transaction &&
+                    result.transaction.status === 'processor_declined') {
+                    
+                    log.info(
+                        '[%1] Failed creating payment for BT cust %2, org %3: %4 - %5',
+                        req.uuid,
+                        req.org.braintreeCustomer,
+                        req.org.id,
+                        result.transaction.processorResponseCode,
+                        result.transaction.processorResponseText
+                    );
+                    return q({
+                        code: 400,
+                        body: 'Payment method declined'
+                    });
+                }
+                
+                var errMsg;
+                // attempt to find validationErrors nested in braintree's error object
+                try {
+                    errMsg = util.inspect(result.errors.deepErrors());
+                } catch(e) {
+                    errMsg = result.message || util.inspect(result);
+                }
+                
+                log.error('[%1] Failed creating payment for BT cust %2, org %3: %4',
+                          req.uuid, req.org.braintreeCustomer, req.org.id, errMsg);
                           
                 return q.reject('Failed to charge payment method');
             })
             .then(function(result) {
+                // break out of this if we have a 4xx response
+                if (result.code && !result.transaction) { //TODO: this still feels real awkward
+                    return q(result);
+                }
+
                 log.info('[%1] Successfully created payment %2 for BT customer %3, org %4',
                          req.uuid, result.transaction.id, req.org.braintreeCustomer, req.org.id);
                 
@@ -607,6 +637,8 @@
                     
                     log.info('[%1] Successfully created transaction %2 for payment %3, org %4',
                              req.uuid, resp.body.id, req.body.paymentMethod, req.org.id);
+                             
+                    //TODO: publish watchman event
                              
                     return q({
                         code: 201,
