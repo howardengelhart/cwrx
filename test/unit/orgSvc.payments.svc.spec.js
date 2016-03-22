@@ -87,7 +87,7 @@ describe('orgSvc-payments (UT)', function() {
             return cb();
         });
         spyOn(payModule, 'formatMethodOutput').and.callThrough();
-        spyOn(payModule, 'handleBraintreeErrors').and.callThrough();
+        spyOn(payModule, 'handlePaymentMethodErrors').and.callThrough();
     });
     
     describe('extendSvc', function() {
@@ -524,7 +524,7 @@ describe('orgSvc-payments (UT)', function() {
         });
     });
     
-    describe('handleBraintreeErrors', function() {
+    describe('handlePaymentMethodErrors', function() {
         var error;
         beforeEach(function() {
             error = {
@@ -543,7 +543,7 @@ describe('orgSvc-payments (UT)', function() {
                 { attribute: 'number', code: '123', message: 'card number invalid' },
                 { attribute: 'number', code: '456', message: 'and your card is stupid' }
             ]);
-            payModule.handleBraintreeErrors(req, error).then(function(resp) {
+            payModule.handlePaymentMethodErrors(req, error).then(function(resp) {
                 expect(resp).toEqual({ code: 400, body: 'Invalid payment method' });
                 expect(mockLog.warn).toHaveBeenCalled();
                 expect(mockLog.warn.calls.mostRecent().args).toContain('I GOT A PROBLEM CROSBY');
@@ -563,7 +563,7 @@ describe('orgSvc-payments (UT)', function() {
                 processorResponseText: 'Do Not Honor'
             };
             
-            payModule.handleBraintreeErrors(req, error).then(function(resp) {
+            payModule.handlePaymentMethodErrors(req, error).then(function(resp) {
                 expect(resp).toEqual({ code: 400, body: 'Processor declined payment method' });
                 expect(mockLog.warn).toHaveBeenCalled();
                 expect(mockLog.warn.calls.mostRecent().args).toContain('2000');
@@ -579,7 +579,7 @@ describe('orgSvc-payments (UT)', function() {
                 gatewayRejectionReason: 'cvv'
             };
             
-            payModule.handleBraintreeErrors(req, error).then(function(resp) {
+            payModule.handlePaymentMethodErrors(req, error).then(function(resp) {
                 expect(resp).toEqual({ code: 400, body: 'Gateway declined payment method' });
                 expect(mockLog.warn).toHaveBeenCalled();
                 expect(mockLog.warn.calls.mostRecent().args).toContain('cvv');
@@ -589,7 +589,7 @@ describe('orgSvc-payments (UT)', function() {
         });
         
         it('should reject with the error otherwise', function(done) {
-            payModule.handleBraintreeErrors(req, error).then(function(resp) {
+            payModule.handlePaymentMethodErrors(req, error).then(function(resp) {
                 expect(resp).not.toBeDefined();
             }).catch(function(error) {
                 expect(error).toEqual(error);
@@ -1053,7 +1053,7 @@ describe('orgSvc-payments (UT)', function() {
                 }, jasmine.any(Function));
                 expect(mongoUtils.editObject).toHaveBeenCalledWith({ collectionName: 'orgs' }, { braintreeCustomer: '123456' }, 'o-1');
                 expect(payModule.formatMethodOutput).toHaveBeenCalledWith({ token: 'asdf1234', cardType: 'visa' });
-                expect(payModule.handleBraintreeErrors).not.toHaveBeenCalled();
+                expect(payModule.handlePaymentMethodErrors).not.toHaveBeenCalled();
                 expect(mockLog.error).not.toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
@@ -1088,7 +1088,7 @@ describe('orgSvc-payments (UT)', function() {
                 }, jasmine.any(Function));
                 expect(mongoUtils.editObject).toHaveBeenCalled();
                 expect(payModule.formatMethodOutput).toHaveBeenCalled();
-                expect(payModule.handleBraintreeErrors).not.toHaveBeenCalled();
+                expect(payModule.handlePaymentMethodErrors).not.toHaveBeenCalled();
                 expect(mockLog.error).not.toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
@@ -1106,7 +1106,7 @@ describe('orgSvc-payments (UT)', function() {
                 }, jasmine.any(Function));
                 expect(mongoUtils.editObject).toHaveBeenCalledWith({ collectionName: 'orgs' }, { braintreeCustomer: '123456' }, 'o-1');
                 expect(payModule.formatMethodOutput).toHaveBeenCalledWith({ token: 'asdf1234', cardType: 'visa' });
-                expect(payModule.handleBraintreeErrors).not.toHaveBeenCalled();
+                expect(payModule.handlePaymentMethodErrors).not.toHaveBeenCalled();
                 expect(mockLog.error).not.toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
@@ -1124,7 +1124,7 @@ describe('orgSvc-payments (UT)', function() {
                 expect(mockGateway.customer.create).toHaveBeenCalled();
                 expect(mongoUtils.editObject).not.toHaveBeenCalled();
                 expect(payModule.formatMethodOutput).not.toHaveBeenCalled();
-                expect(payModule.handleBraintreeErrors).toHaveBeenCalledWith(req,
+                expect(payModule.handlePaymentMethodErrors).toHaveBeenCalledWith(req,
                     { success: false, message: 'Not enough brains on trees' });
                 expect(mockLog.error).toHaveBeenCalled();
             }).done(done);
@@ -1141,13 +1141,13 @@ describe('orgSvc-payments (UT)', function() {
                 expect(mockGateway.customer.create).toHaveBeenCalled();
                 expect(mongoUtils.editObject).not.toHaveBeenCalled();
                 expect(payModule.formatMethodOutput).not.toHaveBeenCalled();
-                expect(payModule.handleBraintreeErrors).toHaveBeenCalledWith(req, 'I GOT A PROBLEM');
+                expect(payModule.handlePaymentMethodErrors).toHaveBeenCalledWith(req, 'I GOT A PROBLEM');
                 expect(mockLog.error).toHaveBeenCalled();
             }).done(done);
         });
         
-        it('should resolve if handleBraintreeErrors handles the error', function(done) {
-            payModule.handleBraintreeErrors.and.returnValue(q({code: 400, body: 'Your card is bad' }));
+        it('should resolve if handlePaymentMethodErrors handles the error', function(done) {
+            payModule.handlePaymentMethodErrors.and.returnValue(q({code: 400, body: 'Your card is bad' }));
             mockGateway.customer.create.and.callFake(function(id, cb) {
                 cb('I GOT A PROBLEM');
             });
@@ -1156,7 +1156,7 @@ describe('orgSvc-payments (UT)', function() {
                 expect(mockGateway.customer.create).toHaveBeenCalled();
                 expect(mongoUtils.editObject).not.toHaveBeenCalled();
                 expect(payModule.formatMethodOutput).not.toHaveBeenCalled();
-                expect(payModule.handleBraintreeErrors).toHaveBeenCalledWith(req, 'I GOT A PROBLEM');
+                expect(payModule.handlePaymentMethodErrors).toHaveBeenCalledWith(req, 'I GOT A PROBLEM');
                 expect(mockLog.error).not.toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
@@ -1214,7 +1214,7 @@ describe('orgSvc-payments (UT)', function() {
                 }, jasmine.any(Function));
                 expect(payModule.formatMethodOutput).toHaveBeenCalledWith({ token: 'asdf1234', cardType: 'visa' });
                 expect(payModule.createCustomerWithMethod).not.toHaveBeenCalled();
-                expect(payModule.handleBraintreeErrors).not.toHaveBeenCalled();
+                expect(payModule.handlePaymentMethodErrors).not.toHaveBeenCalled();
                 expect(mockLog.error).not.toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
@@ -1235,7 +1235,7 @@ describe('orgSvc-payments (UT)', function() {
                     }
                 }, jasmine.any(Function));
                 expect(payModule.formatMethodOutput).toHaveBeenCalled();
-                expect(payModule.handleBraintreeErrors).not.toHaveBeenCalled();
+                expect(payModule.handlePaymentMethodErrors).not.toHaveBeenCalled();
                 expect(mockLog.error).not.toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
@@ -1249,7 +1249,7 @@ describe('orgSvc-payments (UT)', function() {
                 expect(orgSvc.customMethod).not.toHaveBeenCalled();
                 expect(mockGateway.paymentMethod.create).not.toHaveBeenCalled();
                 expect(payModule.formatMethodOutput).not.toHaveBeenCalled();
-                expect(payModule.handleBraintreeErrors).not.toHaveBeenCalled();
+                expect(payModule.handlePaymentMethodErrors).not.toHaveBeenCalled();
                 expect(mockLog.error).not.toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
@@ -1271,7 +1271,7 @@ describe('orgSvc-payments (UT)', function() {
                 expect(orgSvc.customMethod).not.toHaveBeenCalled();
                 expect(mockGateway.paymentMethod.create).not.toHaveBeenCalled();
                 expect(payModule.formatMethodOutput).not.toHaveBeenCalled();
-                expect(payModule.handleBraintreeErrors).not.toHaveBeenCalled();
+                expect(payModule.handlePaymentMethodErrors).not.toHaveBeenCalled();
                 expect(mockLog.error).not.toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
@@ -1286,7 +1286,7 @@ describe('orgSvc-payments (UT)', function() {
                 expect(orgSvc.customMethod).toHaveBeenCalled();
                 expect(mockGateway.paymentMethod.create).not.toHaveBeenCalled();
                 expect(payModule.createCustomerWithMethod).toHaveBeenCalledWith(mockGateway, orgSvc, req);
-                expect(payModule.handleBraintreeErrors).not.toHaveBeenCalled();
+                expect(payModule.handlePaymentMethodErrors).not.toHaveBeenCalled();
                 expect(mockLog.error).not.toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
@@ -1300,7 +1300,7 @@ describe('orgSvc-payments (UT)', function() {
                 expect(mockGateway.paymentMethod.create).not.toHaveBeenCalled();
                 expect(payModule.createCustomerWithMethod).not.toHaveBeenCalled();
                 expect(payModule.formatMethodOutput).not.toHaveBeenCalled();
-                expect(payModule.handleBraintreeErrors).not.toHaveBeenCalled();
+                expect(payModule.handlePaymentMethodErrors).not.toHaveBeenCalled();
                 expect(mockLog.error).not.toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
@@ -1317,7 +1317,7 @@ describe('orgSvc-payments (UT)', function() {
                 expect(error.toString()).toBe('Braintree error');
                 expect(mockGateway.paymentMethod.create).toHaveBeenCalled();
                 expect(payModule.formatMethodOutput).not.toHaveBeenCalled();
-                expect(payModule.handleBraintreeErrors).toHaveBeenCalledWith(req,
+                expect(payModule.handlePaymentMethodErrors).toHaveBeenCalledWith(req,
                     { success: false, message: 'Not enough brains on trees' });
                 expect(mockLog.error).toHaveBeenCalled();
             }).done(done);
@@ -1333,7 +1333,7 @@ describe('orgSvc-payments (UT)', function() {
                 expect(error.toString()).toBe('Braintree error');
                 expect(mockGateway.paymentMethod.create).toHaveBeenCalled();
                 expect(payModule.formatMethodOutput).not.toHaveBeenCalled();
-                expect(payModule.handleBraintreeErrors).toHaveBeenCalledWith(req, 'I GOT A PROBLEM');
+                expect(payModule.handlePaymentMethodErrors).toHaveBeenCalledWith(req, 'I GOT A PROBLEM');
                 expect(mockLog.error).toHaveBeenCalled();
             }).done(done);
         });
@@ -1348,12 +1348,12 @@ describe('orgSvc-payments (UT)', function() {
                 expect(mockGateway.paymentMethod.create).not.toHaveBeenCalled();
                 expect(payModule.createCustomerWithMethod).toHaveBeenCalled();
                 expect(payModule.formatMethodOutput).not.toHaveBeenCalled();
-                expect(payModule.handleBraintreeErrors).not.toHaveBeenCalled();
+                expect(payModule.handlePaymentMethodErrors).not.toHaveBeenCalled();
             }).done(done);
         });
         
         it('should resolve if handleBraintreeError handles the error', function(done) {
-            payModule.handleBraintreeErrors.and.returnValue(q({code: 400, body: 'Your card is bad' }));
+            payModule.handlePaymentMethodErrors.and.returnValue(q({code: 400, body: 'Your card is bad' }));
             mockGateway.paymentMethod.create.and.callFake(function(id, cb) {
                 cb('I GOT A PROBLEM');
             });
@@ -1361,7 +1361,7 @@ describe('orgSvc-payments (UT)', function() {
                 expect(resp).toEqual({ code: 400, body: 'Your card is bad' });
                 expect(mockGateway.paymentMethod.create).toHaveBeenCalled();
                 expect(payModule.formatMethodOutput).not.toHaveBeenCalled();
-                expect(payModule.handleBraintreeErrors).toHaveBeenCalledWith(req, 'I GOT A PROBLEM');
+                expect(payModule.handlePaymentMethodErrors).toHaveBeenCalledWith(req, 'I GOT A PROBLEM');
                 expect(mockLog.error).not.toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
@@ -1404,7 +1404,7 @@ describe('orgSvc-payments (UT)', function() {
                     }
                 }, jasmine.any(Function));
                 expect(payModule.formatMethodOutput).toHaveBeenCalledWith({ token: 'asdf1234', cardType: 'visa' });
-                expect(payModule.handleBraintreeErrors).not.toHaveBeenCalled();
+                expect(payModule.handlePaymentMethodErrors).not.toHaveBeenCalled();
                 expect(mockLog.error).not.toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
@@ -1436,7 +1436,7 @@ describe('orgSvc-payments (UT)', function() {
                         verifyCard: true
                     }
                 }, jasmine.any(Function));
-                expect(payModule.handleBraintreeErrors).not.toHaveBeenCalled();
+                expect(payModule.handlePaymentMethodErrors).not.toHaveBeenCalled();
                 expect(mockLog.error).not.toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
@@ -1450,7 +1450,7 @@ describe('orgSvc-payments (UT)', function() {
                 expect(orgSvc.customMethod).not.toHaveBeenCalled();
                 expect(mockGateway.paymentMethod.update).not.toHaveBeenCalled();
                 expect(payModule.formatMethodOutput).not.toHaveBeenCalled();
-                expect(payModule.handleBraintreeErrors).not.toHaveBeenCalled();
+                expect(payModule.handlePaymentMethodErrors).not.toHaveBeenCalled();
                 expect(mockLog.error).not.toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
@@ -1472,7 +1472,7 @@ describe('orgSvc-payments (UT)', function() {
                 expect(orgSvc.customMethod).not.toHaveBeenCalled();
                 expect(mockGateway.paymentMethod.update).not.toHaveBeenCalled();
                 expect(payModule.formatMethodOutput).not.toHaveBeenCalled();
-                expect(payModule.handleBraintreeErrors).not.toHaveBeenCalled();
+                expect(payModule.handlePaymentMethodErrors).not.toHaveBeenCalled();
                 expect(mockLog.error).not.toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
@@ -1504,7 +1504,7 @@ describe('orgSvc-payments (UT)', function() {
                     }
                 }, jasmine.any(Function));
                 expect(payModule.formatMethodOutput).toHaveBeenCalled();
-                expect(payModule.handleBraintreeErrors).not.toHaveBeenCalled();
+                expect(payModule.handlePaymentMethodErrors).not.toHaveBeenCalled();
                 expect(mockLog.error).not.toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
@@ -1517,7 +1517,7 @@ describe('orgSvc-payments (UT)', function() {
                 expect(resp).toEqual({ code: 400, body: 'Yo request is bad' });
                 expect(mockGateway.paymentMethod.update).not.toHaveBeenCalled();
                 expect(payModule.formatMethodOutput).not.toHaveBeenCalled();
-                expect(payModule.handleBraintreeErrors).not.toHaveBeenCalled();
+                expect(payModule.handlePaymentMethodErrors).not.toHaveBeenCalled();
                 expect(mockLog.error).not.toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
@@ -1534,7 +1534,7 @@ describe('orgSvc-payments (UT)', function() {
                 expect(error.toString()).toBe('Braintree error');
                 expect(mockGateway.paymentMethod.update).toHaveBeenCalled();
                 expect(payModule.formatMethodOutput).not.toHaveBeenCalled();
-                expect(payModule.handleBraintreeErrors).toHaveBeenCalledWith(req,
+                expect(payModule.handlePaymentMethodErrors).toHaveBeenCalledWith(req,
                     { success: false, message: 'Not enough brains on trees' });
                 expect(mockLog.error).toHaveBeenCalled();
             }).done(done);
@@ -1550,13 +1550,13 @@ describe('orgSvc-payments (UT)', function() {
                 expect(error.toString()).toBe('Braintree error');
                 expect(mockGateway.paymentMethod.update).toHaveBeenCalled();
                 expect(payModule.formatMethodOutput).not.toHaveBeenCalled();
-                expect(payModule.handleBraintreeErrors).toHaveBeenCalledWith(req, 'I GOT A PROBLEM');
+                expect(payModule.handlePaymentMethodErrors).toHaveBeenCalledWith(req, 'I GOT A PROBLEM');
                 expect(mockLog.error).toHaveBeenCalled();
             }).done(done);
         });
         
         it('should resolve if handleBraintreeError handles the error', function(done) {
-            payModule.handleBraintreeErrors.and.returnValue(q({code: 400, body: 'Your card is bad' }));
+            payModule.handlePaymentMethodErrors.and.returnValue(q({code: 400, body: 'Your card is bad' }));
             mockGateway.paymentMethod.update.and.callFake(function(token, cfg, cb) {
                 cb('I GOT A PROBLEM');
             });
@@ -1564,7 +1564,7 @@ describe('orgSvc-payments (UT)', function() {
                 expect(resp).toEqual({ code: 400, body: 'Your card is bad' });
                 expect(mockGateway.paymentMethod.update).toHaveBeenCalled();
                 expect(payModule.formatMethodOutput).not.toHaveBeenCalled();
-                expect(payModule.handleBraintreeErrors).toHaveBeenCalledWith(req, 'I GOT A PROBLEM');
+                expect(payModule.handlePaymentMethodErrors).toHaveBeenCalledWith(req, 'I GOT A PROBLEM');
                 expect(mockLog.error).not.toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
