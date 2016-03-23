@@ -132,7 +132,7 @@
     };
 
     /* Checks if the org still has unfinished campaigns. */
-    orgModule.runningCampaignCheck = function(orgSvc, req, next, done) { //TODO: update tests
+    orgModule.runningCampaignCheck = function(orgSvc, req, next, done) {
         var log = logger.getLog(),
             query = {
                 org: req.params.id,
