@@ -13,8 +13,6 @@
         
         payModule = { config: {} };
 
-    //TODO: should all this be moved to accountant? probably... but then how do we do CrudSvc?
-
     // Adds extra middleware to orgSvc for custom payment methods. gateway === braintree client
     payModule.extendSvc = function(orgSvc, gateway, config) {
         payModule.config.api = config.api;
@@ -90,7 +88,7 @@
     
     // Middleware to fetch the org and attach it as req.org.
     // If useParam is true, will allow fetching req.query.org; otherwise default to req.user.org
-    payModule.fetchOrg = function(orgSvc, useParam, req, next, done) { //TODO: update tests
+    payModule.fetchOrg = function(orgSvc, useParam, req, next, done) {
         var log = logger.getLog(),
             orgId = (!!useParam && req.query.org) || req.user.org;
             
@@ -170,7 +168,8 @@
         });
     };
 
-    payModule.validatePaymentBody = function(req, next, done) { //TODO: test
+    // Check that all parameters are set + valid for POSTing a new payment
+    payModule.validatePaymentBody = function(req, next, done) {
         var log = logger.getLog();
         
         var model = new Model('payments', {
@@ -220,9 +219,8 @@
                 '[%1] Failed payment method for %2: validation errors: %3',
                 req.uuid,
                 req.org.id,
-                error.message
+                JSON.stringify(validationErrors, null, 2)
             );
-            log.info('[%1] errors: %2', req.uuid, JSON.stringify(validationErrors, null, 2));
             return q({ code: 400, body: 'Invalid payment method' });
         }
         
@@ -235,7 +233,6 @@
                 error.verification.processorResponseCode,
                 error.verification.processorResponseText
             );
-            
             return q({ code: 400, body: 'Processor declined payment method' });
         }
         else if (error.verification && error.verification.status === 'gateway_rejected') {
@@ -245,7 +242,6 @@
                 req.org.id,
                 error.verification.gatewayRejectionReason
             );
-            
             return q({ code: 400, body: 'Gateway declined payment method' });
         }
         
@@ -495,7 +491,7 @@
     
     /* Gets all payments made by the org. Fetches payments for all payment methods, even
      * methods that have since been deleted. */
-    payModule.getPayments = function(gateway, orgSvc, req) { //TODO: update tests
+    payModule.getPayments = function(gateway, orgSvc, req) {
         var log = logger.getLog();
         
         return orgSvc.customMethod(req, 'getPayments', function() {
@@ -536,7 +532,8 @@
         });
     };
     
-    payModule.createPayment = function(gateway, orgSvc, appCreds, req) { //TODO: test
+    // Charge a user's paymentMethod in braintree + create a corresponding transaction in our db
+    payModule.createPayment = function(gateway, orgSvc, appCreds, req) {
         var log = logger.getLog();
         
         return orgSvc.customMethod(req, 'createPayment', function() {
@@ -573,9 +570,9 @@
                     });
                 }
                 
+                // If not a processor decline, error is unexpected, so log.error() and reject
                 var errMsg;
-                // attempt to find validationErrors nested in braintree's error object
-                try {
+                try { // attempt to find validationErrors nested in braintree's error object
                     errMsg = util.inspect(result.errors.deepErrors());
                 } catch(e) {
                     errMsg = result.message || util.inspect(result);
