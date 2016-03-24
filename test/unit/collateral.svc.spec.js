@@ -953,6 +953,32 @@ describe('collateral (UT):', function() {
             });
         });
 
+        describe('if there is no server at that address', function() {
+            var error;
+
+            beforeEach(function(done) {
+                error = new Error('Error: getaddrinfo ENOTFOUND');
+                error.name = 'RequestError';
+                error.cause = new Error('getaddrinfo ENOTFOUND');
+                error.cause.code = 'ENOTFOUND';
+
+                spideyDeferred.reject(error);
+                process.nextTick(done);
+            });
+
+            it('should fulfill with a [400]', function() {
+                expect(success).toHaveBeenCalledWith(jasmine.objectContaining({
+                    code: 400,
+                    body: 'Upstream server not found.'
+                }));
+            });
+
+            it('should not log a warning or error', function() {
+                expect(mockLog.warn).not.toHaveBeenCalled();
+                expect(mockLog.error).not.toHaveBeenCalled();
+            });
+        });
+
         describe('if something else goes wrong in request', function() {
             var error;
 
