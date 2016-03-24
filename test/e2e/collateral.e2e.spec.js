@@ -603,6 +603,19 @@ describe('collateral (E2E):', function() {
             });
         });
 
+        describe('if called with a non-existant address', function() {
+            beforeEach(function(done) {
+                options.qs.uri = 'http://evansux.reelcontent.com/';
+
+                requestUtils.qRequest('get', options).then(success, failure).finally(done);
+            });
+
+            it('should [400]', function() {
+                expect(apiResponse.response.statusCode).toBe(400);
+                expect(apiResponse.body).toBe('Upstream server not found.');
+            });
+        });
+
         describe('if the user is not logged in', function() {
             beforeEach(function(done) {
                 delete options.jar;

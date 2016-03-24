@@ -566,6 +566,14 @@
                         );
                     }
 
+                    if (cause.code === 'ENOTFOUND') {
+                        log.info('[%1] No server found at address "%2."', uuid, uri);
+                        return new ServiceResponse(
+                            400,
+                            'Upstream server not found.'
+                        );
+                    }
+
                     if (/Invalid URI/.test(cause.message)) {
                         log.info('[%1] URI is not valid: %2.', uuid, uri);
                         return new ServiceResponse(
