@@ -1,5 +1,10 @@
 # Collateral Service Changelog
 
+### 2.2.3: Thu Mar 24 14:13:05 EDT 2016
+* [FIX]: Handle non-existant server addresses more gracefully when
+  scraping social links: [#829](https://github.com/cinema6/cwrx/pull/829)
+* Extra deployment steps: None
+
 ### 2.2.2: Tue Mar 15 19:44:01 EDT 2016
 * [FIX]: Fix characters of uuids to be url-safe: [#822](https://github.com/cinema6/cwrx/pull/822)
 * Extra deployment steps:
