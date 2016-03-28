@@ -58,7 +58,7 @@ describe('orgSvc-payments (UT)', function() {
             id: '1234',
             status: 'settled',
             type: 'sale',
-            amount: '10.00',
+            amount: '10.12',
             createdAt: '2015-09-21T21:54:50.507Z',
             updatedAt: '2015-09-21T21:55:00.884Z',
             customer: { id: '5678' },
@@ -194,7 +194,7 @@ describe('orgSvc-payments (UT)', function() {
                 id: '1234',
                 status: 'settled',
                 type: 'sale',
-                amount: '10.00',
+                amount: 10.12,
                 createdAt: '2015-09-21T21:54:50.507Z',
                 updatedAt: '2015-09-21T21:55:00.884Z',
                 method: {
@@ -219,7 +219,7 @@ describe('orgSvc-payments (UT)', function() {
                 id: '1234',
                 status: 'settled',
                 type: 'sale',
-                amount: '10.00',
+                amount: 10.12,
                 createdAt: '2015-09-21T21:54:50.507Z',
                 updatedAt: '2015-09-21T21:55:00.884Z',
                 method: {
@@ -741,7 +741,7 @@ describe('orgSvc-payments (UT)', function() {
                         id: 'p1',
                         status: undefined,
                         type: undefined,
-                        amount: '10.00',
+                        amount: 10.0,
                         createdAt: undefined,
                         updatedAt: undefined,
                         method: {
@@ -761,7 +761,7 @@ describe('orgSvc-payments (UT)', function() {
                         id: 'p2',
                         status: undefined,
                         type: undefined,
-                        amount: '20.00',
+                        amount: 20.0,
                         createdAt: undefined,
                         updatedAt: undefined,
                         method: {
@@ -1063,6 +1063,25 @@ describe('orgSvc-payments (UT)', function() {
                 }, jasmine.any(Function));
                 expect(mongoUtils.editObject).toHaveBeenCalledWith({ collectionName: 'orgs' }, { braintreeCustomer: '123456' }, 'o-1');
                 expect(payModule.formatMethodOutput).toHaveBeenCalledWith({ token: 'asdf1234', cardType: 'visa' });
+                expect(payModule.handlePaymentMethodErrors).not.toHaveBeenCalled();
+                expect(mockLog.error).not.toHaveBeenCalled();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should use the user\'s company for the customer\'s company if defined', function(done) {
+            req.user.company = 'Heinz';
+            payModule.createCustomerWithMethod(mockGateway, orgSvc, req).then(function(resp) {
+                expect(resp.code).toEqual(201);
+                expect(resp.body).toEqual(jasmine.objectContaining({ token: 'asdf1234' }));
+                expect(mockGateway.customer.create).toHaveBeenCalledWith({
+                    company: 'Heinz',
+                    firstName: 'Unit',
+                    lastName: 'Tests',
+                    email: 'unit@tests.com',
+                    paymentMethodNonce: 'thisislegit'
+                }, jasmine.any(Function));
                 expect(payModule.handlePaymentMethodErrors).not.toHaveBeenCalled();
                 expect(mockLog.error).not.toHaveBeenCalled();
             }).catch(function(error) {
@@ -1606,7 +1625,7 @@ describe('orgSvc-payments (UT)', function() {
                     body: jasmine.objectContaining({
                         id: 'trans1',
                         status: 'submitted_for_settlement',
-                        amount: '100.00',
+                        amount: 100.0,
                         method: jasmine.objectContaining({
                             token: 'method1',
                             type: 'creditCard',

@@ -18,17 +18,18 @@ var q               = require('q'),
     });
 
 describe('orgSvc payments (E2E):', function() {
-    var cookieJar, readOnlyJar, mockRequester, readOnlyUser, testPolicies, mockCust, mockOrgs, origCard, origPaypal;
+    var cookieJar, readOnlyJar, noCustJar, mockRequester, readOnlyUser, noCustUser, mockCusts, mockOrgs, origCard, origPaypal, origJCB;
     
     beforeEach(function(done) {
         jasmine.DEFAULT_TIMEOUT_INTERVAL = 30000;
 
-        if (cookieJar && readOnlyJar) {
+        if (cookieJar && readOnlyJar && noCustJar) {
             return done();
         }
 
         cookieJar = request.jar();
         readOnlyJar = request.jar();
+        noCustJar = request.jar();
         mockRequester = {
             id: 'u-e2e-payments',
             status: 'active',
@@ -47,7 +48,18 @@ describe('orgSvc payments (E2E):', function() {
             org: 'o-otherorg',
             policies: ['readOwnOrg']
         };
-        testPolicies = [
+        noCustUser = {
+            id: 'u-e2e-nocust',
+            status: 'active',
+            firstName: 'New',
+            lastName: 'User',
+            email: 'no-cust@c6.com',
+            company: 'New Users, Inc.',
+            password : '$2a$10$XomlyDak6mGSgrC/g1L7FO.4kMRkj4UturtKSzy6mFeL8QWOBmIWq', // hash of 'password'
+            org: 'o-nocust',
+            policies: ['manageAllOrgs']
+        };
+        var testPolicies = [
             {
                 id: 'p-e2e-writeOrg',
                 name: 'manageAllOrgs',
@@ -55,6 +67,9 @@ describe('orgSvc payments (E2E):', function() {
                 priority: 1,
                 permissions: {
                     orgs: { read: 'all', create: 'all', edit: 'all', delete: 'all' }
+                },
+                entitlements: {
+                    makePayment: true
                 }
             },
             {
@@ -68,12 +83,13 @@ describe('orgSvc payments (E2E):', function() {
             }
         ];
         var logins = [
-            {url: config.authUrl + '/login', json: {email: 'requester@c6.com', password: 'password'}, jar: cookieJar},
-            {url: config.authUrl + '/login', json: {email: 'read-only@c6.com', password: 'password'}, jar: readOnlyJar},
+            {url: config.authUrl + '/login', json: {email: mockRequester.email, password: 'password'}, jar: cookieJar},
+            {url: config.authUrl + '/login', json: {email: readOnlyUser.email, password: 'password'}, jar: readOnlyJar},
+            {url: config.authUrl + '/login', json: {email: noCustUser.email, password: 'password'}, jar: noCustJar},
         ];
         
         q.all([
-            testUtils.resetCollection('users', [mockRequester, readOnlyUser]),
+            testUtils.resetCollection('users', [mockRequester, readOnlyUser, noCustUser]),
             testUtils.resetCollection('policies', testPolicies)
         ]).then(function(results) {
             return q.all(logins.map(function(opts) { return requestUtils.qRequest('post', opts); }));
@@ -87,25 +103,31 @@ describe('orgSvc payments (E2E):', function() {
         });
     });
     
+    // Setup braintree customers, payment methods, and orgs 
     beforeEach(function(done) {
-        if (mockCust && mockCust.id) {
+        if (mockCusts && mockCusts.length > 0) {
             return done();
         }
         
-        var custCfg = {
-            company: 'e2eTests',
-            paymentMethodNonce: 'fake-paypal-future-nonce'
-        };
-    
-        q.npost(gateway.customer, 'create', [custCfg]).then(function(result) {
-            if (!result.success) {
-                return q.reject(result);
+        q.all([
+            { company: 'o-braintree1', paymentMethodNonce: 'fake-paypal-future-nonce' },
+            { company: 'o-otherorg', paymentMethodNonce: 'fake-valid-jcb-nonce' },
+        ].map(function(custCfg) {
+            return q.npost(gateway.customer, 'create', [custCfg]);
+        })).spread(function(mainOrgResult, otherOrgResult) {
+            if (!mainOrgResult.success) {
+                return q.reject(mainOrgResult);
             }
-            mockCust = result.customer;
-            origPaypal = result.customer.paymentMethods[0];
+            if (!otherOrgResult.success) {
+                return q.reject(mainOrgResult);
+            }
+
+            mockCusts = [ mainOrgResult.customer, otherOrgResult.customer ];
+            origPaypal = mainOrgResult.customer.paymentMethods[0];
+            origJCB = otherOrgResult.customer.paymentMethods[0];
             
             return q.npost(gateway.paymentMethod, 'create', [{
-                customerId: mockCust.id,
+                customerId: mainOrgResult.customer.id,
                 paymentMethodNonce: 'fake-valid-visa-nonce',
                 cardholderName: 'Johnny Testmonkey'
             }]);
@@ -121,12 +143,18 @@ describe('orgSvc payments (E2E):', function() {
                     id: 'o-braintree1',
                     status: 'active',
                     name: 'org w/ cust',
-                    braintreeCustomer: mockCust.id
+                    braintreeCustomer: mockCusts[0].id
                 },
                 {
                     id: 'o-otherorg',
                     status: 'active',
-                    name: 'org w/o cust',
+                    name: 'other org',
+                    braintreeCustomer: mockCusts[1].id
+                },
+                {
+                    id: 'o-nocust',
+                    status: 'active',
+                    name: 'org w/o cust'
                 }
             ];
             
@@ -153,7 +181,7 @@ describe('orgSvc payments (E2E):', function() {
         });
         
         it('should still get a client token if the org has no braintreeCustomer', function(done) {
-            options.jar = readOnlyJar;
+            options.jar = noCustJar;
             requestUtils.qRequest('get', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
                 expect(resp.body).toEqual({
@@ -178,8 +206,13 @@ describe('orgSvc payments (E2E):', function() {
     
     describe('GET /api/payments/', function() {
         var paymentsCreated = false,
-            options;
+            amount1, amount2, amount3, options;
         beforeEach(function(done) {
+            // randomize transaction amounts to avoid duplicate payment rejections when re-running tests
+            amount1 = parseFloat(( Math.random() * 10 + 10 ).toFixed(2));
+            amount2 = parseFloat(( Math.random() * 10 + 20 ).toFixed(2));
+            amount3 = parseFloat(( Math.random() * 10 + 30 ).toFixed(2));
+
             options = {
                 url: config.paymentUrl + '/',
                 jar: cookieJar
@@ -191,43 +224,31 @@ describe('orgSvc payments (E2E):', function() {
 
             q.all([
                 {
-                    amount: '10.00',
-                    paymentMethodToken: origCard.token,
-                    customFields: {
-                        campaign: 'cam-1'
-                    }
+                    amount: String(amount1),
+                    paymentMethodToken: origCard.token
                 },
                 {
-                    amount: '20.00',
+                    amount: String(amount2),
                     paymentMethodToken: origCard.token,
-                    customFields: {
-                        campaign: 'cam-2'
-                    },
                     options: {
                         submitForSettlement: true
                     }
                 },
                 {
-                    amount: '30.00',
-                    paymentMethodToken: origPaypal.token,
-                    customFields: {
-                        campaign: 'cam-3'
-                    }
+                    amount: String(amount3),
+                    paymentMethodToken: origPaypal.token
                 }
             ].map(function(cfg) {
                 return q.npost(gateway.transaction, 'sale', [cfg]).then(function(result) {
                     if (!result.success) {
                         return q.reject(result);
                     }
+                    return q(result);
                 });
-            })).then(function() {
+            })).done(function() {
                 paymentsCreated = true;
-                
-                testUtils.resetCollection('campaigns', [
-                    { id: 'cam-1', status: 'active', name: 'campaign 1' },
-                    { id: 'cam-3', status: 'expired', name: 'campaign 3' },
-                ]);
-            }).done(done);
+                done();
+            });
         });
             
         it('should get all payments for an org', function(done) {
@@ -250,47 +271,41 @@ describe('orgSvc payments (E2E):', function() {
                     type: 'paypal',
                     email: jasmine.any(String),
                 };
-                expect(resp.body).toEqual([
-                    {
-                        id: jasmine.any(String),
-                        status: 'authorized',
-                        type: 'sale',
-                        amount: '10.00',
-                        createdAt: jasmine.any(String),
-                        updatedAt: jasmine.any(String),
-                        method: expectedCard,
-                        campaignId: 'cam-1',
-                        campaignName: 'campaign 1'
-                    },
-                    {
-                        id: jasmine.any(String),
-                        status: 'submitted_for_settlement',
-                        type: 'sale',
-                        amount: '20.00',
-                        createdAt: jasmine.any(String),
-                        updatedAt: jasmine.any(String),
-                        method: expectedCard,
-                        campaignId: 'cam-2'
-                    },
-                    {
-                        id: jasmine.any(String),
-                        status: 'authorized',
-                        type: 'sale',
-                        amount: '30.00',
-                        createdAt: jasmine.any(String),
-                        updatedAt: jasmine.any(String),
-                        method: expectedPaypal,
-                        campaignId: 'cam-3',
-                        campaignName: 'campaign 3'
-                    }
-                ]);
+                expect(resp.body.length).toBe(3);
+                expect(resp.body[0]).toEqual({
+                    id: jasmine.any(String),
+                    status: 'authorized',
+                    type: 'sale',
+                    amount: amount1,
+                    createdAt: jasmine.any(String),
+                    updatedAt: jasmine.any(String),
+                    method: expectedCard
+                });
+                expect(resp.body[1]).toEqual({
+                    id: jasmine.any(String),
+                    status: 'submitted_for_settlement',
+                    type: 'sale',
+                    amount: amount2,
+                    createdAt: jasmine.any(String),
+                    updatedAt: jasmine.any(String),
+                    method: expectedCard
+                });
+                expect(resp.body[2]).toEqual({
+                    id: jasmine.any(String),
+                    status: 'authorized',
+                    type: 'sale',
+                    amount: amount3,
+                    createdAt: jasmine.any(String),
+                    updatedAt: jasmine.any(String),
+                    method: expectedPaypal
+                });
             }).catch(function(error) {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
         
         it('should return 200 and [] for an org with no braintreeCustomer', function(done) {
-            options.jar = readOnlyJar;
+            options.jar = noCustJar;
             requestUtils.qRequest('get', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
                 expect(resp.body).toEqual([]);
@@ -374,7 +389,7 @@ describe('orgSvc payments (E2E):', function() {
         });
         
         it('should return 200 and [] for an org with no braintreeCustomer', function(done) {
-            options.jar = readOnlyJar;
+            options.jar = noCustJar;
             requestUtils.qRequest('get', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
                 expect(resp.body).toEqual([]);
@@ -387,7 +402,17 @@ describe('orgSvc payments (E2E):', function() {
             options.qs = { org: 'o-otherorg' };
             requestUtils.qRequest('get', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
-                expect(resp.body).toEqual([]);
+                expect(resp.body).toEqual([jasmine.objectContaining({
+                    token: origJCB.token,
+                    createdAt: origJCB.createdAt,
+                    updatedAt: jasmine.any(String),
+                    imageUrl: origJCB.imageUrl,
+                    default: true,
+                    type: 'creditCard',
+                    cardType: 'JCB',
+                    expirationDate: '12/2020',
+                    last4: '0000'
+                })]);
             }).catch(function(error) {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
@@ -464,10 +489,9 @@ describe('orgSvc payments (E2E):', function() {
         
         it('should be able to create a new customer for an org with no braintreeCustomer', function(done) {
             var custId, token;
-            mockRequester.org = 'o-otherorg';
-            testUtils.resetCollection('users', [mockRequester, readOnlyUser]).then(function() {
-                return requestUtils.qRequest('post', options);
-            }).then(function(resp) {
+            options.jar = noCustJar;
+
+            requestUtils.qRequest('post', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(201);
                 expect(resp.body.default).toBe(true);
                 expect(resp.body.cardType).toBe('American Express');
@@ -475,8 +499,8 @@ describe('orgSvc payments (E2E):', function() {
 
                 // check that braintreeCustomer set on the org
                 return requestUtils.qRequest('get', {
-                    url: config.orgSvcUrl + '/o-otherorg',
-                    jar: cookieJar
+                    url: config.orgSvcUrl + '/o-nocust',
+                    jar: noCustJar
                 });
             }).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
@@ -486,24 +510,19 @@ describe('orgSvc payments (E2E):', function() {
                 return q.npost(gateway.customer, 'find', [custId]);
             }).then(function(cust) {
                 expect(cust.id).toBe(custId);
-                expect(cust.firstName).toBe('E2E');
-                expect(cust.lastName).toBe('Tests');
-                expect(cust.email).toBe('requester@c6.com');
-                expect(cust.company).toBe('org w/o cust');
+                expect(cust.firstName).toBe('New');
+                expect(cust.lastName).toBe('User');
+                expect(cust.email).toBe('no-cust@c6.com');
+                expect(cust.company).toBe('New Users, Inc.');
                 expect(cust.paymentMethods.length).toBe(1);
                 expect(cust.paymentMethods[0].token).toBe(token);
                 
                 // cleanup: delete this new braintree customer
                 return q.npost(gateway.customer, 'delete', [custId]);
             }).then(function() {
-                // reset users and orgs
-                mockRequester.org = 'o-braintree1';
-                delete mockOrgs[1].braintreeCustomer;
-                
-                return q.all([
-                    testUtils.resetCollection('orgs', mockOrgs),
-                    testUtils.resetCollection('users', [mockRequester, readOnlyUser])
-                ]).thenResolve();
+                // reset orgs
+                delete mockOrgs[2].braintreeCustomer;
+                return testUtils.resetCollection('orgs', mockOrgs);
             }).catch(function(error) {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
@@ -688,16 +707,10 @@ describe('orgSvc payments (E2E):', function() {
         });
         
         it('should return a 400 if the org has no braintreeCustomer', function(done) {
-            mockRequester.org = 'o-otherorg';
-            testUtils.resetCollection('users', [mockRequester, readOnlyUser]).then(function() {
-                return requestUtils.qRequest('put', options);
-            }).then(function(resp) {
+            options.jar = noCustJar;
+            requestUtils.qRequest('put', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(400);
                 expect(resp.body).toBe('No payment methods for this org');
-                
-                // reset users
-                mockRequester.org = 'o-braintree1';
-                return testUtils.resetCollection('users', [mockRequester, readOnlyUser]);
             }).catch(function(error) {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
@@ -708,6 +721,16 @@ describe('orgSvc payments (E2E):', function() {
             requestUtils.qRequest('put', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(403);
                 expect(resp.body).toBe('Forbidden');
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should not allow a user to edit a paymentMethod they do not own', function(done) {
+            options.url = config.paymentUrl + '/methods/' + origJCB.token;
+            requestUtils.qRequest('put', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(404);
+                expect(resp.body).toBe('That payment method does not exist for this org');
             }).catch(function(error) {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
@@ -726,20 +749,11 @@ describe('orgSvc payments (E2E):', function() {
 
     describe('DELETE /api/payments/methods/:token', function() {
         var options;
-        beforeEach(function(done) {
+        beforeEach(function() {
             options = {
                 url: config.paymentUrl + '/methods/' + origCard.token,
                 jar: cookieJar
             };
-        
-            var mockCamps = [
-                { id: 'cam-1', status: 'active', paymentMethod: origPaypal.token },
-                { id: 'cam-2', status: 'canceled', paymentMethod: origCard.token },
-                { id: 'cam-3', status: 'expired', paymentMethod: origCard.token },
-                { id: 'cam-4', status: 'deleted', paymentMethod: origCard.token },
-            ];
-
-            return testUtils.resetCollection('campaigns', mockCamps).done(done);
         });
         
         it('should be able to delete a payment method', function(done) {
@@ -767,21 +781,6 @@ describe('orgSvc payments (E2E):', function() {
             }).done(done);
         });
         
-        it('should fail if the method is still in use by running campaigns', function(done) {
-            options.url = config.paymentUrl + '/methods/' + origPaypal.token;
-            requestUtils.qRequest('delete', options).then(function(resp) {
-                expect(resp.response.statusCode).toBe(400);
-                expect(resp.body).toBe('Payment method still in use by campaigns');
-                
-                return q.npost(gateway.paymentMethod, 'find', [origPaypal.token]);
-            }).then(function(method) {
-                expect(method.token).toEqual(origPaypal.token);
-                expect(method.email).toBe('jane.doe@example.com');
-            }).catch(function(error) {
-                expect(util.inspect(error)).not.toBeDefined();
-            }).done(done);
-        });
-        
         it('should still return a 204 if the payment method does not exist', function(done) {
             options.url = config.paymentUrl + '/method/evanmadeupthistoken';
             requestUtils.qRequest('delete', options).then(function(resp) {
@@ -793,16 +792,10 @@ describe('orgSvc payments (E2E):', function() {
         });
         
         it('should return a 400 if the org has no braintreeCustomer', function(done) {
-            mockRequester.org = 'o-otherorg';
-            testUtils.resetCollection('users', [mockRequester, readOnlyUser]).then(function() {
-                return requestUtils.qRequest('delete', options);
-            }).then(function(resp) {
+            options.jar = noCustJar;
+            requestUtils.qRequest('delete', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(400);
                 expect(resp.body).toBe('No payment methods for this org');
-                
-                // reset users
-                mockRequester.org = 'o-braintree1';
-                return testUtils.resetCollection('delete', [mockRequester, readOnlyUser]);
             }).catch(function(error) {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
@@ -813,6 +806,16 @@ describe('orgSvc payments (E2E):', function() {
             requestUtils.qRequest('delete', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(403);
                 expect(resp.body).toBe('Forbidden');
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should still return a 204 if the payment method exists for another org', function(done) {
+            options.url = config.paymentUrl + '/methods/' + origJCB.token;
+            requestUtils.qRequest('delete', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(204);
+                expect(resp.body).toBe('');
             }).catch(function(error) {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
@@ -829,18 +832,173 @@ describe('orgSvc payments (E2E):', function() {
         });
     });
     
-    
-    describe('customer cleanup', function() {
-        it('should delete the mock braintree customer', function(done) {
-            q.npost(gateway.customer, 'delete', [mockCust.id]).done(function() {
-                done();
-            });
+    describe('POST /api/payments', function() {
+        var options, amount, expectedMethodOutput;
+        beforeEach(function(done) {
+            // randomize transaction amounts to avoid duplicate payment rejections when re-running tests
+            amount = parseFloat(( Math.random() * 100 + 100 ).toFixed(2));
+            options = {
+                url: config.paymentUrl,
+                json: {
+                    amount: parseFloat(amount),
+                    paymentMethod: origPaypal.token
+                },
+                jar: cookieJar
+            };
+
+            expectedMethodOutput = {
+                token: origPaypal.token,
+                imageUrl: origPaypal.imageUrl,
+                type: 'paypal',
+                email: jasmine.any(String),
+            };
+
+            testUtils.resetPGTable('fct.billing_transactions').done(done);
+        });
+        
+        it('should create a braintree transaction + a credit transaction in our db', function(done) {
+            var createdTransaction;
+
+            requestUtils.qRequest('post', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(201);
+                expect(resp.body).toEqual({
+                    id: jasmine.any(String),
+                    status: 'settling',
+                    type: 'sale',
+                    amount: amount,
+                    createdAt: jasmine.any(String),
+                    updatedAt: jasmine.any(String),
+                    method: expectedMethodOutput
+                });
+                createdTransaction = resp.body;
+                
+                return testUtils.pgQuery('SELECT * FROM fct.billing_transactions WHERE braintree_id = $1', [resp.body.id]);
+            }).then(function(results) {
+                expect(results.rows.length).toBe(1);
+                expect(results.rows[0]).toEqual(jasmine.objectContaining({
+                    rec_key         : jasmine.any(String),
+                    rec_ts          : jasmine.any(Date),
+                    transaction_id  : jasmine.any(String),
+                    transaction_ts  : results.rows[0].rec_ts,
+                    org_id          : 'o-braintree1',
+                    amount          : amount.toFixed(4),
+                    sign            : 1,
+                    units           : 1,
+                    campaign_id     : null,
+                    braintree_id    : createdTransaction.id,
+                    promotion_id    : null,
+                    description     : JSON.stringify({ eventType: 'credit', source: 'braintree' })
+                }));
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should write an entry to the audit collection', function(done) {
+            requestUtils.qRequest('post', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(201);
+                return testUtils.mongoFind('audit', { service: 'orgSvc' }, {$natural: -1}, 1, 0, {db: 'c6Journal'});
+            }).then(function(results) {
+                expect(results[0].user).toBe('u-e2e-payments');
+                expect(results[0].created).toEqual(jasmine.any(Date));
+                expect(results[0].host).toEqual(jasmine.any(String));
+                expect(results[0].pid).toEqual(jasmine.any(Number));
+                expect(results[0].uuid).toEqual(jasmine.any(String));
+                expect(results[0].sessionID).toEqual(jasmine.any(String));
+                expect(results[0].service).toBe('orgSvc');
+                expect(results[0].version).toEqual(jasmine.any(String));
+                expect(results[0].data).toEqual({route: 'POST /api/payments/',
+                                                 params: {}, query: {} });
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should return a 400 if the body is missing a required parameter', function(done) {
+            q.all([{ amount: amount }, { paymentMethod: origCard.token }].map(function(body) {
+                options.json = body;
+                return requestUtils.qRequest('post', options);
+            })).then(function(results) {
+                expect(results[0].response.statusCode).toBe(400);
+                expect(results[0].body).toBe('Missing required field: paymentMethod');
+                expect(results[1].response.statusCode).toBe(400);
+                expect(results[1].body).toBe('Missing required field: amount');
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should return a 400 if the amount is too small', function(done) {
+            q.all([-123, 0, 1.23].map(function(smallAmount) {
+                options.json.amount = smallAmount;
+                return requestUtils.qRequest('post', options);
+            })).then(function(results) {
+                results.forEach(function(resp) {
+                    expect(resp.response.statusCode).toBe(400);
+                    expect(resp.body).toBe('amount must be greater than the min: 50');
+                });
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should return a 400 if the payment method does not exist', function(done) {
+            options.json.paymentMethod = 'infinite money';
+            requestUtils.qRequest('post', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(404);
+                expect(resp.body).toBe('That payment method does not exist for this org');
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should return a 403 if the user does not have permission to make payments', function(done) {
+            options.jar = readOnlyJar;
+            options.json.paymentMethod = origJCB.token;
+            requestUtils.qRequest('post', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(403);
+                expect(resp.body).toBe('Forbidden');
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should not allow a user to post a payment with a paymentMethod they do not own', function(done) {
+            options.json.paymentMethod = origJCB.token;
+            requestUtils.qRequest('post', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(404);
+                expect(resp.body).toBe('That payment method does not exist for this org');
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should return a 400 if the org has no braintreeCustomer', function(done) {
+            options.jar = noCustJar;
+            requestUtils.qRequest('post', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(400);
+                expect(resp.body).toBe('No payment methods for this org');
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should return a 401 if no user is logged in', function(done) {
+            delete options.jar;
+            requestUtils.qRequest('post', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(401);
+                expect(resp.body).toBe('Unauthorized');
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
         });
     });
-});
-
-describe('test cleanup', function() {
-    it('should close db connections', function(done) {
-        testUtils.closeDbs().done(done);
+        
+    afterAll(function(done) {
+        q.all(mockCusts.map(function(cust) {
+            return q.npost(gateway.customer, 'delete', [cust.id]);
+        })).then(function() {
+            return testUtils.closeDbs();
+        }).done(done);
     });
 });
