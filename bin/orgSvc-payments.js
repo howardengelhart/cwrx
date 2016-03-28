@@ -619,8 +619,14 @@
                     });
                 })
                 .catch(function(error) {
-                    log.error('[%1] Failed to create transaction for successful payment %2: %3',
-                              req.uuid, result.transaction.id, util.inspect(error));
+                    log.error(
+                        '[%1] Failed to create transaction for payment %2 ($%3) for org %4: %5',
+                        req.uuid,
+                        result.transaction.id,
+                        req.body.amount,
+                        req.org.id,
+                        util.inspect(error)
+                    );
                     
                     return q.reject('Failed to create transaction for payment');
                 });
