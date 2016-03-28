@@ -130,6 +130,7 @@
         svc.use('create', extraValidation);
         svc.use('create', updateModule.validateCards);
         svc.use('create', updateModule.validateZipcodes);
+        svc.use('create', updateModule.checkAvailableFunds);
         svc.use('create', handleInitialSubmit);
         svc.use('create', handleRenewal);
         if(emailingEnabled) {
@@ -144,6 +145,7 @@
         svc.use('edit', extraValidation);
         svc.use('edit', updateModule.validateCards);
         svc.use('edit', updateModule.validateZipcodes);
+        svc.use('edit', updateModule.checkAvailableFunds);
         svc.use('edit', unlockCampaign);
         svc.use('edit', applyUpdate);
         if(emailingEnabled) {
@@ -370,21 +372,6 @@
         });
     };
     
-    // Immediately edit campaign + set status to pending; used for renewal or init submit
-    updateModule.setPending = function(svc, req) {
-        var log = logger.getLog(),
-            updateObj = { status: Status.Pending };
-        
-        historian.historify('status', 'statusHistory', updateObj, req.campaign, req);
-        
-        req.body.data.statusHistory = updateObj.statusHistory;
-        
-        return mongoUtils.editObject(svc._db.collection('campaigns'), updateObj, req.campaign.id)
-        .then(function() {
-            log.trace('[%1] Edited %2 with pending status', req.uuid, req.campaign.id);
-        });
-    };
-    
     // On user's initial submit, check for additional props + transition campaign to 'pending'
     updateModule.handleInitialSubmit = function(svc, req, next, done) {
         var log = logger.getLog();
@@ -429,6 +416,60 @@
         return updateModule.setPending(svc, req)
         .then(function() {
             next();
+        });
+    };
+
+    updateModule.checkAvailableFunds = function(req, next, done) { //TODO: comment, test
+        var log = logger.getLog(),
+            org = req.body.data.org || req.campaign.org,
+            newBudget = req.body.data.pricing && req.body.data.pricing.budget || null,
+            prevBudgetChange = req.origObj && req.origObj.data.pricing &&
+                                              req.origObj.data.pricing.budget || null;
+        
+        // For comparison, "previous budget" is 0 if update is initial submit; else existing budget
+        var oldBudget = isInitSubmit(req) ? 0 : (req.campaign.pricing &&
+                                                 req.campaign.pricing.budget || 0);
+        
+        // Skip if budget not increasing, or if budget unchanged in PUT to update request
+        if (!newBudget || (newBudget <= oldBudget) || (newBudget === prevBudgetChange)) {
+            return q(next());
+        }
+        
+        var budgetDiff = newBudget - oldBudget;
+        
+        log.info('[%1] Budget increase of %2 for org %3 from campaign %4, checking available funds',
+                 req.uuid, budgetDiff, org, req.campaign.id);
+        
+        return requestUtils.proxyRequest(req, 'get', {
+            url: updateModule.config.api.balance.baseUrl,
+            qs: { org: org }
+        })
+        .then(function(resp) {
+            if (resp.response.statusCode !== 200) {
+                log.info('[%1] Requester %2 could not fetch balance stats for %3: %4, %5',
+                         req.uuid, req.requester.id, org, resp.response.statusCode, resp.body);
+                return done({ code: resp.response.statusCode, body: resp.body });
+            }
+            
+            if (budgetDiff + resp.body.outstandingBudget > resp.body.balance) {
+                log.info('[%1] Org %2 has balance %3, cannot cover outstanding %4 plus incr of %5',
+                         req.uuid, org, resp.body.balance, resp.body.outstandingBudget, budgetDiff);
+                
+                return done({
+                    code: 400,
+                    body: 'Insufficient funds to cover new budget'
+                });
+            }
+            
+            log.info('[%1] Org %2 has enough balance to cover budget increase of %3',
+                     req.uuid, org, budgetDiff);
+            
+            return next();
+        })
+        .catch(function(error) {
+            log.error('[%1] Requester %2 failed fetching balance for %3: %4',
+                      req.uuid, req.requester.id, org, util.inspect(error));
+            return q.reject('Failed fetching account balance for org');
         });
     };
     

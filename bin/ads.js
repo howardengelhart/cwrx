@@ -56,8 +56,8 @@
             campaigns: {
                 endpoint: '/api/campaigns/'
             },
-            paymentMethods: {
-                endpoint: '/api/payments/methods/'
+            balance: {
+                endpoint: '/api/accounting/balance/'
             },
             zipcodes: {
                 endpoint: '/api/geo/zipcodes'

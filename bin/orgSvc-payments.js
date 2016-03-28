@@ -13,6 +13,8 @@
         requestUtils    = require('../lib/requestUtils'),
         
         payModule = { config: {} };
+        
+    //TODO: double check that 4xx + 5xx responses here are relatively standardized + sensible
 
     // Adds extra middleware to orgSvc for custom payment methods. gateway === braintree client
     payModule.extendSvc = function(orgSvc, gateway, config) {
