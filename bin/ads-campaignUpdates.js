@@ -97,7 +97,6 @@
         svc.use('create', validateData);
         svc.use('create', extraValidation);
         svc.use('create', updateModule.validateCards);
-        svc.use('create', updateModule.validatePaymentMethod);
         svc.use('create', updateModule.validateZipcodes);
         svc.use('create', handleInitialSubmit);
         if(emailingEnabled) {
@@ -111,7 +110,6 @@
         svc.use('edit', validateData);
         svc.use('edit', extraValidation);
         svc.use('edit', updateModule.validateCards);
-        svc.use('edit', updateModule.validatePaymentMethod);
         svc.use('edit', updateModule.validateZipcodes);
         svc.use('edit', unlockCampaign);
         svc.use('edit', applyUpdate);
@@ -123,7 +121,6 @@
         svc.use('autoApprove', svc.setupObj.bind(svc));
         svc.use('autoApprove', fetchCamp);
         svc.use('autoApprove', updateModule.enforceLock);
-        svc.use('autoApprove', updateModule.validatePaymentMethod);
         svc.use('autoApprove', updateModule.validateZipcodes);
         svc.use('autoApprove', historian.middlewarify('status', 'statusHistory'));
         svc.use('autoApprove', applyUpdate);
@@ -159,6 +156,7 @@
             req.requester.fieldValidation.campaigns.status.__allowed === true
         ) || (
             // Otherwise, can auto-approve if body solely consists of paymentMethod
+            //TODO: remove this when frontend no longer depends on it
            req.body && req.body.data && !!req.body.data.paymentMethod &&
            Object.keys(req.body.data).length === 1
        );
@@ -317,27 +315,6 @@
             return q.reject('Error fetching card schema');
         });
     };
-    
-    // Check if paymentMethod on req.body.data is valid.
-    updateModule.validatePaymentMethod = function(req, next, done) {
-        var log = logger.getLog();
-
-        return campaignUtils.validatePaymentMethod(
-            req.body.data,
-            req.campaign,
-            req.requester,
-            updateModule.config.api.paymentMethods.baseUrl,
-            req
-        )
-        .then(function(validResp) {
-            if (!validResp.isValid) {
-                log.info('[%1] %2', req.uuid, validResp.reason);
-                return done({ code: 400, body: validResp.reason });
-            } else {
-                return next();
-            }
-        });
-    };
 
     // Check if zipcodes in req.body.data targeting are valid
     updateModule.validateZipcodes = function(req, next, done) {
@@ -373,12 +350,6 @@
                  
         req.body.initialSubmit = true;
         
-        if (!req.body.data.paymentMethod && !req.requester.entitlements.paymentOptional) {
-            log.info('[%1] Campaign %2 missing required field paymentMethod, cannot submit',
-                     req.uuid, req.campaign.id);
-            return q(done({ code: 400, body: 'Missing required field: paymentMethod' }));
-        }
-
         // check that these required fields are now set
         var fields = ['budget', 'cost'];
         

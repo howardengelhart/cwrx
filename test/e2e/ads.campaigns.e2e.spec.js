@@ -8,7 +8,6 @@ var q               = require('q'),
     config = {
         adsUrl      : 'http://' + (host === 'localhost' ? host + ':3900' : host) + '/api',
         contentUrl  : 'http://' + (host === 'localhost' ? host + ':3300' : host) + '/api/content',
-        paymentUrl  : 'http://' + (host === 'localhost' ? host + ':3700' : host) + '/api/payments',
         geoUrl      : 'http://' + (host === 'localhost' ? host + ':4200' : host) + '/api/geo',
         authUrl     : 'http://' + (host === 'localhost' ? host + ':3200' : host) + '/api/auth'
     },
@@ -20,7 +19,7 @@ var q               = require('q'),
     });
 
 describe('ads campaigns endpoints (E2E):', function() {
-    var selfieJar, adminJar, selfiePayment, adminPayment, mockOrgs, mockCards, mockExps, mockApp, appCreds;
+    var selfieJar, adminJar, mockOrgs, mockCards, mockExps, mockApp, appCreds;
 
     beforeEach(function(done) {
         jasmine.DEFAULT_TIMEOUT_INTERVAL = 10000;
@@ -159,29 +158,6 @@ describe('ads campaigns endpoints (E2E):', function() {
         });
     });
     
-    // Initialize orgs with Braintree customers + payment methods
-    beforeAll(function(done) {
-        mockOrgs = [
-            { id: 'o-selfie', name: 'test selfie org', status: 'active' },
-            { id: 'o-admin', name: 'test admin org', status: 'active' }
-        ];
-        
-        q.all([
-            q.npost(gateway.customer, 'create', [{ company: mockOrgs[0].name, paymentMethodNonce: 'fake-valid-visa-nonce' }]),
-            q.npost(gateway.customer, 'create', [{ company: mockOrgs[1].name, paymentMethodNonce: 'fake-valid-amex-nonce' }])
-        ]).spread(function(selfieResp, adminResp) {
-            if (!selfieResp.success) return q.reject(selfieResp);
-            if (!adminResp.success) return q.reject(adminResp);
-
-            mockOrgs[0].braintreeCustomer = selfieResp.customer.id;
-            mockOrgs[1].braintreeCustomer = adminResp.customer.id;
-            selfiePayment = selfieResp.customer.paymentMethods[0];
-            adminPayment = adminResp.customer.paymentMethods[0];
-            
-            return testUtils.resetCollection('orgs', mockOrgs);
-        }).done(done, done.fail);
-    });
-
     // Ensure exps + cards
     beforeAll(function(done) {
         mockCards = [
@@ -888,42 +864,6 @@ describe('ads campaigns endpoints (E2E):', function() {
             }).catch(function(error) {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
-        });
-        
-        describe('when attempting to set paymentMethod', function() {
-            beforeEach(function() {
-                options.json = {
-                    name: 'withPaymentMethod',
-                    advertiserId: 'e2e-a-1',
-                    paymentMethod: adminPayment.token
-                };
-            });
-            
-            it('should succeed if the paymentMethod is valid + owned by the org', function(done) {
-                requestUtils.qRequest('post', options, null, { maxAttempts: 30 }).then(function(resp) {
-                    expect(resp.response.statusCode).toBe(201);
-                    expect(resp.body._id).not.toBeDefined();
-                    expect(resp.body.id).toBeDefined();
-                    expect(resp.body.name).toBe('withPaymentMethod');
-                    expect(resp.body.paymentMethod).toBe(adminPayment.token);
-                }).catch(function(error) {
-                    expect(util.inspect(error)).not.toBeDefined();
-                }).done(done);
-            });
-            
-            it('should fail if the paymentMethod is invalid or owned by another org', function(done) {
-                q.all(['someFakeToken', selfiePayment.token].map(function(token) {
-                    options.json.paymentMethod = token;
-                    return requestUtils.qRequest('post', options, null, { maxAttempts: 30 });
-                })).then(function(results) {
-                    expect(results[0].response.statusCode).toBe(400);
-                    expect(results[0].body).toBe('paymentMethod someFakeToken does not exist for o-admin');
-                    expect(results[1].response.statusCode).toBe(400);
-                    expect(results[1].body).toBe('paymentMethod ' + selfiePayment.token + ' does not exist for o-admin');
-                }).catch(function(error) {
-                    expect(util.inspect(error)).not.toBeDefined();
-                }).done(done);
-            });
         });
 
         it('should return a 400 if no advertiserId is provided', function(done) {
@@ -1912,45 +1852,6 @@ describe('ads campaigns endpoints (E2E):', function() {
                     expect(util.inspect(error)).not.toBeDefined();
                 }).done(function(results) { done(); });
             });
-
-            describe('when attempting to set paymentMethod', function() {
-                beforeEach(function() {
-                    options.json = {
-                        paymentMethod: selfiePayment.token
-                    };
-                });
-                
-                it('should succeed if the paymentMethod is valid + owned by the org', function(done) {
-                    requestUtils.qRequest('put', options, null, { maxAttempts: 30 }).then(function(resp) {
-                        expect(resp.response.statusCode).toBe(200);
-                        if (resp.response.statusCode !== 200) {
-                            return q.reject({ code: resp.response.statusCode, body: resp.body });
-                        }
-
-                        expect(resp.body.id).toBe(selfieCreatedCamp.id);
-                        expect(resp.body.name).toBe(selfieCreatedCamp.name);
-                        expect(resp.body.paymentMethod).toBe(selfiePayment.token);
-
-                        selfieCreatedCamp = resp.body;
-                    }).catch(function(error) {
-                        expect(util.inspect(error)).not.toBeDefined();
-                    }).done(done);
-                });
-                
-                it('should fail if the paymentMethod is invalid or owned by another org', function(done) {
-                    q.all(['someFakeToken', adminPayment.token].map(function(token) {
-                        options.json.paymentMethod = token;
-                        return requestUtils.qRequest('put', options, null, { maxAttempts: 30 });
-                    })).then(function(results) {
-                        expect(results[0].response.statusCode).toBe(400);
-                        expect(results[0].body).toBe('paymentMethod someFakeToken does not exist for o-selfie');
-                        expect(results[1].response.statusCode).toBe(400);
-                        expect(results[1].body).toBe('paymentMethod ' + adminPayment.token + ' does not exist for o-selfie');
-                    }).catch(function(error) {
-                        expect(util.inspect(error)).not.toBeDefined();
-                    }).done(done);
-                });
-            });
             
             it('should trim off other forbidden fields', function(done) {
                 options.json = {
@@ -2213,7 +2114,6 @@ describe('ads campaigns endpoints (E2E):', function() {
                 results.forEach(function(resp) {
                     expect(resp.response.statusCode).toBe(200);
                     expect(resp.body).toEqual(jasmine.any(Object));
-                    expect(resp.body.paymentMethod).toEqual({ __allowed: true, __type: 'string' });
                     expect(resp.body.cards).toEqual(JSON.parse(JSON.stringify(campModule.campSchema.cards)));
                     expect(resp.body.pricing).toEqual(JSON.parse(JSON.stringify(campModule.campSchema.pricing)));
                 });
@@ -2274,12 +2174,7 @@ describe('ads campaigns endpoints (E2E):', function() {
     });
     
     afterAll(function(done) {
-        // cleanup created braintree customers
-        q.all(mockOrgs.map(function(org) {
-            return q.npost(gateway.customer, 'delete', [org.braintreeCustomer]);
-        })).then(function() {
-            return testUtils.closeDbs();
-        }).done(done, done.fail);
+        testUtils.closeDbs().done(done);
     });
 });
 
