@@ -5,6 +5,7 @@ var request         = require('request'),
     aws             = require('aws-sdk'),
     Imap            = require('imap'),
     mailparser      = require('mailparser'),
+    pg              = require('pg.js'),
     events          = require('events'),
     util            = require('util'),
     requestUtils    = require('../../lib/requestUtils'),
@@ -16,6 +17,56 @@ var request         = require('request'),
     testUtils = {
         _dbCache    : {}
     };
+    
+//////////////////////////// Postgres Helper Methods ///////////////////////////
+
+// Similar to pgUtils.query, but constructs connection config internally (or through userCfg)
+testUtils.pgQuery = function(statement, params, userCfg) {
+    var deferred = q.defer();
+    userCfg = userCfg || {};
+        
+    var conn = {
+        user        : userCfg.user || 'cwrx',
+        password    : userCfg.password || 'password',
+        database    : userCfg.database || 'campfire_cwrx',
+        host        : userCfg.host || (process.env.mongo ? JSON.parse(process.env.mongo).host : '33.33.33.100')
+    };
+
+    pg.connect(conn, function(err, client, done){
+        if (err) {
+            return deferred.reject(err);
+        }
+
+        client.query(statement, params, function(err,res) {
+            if (err) {
+                done();
+                return deferred.reject(err);
+            }
+
+            done();
+            return deferred.resolve(res);
+        });
+
+    });
+
+    return deferred.promise;
+};
+
+/* Truncate the given table, and then insert the data, if defined. data should be an array of
+ * strings representing the rows to insert. */
+testUtils.resetPGTable = function(tableName, data, userCfg) {
+    return testUtils.pgQuery('TRUNCATE TABLE ' + tableName, null, userCfg)
+    .then(function() {
+        if (!data || !(data instanceof Array)) {
+            return q();
+        }
+        
+        var statement = 'INSERT INTO ' + tableName + ' VALUES ' + data.join(', ') + ';';
+        
+        return testUtils.pgQuery(statement, null, userCfg);
+    })
+    .thenResolve();
+};
 
 
 ///////////////////////////// Mongo Helper Methods /////////////////////////////

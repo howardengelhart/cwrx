@@ -742,49 +742,76 @@ describe('authUtils', function() {
         });
     });
     
-    describe('compare', function() {
-        var userPerms;
+    describe('authorize', function() {
+        var opts, requester;
         beforeEach(function() {
-            userPerms = {
-                experiences: {
-                    read: 'org',
-                    edit: 'own'
+            opts = {};
+            requester = {
+                permissions: {
+                    experiences: {
+                        read: 'org',
+                        edit: 'own'
+                    },
+                    orgs: {
+                        read: 'own'
+                    }
                 },
-                orgs: {
-                    read: 'own'
+                entitlements: {
+                    makePayments: true,
+                    directEditCampaigns: false
                 }
             };
         });
         
-        it('should check that each object-verb pair exists in the user\'s permissions', function() {
-            var perms = { experiences: 'read' };
-            expect(authUtils._compare(perms, userPerms)).toBe(true);
+        it('should be able to check that the requester has all required permissions', function() {
+            opts.permissions = { experiences: 'read' };
+            expect(authUtils.authorize(opts, requester)).toBe(true);
             
-            perms = {experiences: 'edit', orgs: 'read' };
-            expect(authUtils._compare(perms, userPerms)).toBe(true);
+            opts.permissions = { experiences: 'edit', orgs: 'read' };
+            expect(authUtils.authorize(opts, requester)).toBe(true);
             
-            perms = { orgs: 'edit' };
-            expect(authUtils._compare(perms, userPerms)).toBe(false);
+            opts.permissions = { orgs: 'edit' };
+            expect(authUtils.authorize(opts, requester)).toBe(false);
             
-            perms = {users: 'read' };
-            expect(authUtils._compare(perms, userPerms)).toBe(false);
+            opts.permissions = { users: 'read' };
+            expect(authUtils.authorize(opts, requester)).toBe(false);
         });
         
-        it('should work if the required permissions are blank', function() {
-            var perms = {};
-            expect(authUtils._compare(perms, userPerms)).toBe(true);
-            expect(authUtils._compare(perms, undefined)).toBe(true);
-            expect(authUtils._compare(undefined, undefined)).toBe(true);
+        it('should be able to check that the requester has required entitlements', function() {
+            opts.entitlements = { makePayments: true };
+            expect(authUtils.authorize(opts, requester)).toBe(true);
+            
+            opts.entitlements = { makePayments: true, doThangs: true };
+            expect(authUtils.authorize(opts, requester)).toBe(false);
+            
+            opts.entitlements = { directEditCampaigns: true };
+            expect(authUtils.authorize(opts, requester)).toBe(false);
         });
         
-        it('should throw an error if the user has no permissions', function() {
-            expect(function() {
-                expect(authUtils._compare({ users: 'read' }, undefined)).toBe(false);
-            }).not.toThrow();
+        it('should be able to check both permissions and entitlements', function() {
+            opts = { entitlements: { makePayments: true }, permissions: { orgs: 'read' } };
+            expect(authUtils.authorize(opts, requester)).toBe(true);
+            
+            opts.permissions.users = 'read';
+            expect(authUtils.authorize(opts, requester)).toBe(false);
+        });
+        
+        it('should pass if there are no required permissions or entitlments', function() {
+            opts = {};
+            expect(authUtils.authorize(opts, requester)).toBe(true);
+
+            opts = { permissions: {}, entitlements: {} };
+            expect(authUtils.authorize(opts, requester)).toBe(true);
+        });
+        
+        it('should handle requesters without permissions and entitlements', function() {
+            opts = { entitlements: { makePayments: true }, permissions: { orgs: 'read' } };
+            requester = {};
+            expect(authUtils.authorize(opts, requester)).toBe(false);
         });
     });
     
-    describe('authUser', function() {
+    describe('authenticateUser', function() {
         var req;
         beforeEach(function() {
             req = {
@@ -797,7 +824,7 @@ describe('authUtils', function() {
         });
         
         it('should return success if the user is found and is the right status', function(done) {
-            authUtils.authUser(req).then(function(result) {
+            authUtils.authenticateUser(req).then(function(result) {
                 expect(result).toEqual({
                     success: true,
                     user: {
@@ -817,7 +844,7 @@ describe('authUtils', function() {
         
         it('should return an unsuccessful response if the session has no user', function(done) {
             q.all([{ uuid: '1234' }, { uuid: '1234', session: {} }].map(function(altReq) {
-                return authUtils.authUser(altReq).then(function(result) {
+                return authUtils.authenticateUser(altReq).then(function(result) {
                     expect(result).toEqual({ success: false });
                 });
             })).then(function() {
@@ -829,7 +856,7 @@ describe('authUtils', function() {
         
         it('should return a 403 if the user is not active (by default)', function(done) {
             mockUser.status = Status.New;
-            authUtils.authUser(req).then(function(result) {
+            authUtils.authenticateUser(req).then(function(result) {
                 expect(result).toEqual({
                     success: false,
                     code: 403,
@@ -842,7 +869,7 @@ describe('authUtils', function() {
         
         it('should be able to use a custom list of acceptable statuses', function(done) {
             mockUser.status = Status.New;
-            authUtils.authUser(req, [Status.Active, Status.New]).then(function(result) {
+            authUtils.authenticateUser(req, [Status.Active, Status.New]).then(function(result) {
                 expect(result).toEqual({
                     success: true,
                     user: jasmine.objectContaining({
@@ -857,7 +884,7 @@ describe('authUtils', function() {
 
         it('should return a 401 if the user is not found', function(done) {
             authUtils.getUser.and.returnValue(q());
-            authUtils.authUser(req).then(function(result) {
+            authUtils.authenticateUser(req).then(function(result) {
                 expect(result).toEqual({
                     success: false,
                     code: 401,
@@ -870,7 +897,7 @@ describe('authUtils', function() {
         
         it('should fail if getting the user fails', function(done) {
             authUtils.getUser.and.returnValue(q.reject('I GOT A PROBLEM'));
-            authUtils.authUser(req).then(function(result) {
+            authUtils.authenticateUser(req).then(function(result) {
                 expect(result).not.toBeDefined();
             }).catch(function(error) {
                 expect(error).toBe('I GOT A PROBLEM');
@@ -933,7 +960,7 @@ describe('authUtils', function() {
         });
     });
     
-    describe('authApp', function() {
+    describe('authenticateApp', function() {
         var req;
         beforeEach(function() {
             spyOn(signatures, 'verifyRequest').and.returnValue(true);
@@ -957,7 +984,7 @@ describe('authUtils', function() {
         });
         
         it('should fetch the app, verify the signature, and return success', function(done) {
-            authUtils.authApp(req, 3000).then(function(resp) {
+            authUtils.authenticateApp(req, 3000).then(function(resp) {
                 expect(resp).toEqual({
                     success: true,
                     application: {
@@ -984,7 +1011,7 @@ describe('authUtils', function() {
             q.all(['x-rc-auth-app-key', 'x-rc-auth-timestamp', 'x-rc-auth-nonce', 'x-rc-auth-signature'].map(function(field) {
                 var reqCopy = JSON.parse(JSON.stringify(req));
                 delete reqCopy.headers[field];
-                return authUtils.authApp(reqCopy, 3000).then(function(resp) {
+                return authUtils.authenticateApp(reqCopy, 3000).then(function(resp) {
                     expect(resp).toEqual({ success: false });
                 });
             })).then(function() {
@@ -997,7 +1024,7 @@ describe('authUtils', function() {
         
         it('should return a 400 if the timestamp header is too old', function(done) {
             jasmine.clock().tick(5001);
-            authUtils.authApp(req, 3000).then(function(resp) {
+            authUtils.authenticateApp(req, 3000).then(function(resp) {
                 expect(resp).toEqual({
                     success: false,
                     code: 400,
@@ -1010,7 +1037,7 @@ describe('authUtils', function() {
         
         it('should return a 403 if the application is not found', function(done) {
             authUtils.getApp.and.returnValue(q());
-            authUtils.authApp(req, 3000).then(function(resp) {
+            authUtils.authenticateApp(req, 3000).then(function(resp) {
                 expect(resp).toEqual({
                     success: false,
                     code: 401,
@@ -1022,7 +1049,7 @@ describe('authUtils', function() {
         
         it('should return a 401 if the signature does not match', function(done) {
             signatures.verifyRequest.and.returnValue(false);
-            authUtils.authApp(req, 3000).then(function(resp) {
+            authUtils.authenticateApp(req, 3000).then(function(resp) {
                 expect(resp).toEqual({
                     success: false,
                     code: 401,
@@ -1035,7 +1062,7 @@ describe('authUtils', function() {
         
         it('should return a 500 if _fetchApplication fails', function(done) {
             authUtils.getApp.and.returnValue(q.reject('honey, you got a big storm coming'));
-            authUtils.authApp(req, 3000).then(function(resp) {
+            authUtils.authenticateApp(req, 3000).then(function(resp) {
                 expect(resp).not.toBeDefined();
             }).catch(function(error) {
                 expect(error).toBe('honey, you got a big storm coming');
@@ -1079,10 +1106,10 @@ describe('authUtils', function() {
                     }
                 };
                 
-                spyOn(authUtils, 'authUser').and.callFake(function() { return q(userAuthResp); });
-                spyOn(authUtils, 'authApp').and.callFake(function() { return q(appAuthResp); });
+                spyOn(authUtils, 'authenticateUser').and.callFake(function() { return q(userAuthResp); });
+                spyOn(authUtils, 'authenticateApp').and.callFake(function() { return q(appAuthResp); });
                 
-                spyOn(authUtils, '_compare').and.callThrough();
+                spyOn(authUtils, 'authorize').and.callThrough();
                 
                 midware = authUtils.middlewarify();
             });
@@ -1101,9 +1128,12 @@ describe('authUtils', function() {
                         permissions: { thangs: { read: Scope.Own, delete: Scope.Own } }
                     }));
                     expect(req.application).not.toBeDefined();
-                    expect(authUtils.authUser).toHaveBeenCalledWith(req, undefined);
-                    expect(authUtils.authApp).not.toHaveBeenCalled();
-                    expect(authUtils._compare).toHaveBeenCalledWith(undefined, { thangs: { read: Scope.Own, delete: Scope.Own } });
+                    expect(authUtils.authenticateUser).toHaveBeenCalledWith(req, undefined);
+                    expect(authUtils.authenticateApp).not.toHaveBeenCalled();
+                    expect(authUtils.authorize).toHaveBeenCalledWith({}, jasmine.objectContaining({
+                        id: 'u-123',
+                        permissions: { thangs: { read: Scope.Own, delete: Scope.Own } }
+                    }));
                     expect(req.session.save).toHaveBeenCalled();
                     expect(mockLog.error).not.toHaveBeenCalled();
                 }).done(done);
@@ -1118,8 +1148,8 @@ describe('authUtils', function() {
                 midware(req, res, next).finally(function() {
                     expect(next).not.toHaveBeenCalled();
                     expect(res.send).toHaveBeenCalledWith(403, 'Forbidden');
-                    expect(authUtils.authUser).toHaveBeenCalledWith(req, undefined);
-                    expect(authUtils.authApp).not.toHaveBeenCalled();
+                    expect(authUtils.authenticateUser).toHaveBeenCalledWith(req, undefined);
+                    expect(authUtils.authenticateApp).not.toHaveBeenCalled();
                     expect(req.session.save).not.toHaveBeenCalled();
                     expect(mockLog.error).not.toHaveBeenCalled();
                 }).done(done);
@@ -1130,14 +1160,14 @@ describe('authUtils', function() {
                 midware(req, res, next).finally(function() {
                     expect(next).not.toHaveBeenCalled();
                     expect(res.send).toHaveBeenCalledWith(401, 'Unauthorized');
-                    expect(authUtils.authUser).toHaveBeenCalledWith(req, undefined);
-                    expect(authUtils.authApp).not.toHaveBeenCalled();
+                    expect(authUtils.authenticateUser).toHaveBeenCalledWith(req, undefined);
+                    expect(authUtils.authenticateApp).not.toHaveBeenCalled();
                     expect(req.session.save).not.toHaveBeenCalled();
                     expect(mockLog.error).not.toHaveBeenCalled();
                 }).done(done);
             });
             
-            it('should pass opts.userStatuses to authUser()', function(done) {
+            it('should pass opts.userStatuses to authenticateUser()', function(done) {
                 midware = authUtils.middlewarify({ userStatuses: [Status.New, Status.Pending] });
                 midware(req, res, next).finally(function() {
                     expect(next).toHaveBeenCalled();
@@ -1145,8 +1175,8 @@ describe('authUtils', function() {
                     expect(req.user).toBeDefined();
                     expect(req.requester).toBeDefined();
                     expect(req.application).not.toBeDefined();
-                    expect(authUtils.authUser).toHaveBeenCalledWith(req, [Status.New, Status.Pending]);
-                    expect(authUtils.authApp).not.toHaveBeenCalled();
+                    expect(authUtils.authenticateUser).toHaveBeenCalledWith(req, [Status.New, Status.Pending]);
+                    expect(authUtils.authenticateApp).not.toHaveBeenCalled();
                     expect(req.session.save).toHaveBeenCalled();
                     expect(mockLog.error).not.toHaveBeenCalled();
                 }).done(done);
@@ -1179,9 +1209,12 @@ describe('authUtils', function() {
                         expect(req.user).toBeDefined();
                         expect(req.requester).toBeDefined();
                         expect(req.application).not.toBeDefined();
-                        expect(authUtils.authUser).toHaveBeenCalledWith(req, undefined);
-                        expect(authUtils.authApp).not.toHaveBeenCalled();
-                        expect(authUtils._compare).toHaveBeenCalledWith({ thangs: 'read' }, { thangs: { read: Scope.Own, delete: Scope.Own } });
+                        expect(authUtils.authenticateUser).toHaveBeenCalledWith(req, undefined);
+                        expect(authUtils.authenticateApp).not.toHaveBeenCalled();
+                        expect(authUtils.authorize).toHaveBeenCalledWith({ permissions: { thangs: 'read' } }, jasmine.objectContaining({
+                            id: 'u-123',
+                            permissions: { thangs: { read: Scope.Own, delete: Scope.Own } }
+                        }));
                         expect(req.session.save).toHaveBeenCalled();
                         expect(mockLog.error).not.toHaveBeenCalled();
                     }).done(done);
@@ -1192,16 +1225,16 @@ describe('authUtils', function() {
                     midware(req, res, next).finally(function() {
                         expect(next).not.toHaveBeenCalled();
                         expect(res.send).toHaveBeenCalledWith(403, 'Forbidden');
-                        expect(authUtils.authUser).toHaveBeenCalledWith(req, undefined);
-                        expect(authUtils.authApp).not.toHaveBeenCalled();
+                        expect(authUtils.authenticateUser).toHaveBeenCalledWith(req, undefined);
+                        expect(authUtils.authenticateApp).not.toHaveBeenCalled();
                         expect(req.session.save).not.toHaveBeenCalled();
                         expect(mockLog.error).not.toHaveBeenCalled();
                     }).done(done);
                 });
             });
             
-            it('should send a 500 if authUtils.authUser fails', function(done) {
-                authUtils.authUser.and.returnValue(q.reject('THE SYSTEM IS DOWN'));
+            it('should send a 500 if authUtils.authenticateUser fails', function(done) {
+                authUtils.authenticateUser.and.returnValue(q.reject('THE SYSTEM IS DOWN'));
                 midware(req, res, next).finally(function() {
                     expect(next).not.toHaveBeenCalled();
                     expect(res.send).toHaveBeenCalledWith(500, 'Error authorizing request');
@@ -1243,9 +1276,12 @@ describe('authUtils', function() {
                             key: 'watchman',
                             permissions: { thangs: { read: Scope.All, edit: Scope.All } }
                         });
-                        expect(authUtils.authUser).toHaveBeenCalledWith(req, undefined);
-                        expect(authUtils.authApp).toHaveBeenCalledWith(req, 2000);
-                        expect(authUtils._compare).toHaveBeenCalledWith(undefined, { thangs: { read: Scope.All, edit: Scope.All, delete: Scope.Own } });
+                        expect(authUtils.authenticateUser).toHaveBeenCalledWith(req, undefined);
+                        expect(authUtils.authenticateApp).toHaveBeenCalledWith(req, 2000);
+                        expect(authUtils.authorize).toHaveBeenCalledWith({ allowApps: true, tsGracePeriod: 2000 }, jasmine.objectContaining({
+                            id: 'u-123',
+                            permissions: { thangs: { read: Scope.All, edit: Scope.All, delete: Scope.Own } }
+                        }));
                         expect(req.session.save).toHaveBeenCalled();
                         expect(mockLog.error).not.toHaveBeenCalled();
                     }).done(done);
@@ -1260,8 +1296,8 @@ describe('authUtils', function() {
                     midware(req, res, next).finally(function() {
                         expect(next).not.toHaveBeenCalled();
                         expect(res.send).toHaveBeenCalledWith(403, 'Forbidden');
-                        expect(authUtils.authUser).toHaveBeenCalledWith(req, undefined);
-                        expect(authUtils.authApp).toHaveBeenCalledWith(req, 2000);
+                        expect(authUtils.authenticateUser).toHaveBeenCalledWith(req, undefined);
+                        expect(authUtils.authenticateApp).toHaveBeenCalledWith(req, 2000);
                         expect(mockLog.error).not.toHaveBeenCalled();
                     }).done(done);
                 });
@@ -1281,9 +1317,12 @@ describe('authUtils', function() {
                             key: 'watchman',
                             permissions: { thangs: { read: Scope.All, edit: Scope.All } }
                         });
-                        expect(authUtils.authUser).toHaveBeenCalledWith(req, undefined);
-                        expect(authUtils.authApp).toHaveBeenCalledWith(req, 2000);
-                        expect(authUtils._compare).toHaveBeenCalledWith(undefined, { thangs: { read: Scope.All, edit: Scope.All } });
+                        expect(authUtils.authenticateUser).toHaveBeenCalledWith(req, undefined);
+                        expect(authUtils.authenticateApp).toHaveBeenCalledWith(req, 2000);
+                        expect(authUtils.authorize).toHaveBeenCalledWith({ allowApps: true, tsGracePeriod: 2000 }, jasmine.objectContaining({
+                            id: 'app-1',
+                            permissions: { thangs: { read: Scope.All, edit: Scope.All } }
+                        }));
                         expect(mockLog.error).not.toHaveBeenCalled();
                     }).done(done);
                 });
@@ -1299,14 +1338,17 @@ describe('authUtils', function() {
                         expect(req.user).toBeDefined();
                         expect(req.requester).toBeDefined();
                         expect(req.application).toBeDefined();
-                        expect(authUtils._compare).toHaveBeenCalledWith({ thangs: 'edit' }, { thangs: { read: Scope.All, edit: Scope.All, delete: Scope.Own } });
+                        expect(authUtils.authorize).toHaveBeenCalledWith({ allowApps: true, permissions: { thangs: 'edit' } }, jasmine.objectContaining({
+                            id: 'u-123',
+                            permissions: { thangs: { read: Scope.All, edit: Scope.All, delete: Scope.Own } }
+                        }));
                         expect(req.session.save).toHaveBeenCalled();
                         expect(mockLog.error).not.toHaveBeenCalled();
                     }).done(done);
                 });
                 
-                it('should send a 500 if authUtils.authApp rejects', function(done) {
-                    authUtils.authApp.and.returnValue(q.reject('I GOT A PROBLEM'));
+                it('should send a 500 if authUtils.authenticateApp rejects', function(done) {
+                    authUtils.authenticateApp.and.returnValue(q.reject('I GOT A PROBLEM'));
                     midware(req, res, next).finally(function() {
                         expect(next).not.toHaveBeenCalled();
                         expect(res.send).toHaveBeenCalledWith(500, 'Error authorizing request');

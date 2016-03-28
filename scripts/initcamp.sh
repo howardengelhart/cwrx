@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 # This script will setup a postgres test db to use for querybot.  You can run this
 # after the first time you run (after a vagrant destroy):
 #
@@ -30,10 +30,10 @@ if [  "$1" = "-init" ] || [ "$1" = "--init" ]; then
 
     export PGPASSWORD=password
 
-    psql -c "CREATE ROLE viewer NOSUPERUSER INHERIT NOCREATEDB NOCREATEROLE NOREPLICATION;"
+    psql -c "CREATE ROLE editor NOSUPERUSER INHERIT NOCREATEDB NOCREATEROLE NOREPLICATION;"
     psql -c "CREATE USER cwrx WITH CREATEDB LOGIN PASSWORD 'password';"
     psql -c "CREATE USER sixxy WITH NOCREATEDB NOCREATEROLE LOGIN PASSWORD 'password';"
-    psql -c "GRANT viewer TO sixxy;"
+    psql -c "GRANT editor TO sixxy;"
 elif [ -n "$1" ]; then
     export PGHOST=$1
 fi
@@ -49,7 +49,7 @@ createdb 'campfire_cwrx'
 export PGDATABASE='campfire_cwrx'
 
 psql -c "CREATE SCHEMA rpt;"
-psql -c "GRANT USAGE ON SCHEMA rpt TO viewer;"
+psql -c "GRANT USAGE ON SCHEMA rpt TO editor;"
 
 read -r -d '' campaign_summary_hourly <<- EOM
 CREATE TABLE rpt.campaign_summary_hourly
@@ -64,4 +64,36 @@ CREATE TABLE rpt.campaign_summary_hourly
 EOM
 
 psql -c "${campaign_summary_hourly}"
-psql -c "GRANT SELECT ON TABLE rpt.campaign_summary_hourly TO viewer;"
+psql -c "GRANT SELECT ON TABLE rpt.campaign_summary_hourly TO editor;"
+
+
+psql -c "CREATE SCHEMA fct;"
+psql -c "GRANT USAGE ON SCHEMA fct TO editor;"
+
+read -r -d '' transactions <<- EOM
+CREATE TABLE fct.billing_transactions
+(
+  rec_key bigserial NOT NULL,
+  rec_ts timestamp with time zone NOT NULL,
+  transaction_id character varying(20) NOT NULL,
+  transaction_ts timestamp with time zone NOT NULL,
+  org_id character varying(20) NOT NULL,
+  amount numeric(16,4),
+  sign smallint,
+  units integer,
+  campaign_id character varying(20),
+  braintree_id character varying(36),
+  promotion_id character varying(20),
+  description text,
+  CONSTRAINT pkey_billing_transactions PRIMARY KEY (rec_key),
+  CONSTRAINT check_sign CHECK (sign = 1 OR sign = (-1))
+)
+WITH (
+  OIDS=FALSE
+);
+EOM
+
+psql -c "${transactions}"
+psql -c "GRANT SELECT, INSERT ON TABLE fct.billing_transactions TO editor;"
+psql -c "GRANT USAGE, SELECT ON fct.billing_transactions_rec_key_seq TO editor;"
+
