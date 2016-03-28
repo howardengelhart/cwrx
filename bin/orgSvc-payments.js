@@ -52,9 +52,10 @@
     payModule.formatPaymentOutput = function(orig) {
         var formatted = {};
         
-        ['id', 'status', 'type', 'amount', 'createdAt', 'updatedAt'].forEach(function(key) {
+        ['id', 'status', 'type', 'createdAt', 'updatedAt'].forEach(function(key) {
             formatted[key] = orig[key];
         });
+        formatted.amount = parseFloat(orig.amount);
         
         if (orig.paymentInstrumentType === 'credit_card') {
             formatted.method = payModule.formatMethodOutput(orig.creditCard);
@@ -335,6 +336,7 @@
             newCust.firstName = req.user.firstName;
             newCust.lastName = req.user.lastName;
             newCust.email = req.user.email;
+            newCust.company = req.user.company || newCust.company;
         }
         
         return q.npost(gateway.customer, 'create', [newCust])
@@ -573,10 +575,11 @@
                 // If not a processor decline, error is unexpected, so log.error() and reject
                 var errMsg;
                 try { // attempt to find validationErrors nested in braintree's error object
-                    errMsg = util.inspect(result.errors.deepErrors());
-                } catch(e) {
-                    errMsg = result.message || util.inspect(result);
-                }
+                    var validationErrors = result.errors.deepErrors();
+                    errMsg = (validationErrors.length > 0) ? util.inspect(validationErrors) : '';
+                } catch(e) {}
+                
+                errMsg = errMsg || result.message || util.inspect(result);
                 
                 log.error('[%1] Failed creating payment for BT cust %2, org %3: %4',
                           req.uuid, req.org.braintreeCustomer, req.org.id, errMsg);
@@ -585,7 +588,7 @@
             })
             .then(function(result) {
                 // break out of this if we have a 4xx response
-                if (result.code && !result.transaction) { //TODO: this still feels real awkward
+                if (result.code && !result.transaction) {
                     return q(result);
                 }
 
@@ -618,8 +621,6 @@
                 .catch(function(error) {
                     log.error('[%1] Failed to create transaction for successful payment %2: %3',
                               req.uuid, result.transaction.id, util.inspect(error));
-                    
-                    //TODO: do anything else here? void BT transaction? or just rely on manual fix?
                     
                     return q.reject('Failed to create transaction for payment');
                 });
