@@ -655,6 +655,150 @@ describe('collateral (E2E):', function() {
         });
     });
 
+    describe('GET /api/collateral/product-data', function() {
+        var options;
+        var success, failure;
+        var apiResponse;
+
+        beforeEach(function() {
+            options = {
+                url: config.collateralUrl + '/collateral/product-data',
+                qs: {},
+                json: true,
+                jar: cookieJar
+            };
+
+            success = jasmine.createSpy('success()').and.callFake(function(response) {
+                apiResponse = response;
+            });
+            failure = jasmine.createSpy('failure()').and.callFake(function(error) {
+                console.error(error);
+            });
+
+            apiResponse = null;
+        });
+
+        describe('unauthenticated', function() {
+            beforeEach(function(done) {
+                options.jar = false;
+
+                requestUtils.qRequest('get', options).then(success, failure).finally(done);
+            });
+
+            it('should [401]', function() {
+                expect(apiResponse.response.statusCode).toBe(401);
+                expect(apiResponse.body).toBe('Unauthorized');
+            });
+        });
+
+        describe('with no URI', function() {
+            beforeEach(function(done) {
+                delete options.qs.uri;
+
+                requestUtils.qRequest('get', options).then(success, failure).finally(done);
+            });
+
+            it('should [400]', function() {
+                expect(apiResponse.response.statusCode).toBe(400);
+                expect(apiResponse.body).toBe('URI is required.');
+            });
+        });
+
+        describe('with a non-URI', function() {
+            beforeEach(function(done) {
+                options.qs.uri = 'this is not a URI.';
+
+                requestUtils.qRequest('get', options).then(success, failure).finally(done);
+            });
+
+            it('should [400]', function() {
+                expect(apiResponse.response.statusCode).toBe(400);
+                expect(apiResponse.body).toBe('URI is invalid.');
+            });
+        });
+
+        describe('with an id-less App Store URI', function() {
+            beforeEach(function(done) {
+                options.qs.uri = 'https://itunes.apple.com/us/app/super-arc-light';
+
+                requestUtils.qRequest('get', options).then(success, failure).finally(done);
+            });
+
+            it('should [400]', function() {
+                expect(apiResponse.response.statusCode).toBe(400);
+                expect(apiResponse.body).toBe('URI has no ID.');
+            });
+        });
+
+        describe('with a non-app App Store URI', function() {
+            beforeEach(function(done) {
+                options.qs.uri = 'https://itunes.apple.com/us/album/babel/id547449573';
+
+                requestUtils.qRequest('get', options).then(success, failure).finally(done);
+            });
+
+            it('should [400]', function() {
+                expect(apiResponse.response.statusCode).toBe(400);
+                expect(apiResponse.body).toBe('URI is not for an app.');
+            });
+        });
+
+        describe('with a non-existent App', function() {
+            beforeEach(function(done) {
+                options.qs.uri = 'https://itunes.apple.com/us/app/facebook/id28488221584637?mt=8';
+
+                requestUtils.qRequest('get', options).then(success, failure).finally(done);
+            });
+
+            it('should [404]', function() {
+                expect(apiResponse.response.statusCode).toBe(404);
+                expect(apiResponse.body).toBe('No app found with that ID.');
+            });
+        });
+
+        describe('with a URI from an unsupported platform', function() {
+            beforeEach(function(done) {
+                options.qs.uri = 'https://platform.reelcontent.com/api/public/players/solo?card=rc-411c18b3042409&preview=true';
+
+                requestUtils.qRequest('get', options).then(success, failure).finally(done);
+            });
+
+            it('should [400]', function() {
+                expect(apiResponse.response.statusCode).toBe(400);
+                expect(apiResponse.body).toBe('URI is not from a valid platform.');
+            });
+        });
+
+        describe('with an App Store app URI', function() {
+            beforeEach(function(done) {
+                options.qs.uri = 'https://itunes.apple.com/us/app/facebook/id284882215?mt=8';
+
+                requestUtils.qRequest('get', options).then(success, failure).finally(done);
+            });
+
+            it('should [200]', function() {
+                expect(apiResponse.response.statusCode).toBe(200);
+                expect(apiResponse.body).toEqual({
+                    type: 'app',
+                    platform: 'iOS',
+                    name: 'Facebook',
+                    description: jasmine.any(String),
+                    uri: 'https://itunes.apple.com/us/app/facebook/id284882215?mt=8&uo=4',
+                    category: 'Social Networking',
+                    price: 'Free',
+                    extID: 284882215,
+                    images: jasmine.any(Array)
+                });
+                expect(apiResponse.body.images.length).toBeGreaterThan(0, 'App has no images.');
+                apiResponse.body.images.forEach(function(image) {
+                    expect(image.uri).toEqual(jasmine.any(String));
+                    expect(image.type).toMatch(/^(screenshot|thumbnail)$/, 'Image is not a screenshot or thumbnail.');
+                    expect(image.device).toMatch(/^(phone|tablet|undefined)$/, 'Image device is not "phone," "tablet" or undefined.');
+                });
+            });
+        });
+    });
+
     [
         {
             desc: 'POST /api/collateral/splash/:expId',
