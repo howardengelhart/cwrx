@@ -1,5 +1,6 @@
 # Ads Service Changelog
 
+* Check org's available budget before allowing campaign update request: [#815](https://github.com/cinema6/cwrx/issues/815)
 * Set campaigns to `pending` when update request is created that renews the campaign: [#855](https://github.com/cinema6/cwrx/issues/855)
 * Produce a record to Kinesis when a campaign is created: [#876](https://github.com/cinema6/cwrx/pull/876)
 

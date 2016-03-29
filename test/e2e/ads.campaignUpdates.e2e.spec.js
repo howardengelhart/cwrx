@@ -190,11 +190,26 @@ describe('ads campaignUpdates endpoints (E2E):', function() {
             mailman.on('error', function(error) { throw new Error(error); });
         }).done(done);
     });
+    
+    // Setup mock credit transactions and mock orgs
+    beforeEach(function(done) {
+        return testUtils.resetPGTable('fct.billing_transactions', [
+            '(9998,\'2016-03-21T15:53:11.927Z\',\'t-1\',\'2016-03-21T15:53:11.927Z\',\'o-selfie\',700.0,1,1,\'\',\'payment1\',\'\',\'\')',
+            '(9999,\'2016-03-21T15:53:11.927Z\',\'t-2\',\'2016-03-21T15:53:11.927Z\',\'o-selfie\',800.0,1,1,\'\',\'payment2\',\'\',\'\')'
+        ]).then(function() {
+            return testUtils.resetCollection('orgs', [
+                { id: 'o-selfie', status: 'active', name: 'selfie org' },
+                { id: 'o-admin', status: 'active', name: 'admin org' }
+            ]);
+        })
+        .done(done);
+    });
 
     afterEach(function() {
         mailman.removeAllListeners();
         mockman.removeAllListeners();
     });
+
     
     // Performs some checks on a "New update request" email sent to support
     function testNewUpdateMsg(msg, camp) {
@@ -716,7 +731,7 @@ describe('ads campaignUpdates endpoints (E2E):', function() {
                 url: config.adsUrl + '/campaigns/cam-1/updates/',
                 json: { data: {
                     name: 'updated name',
-                    pricing: { budget: 500 },
+                    pricing: { budget: 900 },
                     targeting: {
                         geo: { dmas: ['princeton'] },
                         demographics: { gender: ['male'] },
@@ -731,7 +746,7 @@ describe('ads campaignUpdates endpoints (E2E):', function() {
                     name: 'e2e test 1',
                     status: 'draft',
                     application: 'selfie',
-                    pricing: { budget: 1000, dailyLimit: 200, cost: 0.07, model: 'cpv' },
+                    pricing: { budget: 500, dailyLimit: 200, cost: 0.07, model: 'cpv' },
                     targeting: {
                         geo: { states: ['new jersey' ] },
                         interests: ['cat-1', 'cat-2']
@@ -742,7 +757,8 @@ describe('ads campaignUpdates endpoints (E2E):', function() {
                 },
                 { id: 'cam-active', advertiserId: 'e2e-a-keepme', status: 'active', user: 'e2e-user', org: 'o-selfie' },
                 { id: 'cam-expired', name: 'expired camp', advertiserId: 'e2e-a-keepme', status: 'expired', user: 'e2e-user', org: 'o-selfie' },
-                { id: 'cam-other', status: 'draft', user: 'not-e2e-user', org: 'o-admin' },
+                { id: 'cam-other-org', status: 'draft', user: 'not-e2e-user', org: 'o-admin' },
+                { id: 'cam-other-budget', status: 'active', user: 'e2e-user', org: 'o-selfie', pricing: { budget: 400 } },
                 { id: 'cam-deleted', status: 'deleted', user: 'e2e-user', org: 'o-selfie' },
                 createdCamp
             ];
@@ -771,7 +787,7 @@ describe('ads campaignUpdates endpoints (E2E):', function() {
                     name: 'updated name',
                     application: 'selfie',
                     status: 'draft',
-                    pricing: { budget: 500, dailyLimit: 200, cost: 0.08, model: 'cpv' },
+                    pricing: { budget: 900, dailyLimit: 200, cost: 0.08, model: 'cpv' },
                     targeting: {
                         geo: {
                             states: ['new jersey' ],
@@ -910,8 +926,31 @@ describe('ads campaignUpdates endpoints (E2E):', function() {
                     }).done(done);
                 });
             });
+            
+            it('should 400 if the campaign\'s budget would be too high for the account to afford', function(done) {
+                options.json.data.pricing = { budget: 1200 };
+                mailman.once(msgSubject, function(msg) {
+                    expect(util.inspect(msg).substring(0, 200)).not.toBeDefined();
+                });
+                requestUtils.qRequest('post', options).then(function(resp) {
+                    expect(resp.response.statusCode).toBe(400);
+                    expect(resp.body).toBe('Insufficient funds to cover new budget');
+                    
+                    // test campaign not locked
+                    return requestUtils.qRequest('get', {
+                        url: config.adsUrl + '/campaigns/cam-1',
+                        jar: selfieJar
+                    });
+                }).then(function(resp) {
+                    expect(resp.response.statusCode).toBe(200);
+                    expect(resp.body.status).toBe('draft');
+                    expect(resp.body.updateRequest).not.toBeDefined();
+                }).catch(function(error) {
+                    expect(util.inspect(error)).not.toBeDefined();
+                }).done(done);
+            });
         });
-        
+
         describe('if renewing a previously ended campaign', function() {
             beforeEach(function() {
                 options.json.data = { status: 'active' };
@@ -1108,6 +1147,29 @@ describe('ads campaignUpdates endpoints (E2E):', function() {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
+        
+        it('should return a 400 if the org cannot afford the budget increase', function(done) {
+            options.json.data.pricing.budget = mockCamps[0].pricing.budget + 1200;
+            mailman.once(msgSubject, function(msg) {
+                expect(util.inspect(msg).substring(0, 200)).not.toBeDefined();
+            });
+            requestUtils.qRequest('post', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(400);
+                expect(resp.body).toMatch('Insufficient funds to cover new budget');
+                
+                // test campaign not locked
+                return requestUtils.qRequest('get', {
+                    url: config.adsUrl + '/campaigns/cam-1',
+                    jar: selfieJar
+                });
+            }).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.body.status).toBe('draft');
+                expect(resp.body.updateRequest).not.toBeDefined();
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
 
         it('should return a 400 if the user sends up invalid zipcode radius targeting', function(done) {
             q.all([
@@ -1183,7 +1245,7 @@ describe('ads campaignUpdates endpoints (E2E):', function() {
             mailman.once(msgSubject, function(msg) {
                 expect(util.inspect(msg).substring(0, 200)).not.toBeDefined();
             });
-            options.url = config.adsUrl + '/campaigns/cam-other/updates/';
+            options.url = config.adsUrl + '/campaigns/cam-other-org/updates/';
             requestUtils.qRequest('post', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(404);
                 expect(resp.body).toBe('Object not found');
@@ -1259,7 +1321,7 @@ describe('ads campaignUpdates endpoints (E2E):', function() {
                 {
                     id: 'cam-1',
                     name: 'e2e test 1',
-                    status: 'draft',
+                    status: 'active',
                     application: 'selfie',
                     pricing: { budget: 1000, dailyLimit: 200, cost: 0.07, model: 'cpv' },
                     targeting: {
@@ -1272,6 +1334,7 @@ describe('ads campaignUpdates endpoints (E2E):', function() {
                     org: 'o-selfie'
                 },
                 { id: 'cam-2', name: 'camp 2', status: 'draft', user: 'e2e-user', org: 'o-selfie' },
+                { id: 'cam-other-budget', status: 'active', user: 'e2e-user', org: 'o-selfie', pricing: { budget: 400 } },
                 { id: 'cam-deleted', status: 'deleted', user: 'e2e-user', org: 'o-selfie' }
             ];
             if (createdCamp) {
@@ -1307,7 +1370,7 @@ describe('ads campaignUpdates endpoints (E2E):', function() {
                 expect(resp.body.campaign).toBe('cam-1');
                 expect(resp.body.data).toEqual({
                     id: 'cam-1',
-                    status: 'draft',
+                    status: 'active',
                     application: 'selfie',
                     name: 'fernando',
                     pricing: { budget: 500, dailyLimit: 100, cost: 0.08, model: 'cpv' },
@@ -1340,7 +1403,7 @@ describe('ads campaignUpdates endpoints (E2E):', function() {
                 expect(resp.body.campaign).toBe('cam-1');
                 expect(resp.body.data).toEqual({
                     id: 'cam-1',
-                    status: 'draft',
+                    status: 'active',
                     application: 'selfie',
                     name: 'fernando',
                     pricing: { budget: 500, dailyLimit: 100, cost: 0.08, model: 'cpv' },
@@ -1413,7 +1476,6 @@ describe('ads campaignUpdates endpoints (E2E):', function() {
                     expect(resp.response.statusCode).toBe(200);
                     expect(resp.body.updateRequest).not.toBeDefined();
                     expect(resp.body.rejectionReason).toBe('yo campaign stinks');
-                    expect(resp.body.status).toBe('draft');
                     expect(resp.body.name).toBe(mockCamps[0].name);
                     expect(resp.body.pricing).toEqual(mockCamps[0].pricing);
                     expect(resp.body.targeting).toEqual(mockCamps[0].targeting);
@@ -1706,7 +1768,7 @@ describe('ads campaignUpdates endpoints (E2E):', function() {
                 expect(resp.body.campaign).toBe('cam-1');
                 expect(resp.body.data).toEqual({
                     id: 'cam-1',
-                    status: 'draft',
+                    status: 'active',
                     application: 'selfie',
                     name: 'fernando',
                     pricing: { budget: 500, dailyLimit: 100, cost: 0.08, model: 'cpv' },
@@ -1734,6 +1796,16 @@ describe('ads campaignUpdates endpoints (E2E):', function() {
                 expect(resp.body.updateRequest).toBe('ur-1');
                 expect(resp.body.name).toBe(mockCamps[0].name);
                 expect(resp.body.pricing).toEqual(mockCamps[0].pricing);
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should return a 400 if the org cannot afford the budget increase', function(done) {
+            options.json.data.pricing.budget = 1200;
+            requestUtils.qRequest('put', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(400);
+                expect(resp.body).toMatch('Insufficient funds to cover new budget');
             }).catch(function(error) {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);

@@ -157,6 +157,7 @@
         svc.use('autoApprove', fetchCamp);
         svc.use('autoApprove', updateModule.enforceLock);
         svc.use('autoApprove', updateModule.validateZipcodes);
+        svc.use('autoApprove', updateModule.checkAvailableFunds);
         svc.use('autoApprove', historian.middlewarify('status', 'statusHistory'));
         svc.use('autoApprove', applyUpdate);
         
@@ -419,7 +420,8 @@
         });
     };
 
-    updateModule.checkAvailableFunds = function(req, next, done) { //TODO: comment, test
+    // If update req is changing balance (or is init submit), check that org has enough funds for it
+    updateModule.checkAvailableFunds = function(req, next, done) {
         var log = logger.getLog(),
             org = req.body.data.org || req.campaign.org,
             newBudget = req.body.data.pricing && req.body.data.pricing.budget || null,

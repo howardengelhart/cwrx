@@ -4,7 +4,7 @@ module.exports = function(grunt) {
 
     var serviceDepends = {
         accountant  : 'auth,monitor,orgSvc',
-        ads         : 'auth,content,monitor,orgSvc,geo',
+        ads         : 'accountant,auth,content,monitor,orgSvc,geo',
         collateral  : 'auth,monitor',
         geo         : 'auth,monitor',
         content     : 'auth,monitor',
