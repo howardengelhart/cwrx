@@ -453,7 +453,7 @@
         .catch(function(err) {
             var log = logger.getLog();
             console.log(err.stack || err);
-            log.error(err.stack || err);
+            log.error(err.stack || util.inspect(err));
             if (err.code)   {
                 process.exit(err.code);
             }

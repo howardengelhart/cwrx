@@ -1,5 +1,6 @@
 # Org Service Changelog
 
+### 1.7.0: Wed Mar 30 14:41:02 EDT 2016
 * [FEATURE]: Add `POST /api/payment` endpoint: [#811](https://github.com/cinema6/cwrx/issues/811)
 * Allow deleting payment methods regardless of account's campaigns: [#813](https://github.com/cinema6/cwrx/issues/813)
 * Remove campaign id + name from payment responses: [#812](https://github.com/cinema6/cwrx/issues/812)
