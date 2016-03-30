@@ -33,6 +33,15 @@ module.exports = {
                     forwardedArgs: ['dbHost']
                 }
             ]
+        },
+        orgSvc: {
+            preScripts: [
+                {
+                    name: 'ensureApps.js',
+                    path: path.join(__dirname, '../../scripts/ensureApps.js'),
+                    forwardedArgs: ['dbHost']
+                }
+            ]
         }
     }
 };
