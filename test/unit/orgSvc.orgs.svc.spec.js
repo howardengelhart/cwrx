@@ -383,7 +383,7 @@ describe('orgSvc-orgs (UT)', function() {
                 expect(mockDb.collection).toHaveBeenCalledWith('campaigns');
                 expect(mockColl.count).toHaveBeenCalledWith({
                     org: 'o-2',
-                    status: { $nin: [Status.Deleted, Status.Expired, Status.Canceled] }
+                    status: { $in: [Status.Active, Status.Paused] }
                 });
                 expect(mockLog.error).not.toHaveBeenCalled();
                 done();

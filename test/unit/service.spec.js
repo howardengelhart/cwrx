@@ -1,8 +1,8 @@
 var flush = true;
 describe('service (UT)',function(){
 
-    var vote, state, mockLog, processProperties, resolveSpy, rejectSpy, events,
-        path, q, cluster, fs, logger, daemon, mongoUtils, cacheLib, pubsub, service;
+    var state, mockLog, processProperties, resolveSpy, rejectSpy, events, requestUtils,
+        path, q, cluster, fs, logger, daemon, mongoUtils, cacheLib, pubsub, pg, service;
 
     beforeEach(function() {
         if (flush){ for (var m in require.cache){ delete require.cache[m]; } flush = false; }
@@ -14,6 +14,7 @@ describe('service (UT)',function(){
         cluster      = require('cluster');
         fs           = require('fs-extra');
         events       = require('events');
+        pg           = require('pg.js');
         logger       = require('../../lib/logger');
         daemon       = require('../../lib/daemon');
         mongoUtils   = require('../../lib/mongoUtils');

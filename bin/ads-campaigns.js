@@ -38,10 +38,6 @@
             __type: 'string',
             __required: true
         },
-        paymentMethod: {
-            __allowed: true,
-            __type: 'string'
-        },
         updateRequest: {
             __allowed: false,
             __type: 'string'
@@ -405,21 +401,9 @@
             }
         }
         
-        return campaignUtils.validatePaymentMethod(
-            req.body,
-            req.origObj,
-            req.requester,
-            campModule.config.api.paymentMethods.baseUrl,
-            req
-        )
-        .then(function(validResp) {
-            if (!validResp.isValid) {
-                log.info('[%1] %2', req.uuid, validResp.reason);
-                return done({ code: 400, body: validResp.reason });
-            } else {
-                return next();
-            }
-        });
+        //TODO: validate budget here? or when submitting update request?
+        
+        return q(next());
     };
 
     // Check if zipcodes in body's targeting hash are valid

@@ -43,10 +43,6 @@ describe('ads-campaigns (UT)', function() {
                 baseUrl: 'https://test.com/api/content/cards/',
                 endpoint: '/api/content/cards/'
             },
-            paymentMethods: {
-                baseUrl: 'https://test.com/api/payments/methods/',
-                endpoint: '/api/payments/methods/'
-            },
             experiences: {
                 baseUrl: 'https://test.com/api/content/experiences/',
                 endpoint: '/api/content/experiences/'
@@ -647,7 +643,6 @@ describe('ads-campaigns (UT)', function() {
             spyOn(campaignUtils, 'ensureUniqueIds').and.returnValue({ isValid: true });
             spyOn(campaignUtils, 'validateAllDates').and.returnValue({ isValid: true });
             spyOn(campaignUtils, 'validatePricing').and.returnValue({ isValid: true });
-            spyOn(campaignUtils, 'validatePaymentMethod').and.returnValue(q({ isValid: true }));
             svc = { model: new Model('campaigns', campModule.campSchema) };
         });
         
@@ -659,8 +654,6 @@ describe('ads-campaigns (UT)', function() {
                 expect(campaignUtils.ensureUniqueIds).toHaveBeenCalledWith({ foo: 'bar' });
                 expect(campaignUtils.validateAllDates).toHaveBeenCalledWith({ foo: 'bar' }, { old: 'yes' }, req.requester, '1234');
                 expect(campaignUtils.validatePricing).toHaveBeenCalledWith({ foo: 'bar' }, { old: 'yes' }, req.requester, svc.model);
-                expect(campaignUtils.validatePaymentMethod).toHaveBeenCalledWith({ foo: 'bar' }, { old: 'yes' },
-                    req.requester, 'https://test.com/api/payments/methods/', req);
             }).done(done, done.fail);
         });
         
@@ -684,24 +677,6 @@ describe('ads-campaigns (UT)', function() {
                     });
                 });
             }, q()).done(done, done.fail);
-        });
-        
-        it('should call done if validatePaymentMethods returns an invalid response', function(done) {
-            campaignUtils.validatePaymentMethod.and.returnValue(q({ isValid: false, reason: 'you need to pay up buddy' }));
-            campModule.extraValidation(svc, req, nextSpy, doneSpy).catch(errorSpy).finally(function() {
-                expect(nextSpy).not.toHaveBeenCalled();
-                expect(doneSpy).toHaveBeenCalledWith({ code: 400, body: 'you need to pay up buddy' });
-                expect(errorSpy).not.toHaveBeenCalled();
-            }).done(done, done.fail);
-        });
-        
-        it('should reject if validatePaymentMethods reject', function(done) {
-            campaignUtils.validatePaymentMethod.and.returnValue(q.reject('I GOT A PROBLEM'));
-            campModule.extraValidation(svc, req, nextSpy, doneSpy).catch(errorSpy).finally(function() {
-                expect(nextSpy).not.toHaveBeenCalled();
-                expect(doneSpy).not.toHaveBeenCalled();
-                expect(errorSpy).toHaveBeenCalledWith('I GOT A PROBLEM');
-            }).done(done, done.fail);
         });
     });
 

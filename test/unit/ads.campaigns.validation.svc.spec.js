@@ -119,21 +119,6 @@ describe('campaign validation', function() {
         });
     });
 
-    describe('when handling paymentMethod', function() {
-        it('should fail if the field is not a string', function() {
-            newObj.paymentMethod = 123;
-            expect(svc.model.validate('create', newObj, origObj, requester))
-                .toEqual({ isValid: false, reason: 'paymentMethod must be in format: string' });
-        });
-        
-        it('should allow the field to be set', function() {
-            newObj.paymentMethod = 'slush fund';
-            expect(svc.model.validate('create', newObj, origObj, requester))
-                .toEqual({ isValid: true, reason: undefined });
-            expect(newObj.paymentMethod).toEqual('slush fund');
-        });
-    });
-
     ['updateRequest', 'rejectionReason'].forEach(function(field) {
         describe('when handling ' + field, function() {
             it('should trim the field if set', function() {

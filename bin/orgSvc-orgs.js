@@ -131,13 +131,12 @@
         });
     };
 
-    /* Checks if the org still has unfinished campaigns. This prevents deleting org's braintree
-     * customer whose payment methods may still be attached to these campaigns */
+    /* Checks if the org still has unfinished campaigns. */
     orgModule.runningCampaignCheck = function(orgSvc, req, next, done) {
         var log = logger.getLog(),
             query = {
                 org: req.params.id,
-                status: { $nin: [Status.Deleted, Status.Expired, Status.Canceled]}
+                status: { $in: [Status.Active, Status.Paused] }
             };
             
         return q(orgSvc._db.collection('campaigns').count(query))

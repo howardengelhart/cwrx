@@ -46,10 +46,6 @@ describe('ads-campaignUpdates (UT)', function() {
                 baseUrl: 'https://test.com/api/content/experiences/',
                 endpoint: '/api/content/experiences/'
             },
-            paymentMethods: {
-                baseUrl: 'https://test.com/api/payments/methods/',
-                endpoint: '/api/payments/methods/'
-            },
             campaigns: {
                 baseUrl: 'https://test.com/api/campaigns/',
                 endpoint: '/api/campaigns/'
@@ -143,7 +139,6 @@ describe('ads-campaignUpdates (UT)', function() {
             expect(svc._middleware.create).toContain(updateModule.validateData);
             expect(svc._middleware.create).toContain(updateModule.extraValidation);
             expect(svc._middleware.create).toContain(updateModule.validateCards);
-            expect(svc._middleware.create).toContain(updateModule.validatePaymentMethod);
             expect(svc._middleware.create).toContain(updateModule.validateZipcodes);
             expect(svc._middleware.create).toContain(updateModule.handleInitialSubmit);
             expect(svc._middleware.create).toContain(updateModule.notifySupport);
@@ -160,7 +155,6 @@ describe('ads-campaignUpdates (UT)', function() {
             expect(svc._middleware.edit).toContain(updateModule.validateData);
             expect(svc._middleware.edit).toContain(updateModule.extraValidation);
             expect(svc._middleware.edit).toContain(updateModule.validateCards);
-            expect(svc._middleware.edit).toContain(updateModule.validatePaymentMethod);
             expect(svc._middleware.create).toContain(updateModule.validateZipcodes);
             expect(svc._middleware.edit).toContain(updateModule.unlockCampaign);
             expect(svc._middleware.edit).toContain(updateModule.applyUpdate);
@@ -175,7 +169,6 @@ describe('ads-campaignUpdates (UT)', function() {
             expect(svc._middleware.autoApprove).toContain(svc.setupObj);
             expect(svc._middleware.autoApprove).toContain(updateModule.fetchCamp);
             expect(svc._middleware.autoApprove).toContain(updateModule.enforceLock);
-            expect(svc._middleware.autoApprove).toContain(updateModule.validatePaymentMethod);
             expect(svc._middleware.autoApprove).toContain(updateModule.applyUpdate);
         });
         
@@ -749,46 +742,6 @@ describe('ads-campaignUpdates (UT)', function() {
         });
     });
     
-    describe('validatePaymentMethod', function() {
-        beforeEach(function() {
-            req.body = { data: { newCampaign: 'yes' } };
-            req.campaign = { oldCampaign: 'yes' };
-            spyOn(campaignUtils, 'validatePaymentMethod').and.returnValue(q({ isValid: true }));
-        });
-        
-        it('should call next if the paymentMethod is valid', function(done) {
-            updateModule.validatePaymentMethod(req, nextSpy, doneSpy).catch(errorSpy).finally(function() {
-                expect(nextSpy).toHaveBeenCalled();
-                expect(doneSpy).not.toHaveBeenCalled();
-                expect(errorSpy).not.toHaveBeenCalled();
-                expect(campaignUtils.validatePaymentMethod).toHaveBeenCalledWith({ newCampaign: 'yes' }, { oldCampaign: 'yes' },
-                    req.requester, 'https://test.com/api/payments/methods/', req);
-            }).done(done, done.fail);
-        });
-        
-        it('should call done if the paymentMethod is not valid', function(done) {
-            campaignUtils.validatePaymentMethod.and.returnValue(q({ isValid: false, reason: 'you better pay up buddy' }));
-            updateModule.validatePaymentMethod(req, nextSpy, doneSpy).catch(errorSpy).finally(function() {
-                expect(nextSpy).not.toHaveBeenCalled();
-                expect(doneSpy).toHaveBeenCalledWith({ code: 400, body: 'you better pay up buddy' });
-                expect(errorSpy).not.toHaveBeenCalled();
-                expect(campaignUtils.validatePaymentMethod).toHaveBeenCalledWith({ newCampaign: 'yes' }, { oldCampaign: 'yes' },
-                    req.requester, 'https://test.com/api/payments/methods/', req);
-            }).done(done, done.fail);
-        });
-        
-        it('should reject if campaignUtils.validatePaymentMethod fails', function(done) {
-            campaignUtils.validatePaymentMethod.and.returnValue(q.reject('I GOT A PROBLEM'));
-            updateModule.validatePaymentMethod(req, nextSpy, doneSpy).catch(errorSpy).finally(function() {
-                expect(nextSpy).not.toHaveBeenCalled();
-                expect(doneSpy).not.toHaveBeenCalled();
-                expect(errorSpy).toHaveBeenCalledWith('I GOT A PROBLEM');
-                expect(campaignUtils.validatePaymentMethod).toHaveBeenCalledWith({ newCampaign: 'yes' }, { oldCampaign: 'yes' },
-                    req.requester, 'https://test.com/api/payments/methods/', req);
-            }).done(done, done.fail);
-        });
-    });
-
     describe('validateZipcodes', function() {
         beforeEach(function() {
             req.body = { data: { newCampaign: 'yes' } };
@@ -839,7 +792,6 @@ describe('ads-campaignUpdates (UT)', function() {
             };
             req.body = { campaign: 'cam-1', data: {
                 pricing: { budget: 1000, dailyLimit: 200, cost: 0.15, model: 'cpv' },
-                paymentMethod: 'infinite money',
                 status: Status.Active
             } };
             req.requester.entitlements = {};
@@ -882,38 +834,6 @@ describe('ads-campaignUpdates (UT)', function() {
                     statusHistory: statHistory
                 }, 'cam-1');
                 done();
-            });
-        });
-        
-        describe('if the paymentMethod is missing', function(done) {
-            beforeEach(function() {
-                delete req.body.data.paymentMethod;
-            });
-            
-            it('should call done if the user does not have the paymentOptional entitlement', function(done) {
-                updateModule.handleInitialSubmit(svc, req, nextSpy, doneSpy).catch(errorSpy).finally(function() {
-                    expect(nextSpy).not.toHaveBeenCalled();
-                    expect(doneSpy).toHaveBeenCalledWith({ code: 400, body: 'Missing required field: paymentMethod' });
-                    expect(errorSpy).not.toHaveBeenCalled();
-                    expect(mongoUtils.editObject).not.toHaveBeenCalled();
-                    done();
-                });
-            });
-
-            it('should pass if the user has the paymentOptional entitlement', function(done) {
-                req.requester.entitlements.paymentOptional = true;
-                updateModule.handleInitialSubmit(svc, req, nextSpy, doneSpy).catch(errorSpy).finally(function() {
-                    expect(nextSpy).toHaveBeenCalled();
-                    expect(doneSpy).not.toHaveBeenCalled();
-                    expect(errorSpy).not.toHaveBeenCalled();
-                    expect(req.body.initialSubmit).toBe(true);
-                    expect(req.body.data.statusHistory).toEqual(jasmine.any(Array));
-                    expect(mongoUtils.editObject).toHaveBeenCalledWith({ collectionName: 'campaigns' }, {
-                        status: Status.Pending,
-                        statusHistory: jasmine.any(Array)
-                    }, 'cam-1');
-                    done();
-                });
             });
         });
         
