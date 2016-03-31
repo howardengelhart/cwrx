@@ -184,7 +184,22 @@
                 (card.type === 'vzaar')   ||
                 (card.type === 'wistia')  ||
                 (card.type === 'jwplayer')  ||
+                (card.type === 'facebook') ||
                 ((card.type === 'instagram') && (card.data) && (card.data.type === 'video'));
+    };
+    
+    cardModule.supportedMetadata = function(card) {
+        var metadata = [];
+        var supportsDuration = ['youtube', 'vimeo', 'dailymotion', 'vzaar', 'wistia', 'facebook'];
+        var supportsThumbnails = ['youtube', 'vimeo', 'dailymotion', 'vzaar', 'wistia', 'jwplayer',
+            'facebook'];
+        if(card.data.vast || card.data.vpaid || supportsDuration.indexOf(card.type) !== -1) {
+            metadata.push('duration');
+        }
+        if(supportsThumbnails.indexOf(card.type) !== -1) {
+            metadata.push('thumbnails');
+        }
+        return metadata;
     };
 
     cardModule.getMetaData = function(req, next /*, done */) {
@@ -203,19 +218,24 @@
             return q(next());
         }
         
+        var supported = cardModule.supportedMetadata(req.body);
         if (req.origObj && req.origObj.data ) {
             if  (
                     (req.origObj.data.vast === req.body.data.vast) &&
                     (req.origObj.data.vpaid === req.body.data.vpaid) &&
                     (req.origObj.data.videoid === req.body.data.videoid) &&
-                    (req.origObj.data.duration > -1) &&
+                    (supported.indexOf('duration') === -1 || req.origObj.data.duration > -1 ) &&
+                    (supported.indexOf('thumbnails') === -1 || (
+                         req.origObj.data.thumbs &&
+                         req.origObj.data.thumbs.small &&
+                         req.origObj.data.thumbs.large)) &&
                     (Date.now() - req.origObj.lastUpdated.valueOf() < 60000) ) {
                 log.trace('[%1] - Video unchanged, no need to get metadata.',req.uuid);
                 req.body.data.duration = req.body.data.duration || req.origObj.data.duration;
                 return q(next());
             }
         }
-
+        
         if (req.body.data.vast) {
             opts.type = 'vast';
             opts.uri  = req.body.data.vast;
@@ -223,33 +243,56 @@
         if (req.body.data.vpaid) {
             opts.type = 'vast';
             opts.uri  = req.body.data.vpaid;
-        } else
-        if (req.body.type === 'youtube') {
-            if (!cardModule.metagetta.hasGoogleKey) {
+        } else {
+            switch(req.body.type) {
+            case 'youtube':
+                if (!cardModule.metagetta.hasGoogleKey) {
+                    req.body.data.duration = req.body.data.duration || -1;
+                    log.warn('[%1] - Cannot get youtube metadata without secrets.googleKey.',
+                        req.uuid);
+                    return q(next());
+                }
+                opts.type   = 'youtube';
+                opts.id     = req.body.data.videoid;
+                break;
+            case 'vimeo':
+                opts.type   = 'vimeo';
+                opts.id     = req.body.data.videoid;
+                break;
+            case 'dailymotion':
+                opts.type   = 'dailymotion';
+                opts.id     = req.body.data.videoid;
+                break;
+            case 'vzaar':
+                opts.type   = 'vzaar';
+                opts.id     = req.body.data.videoid;
+                break;
+            case 'wistia':
+                opts.type = 'wistia';
+                opts.uri  = req.body.data.href;
+                break;
+            case 'jwplayer':
+                opts.type = 'jwplayer';
+                opts.id   = req.body.data.videoid;
+                break;
+            case 'facebook':
+                if (!cardModule.metagetta.hasFacebookCreds) {
+                    req.body.data.duration = req.body.data.duration || -1;
+                    log.warn('[%1] - Cannot get facebook metadata without secrets.facebook.',
+                        req.uuid);
+                    return q(next());
+                }
+                opts.type = 'facebook';
+                opts.uri  = req.body.data.href;
+                break;
+            default:
                 req.body.data.duration = req.body.data.duration || -1;
-                log.warn('[%1] - Cannot get youtube duration without secrets.googleKey.',
-                    req.uuid);
+                log.info('[%1] - MetaData unsupported for CardType [%2].',req.uuid,req.body.type);
                 return q(next());
             }
-            opts.type = 'youtube';
-            opts.id   = req.body.data.videoid;
-        } else
-        if (req.body.type === 'vimeo') {
-            opts.type = 'vimeo';
-            opts.id   = req.body.data.videoid;
-        } else
-        if (req.body.type === 'dailymotion') {
-            opts.type = 'dailymotion';
-            opts.id   = req.body.data.videoid;
-        } else
-        if (req.body.type === 'vzaar') {
-            opts.type = 'vzaar';
-            opts.id   = req.body.data.videoid;
-        } else {
-            req.body.data.duration = req.body.data.duration || -1;
-            log.info('[%1] - MetaData unsupported for CardType [%2].',req.uuid,req.body.type);
-            return q(next());
         }
+        
+        opts.fields = supported;
 
         if ((opts.uri) && (opts.uri.match(/^\/\//))) {
             opts.uri = 'http:' + opts.uri;
@@ -257,15 +300,40 @@
 
         return cardModule.metagetta(opts)
         .then(function(res){
-            if ((res.duration === null) || (res.duration === undefined)){
-                return q.reject(new Error('Missing duration for the specified resource.'));
-            }
-            req.body.data.duration = res.duration;
-            log.trace('[%1] - setting duration to [%2]',req.uuid,res.duration);
+            Object.keys(res).forEach(function(key) {
+                var metadata = res[key];
+                switch(key) {
+                case 'duration':
+                    if(metadata) {
+                        req.body.data.duration = metadata;
+                        log.trace('[%1] - setting duration to [%2]',req.uuid,metadata);
+                    } else {
+                        req.body.data.duration = req.body.data.duration || -1;
+                        delete opts.youtube;
+                        delete opts.facebook;
+                        log.warn('[%1] - Missing duration for the specified resource. [%2]',
+                            req.uuid, JSON.stringify(opts));
+                    }
+                    break;
+                case 'thumbnails':
+                    if(metadata && metadata.small && metadata.large) {
+                        req.body.data.thumbs = metadata;
+                        log.trace('[%1] - setting thumbnails to [%2]', req.uuid,
+                            JSON.stringify(metadata));
+                    } else {
+                        delete opts.youtube;
+                        delete opts.facebook;
+                        log.warn('[%1] - Missing thumbnails for the specified resource. [%2]',
+                            req.uuid, JSON.stringify(opts));
+                    }
+                    break;
+                }
+            });
             return next();
         })
         .catch(function(err){
             delete opts.youtube;
+            delete opts.facebook;
             req.body.data.duration = req.body.data.duration || -1;
             log.warn('[%1] - [%2] [%3]', req.uuid, err.message, JSON.stringify(opts));
             return next();

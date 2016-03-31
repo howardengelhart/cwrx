@@ -523,6 +523,38 @@ describe('content-cards (UT)', function() {
         });
     });
 
+    describe('supportedMetadata', function() {
+        it('should correctly return supported metadata properties', function() {
+            var cards = [
+                { data: { vast: 'vast' } },
+                { data: { vpaid: 'vpaid' } },
+                { data: { }, type: 'youtube' },
+                { data: { }, type: 'vimeo' },
+                { data: { }, type: 'dailymotion' },
+                { data: { }, type: 'vzaar' },
+                { data: { }, type: 'wistia' },
+                { data: { }, type: 'jwplayer' },
+                { data: { }, type: 'facebook' },
+                { data: { }, type: 'unsupported' }
+            ];
+            var supported = [
+                ['duration'],
+                ['duration'],
+                ['duration', 'thumbnails'],
+                ['duration', 'thumbnails'],
+                ['duration', 'thumbnails'],
+                ['duration', 'thumbnails'],
+                ['duration', 'thumbnails'],
+                ['thumbnails'],
+                ['duration', 'thumbnails'],
+                []
+            ];
+            cards.forEach(function(card, index) {
+                expect(cardModule.supportedMetadata(card)).toEqual(supported[index]);
+            });
+        });
+    });
+
     describe('getMetaData', function(){
         var mockReq, mockData, mockNext, mockDone ;
         beforeEach(function(){
@@ -533,6 +565,7 @@ describe('content-cards (UT)', function() {
             cardModule.metagetta = jasmine.createSpy('metagettaSpy').and.callFake(function(){
                 return q.resolve(mockData);
             });
+            cardModule.supportedMetadata = jasmine.createSpy('supported()').and.returnValue(['duration']);
             cardModule.metagetta.hasGoogleKey = true;
         });
 
@@ -568,7 +601,7 @@ describe('content-cards (UT)', function() {
         });
 
         it('should not call metagetta for unsupported cards',function(done){
-            q.all(['instagram','wistia','jwplayer'].map(function(cardType){
+            q.all(['instagram'].map(function(cardType){
                 return cardModule.getMetaData({
                     uuid : 'testid-0000',
                     body : {
@@ -581,11 +614,7 @@ describe('content-cards (UT)', function() {
                 expect(cardModule.metagetta).not.toHaveBeenCalled();
                 expect(mockLog.info.calls.allArgs()).toEqual([
                     [ '[%1] - MetaData unsupported for CardType [%2].',
-                        'testid-0000', 'instagram' ],
-                    [ '[%1] - MetaData unsupported for CardType [%2].',
-                        'testid-0000', 'wistia' ],
-                    [ '[%1] - MetaData unsupported for CardType [%2].',
-                        'testid-0000', 'jwplayer' ]
+                        'testid-0000', 'instagram' ]
                  ]);
                 expect(mockNext).toHaveBeenCalled();
             })
@@ -603,7 +632,26 @@ describe('content-cards (UT)', function() {
                 expect(cardModule.metagetta).not.toHaveBeenCalled();
                 expect(mockReq.body.data.duration).toEqual(-1);
                 expect(mockLog.warn).toHaveBeenCalledWith(
-                    '[%1] - Cannot get youtube duration without secrets.googleKey.',
+                    '[%1] - Cannot get youtube metadata without secrets.googleKey.',
+                    'testid-0000'
+                );
+                expect(mockReq.body.data.duration).toBe(-1);
+            })
+            .then(done,done.fail);
+        });
+
+        it('should not call metagetta if facebook card, but no secrets.facebook', function(done) {
+            cardModule.metagetta.hasFacebookCreds = false;
+
+            mockReq.body.data.videoid   = 'def456';
+            mockReq.body.type           = 'facebook';
+
+            cardModule.getMetaData(mockReq,mockNext,mockDone)
+            .then(function(){
+                expect(cardModule.metagetta).not.toHaveBeenCalled();
+                expect(mockReq.body.data.duration).toEqual(-1);
+                expect(mockLog.warn).toHaveBeenCalledWith(
+                    '[%1] - Cannot get facebook metadata without secrets.facebook.',
                     'testid-0000'
                 );
                 expect(mockReq.body.data.duration).toBe(-1);
@@ -649,6 +697,35 @@ describe('content-cards (UT)', function() {
             .then(function(){
                 expect(cardModule.metagetta).toHaveBeenCalled();
                 expect(mockReq.body.data.duration).toBe(666);
+            })
+            .then(done,done.fail);
+        });
+
+        it('should call metagetta if its a put with same video, but no thumbnails.',function(done){
+            mockReq.origObj = {
+                data : {
+                    vast : 'https://myvast/is/vast.xml',
+                    duration: 29
+                },
+                type : 'adUnit',
+                lastUpdated : new Date(1446063211664)
+            };
+            mockData.thumbnails = {
+                small: 'small.jpg',
+                large: 'large.jpg'
+            };
+            cardModule.supportedMetadata = jasmine.createSpy('supportedMetadata()').and.returnValue(['duration','thumbnails']);
+            jasmine.clock().mockDate(mockReq.origObj.lastUpdated);
+            mockReq.body.data.vast  = 'https://myvast/is/vast.xml';
+            mockReq.body.type       = 'adUnit';
+
+            cardModule.getMetaData(mockReq,mockNext,mockDone)
+            .then(function(){
+                expect(cardModule.metagetta).toHaveBeenCalled();
+                expect(mockReq.body.data.thumbs).toEqual({
+                    small: 'small.jpg',
+                    large: 'large.jpg'
+                });
             })
             .then(done,done.fail);
         });
@@ -748,7 +825,7 @@ describe('content-cards (UT)', function() {
             .then(done,done.fail);
         });
         
-        it('should be able to get duration metdata from vzaar videos', function(done) {
+        it('should be able to get metadata from vzaar videos', function(done) {
             mockReq.origObj = {
                 data : {
                     videoid : 'abc123',
@@ -760,14 +837,59 @@ describe('content-cards (UT)', function() {
             jasmine.clock().mockDate(mockReq.origObj.lastUpdated);
             mockReq.body.data.videoid   = 'def456';
             mockReq.body.type           = 'vzaar';
+            mockData.thumbnails = {
+                small: 'small.jpg',
+                large: 'large.jpg'
+            };
+            cardModule.supportedMetadata.and.returnValue(['duration', 'thumbnails']);
 
             cardModule.getMetaData(mockReq,mockNext,mockDone)
             .then(function(){
                 expect(cardModule.metagetta).toHaveBeenCalledWith({
                     type: 'vzaar',
-                    id: 'def456'
+                    id: 'def456',
+                    fields: ['duration', 'thumbnails']
                 });
                 expect(mockReq.body.data.duration).toBe(666);
+                expect(mockReq.body.data.thumbs).toEqual({
+                    small: 'small.jpg',
+                    large: 'large.jpg'
+                });
+            })
+            .then(done,done.fail);
+        });
+        
+        it('should be able to get metadata from facebook videos', function(done) {
+            mockReq.origObj = {
+                data : {
+                    videoid: 'facebook.com/video/123',
+                    href: 'facebook.com/video/123'
+                },
+                type : 'facebook',
+                lastUpdated : new Date(1446063211664)
+            };
+            jasmine.clock().mockDate(mockReq.origObj.lastUpdated);
+            mockReq.body.data.href = 'facebook.com/video/123';
+            mockReq.body.type = 'facebook';
+            mockData.thumbnails = {
+                small: 'small.jpg',
+                large: 'large.jpg'
+            };
+            cardModule.supportedMetadata.and.returnValue(['duration', 'thumbnails']);
+            cardModule.metagetta.hasFacebookCreds = true;
+
+            cardModule.getMetaData(mockReq,mockNext,mockDone)
+            .then(function(){
+                expect(cardModule.metagetta).toHaveBeenCalledWith({
+                    type: 'facebook',
+                    uri: 'facebook.com/video/123',
+                    fields: ['duration', 'thumbnails']
+                });
+                expect(mockReq.body.data.duration).toBe(666);
+                expect(mockReq.body.data.thumbs).toEqual({
+                    small: 'small.jpg',
+                    large: 'large.jpg'
+                });
             })
             .then(done,done.fail);
         });
@@ -793,7 +915,7 @@ describe('content-cards (UT)', function() {
                     '[%1] - [%2] [%3]',
                     'testid-0000',
                     'Could not find metadata for the specified resource.',
-                    '{"type":"vast","uri":"https://myvast/is/vast.xml"}'
+                    '{"type":"vast","uri":"https://myvast/is/vast.xml","fields":["duration"]}'
                 );
                 expect(mockNext).toHaveBeenCalled();
             })
@@ -803,7 +925,7 @@ describe('content-cards (UT)', function() {
         it('logs warning, sets duration to -1 on missing dur. create card',function(done){
             mockReq.body.data.vast  = 'https://myvast/is/vast.xml';
             mockReq.body.type       = 'adUnit';
-            delete mockData.duration;
+            mockData.duration       = null;
 
             cardModule.getMetaData(mockReq,mockNext,mockDone)
             .then(function(){
@@ -813,23 +935,48 @@ describe('content-cards (UT)', function() {
                 }));
                 expect(mockReq.body.data.duration).toEqual(-1);
                 expect(mockLog.warn).toHaveBeenCalledWith(
-                    '[%1] - [%2] [%3]',
+                    '[%1] - Missing duration for the specified resource. [%2]',
                     'testid-0000',
-                    'Missing duration for the specified resource.',
-                    '{"type":"vast","uri":"https://myvast/is/vast.xml"}'
+                    '{"type":"vast","uri":"https://myvast/is/vast.xml","fields":["duration"]}'
                 );
                 expect(mockNext).toHaveBeenCalled();
             })
             .then(done,done.fail);
         });
         
-        describe('if the requester is attempting to set a custom duration', function() {
+        it('logs warning, on missing thumbs, create card', function(done) {
+            mockReq.body.data.vast  = 'https://myvast/is/vast.xml';
+            mockReq.body.type       = 'adUnit';
+            mockData.duration       = 66;
+            mockData.thumbnails     = null;
+
+            cardModule.getMetaData(mockReq,mockNext,mockDone)
+            .then(function(){
+                expect(cardModule.metagetta).toHaveBeenCalledWith(jasmine.objectContaining({
+                    type : 'vast',
+                    uri : 'https://myvast/is/vast.xml'
+                }));
+                expect(mockLog.warn).toHaveBeenCalledWith(
+                    '[%1] - Missing thumbnails for the specified resource. [%2]',
+                    'testid-0000',
+                    '{"type":"vast","uri":"https://myvast/is/vast.xml","fields":["duration"]}'
+                );
+                expect(mockNext).toHaveBeenCalled();
+            })
+            .then(done,done.fail);
+        });
+        
+        describe('if the requester is attempting to set a custom metadata', function() {
             beforeEach(function() {
                 mockReq.body = {
                     type: 'adUnit',
                     data: {
                         vast: 'https://myvast/is/vast.xml',
-                        duration: 123
+                        duration: 123,
+                        thumbs: {
+                            small: 'new_small.jpg',
+                            large: 'new_large.jpg'
+                        }
                     }
                 };
                 mockReq.origObj = {
@@ -839,56 +986,90 @@ describe('content-cards (UT)', function() {
                     type : 'adUnit',
                     lastUpdated : new Date(1446063211664)
                 };
+                mockData.thumbnails = {
+                    small: 'small.jpg',
+                    large: 'large.jpg'
+                };
                 jasmine.clock().mockDate(mockReq.origObj.lastUpdated);
-
             });
             
-            it('should overwrite the custom duration if metagetta succeeds', function(done) {
+            it('should overwrite the custom metadata if metagetta succeeds', function(done) {
                 cardModule.getMetaData(mockReq,mockNext,mockDone)
                 .then(function() {
                     expect(cardModule.metagetta).toHaveBeenCalled();
                     expect(mockReq.body.data.duration).toBe(666);
+                    expect(mockReq.body.data.thumbs).toEqual({
+                        small: 'small.jpg',
+                        large: 'large.jpg'
+                    });
                 })
                 .then(done,done.fail);
             });
             
-            it('should not overwrite the custom duration if metagetta has no google key', function(done) {
+            it('should not overwrite the custom metadata if metagetta has no google key', function(done) {
                 cardModule.metagetta.hasGoogleKey = false;
-                mockReq.body = { type: 'youtube', data: { duration: 123, videoid: 'def123' } };
+                mockReq.body = {
+                    type: 'youtube',
+                    data: {
+                        duration: 123,
+                        videoid: 'def123',
+                        thumbs: {
+                            small: 'new_small.jpg',
+                            large: 'new_large.jpg'
+                        }
+                    }
+                };
                 cardModule.getMetaData(mockReq,mockNext,mockDone)
                 .then(function() {
                     expect(cardModule.metagetta).not.toHaveBeenCalled();
                     expect(mockReq.body.data.duration).toBe(123);
+                    expect(mockReq.body.data.thumbs).toEqual({
+                        small: 'new_small.jpg',
+                        large: 'new_large.jpg'
+                    });
                 })
                 .then(done,done.fail);
             });
             
-            it('should not overwrite the custom duration if the card type is unsupported', function(done) {
+            it('should not overwrite the custom metadata if the card type is unsupported', function(done) {
                 mockReq.body.type = 'instagram';
                 cardModule.getMetaData(mockReq,mockNext,mockDone)
                 .then(function() {
                     expect(cardModule.metagetta).not.toHaveBeenCalled();
                     expect(mockReq.body.data.duration).toBe(123);
+                    expect(mockReq.body.data.thumbs).toEqual({
+                        small: 'new_small.jpg',
+                        large: 'new_large.jpg'
+                    });
                 })
                 .then(done,done.fail);
             });
             
-            it('should not overwrite the custom duration if metagetta gets no duration', function(done) {
+            it('should not overwrite the custom metadata if metagetta gets no metadata', function(done) {
                 delete mockData.duration;
+                delete mockData.thumbnails;
                 cardModule.getMetaData(mockReq,mockNext,mockDone)
                 .then(function() {
                     expect(cardModule.metagetta).toHaveBeenCalled();
                     expect(mockReq.body.data.duration).toBe(123);
+                    expect(mockReq.body.data.thumbs).toEqual({
+                        small: 'new_small.jpg',
+                        large: 'new_large.jpg'
+                    });
                 })
                 .then(done,done.fail);
             });
             
-            it('should not overwrite the custom duration if metagetta fails', function(done) {
+            it('should not overwrite the custom metadata if metagetta fails', function(done) {
                 cardModule.metagetta.and.returnValue(q.reject(new Error('I GOT A PROBLEM')));
                 cardModule.getMetaData(mockReq,mockNext,mockDone)
                 .then(function() {
                     expect(cardModule.metagetta).toHaveBeenCalled();
                     expect(mockReq.body.data.duration).toBe(123);
+                    expect(mockReq.body.data.thumbs).toEqual({
+                        small: 'new_small.jpg',
+                        large: 'new_large.jpg'
+                    });
                 })
                 .then(done,done.fail);
             });

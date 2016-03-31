@@ -1054,28 +1054,66 @@ describe('content card endpoints (E2E):', function() {
         });
 
         it('should be able to create a youtube card with meta data', function(done) {
-            options.json.data = { 
+            options.json.data = {
                 videoid: 'OQ83Wz_mrD0',
-                duration: 666
+                duration: 666,
+                thumbs: {
+                    small: 'small.jpg',
+                    large: 'large.jpg'
+                }
             };
             options.json.type = 'youtube';
             requestUtils.qRequest('post', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(201);
                 expect(resp.body.data.duration).toEqual(12);
+                expect(resp.body.data.thumbs).toEqual({
+                    small: 'https://i.ytimg.com/vi/OQ83Wz_mrD0/default.jpg',
+                    large: 'https://i.ytimg.com/vi/OQ83Wz_mrD0/maxresdefault.jpg'
+                });
             }).catch(function(error) {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
         
-        it('should be able to set a custom duration for a video that has no duration', function(done) {
+        it('should be able to create a facebook card with meta data', function(done) {
+            options.json.data = {
+                href: 'https://www.facebook.com/FacebookDevelopers/videos/10152454700553553/',
+                duration: 666,
+                thumbs: {
+                    small: 'small.jpg',
+                    large: 'large.jpg'
+                }
+            };
+            options.json.type = 'facebook';
+            requestUtils.qRequest('post', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(201);
+                expect(resp.body.data.duration).toEqual(62.51);
+                expect(resp.body.data.thumbs).toEqual({
+                    small: 'https://scontent.xx.fbcdn.net/hvthumb-xta1/v/t15.0-10/s130x130/10675811_10152454701563553_10152454700553553_5106_2195_b.jpg?oh=bc1fc4bd9e29873fa5e54c61af353c94&oe=57910026',
+                    large: 'https://scontent.xx.fbcdn.net/hvthumb-xta1/v/t15.0-10/10675811_10152454701563553_10152454700553553_5106_2195_b.jpg?oh=c1fbab08a772b964d30324160c9a6aca&oe=578CE835'
+                });
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should be able to set custom meta data for a video that has no duration', function(done) {
             options.json.data = { 
                 videoid: 'probablynotarealyoutubevideo',
-                duration: 666
+                duration: 666,
+                thumbs: {
+                    small: 'small.jpg',
+                    large: 'large.jpg'
+                }
             };
             options.json.type = 'youtube';
             requestUtils.qRequest('post', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(201);
                 expect(resp.body.data.duration).toEqual(666);
+                expect(resp.body.data.thumbs).toEqual({
+                    small: 'small.jpg',
+                    large: 'large.jpg'
+                });
             }).catch(function(error) {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
