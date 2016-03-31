@@ -1,5 +1,9 @@
 # Org Service Changelog
 
+* [FEATURE]: Support `hasPaymentPlan` query parameter on
+  `GET /api/account/orgs` to find all orgs with a `paymentPlanId`:
+  [#838](https://github.com/cinema6/cwrx/pull/838/files)
+
 ### 1.7.0: Wed Mar 30 14:41:02 EDT 2016
 * [FEATURE]: Add `POST /api/payment` endpoint: [#811](https://github.com/cinema6/cwrx/issues/811)
 * Allow deleting payment methods regardless of account's campaigns: [#813](https://github.com/cinema6/cwrx/issues/813)
