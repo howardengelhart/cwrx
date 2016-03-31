@@ -37,7 +37,11 @@ describe('orgSvc-payments (UT)', function() {
         };
         payModule.config.minPayment = 1;
 
-        req = { uuid: '1234', user: { id: 'u-1', org: 'o-1' }, requester: { id: 'u-1', permissions: {} } };
+        req = {
+            uuid: '1234',
+            user: { id: 'u-1', org: 'o-1' },
+            requester: { id: 'u-1', permissions: {}, entitlements: {} }
+        };
         nextSpy = jasmine.createSpy('next()');
         doneSpy = jasmine.createSpy('done()');
         errorSpy = jasmine.createSpy('caught error');
@@ -171,7 +175,7 @@ describe('orgSvc-payments (UT)', function() {
             expect(orgSvc._middleware.editPaymentMethod).toContain(getBoundFn(payModule.fetchOrg, [payModule, orgSvc, false]));
             expect(orgSvc._middleware.deletePaymentMethod).toContain(getBoundFn(payModule.fetchOrg, [payModule, orgSvc, false]));
             expect(orgSvc._middleware.getPayments).toContain(getBoundFn(payModule.fetchOrg, [payModule, orgSvc, true]));
-            expect(orgSvc._middleware.createPayment).toContain(getBoundFn(payModule.fetchOrg, [payModule, orgSvc, false]));
+            expect(orgSvc._middleware.createPayment).toContain(getBoundFn(payModule.fetchOrg, [payModule, orgSvc, true]));
         });
         
         it('should add middleware to check if the requester can edit the org when modifying payment methods', function() {
@@ -188,6 +192,10 @@ describe('orgSvc-payments (UT)', function() {
         
         it('should add middleware to validate the body when creating a payment', function() {
             expect(orgSvc._middleware.createPayment).toContain(payModule.validatePaymentBody);
+        });
+
+        it('should add middleware to check entitlements when creating a payment', function() {
+            expect(orgSvc._middleware.createPayment).toContain(payModule.checkPaymentEntitlement);
         });
     });
     
@@ -312,6 +320,19 @@ describe('orgSvc-payments (UT)', function() {
             });
         });
         
+        it('should return a 400 if an app is the requester and no req.query.org is provided', function(done) {
+            delete req.user;
+            delete req.query.org;
+            payModule.fetchOrg(orgSvc, false, req, nextSpy, doneSpy).catch(errorSpy);
+            process.nextTick(function() {
+                expect(nextSpy).not.toHaveBeenCalled();
+                expect(doneSpy).toHaveBeenCalledWith({ code: 400, body: 'Must provide an org id' });
+                expect(errorSpy).not.toHaveBeenCalled();
+                expect(orgSvc.getObjs).not.toHaveBeenCalled();
+                done();
+            });
+        });
+        
         it('should call done if the orgSvc returns a non-200 response', function(done) {
             orgSvc.getObjs.and.returnValue(q({ code: 404, body: 'Org not found' }));
             payModule.fetchOrg(orgSvc, true, req, nextSpy, doneSpy).catch(errorSpy);
@@ -342,11 +363,10 @@ describe('orgSvc-payments (UT)', function() {
             req.query.org = { $gt: '' };
             payModule.fetchOrg(orgSvc, true, req, nextSpy, doneSpy).catch(errorSpy);
             process.nextTick(function() {
-                expect(nextSpy).toHaveBeenCalledWith();
-                expect(doneSpy).not.toHaveBeenCalled();
+                expect(nextSpy).not.toHaveBeenCalled();
+                expect(doneSpy).toHaveBeenCalledWith({ code: 400, body: 'Must provide an org id' });
                 expect(errorSpy).not.toHaveBeenCalled();
-                expect(req.org).toEqual({ id: 'o-1', name: 'org 1' });
-                expect(orgSvc.getObjs).toHaveBeenCalledWith({ id: '[object Object]' }, req, false);
+                expect(orgSvc.getObjs).not.toHaveBeenCalled();
                 done();
             });
         });
@@ -518,6 +538,45 @@ describe('orgSvc-payments (UT)', function() {
                 expect(mockLog.error).toHaveBeenCalled();
                 done();
             });
+        });
+    });
+    
+    describe('checkPaymentEntitlement', function() {
+        beforeEach(function() {
+            req.query = { org: 'o-5678' };
+        });
+        
+        it('should allow the request if the requester has makePaymentForAny', function() {
+            req.requester.entitlements.makePaymentForAny = true;
+            payModule.checkPaymentEntitlement(req, nextSpy, doneSpy);
+            expect(nextSpy).toHaveBeenCalled();
+            expect(doneSpy).not.toHaveBeenCalled();
+            expect(req.query.org).toBe('o-5678');
+        });
+
+        it('should allow the request if the requester has makePayment and is not specifying a different org', function() {
+            req.query.org = req.user.org;
+            req.requester.entitlements.makePayment = true;
+            payModule.checkPaymentEntitlement(req, nextSpy, doneSpy);
+
+            delete req.query.org;
+            payModule.checkPaymentEntitlement(req, nextSpy, doneSpy);
+
+            expect(nextSpy.calls.count()).toBe(2);
+            expect(doneSpy).not.toHaveBeenCalled();
+        });
+
+        it('should return a 403 if the requester has makePayment and is specifying a different org', function() {
+            req.requester.entitlements.makePayment = true;
+            payModule.checkPaymentEntitlement(req, nextSpy, doneSpy);
+            expect(nextSpy).not.toHaveBeenCalled();
+            expect(doneSpy).toHaveBeenCalledWith({ code: 403, body: 'Cannot make payment for another org' });
+        });
+        
+        it('should return a 403 if the requester has neither', function() {
+            payModule.checkPaymentEntitlement(req, nextSpy, doneSpy);
+            expect(nextSpy).not.toHaveBeenCalled();
+            expect(doneSpy).toHaveBeenCalledWith({ code: 403, body: 'Forbidden' });
         });
     });
     

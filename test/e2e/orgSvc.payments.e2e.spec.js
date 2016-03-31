@@ -18,7 +18,8 @@ var q               = require('q'),
     });
 
 describe('orgSvc payments (E2E):', function() {
-    var cookieJar, readOnlyJar, noCustJar, mockRequester, readOnlyUser, noCustUser, mockCusts, mockOrgs, origCard, origPaypal, origJCB;
+    var cookieJar, readOnlyJar, noCustJar, mockRequester, readOnlyUser, noCustUser, mockCusts, mockOrgs,
+        origCard, origPaypal, origJCB, mockApp, appCreds;
     
     beforeEach(function(done) {
         jasmine.DEFAULT_TIMEOUT_INTERVAL = 30000;
@@ -82,6 +83,20 @@ describe('orgSvc payments (E2E):', function() {
                 }
             }
         ];
+        mockApp = {
+            id: 'app-e2e-payments',
+            key: 'e2e-payments',
+            status: 'active',
+            secret: 'wowsuchsecretverysecureamaze',
+            permissions: {
+                orgs: { read: 'all' }
+            },
+            entitlements: {
+                makePaymentForAny: true
+            }
+        };
+        appCreds = { key: mockApp.key, secret: mockApp.secret };
+
         var logins = [
             {url: config.authUrl + '/login', json: {email: mockRequester.email, password: 'password'}, jar: cookieJar},
             {url: config.authUrl + '/login', json: {email: readOnlyUser.email, password: 'password'}, jar: readOnlyJar},
@@ -90,7 +105,8 @@ describe('orgSvc payments (E2E):', function() {
         
         q.all([
             testUtils.resetCollection('users', [mockRequester, readOnlyUser, noCustUser]),
-            testUtils.resetCollection('policies', testPolicies)
+            testUtils.resetCollection('policies', testPolicies),
+            testUtils.mongoUpsert('applications', { key: mockApp.key }, mockApp)
         ]).then(function(results) {
             return q.all(logins.map(function(opts) { return requestUtils.qRequest('post', opts); }));
         }).done(function(results) {
@@ -208,11 +224,6 @@ describe('orgSvc payments (E2E):', function() {
         var paymentsCreated = false,
             amount1, amount2, amount3, options;
         beforeEach(function(done) {
-            // randomize transaction amounts to avoid duplicate payment rejections when re-running tests
-            amount1 = parseFloat(( Math.random() * 10 + 10 ).toFixed(2));
-            amount2 = parseFloat(( Math.random() * 10 + 20 ).toFixed(2));
-            amount3 = parseFloat(( Math.random() * 10 + 30 ).toFixed(2));
-
             options = {
                 url: config.paymentUrl + '/',
                 jar: cookieJar
@@ -221,6 +232,11 @@ describe('orgSvc payments (E2E):', function() {
             if (paymentsCreated) {
                 return done();
             }
+
+            // randomize transaction amounts to avoid duplicate payment rejections when re-running tests
+            amount1 = parseFloat(( Math.random() * 10 + 10 ).toFixed(2));
+            amount2 = parseFloat(( Math.random() * 10 + 20 ).toFixed(2));
+            amount3 = parseFloat(( Math.random() * 10 + 30 ).toFixed(2));
 
             q.all([
                 {
@@ -344,6 +360,55 @@ describe('orgSvc payments (E2E):', function() {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
+        
+        it('should allow an app to get payments for an org', function(done) {
+            delete options.jar;
+            options.qs = { org: 'o-braintree1' };
+            requestUtils.makeSignedRequest(appCreds, 'get', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                resp.body.sort(function(a, b) { return parseInt(a.amount) - parseInt(b.amount); });
+
+                expect(resp.body.length).toBe(3);
+                expect(resp.body[0]).toEqual(jasmine.objectContaining({
+                    id: jasmine.any(String),
+                    status: 'authorized',
+                    amount: amount1
+                }));
+                expect(resp.body[1]).toEqual(jasmine.objectContaining({
+                    id: jasmine.any(String),
+                    status: 'submitted_for_settlement',
+                    amount: amount2
+                }));
+                expect(resp.body[2]).toEqual(jasmine.objectContaining({
+                    id: jasmine.any(String),
+                    status: 'authorized',
+                    amount: amount3
+                }));
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should return a 400 if the app does not provide an org id', function(done) {
+            delete options.jar;
+            options.qs = {};
+            requestUtils.makeSignedRequest(appCreds, 'get', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(400);
+                expect(resp.body).toBe('Must provide an org id');
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should fail if an app uses the wrong secret to make a request', function(done) {
+            var badCreds = { key: mockApp.key, secret: 'WRONG' };
+            requestUtils.makeSignedRequest(badCreds, 'get', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(401);
+                expect(resp.body).toBe('Unauthorized');
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
     });
     
     describe('GET /api/payments/methods', function() {
@@ -434,6 +499,44 @@ describe('orgSvc payments (E2E):', function() {
             requestUtils.qRequest('get', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(401);
                 expect(resp.body).toBe('Unauthorized');
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
+
+        it('should allow an app to get payment methods for an org', function(done) {
+            delete options.jar;
+            options.qs = { org: 'o-braintree1' };
+            requestUtils.makeSignedRequest(appCreds, 'get', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                resp.body.sort(function(a, b) { return a.type.localeCompare(b.type); });
+
+                expect(resp.body).toEqual([
+                    jasmine.objectContaining({
+                        token: origCard.token,
+                        imageUrl: origCard.imageUrl,
+                        type: 'creditCard',
+                        cardType: 'Visa',
+                        last4: '1881'
+                    }),
+                    jasmine.objectContaining({
+                        token: origPaypal.token,
+                        imageUrl: origPaypal.imageUrl,
+                        type: 'paypal',
+                        email: 'jane.doe@example.com',
+                    })
+                ]);
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should return a 400 if the app does not provide an org id', function(done) {
+            delete options.jar;
+            options.qs = {};
+            requestUtils.makeSignedRequest(appCreds, 'get', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(400);
+                expect(resp.body).toBe('Must provide an org id');
             }).catch(function(error) {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
@@ -964,10 +1067,11 @@ describe('orgSvc payments (E2E):', function() {
         });
         
         it('should not allow a user to post a payment with a paymentMethod they do not own', function(done) {
+            options.qs = { org: 'o-otherorg' };
             options.json.paymentMethod = origJCB.token;
             requestUtils.qRequest('post', options).then(function(resp) {
-                expect(resp.response.statusCode).toBe(404);
-                expect(resp.body).toBe('That payment method does not exist for this org');
+                expect(resp.response.statusCode).toBe(403);
+                expect(resp.body).toBe('Cannot make payment for another org');
             }).catch(function(error) {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
@@ -988,6 +1092,44 @@ describe('orgSvc payments (E2E):', function() {
             requestUtils.qRequest('post', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(401);
                 expect(resp.body).toBe('Unauthorized');
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should allow an app to post a payment for an org', function(done) {
+            delete options.jar;
+            options.qs = { org: 'o-braintree1' };
+            requestUtils.makeSignedRequest(appCreds, 'post', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(201);
+                expect(resp.body).toEqual({
+                    id: jasmine.any(String),
+                    status: 'settling',
+                    type: 'sale',
+                    amount: amount,
+                    createdAt: jasmine.any(String),
+                    updatedAt: jasmine.any(String),
+                    method: expectedMethodOutput
+                });
+                createdTransaction = resp.body;
+                
+                return testUtils.pgQuery('SELECT * FROM fct.billing_transactions WHERE braintree_id = $1', [resp.body.id]);
+            }).then(function(results) {
+                expect(results.rows.length).toBe(1);
+                expect(results.rows[0]).toEqual(jasmine.objectContaining({
+                    rec_key         : jasmine.any(String),
+                    rec_ts          : jasmine.any(Date),
+                    transaction_id  : jasmine.any(String),
+                    transaction_ts  : results.rows[0].rec_ts,
+                    org_id          : 'o-braintree1',
+                    amount          : amount.toFixed(4),
+                    sign            : 1,
+                    units           : 1,
+                    campaign_id     : null,
+                    braintree_id    : createdTransaction.id,
+                    promotion_id    : null,
+                    description     : JSON.stringify({ eventType: 'credit', source: 'braintree' })
+                }));
             }).catch(function(error) {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);

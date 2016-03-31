@@ -44,8 +44,9 @@
 
         orgSvc.use('getPayments', fetchAnyOrg);
         
+        orgSvc.use('createPayment', payModule.checkPaymentEntitlement);
         orgSvc.use('createPayment', payModule.validatePaymentBody);
-        orgSvc.use('createPayment', fetchOwnOrg);
+        orgSvc.use('createPayment', fetchAnyOrg);
         orgSvc.use('createPayment', getExistingPayMethod);
     };
     
@@ -92,7 +93,11 @@
     // If useParam is true, will allow fetching req.query.org; otherwise default to req.user.org
     payModule.fetchOrg = function(orgSvc, useParam, req, next, done) {
         var log = logger.getLog(),
-            orgId = (!!useParam && req.query.org) || req.user.org;
+            orgId = (!!useParam && req.query.org) || (req.user && req.user.org);
+            
+        if (!orgId || typeof orgId !== 'string') {
+            return q(done({ code: 400, body: 'Must provide an org id' }));
+        }
             
         log.trace('[%1] Fetching org %2', req.uuid, String(orgId));
         return orgSvc.getObjs({ id: String(orgId) }, req, false)
@@ -167,6 +172,38 @@
                           req.uuid, req.org.braintreeCustomer, util.inspect(error));
                 return q.reject('Braintree error');
             }
+        });
+    };
+    
+    /* Check requester for entitlement allowing them to make payments, also using it to decide
+     * whether to allow a custom value for req.query.org */
+    payModule.checkPaymentEntitlement = function(req, next, done) {
+        var log = logger.getLog(),
+            requesterOrg = (req.user && req.user.org) || null;
+
+        // If requester has makePaymentForAny, allow req.query.org to be set & proceed
+        if (req.requester.entitlements.makePaymentForAny === true) {
+            return next();
+        }
+        else if (req.requester.entitlements.makePayment === true) {
+            // Otherwise if req.query.org is set and not the requester's org, return 403
+            if (!!req.query.org && req.query.org !== requesterOrg) {
+                log.info('[%1] Requester %2 trying to make payment for other org %3',
+                         req.uuid, req.requester.id, req.query.org);
+                return done({
+                    code: 403,
+                    body: 'Cannot make payment for another org'
+                });
+            }
+
+            // Allow the request if not specifying different org id
+            return next();
+        }
+        
+        // Return 403 if requester has no makePayment entitlement
+        return done({
+            code: 403,
+            body: 'Forbidden'
         });
     };
 
@@ -643,9 +680,8 @@
             
         router.use(jobManager.setJobTimeout.bind(jobManager));
         
-        var authGetOrg = authUtils.middlewarify({ permissions: { orgs: 'read' } }),
+        var authGetOrg = authUtils.middlewarify({ allowApps: true, permissions: { orgs: 'read' } }),
             authPutOrg = authUtils.middlewarify({ permissions: { orgs: 'edit' } });
-
 
         router.get('/clientToken', sessions, authGetOrg, audit, function(req, res) {
             delete req.query.org; // unsupported for this endpoint
@@ -716,8 +752,8 @@
         });
 
         var authMakePayment = authUtils.middlewarify({
-            permissions: { orgs: 'read' },
-            entitlements: { makePayment: true }
+            allowApps: true,
+            permissions: { orgs: 'read' }
         });
         router.post('/', sessions, authMakePayment, audit, function(req, res) {
             var promise = payModule.createPayment(gateway, orgSvc, appCreds, req);
