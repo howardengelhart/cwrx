@@ -1,5 +1,11 @@
 # Content Service Changelog
 
+### 4.1.3 Thu Mar 31 11:13:44 EDT 2016
+* In addition to the duration, set the default thumbnails of cards on POST or PUT: [#839](https://github.com/cinema6/cwrx/pull/839)
+* Extra deployment steps:
+    * Upload a facebook creds data bag
+    * Deploy content cookbook v1.5.3
+
 ### 4.1.2: Tue Mar 15 19:44:01 EDT 2016
 * [FIX]: Fix characters of uuids to be url-safe: [#822](https://github.com/cinema6/cwrx/pull/822)
 * Extra deployment steps:
