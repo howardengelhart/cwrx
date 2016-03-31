@@ -1,5 +1,8 @@
 # User Service Changelog
 
+* [FEATURE]: Add ability to give orgs a `paymentPlanId` when they are
+  created via `POST /api/account/users/confirm/:id`: [#838](https://github.com/cinema6/cwrx/pull/838/files)
+
 ### 3.3.0: Wed Mar 16 16:07:41 EDT 2016
 * Add flag to toggle email notifications: [#825](https://github.com/cinema6/cwrx/pull/825)
 * [FEATURE]: Support app authentication: [#823](https://github.com/cinema6/cwrx/pull/823)

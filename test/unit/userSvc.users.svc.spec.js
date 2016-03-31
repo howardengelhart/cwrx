@@ -486,9 +486,15 @@ describe('userSvc (UT)', function() {
             var newModel = userModule.createSignupModel(svc);
             expect(newModel).toEqual(jasmine.any(Model));
             expect(newModel.objName).toBe('users');
+
             expect(newModel.schema.referralCode.__allowed).toBe(true);
             expect(svc.model.schema.referralCode.__allowed).toBe(false);
+
+            expect(newModel.schema.paymentPlanId.__allowed).toBe(true);
+            expect(svc.model.schema.paymentPlanId.__allowed).toBe(false);
+
             newModel.schema.referralCode.__allowed = false;
+            newModel.schema.paymentPlanId.__allowed = false;
             expect(newModel.schema).toEqual(svc.model.schema);
         });
     });
@@ -731,6 +737,34 @@ describe('userSvc (UT)', function() {
                         json: {
                             name: 'some company (u-12345)',
                             referralCode: 'asdf123456'
+                        }
+                    });
+
+                    expect(mongoUtils.editObject).not.toHaveBeenCalled();
+                    expect(mockLog.error).not.toHaveBeenCalled();
+                    expect(CacheMutex.prototype.release).toHaveBeenCalled();
+                }).done(done);
+            });
+        });
+
+        describe('if the user has a paymentPlanId', function() {
+            beforeEach(function() {
+                req.user.paymentPlanId = 'pp-0Ek1iM02uYGNaLIL';
+            });
+
+            it('should save the id on the org', function(done) {
+                userModule.createLinkedEntities(mockConfig, mockCache, svc, appCreds, req, nextSpy, doneSpy).catch(errorSpy)
+                .finally(function() {
+                    expect(nextSpy).toHaveBeenCalled();
+                    expect(doneSpy).not.toHaveBeenCalled();
+                    expect(errorSpy).not.toHaveBeenCalled();
+                    expect(req.user.org).toBe('orgs-id-123');
+
+                    expect(requestUtils.makeSignedRequest).toHaveBeenCalledWith(appCreds, 'post', {
+                        url: 'http://localhost/api/account/orgs',
+                        json: {
+                            name: 'some company (u-12345)',
+                            paymentPlanId: 'pp-0Ek1iM02uYGNaLIL'
                         }
                     });
 

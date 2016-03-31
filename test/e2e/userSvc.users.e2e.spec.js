@@ -2009,6 +2009,7 @@ describe('userSvc users (E2E):', function() {
                     var org = results[0];
                     expect(org.name).toBe('e2e-tests-company (u-12345)');
                     expect(org.referralCode).not.toBeDefined();
+                    expect(org.paymentPlanId).not.toBeDefined();
                 })
                 .catch(function(error) {
                     expect(util.inspect(error)).not.toBeDefined();
@@ -2104,6 +2105,28 @@ describe('userSvc users (E2E):', function() {
                         expect(util.inspect(error)).not.toBeDefined();
                         done();
                     });
+                });
+            });
+
+            describe('if the user has a paymentPlanId', function() {
+                beforeEach(function(done) {
+                    mockNewUser.paymentPlanId = 'pp-0Ek1iM02uYGNaLIL';
+                    testUtils.resetCollection('users', [mockNewUser, mockRequester, mockAdmin]).done(done);
+                });
+
+                it('should save the paymentPlanId on the org', function(done) {
+                    requestUtils.qRequest('post', options)
+                    .then(function(resp) {
+                        var orgId = resp.body.org;
+                        expect(orgId).toEqual(jasmine.any(String));
+                        return testUtils.mongoFind('orgs', {id: orgId});
+                    })
+                    .then(function(results) {
+                        var org = results[0];
+                        expect(org.name).toBe('e2e-tests-company (u-12345)');
+                        expect(org.paymentPlanId).toBe('pp-0Ek1iM02uYGNaLIL');
+                    })
+                    .then(done, done.fail);
                 });
             });
         });

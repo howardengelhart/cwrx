@@ -243,9 +243,9 @@ describe('orgSvc orgs (E2E):', function() {
         var mockOrgs, options;
         beforeEach(function(done) {
             mockOrgs = [
-                { id: 'o-1234', name: 'e2e-getOrg3', status: 'active' },
+                { id: 'o-1234', name: 'e2e-getOrg3', status: 'active', paymentPlanId: 'pp-0Ek1iM02uYGNaLIL' },
                 { id: 'o-4567', name: 'e2e-getOrg2', status: 'active' },
-                { id: 'o-7890', name: 'e2e-getOrg1', status: 'active' },
+                { id: 'o-7890', name: 'e2e-getOrg1', status: 'active', paymentPlanId: 'pp-0Ek1iM02uYGNaLIL' },
                 { id: 'o-deleted', name: 'e2e-getOrg1', status: 'deleted' }
             ];
             options = { url: config.orgSvcUrl + '/', qs: { sort: 'id,1' }, jar: cookieJar };
@@ -256,9 +256,9 @@ describe('orgSvc orgs (E2E):', function() {
             requestUtils.qRequest('get', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
                 expect(resp.body).toEqual([
-                    { id: 'o-1234', name: 'e2e-getOrg3', status: 'active' },
+                    { id: 'o-1234', name: 'e2e-getOrg3', status: 'active', paymentPlanId: 'pp-0Ek1iM02uYGNaLIL' },
                     { id: 'o-4567', name: 'e2e-getOrg2', status: 'active' },
-                    { id: 'o-7890', name: 'e2e-getOrg1', status: 'active' }
+                    { id: 'o-7890', name: 'e2e-getOrg1', status: 'active', paymentPlanId: 'pp-0Ek1iM02uYGNaLIL' }
                 ]);
                 expect(resp.response.headers['content-range']).toBe('items 1-3/3');
             }).catch(function(error) {
@@ -305,8 +305,8 @@ describe('orgSvc orgs (E2E):', function() {
             requestUtils.qRequest('get', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
                 expect(resp.body).toEqual([
-                    { id: 'o-1234', name: 'e2e-getOrg3', status: 'active' },
-                    { id: 'o-4567', name: 'e2e-getOrg2', status: 'active' },
+                    { id: 'o-1234', name: 'e2e-getOrg3', status: 'active', paymentPlanId: 'pp-0Ek1iM02uYGNaLIL' },
+                    { id: 'o-4567', name: 'e2e-getOrg2', status: 'active' }
                 ]);
                 expect(resp.response.headers['content-range']).toBe('items 1-2/2');
             }).catch(function(error) {
@@ -324,13 +324,36 @@ describe('orgSvc orgs (E2E):', function() {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
+
+        it('should get all orgs with a payment plan', function(done) {
+            options.qs.hasPaymentPlan = true;
+            requestUtils.qRequest('get', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.body).toEqual([
+                    { id: 'o-1234', name: 'e2e-getOrg3', status: 'active', paymentPlanId: 'pp-0Ek1iM02uYGNaLIL' },
+                    { id: 'o-7890', name: 'e2e-getOrg1', status: 'active', paymentPlanId: 'pp-0Ek1iM02uYGNaLIL' }
+                ]);
+                expect(resp.response.headers['content-range']).toBe('items 1-2/2');
+            }).then(done, done.fail);
+        });
+
+        it('should get all orgs without a payment plan', function(done) {
+            options.qs.hasPaymentPlan = false;
+            requestUtils.qRequest('get', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.body).toEqual([
+                    { id: 'o-4567', name: 'e2e-getOrg2', status: 'active' }
+                ]);
+                expect(resp.response.headers['content-range']).toBe('items 1-1/1');
+            }).then(done, done.fail);
+        });
         
         it('should be able to sort and paginate the results', function(done) {
             options.qs.sort = 'name,1';
             options.qs.limit = 1;
             requestUtils.qRequest('get', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
-                expect(resp.body).toEqual([{ id: 'o-7890', name: 'e2e-getOrg1', status: 'active' }]);
+                expect(resp.body).toEqual([{ id: 'o-7890', name: 'e2e-getOrg1', status: 'active', paymentPlanId: 'pp-0Ek1iM02uYGNaLIL' }]);
                 expect(resp.response.headers['content-range']).toBe('items 1-1/3');
                 options.qs.skip = 1;
                 return requestUtils.qRequest('get', options);
@@ -358,7 +381,7 @@ describe('orgSvc orgs (E2E):', function() {
             options.jar = nonAdminJar;
             requestUtils.qRequest('get', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
-                expect(resp.body).toEqual([{ id: 'o-1234', name: 'e2e-getOrg3', status: 'active' }]);
+                expect(resp.body).toEqual([{ id: 'o-1234', name: 'e2e-getOrg3', status: 'active', paymentPlanId: 'pp-0Ek1iM02uYGNaLIL' }]);
                 expect(resp.response.headers['content-range']).toBe('items 1-1/1');
             }).catch(function(error) {
                 expect(util.inspect(error)).not.toBeDefined();
@@ -380,9 +403,9 @@ describe('orgSvc orgs (E2E):', function() {
             requestUtils.makeSignedRequest(appCreds, 'get', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
                 expect(resp.body).toEqual([
-                    { id: 'o-1234', name: 'e2e-getOrg3', status: 'active' },
+                    { id: 'o-1234', name: 'e2e-getOrg3', status: 'active', paymentPlanId: 'pp-0Ek1iM02uYGNaLIL' },
                     { id: 'o-4567', name: 'e2e-getOrg2', status: 'active' },
-                    { id: 'o-7890', name: 'e2e-getOrg1', status: 'active' }
+                    { id: 'o-7890', name: 'e2e-getOrg1', status: 'active', paymentPlanId: 'pp-0Ek1iM02uYGNaLIL' }
                 ]);
                 expect(resp.response.headers['content-range']).toBe('items 1-3/3');
             }).catch(function(error) {

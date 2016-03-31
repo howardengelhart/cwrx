@@ -225,6 +225,9 @@
             if (req.query.braintreeCustomer) {
                 query.braintreeCustomer = String(req.query.braintreeCustomer);
             }
+            if ('hasPaymentPlan' in req.query) {
+                query.paymentPlanId = { $exists: req.query.hasPaymentPlan === 'true' };
+            }
 
             var promise = svc.getObjs(query, req, true);
             promise.finally(function() {
