@@ -1,5 +1,10 @@
 # QueryBot Service Changelog
 
+### 1.4.0: Thu Mar 31 18:10:22 EDT 2016
+* [FEATURE]: Use billable_transactions for getting views and spend data [#840)[https://github.com/cinema6/cwrx/issues/840]
+* Extra deployment steps:
+    * querybot,accountant,c6env cookbooks need to be updated to migrate management of the pgpass file from the daemons to c6env.
+
 ### 1.3.3: Tue Mar 15 19:44:01 EDT 2016
 * [FIX]: Fix characters of uuids to be url-safe: [#822](https://github.com/cinema6/cwrx/pull/822)
 * Extra deployment steps:
