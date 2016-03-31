@@ -80,6 +80,10 @@
         referralCode: {
             __allowed: false,
             __type: 'string'
+        },
+        paymentPlanId: {
+            __allowed: false,
+            __type: 'string'
         }
     };
 
@@ -176,7 +180,8 @@
     userModule.createSignupModel = function(svc) {
         var signupSchema = JSON.parse(JSON.stringify(svc.model.schema));
         signupSchema.referralCode.__allowed = true;
-        
+        signupSchema.paymentPlanId.__allowed = true;
+
         return new Model('users', signupSchema);
     };
 
@@ -250,6 +255,10 @@
             
             if (!!req.user.referralCode) {
                 orgBody.referralCode = req.user.referralCode;
+            }
+
+            if (!!req.user.paymentPlanId) {
+                orgBody.paymentPlanId = req.user.paymentPlanId;
             }
             
             return (!!req.user.org ? q(req.user.org) : postEntity('org', {
