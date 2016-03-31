@@ -35,6 +35,7 @@ describe('orgSvc-payments (UT)', function() {
                 endpoint: '/api/transactions/'
             }
         };
+        payModule.config.minPayment = 1;
 
         req = { uuid: '1234', user: { id: 'u-1', org: 'o-1' }, requester: { id: 'u-1', permissions: {} } };
         nextSpy = jasmine.createSpy('next()');
@@ -135,7 +136,8 @@ describe('orgSvc-payments (UT)', function() {
                     transactions: {
                         endpoint: '/api/transactions/'
                     }
-                }
+                },
+                minPayment: 50
             };
 
             payModule.extendSvc(orgSvc, mockGateway, config);
@@ -149,6 +151,7 @@ describe('orgSvc-payments (UT)', function() {
                     baseUrl: 'https://foo.com/api/transactions/'
                 }
             });
+            expect(payModule.config.minPayment).toBe(50);
         });
         
         it('should initialize middleware for payment endpoints', function() {
@@ -541,14 +544,14 @@ describe('orgSvc-payments (UT)', function() {
         });
         
         it('should call done if the amount is too low', function() {
-            [-123, 0, 24].forEach(function(amount) {
+            [-123, 0, 0.24].forEach(function(amount) {
                 req.body.amount = amount;
                 payModule.validatePaymentBody(req, nextSpy, doneSpy);
             });
             expect(nextSpy).not.toHaveBeenCalled();
             expect(doneSpy.calls.count()).toBe(3);
             doneSpy.calls.allArgs().forEach(function(args) {
-                expect(args).toEqual([{ code: 400, body: 'amount must be greater than the min: 50' }]);
+                expect(args).toEqual([{ code: 400, body: 'amount must be greater than the min: 1' }]);
             });
         });
         

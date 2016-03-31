@@ -15,6 +15,7 @@
 
     // Adds extra middleware to orgSvc for custom payment methods. gateway === braintree client
     payModule.extendSvc = function(orgSvc, gateway, config) {
+        payModule.config.minPayment = config.minPayment;
         payModule.config.api = config.api;
         payModule.config.api.transactions.baseUrl = urlUtils.resolve(
             payModule.config.api.root,
@@ -178,7 +179,7 @@
                 __allowed: true,
                 __type: 'number',
                 __required: true,
-                __min: 50,
+                __min: payModule.config.minPayment,
                 __locked: true
             },
             paymentMethod: {
