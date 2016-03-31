@@ -312,6 +312,19 @@ describe('orgSvc-payments (UT)', function() {
             });
         });
         
+        it('should return a 400 if an app is the requester and no req.query.org is provided', function(done) {
+            delete req.user;
+            delete req.query.org;
+            payModule.fetchOrg(orgSvc, false, req, nextSpy, doneSpy).catch(errorSpy);
+            process.nextTick(function() {
+                expect(nextSpy).not.toHaveBeenCalled();
+                expect(doneSpy).toHaveBeenCalledWith({ code: 400, body: 'Must provide an org id' });
+                expect(errorSpy).not.toHaveBeenCalled();
+                expect(orgSvc.getObjs).not.toHaveBeenCalled();
+                done();
+            });
+        });
+        
         it('should call done if the orgSvc returns a non-200 response', function(done) {
             orgSvc.getObjs.and.returnValue(q({ code: 404, body: 'Org not found' }));
             payModule.fetchOrg(orgSvc, true, req, nextSpy, doneSpy).catch(errorSpy);
@@ -342,11 +355,10 @@ describe('orgSvc-payments (UT)', function() {
             req.query.org = { $gt: '' };
             payModule.fetchOrg(orgSvc, true, req, nextSpy, doneSpy).catch(errorSpy);
             process.nextTick(function() {
-                expect(nextSpy).toHaveBeenCalledWith();
-                expect(doneSpy).not.toHaveBeenCalled();
+                expect(nextSpy).not.toHaveBeenCalled();
+                expect(doneSpy).toHaveBeenCalledWith({ code: 400, body: 'Must provide an org id' });
                 expect(errorSpy).not.toHaveBeenCalled();
-                expect(req.org).toEqual({ id: 'o-1', name: 'org 1' });
-                expect(orgSvc.getObjs).toHaveBeenCalledWith({ id: '[object Object]' }, req, false);
+                expect(orgSvc.getObjs).not.toHaveBeenCalled();
                 done();
             });
         });

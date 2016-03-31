@@ -92,7 +92,11 @@
     // If useParam is true, will allow fetching req.query.org; otherwise default to req.user.org
     payModule.fetchOrg = function(orgSvc, useParam, req, next, done) {
         var log = logger.getLog(),
-            orgId = (!!useParam && req.query.org) || req.user.org;
+            orgId = (!!useParam && req.query.org) || (req.user && req.user.org);
+            
+        if (!orgId || typeof orgId !== 'string') {
+            return q(done({ code: 400, body: 'Must provide an org id' }));
+        }
             
         log.trace('[%1] Fetching org %2', req.uuid, String(orgId));
         return orgSvc.getObjs({ id: String(orgId) }, req, false)
@@ -643,7 +647,7 @@
             
         router.use(jobManager.setJobTimeout.bind(jobManager));
         
-        var authGetOrg = authUtils.middlewarify({ permissions: { orgs: 'read' } }),
+        var authGetOrg = authUtils.middlewarify({ allowApps: true, permissions: { orgs: 'read' } }),
             authPutOrg = authUtils.middlewarify({ permissions: { orgs: 'edit' } });
 
 
