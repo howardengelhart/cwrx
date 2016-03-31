@@ -575,6 +575,65 @@ describe('querybot (UT)', function() {
 
         it('adds view and cost to initialized record',function(){
             var obj = lib.processCampaignSummaryRecord(record);
+            record.eventType = 'billableView';
+            lib.processCampaignSummaryRecord(record,obj);
+            expect(obj).toEqual({
+                campaignId : 'abc',
+                summary : {
+                    impressions : 100,
+                    views : 100,
+                    quartile1 : 0,
+                    quartile2 : 0,
+                    quartile3 : 0,
+                    quartile4 : 0,
+                    totalSpend : '25.2500',
+                    linkClicks : {},
+                    shareClicks : {}
+                },
+                today : {
+                    impressions : 0,
+                    views : 0,
+                    quartile1 : 0,
+                    quartile2 : 0,
+                    quartile3 : 0,
+                    quartile4 : 0,
+                    totalSpend : '0.0000',
+                    linkClicks : {},
+                    shareClicks : {}
+                }
+            });
+            record.range = 'today';
+            lib.processCampaignSummaryRecord(record,obj);
+            expect(obj).toEqual({
+                campaignId : 'abc',
+                summary : {
+                    impressions : 100,
+                    views : 100,
+                    quartile1 : 0,
+                    quartile2 : 0,
+                    quartile3 : 0,
+                    quartile4 : 0,
+                    totalSpend : '25.2500',
+                    linkClicks : {},
+                    shareClicks : {}
+                },
+                today : {
+                    impressions : 0,
+                    views : 100,
+                    quartile1 : 0,
+                    quartile2 : 0,
+                    quartile3 : 0,
+                    quartile4 : 0,
+                    totalSpend : '25.2500',
+                    linkClicks : {},
+                    shareClicks : {}
+                }
+            });
+        });
+        
+        it('adds actual view and cost to initialized record',function(){
+            lib._state.config.useActualViews = true;
+            var obj = lib.processCampaignSummaryRecord(record);
             record.eventType = 'completedView';
             lib.processCampaignSummaryRecord(record,obj);
             expect(obj).toEqual({
@@ -774,7 +833,7 @@ describe('querybot (UT)', function() {
             lib.queryCampaignSummary(['abc','def']);
             expect(pgUtils.query.calls.mostRecent().args[1]).toEqual([
                 ['abc','def'],
-                ['launch','load','play','impression']
+                ['launch','load','play','impression','requestPlayer']
             ]);
         });
     });

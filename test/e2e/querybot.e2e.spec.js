@@ -13,7 +13,7 @@ var q               = require('q'),
     };
 
 describe('querybot (E2E)', function(){
-    var pgdata_campaign_summary_hourly, mockUser, mockCamps,
+    var pgdata_campaign_summary_hourly, pgdata_billing_transactions, mockUser, mockCamps,
         cookieJar, options, camp1Data, camp2Data, camp5Data, mockApp, appCreds;
 
     beforeEach(function(done){
@@ -28,12 +28,12 @@ describe('querybot (E2E)', function(){
             campaignId : 'cam-1757d5cd13e383',
             summary : {
                 impressions: 8409,
-                views      : 6461,
+                views      : 6460, // Add 1 if testing completedView config
                 quartile1  : 7031,
                 quartile2  : 5820,
                 quartile3  : 1962,
                 quartile4  : 1330,
-                totalSpend : '1227.5900',
+                totalSpend : '1227.4000', // Add 0.19 if testing completedView config
                 linkClicks : {
                     action      : 224,
                     facebook    : 18,
@@ -49,12 +49,12 @@ describe('querybot (E2E)', function(){
             },
             today : {
                 impressions : 7903,
-                views       : 6054,
+                views       : 6053, // Add 1 if testing completedView config
                 quartile1  : 6362,
                 quartile2  : 5355,
                 quartile3  : 1806,
                 quartile4  : 1240,
-                totalSpend  : '1150.2600',
+                totalSpend  : '1150.0700', // Add 0.19 if testing completedViewConfig
                 linkClicks : {
                     action      : 220,
                     facebook    : 18,
@@ -135,6 +135,30 @@ describe('querybot (E2E)', function(){
         };
  
         var today = ((new Date()).toISOString()).substr(0,10);
+
+        // NOTE:  The cam-1757d5cd13e383 has 1 less view in billing transactions for today
+        // than the completedViews in pgdata_campaign_summary_hourly.  This is to ensure
+        // that the e2e tests are testing the configuration of querybot that uses
+        // billableViews, not completedViews.
+        // See comments on camp1Data for fields that need to be updated if testing
+        // using completedViews rather than billing transactions.
+        pgdata_billing_transactions = [
+            'INSERT INTO fct.billing_transactions (rec_ts,transaction_ts,transaction_id,',
+            '   org_id,campaign_id,sign,units,amount) VALUES',
+            '(now(),\'' + today + ' 00:00:00+00\',\'t-1\',\'o1\',\'cam-1757d5cd13e383\',-1,987,187.53),',
+            '(now(),\'' + today + ' 00:00:00+00\',\'t-1\',\'o1\',\'cam-1757d5cd13e383\',-1,499,94.81),',
+            '(now(),\'' + today + ' 00:00:00+00\',\'t-1\',\'o1\',\'cam-1757d5cd13e383\',-1,1345,255.55),',
+            '(now(),\'' + today + ' 00:00:00+00\',\'t-1\',\'o1\',\'cam-1757d5cd13e383\',-1,850,161.50),',
+            '(now(),\'' + today + ' 00:00:00+00\',\'t-1\',\'o1\',\'cam-1757d5cd13e383\',-1,830,157.70),',
+            '(now(),\'' + today + ' 01:00:00+00\',\'t-2\',\'o1\',\'cam-1757d5cd13e383\',-1,1542,292.98),',
+            '(now(),\'' + today + ' 00:00:00+00\',\'t-3\',\'o2\',\'cam-b651cde4158304\',-1,318,34.98),',
+            '(now(),\'2015-12-01 00:00:00+00\',\'t-4\',\'o1\',\'cam-1757d5cd13e383\',-1,89,16.91),',
+            '(now(),\'2015-12-02 12:00:00+00\',\'t-5\',\'o1\',\'cam-1757d5cd13e383\',-1,209,39.71),',
+            '(now(),\'2015-12-03 23:00:00+00\',\'t-6\',\'o1\',\'cam-1757d5cd13e383\',-1,109,20.71),',
+            '(now(),\'2015-12-03 23:00:00+00\',\'t-7\',\'o2\',\'cam-b651cde4158304\',-1,194,21.34),',
+            '(now(),\'2015-12-03 23:00:00+00\',\'t-8\',\'o3\',\'cam-cabd93049d032a\',-1,69,3.45);'
+        ];
+
         pgdata_campaign_summary_hourly = [
             'INSERT INTO rpt.campaign_summary_hourly VALUES',
             '(\'' + today + ' 01:00:00+00\',\'cam-1757d5cd13e383\',\'cardView\',2032,0.0000),',
@@ -271,11 +295,17 @@ describe('querybot (E2E)', function(){
         ];
 
         function pgTruncate(){
-            return testUtils.pgQuery('TRUNCATE TABLE rpt.campaign_summary_hourly');
+            return testUtils.pgQuery('TRUNCATE TABLE rpt.campaign_summary_hourly')
+                .then(function(){
+                    return testUtils.pgQuery('TRUNCATE TABLE fct.billing_transactions')
+                });
         }
 
         function pgInsert() {
-            return testUtils.pgQuery(pgdata_campaign_summary_hourly.join(' '));
+            return testUtils.pgQuery(pgdata_campaign_summary_hourly.join(' '))
+                .then(function(){
+                    return testUtils.pgQuery(pgdata_billing_transactions.join(' '))
+                });
         }
 
         function mongoInsert() {

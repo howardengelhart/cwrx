@@ -198,7 +198,8 @@ lib.setCampaignDataInCache = function(data,startDate,endDate,keyScope){
 };
 
 lib.processCampaignSummaryRecord = function(record, obj, startDate, endDate) {
-    var m, eventCount = parseInt(record.eventCount,10), sub ;
+    var m, eventCount = parseInt(record.eventCount,10), sub, viewEventName ;
+    viewEventName = state.config.useActualViews ? 'completedView' : 'billableView' ;
     if (isNaN(eventCount)){
         eventCount = 0;
     }
@@ -269,7 +270,7 @@ lib.processCampaignSummaryRecord = function(record, obj, startDate, endDate) {
     if (record.eventType === 'q4') {
         sub.quartile4 = eventCount;
     } else
-    if (record.eventType === 'completedView') {
+    if (record.eventType === viewEventName) {
         sub.views       = eventCount;
         sub.totalSpend  = record.eventCost;
     } else  {
@@ -303,43 +304,77 @@ lib.datesToDateClause = function(startDate,endDate,fieldName) {
 };
 
 lib.queryCampaignSummary = function(campaignIds,startDate,endDate) {
-    var log = logger.getLog(),dateClause = lib.datesToDateClause(startDate,endDate,'rec_ts'),
+    var log = logger.getLog(),
+        dateClause  = lib.datesToDateClause(startDate,endDate,'rec_ts'),
+        dateClause2 = lib.datesToDateClause(startDate,endDate,'transaction_ts'),
         statement;
         
     
     statement = [
-        'select campaign_id as "campaignId" ,\'summary\' as "range", event_type as "eventType",',
+        'select campaign_id as "campaignId" ,\'summary\' as "range",',
+        '   event_type as "eventType",',
         'sum(events) as "eventCount", sum(event_cost) as "eventCost"',
         'from rpt.campaign_summary_hourly',
         'where campaign_id = ANY($1::text[])',
         'and NOT event_type = ANY($2::text[])',
         'group by 1,2,3',
         'union',
-        'select campaign_id as "campaignId" ,\'today\' as "range", event_type as "eventType",',
+        'select campaign_id as "campaignId" ,\'summary\' as "range",',
+        '   \'billableView\' as "eventType",',
+        'sum(units) as "eventCount", sum(amount) as "eventCost"',
+        'from fct.billing_transactions',
+        'where campaign_id = ANY($1::text[])',
+        'and sign = -1',
+        'and amount > 0',
+        'group by 1,2,3',
+        'union',
+        'select campaign_id as "campaignId" ,\'today\' as "range",',
+        '   event_type as "eventType",',
         'sum(events) as "eventCount", sum(event_cost) as "eventCost"',
         'from rpt.campaign_summary_hourly',
         'where campaign_id = ANY($1::text[])',
         'and NOT event_type = ANY($2::text[])',
         'and rec_ts >= current_timestamp::date',
+        'group by 1,2,3',
+        'union',
+        'select campaign_id as "campaignId" ,\'today\' as "range",',
+        '   \'billableView\' as "eventType",',
+        'sum(units) as "eventCount", sum(amount) as "eventCost"',
+        'from fct.billing_transactions',
+        'where campaign_id = ANY($1::text[])',
+        'and transaction_ts >= current_timestamp::date',
+        'and sign = -1',
+        'and amount > 0',
         'group by 1,2,3'
     ];
     
     if (dateClause) {
         statement = statement.concat([
             'union',
-            'select campaign_id as "campaignId" ,\'user\' as "range", event_type as "eventType",',
+            'select campaign_id as "campaignId" ,\'user\' as "range",',
+            '   event_type as "eventType",',
             'sum(events) as "eventCount", sum(event_cost) as "eventCost"',
             'from rpt.campaign_summary_hourly',
             'where campaign_id = ANY($1::text[])',
             'and NOT event_type = ANY($2::text[])',
             'AND (' + dateClause + ')',
+            'group by 1,2,3',
+            'union',
+            'select campaign_id as "campaignId" ,\'user\' as "range",',
+            '   \'billableView\' as "eventType",',
+            'sum(units) as "eventCount", sum(amount) as "eventCost"',
+            'from fct.billing_transactions',
+            'where campaign_id = ANY($1::text[])',
+            'AND (' + dateClause2 + ')',
+            'and sign = -1',
+            'and amount > 0',
             'group by 1,2,3'
         ]);
     }
     statement.push('order by 1,2');
     log.trace(statement.join('\n'));
     return pgUtils.query(statement.join('\n'),
-        [campaignIds,['launch','load','play','impression']])
+        [campaignIds,['launch','load','play','impression','requestPlayer']])
         .then(function(result){
             var res ;
             result.rows.forEach(function(row){
