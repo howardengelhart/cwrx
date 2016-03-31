@@ -90,6 +90,9 @@ describe('orgSvc payments (E2E):', function() {
             secret: 'wowsuchsecretverysecureamaze',
             permissions: {
                 orgs: { read: 'all' }
+            },
+            entitlements: {
+                makePaymentForAny: true
             }
         };
         appCreds = { key: mockApp.key, secret: mockApp.secret };
@@ -1064,6 +1067,7 @@ describe('orgSvc payments (E2E):', function() {
         });
         
         it('should not allow a user to post a payment with a paymentMethod they do not own', function(done) {
+            options.qs = { org: 'o-otherorg' };
             options.json.paymentMethod = origJCB.token;
             requestUtils.qRequest('post', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(404);
@@ -1088,6 +1092,44 @@ describe('orgSvc payments (E2E):', function() {
             requestUtils.qRequest('post', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(401);
                 expect(resp.body).toBe('Unauthorized');
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should allow an app to post a payment for an org', function(done) {
+            delete options.jar;
+            options.qs = { org: 'o-braintree1' };
+            requestUtils.makeSignedRequest(appCreds, 'post', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(201);
+                expect(resp.body).toEqual({
+                    id: jasmine.any(String),
+                    status: 'settling',
+                    type: 'sale',
+                    amount: amount,
+                    createdAt: jasmine.any(String),
+                    updatedAt: jasmine.any(String),
+                    method: expectedMethodOutput
+                });
+                createdTransaction = resp.body;
+                
+                return testUtils.pgQuery('SELECT * FROM fct.billing_transactions WHERE braintree_id = $1', [resp.body.id]);
+            }).then(function(results) {
+                expect(results.rows.length).toBe(1);
+                expect(results.rows[0]).toEqual(jasmine.objectContaining({
+                    rec_key         : jasmine.any(String),
+                    rec_ts          : jasmine.any(Date),
+                    transaction_id  : jasmine.any(String),
+                    transaction_ts  : results.rows[0].rec_ts,
+                    org_id          : 'o-braintree1',
+                    amount          : amount.toFixed(4),
+                    sign            : 1,
+                    units           : 1,
+                    campaign_id     : null,
+                    braintree_id    : createdTransaction.id,
+                    promotion_id    : null,
+                    description     : JSON.stringify({ eventType: 'credit', source: 'braintree' })
+                }));
             }).catch(function(error) {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);

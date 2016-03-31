@@ -44,8 +44,9 @@
 
         orgSvc.use('getPayments', fetchAnyOrg);
         
+        orgSvc.use('createPayment', payModule.checkPaymentEntitlement);
         orgSvc.use('createPayment', payModule.validatePaymentBody);
-        orgSvc.use('createPayment', fetchOwnOrg);
+        orgSvc.use('createPayment', fetchAnyOrg);
         orgSvc.use('createPayment', getExistingPayMethod);
     };
     
@@ -171,6 +172,23 @@
                           req.uuid, req.org.braintreeCustomer, util.inspect(error));
                 return q.reject('Braintree error');
             }
+        });
+    };
+    
+    /* Check requester for entitlement allowing them to make payments, also using it to decide
+     * whether to allow a customer value for req.query.org */
+    payModule.checkPaymentEntitlement = function(req, next, done) {
+        // If requester has makePaymentForAny, allow req.query.org to be set; otherwise trim it
+        if (req.requester.entitlements.makePaymentForAny === true) {
+            return next();
+        } else if (req.requester.entitlements.makePayment === true) {
+            delete req.query.org;
+            return next();
+        }
+        
+        return done({
+            code: 403,
+            body: 'Forbidden'
         });
     };
 
@@ -650,7 +668,6 @@
         var authGetOrg = authUtils.middlewarify({ allowApps: true, permissions: { orgs: 'read' } }),
             authPutOrg = authUtils.middlewarify({ permissions: { orgs: 'edit' } });
 
-
         router.get('/clientToken', sessions, authGetOrg, audit, function(req, res) {
             delete req.query.org; // unsupported for this endpoint
 
@@ -720,8 +737,8 @@
         });
 
         var authMakePayment = authUtils.middlewarify({
-            permissions: { orgs: 'read' },
-            entitlements: { makePayment: true }
+            allowApps: true,
+            permissions: { orgs: 'read' }
         });
         router.post('/', sessions, authMakePayment, audit, function(req, res) {
             var promise = payModule.createPayment(gateway, orgSvc, appCreds, req);

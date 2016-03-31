@@ -1,5 +1,6 @@
 # Org Service Changelog
 
+* [FEATURE]: Allow apps with `makePaymentForAny` to make payments + paymentMethods for any org: [#837](https://github.com/cinema6/cwrx/issues/837)
 * [FEATURE]: Allow apps to get payments + paymentMethods for orgs: [#837](https://github.com/cinema6/cwrx/issues/837)
 * [FIX]: Make minimum amount for `POST /api/payments` configurable: [#843](https://github.com/cinema6/cwrx/issues/843)
 * [FEATURE]: Support `hasPaymentPlan` query parameter on
