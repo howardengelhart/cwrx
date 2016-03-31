@@ -543,7 +543,7 @@ describe('orgSvc-payments (UT)', function() {
     
     describe('checkPaymentEntitlement', function() {
         beforeEach(function() {
-            req.query = { org: 'o-1' };
+            req.query = { org: 'o-5678' };
         });
         
         it('should allow the request if the requester has makePaymentForAny', function() {
@@ -551,18 +551,29 @@ describe('orgSvc-payments (UT)', function() {
             payModule.checkPaymentEntitlement(req, nextSpy, doneSpy);
             expect(nextSpy).toHaveBeenCalled();
             expect(doneSpy).not.toHaveBeenCalled();
-            expect(req.query.org).toBe('o-1');
+            expect(req.query.org).toBe('o-5678');
         });
 
-        it('should allow the request but trim req.query.org if the requester has makePayment', function() {
+        it('should allow the request if the requester has makePayment and is not specifying a different org', function() {
+            req.query.org = req.user.org;
             req.requester.entitlements.makePayment = true;
             payModule.checkPaymentEntitlement(req, nextSpy, doneSpy);
-            expect(nextSpy).toHaveBeenCalled();
+
+            delete req.query.org;
+            payModule.checkPaymentEntitlement(req, nextSpy, doneSpy);
+
+            expect(nextSpy.calls.count()).toBe(2);
             expect(doneSpy).not.toHaveBeenCalled();
-            expect(req.query.org).not.toBeDefined();
+        });
+
+        it('should return a 403 if the requester has makePayment and is specifying a different org', function() {
+            req.requester.entitlements.makePayment = true;
+            payModule.checkPaymentEntitlement(req, nextSpy, doneSpy);
+            expect(nextSpy).not.toHaveBeenCalled();
+            expect(doneSpy).toHaveBeenCalledWith({ code: 403, body: 'Cannot make payment for another org' });
         });
         
-        it('should return a 400 if the requester has neither', function() {
+        it('should return a 403 if the requester has neither', function() {
             payModule.checkPaymentEntitlement(req, nextSpy, doneSpy);
             expect(nextSpy).not.toHaveBeenCalled();
             expect(doneSpy).toHaveBeenCalledWith({ code: 403, body: 'Forbidden' });

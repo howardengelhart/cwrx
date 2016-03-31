@@ -1070,8 +1070,8 @@ describe('orgSvc payments (E2E):', function() {
             options.qs = { org: 'o-otherorg' };
             options.json.paymentMethod = origJCB.token;
             requestUtils.qRequest('post', options).then(function(resp) {
-                expect(resp.response.statusCode).toBe(404);
-                expect(resp.body).toBe('That payment method does not exist for this org');
+                expect(resp.response.statusCode).toBe(403);
+                expect(resp.body).toBe('Cannot make payment for another org');
             }).catch(function(error) {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);

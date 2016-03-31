@@ -176,16 +176,31 @@
     };
     
     /* Check requester for entitlement allowing them to make payments, also using it to decide
-     * whether to allow a customer value for req.query.org */
+     * whether to allow a custom value for req.query.org */
     payModule.checkPaymentEntitlement = function(req, next, done) {
-        // If requester has makePaymentForAny, allow req.query.org to be set; otherwise trim it
+        var log = logger.getLog(),
+            requesterOrg = (req.user && req.user.org) || null;
+
+        // If requester has makePaymentForAny, allow req.query.org to be set & proceed
         if (req.requester.entitlements.makePaymentForAny === true) {
             return next();
-        } else if (req.requester.entitlements.makePayment === true) {
-            delete req.query.org;
+        }
+        else if (req.requester.entitlements.makePayment === true) {
+            // Otherwise if req.query.org is set and not the requester's org, return 403
+            if (!!req.query.org && req.query.org !== requesterOrg) {
+                log.info('[%1] Requester %2 trying to make payment for other org %3',
+                         req.uuid, req.requester.id, req.query.org);
+                return done({
+                    code: 403,
+                    body: 'Cannot make payment for another org'
+                });
+            }
+
+            // Allow the request if not specifying different org id
             return next();
         }
         
+        // Return 403 if requester has no makePayment entitlement
         return done({
             code: 403,
             body: 'Forbidden'
