@@ -1,5 +1,6 @@
 # Org Service Changelog
 
+* [FIX]: Make minimum amount for `POST /api/payments` configurable: [#843](https://github.com/cinema6/cwrx/issues/843)
 * [FEATURE]: Support `hasPaymentPlan` query parameter on
   `GET /api/account/orgs` to find all orgs with a `paymentPlanId`:
   [#838](https://github.com/cinema6/cwrx/pull/838/files)

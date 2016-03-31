@@ -929,13 +929,13 @@ describe('orgSvc payments (E2E):', function() {
         });
         
         it('should return a 400 if the amount is too small', function(done) {
-            q.all([-123, 0, 1.23].map(function(smallAmount) {
+            q.all([-123, 0, 0.23].map(function(smallAmount) {
                 options.json.amount = smallAmount;
                 return requestUtils.qRequest('post', options);
             })).then(function(results) {
                 results.forEach(function(resp) {
                     expect(resp.response.statusCode).toBe(400);
-                    expect(resp.body).toBe('amount must be greater than the min: 50');
+                    expect(resp.body).toMatch(/amount must be greater than the min: \d+/);
                 });
             }).catch(function(error) {
                 expect(util.inspect(error)).not.toBeDefined();
