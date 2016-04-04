@@ -28,6 +28,9 @@
         },
         api: {
             root: 'http://localhost',   // for proxying requests
+            balance: {
+                endpoint: '/api/accounting/balance/'
+            },
             transactions: {
                 endpoint: '/api/transactions/'
             },
