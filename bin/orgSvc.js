@@ -30,7 +30,14 @@
             root: 'http://localhost',   // for proxying requests
             transactions: {
                 endpoint: '/api/transactions/'
+            },
+            users: {
+                endpoint: '/api/account/users/'
             }
+        },
+        kinesis: {
+            region      : 'us-east-1',
+            streamName  : 'devCwrxStream'
         },
         sessions: {
             key: 'c6Auth',
