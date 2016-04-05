@@ -1,12 +1,14 @@
 var flush = true;
 describe('orgSvc-payments (UT)', function() {
-    var payModule, orgModule, events, q, mockLog, mockLogger, logger, Model, mongoUtils, enums, Scope, requestUtils,
-        objUtils, mockDb, mockGateway, mockPayment, mockPaymentMethod, orgSvc, req, nextSpy, doneSpy, errorSpy;
+    var payModule, orgModule, events, q, mockLog, mockLogger, logger, Model, mongoUtils, Scope, requestUtils, rcKinesis,
+        objUtils, util, mockDb, mockGateway, mockPayment, mockPaymentMethod, orgSvc, req, nextSpy, doneSpy, errorSpy;
 
     beforeEach(function() {
         if (flush) { for (var m in require.cache){ delete require.cache[m]; } flush = false; }
         events          = require('events');
         q               = require('q');
+        util            = require('util');
+        rcKinesis       = require('rc-kinesis');
         payModule       = require('../../bin/orgSvc-payments');
         orgModule       = require('../../bin/orgSvc-orgs');
         logger          = require('../../lib/logger');
@@ -14,8 +16,7 @@ describe('orgSvc-payments (UT)', function() {
         requestUtils    = require('../../lib/requestUtils');
         objUtils        = require('../../lib/objUtils');
         Model           = require('../../lib/model');
-        enums           = require('../../lib/enums');
-        Scope           = enums.Scope;
+        Scope           = require('../../lib/enums').Scope;
         
         mockLog = {
             trace : jasmine.createSpy('log_trace'),
@@ -30,12 +31,24 @@ describe('orgSvc-payments (UT)', function() {
 
         payModule.config.api = {
             root: 'https://test.com',
+            balance: {
+                baseUrl: 'https://test.com/api/accounting/balance/',
+                endpoint: '/api/accounting/balance/'
+            },
             transactions: {
                 baseUrl: 'https://test.com/api/transactions/',
                 endpoint: '/api/transactions/'
+            },
+            users: {
+                baseUrl: 'https://test.com/api/account/users/',
+                endpoint: '/api/account/users/'
             }
         };
         payModule.config.minPayment = 1;
+        payModule.config.kinesis = {
+            region      : 'us-east-1',
+            streamName  : 'utStream'
+        };
 
         req = {
             uuid: '1234',
@@ -137,11 +150,21 @@ describe('orgSvc-payments (UT)', function() {
             config = {
                 api: {
                     root: 'https://foo.com',
+                    balance: {
+                        endpoint: '/api/accounting/balance/'
+                    },
                     transactions: {
                         endpoint: '/api/transactions/'
+                    },
+                    users: {
+                        endpoint: '/api/account/users/'
                     }
                 },
-                minPayment: 50
+                minPayment: 50,
+                kinesis: {
+                    region      : 'us-east-66',
+                    streamName  : 'devCwrxStream'
+                }
             };
 
             payModule.extendSvc(orgSvc, mockGateway, config);
@@ -150,12 +173,24 @@ describe('orgSvc-payments (UT)', function() {
         it('should save some config locally', function() {
             expect(payModule.config.api).toEqual({
                 root: 'https://foo.com',
+                balance: {
+                    endpoint: '/api/accounting/balance/',
+                    baseUrl: 'https://foo.com/api/accounting/balance/'
+                },
                 transactions: {
                     endpoint: '/api/transactions/',
                     baseUrl: 'https://foo.com/api/transactions/'
+                },
+                users: {
+                    endpoint: '/api/account/users/',
+                    baseUrl: 'https://foo.com/api/account/users/'
                 }
             });
             expect(payModule.config.minPayment).toBe(50);
+            expect(payModule.config.kinesis).toEqual({
+                region: 'us-east-66',
+                streamName: 'devCwrxStream'
+            });
         });
         
         it('should initialize middleware for payment endpoints', function() {
@@ -326,7 +361,7 @@ describe('orgSvc-payments (UT)', function() {
             payModule.fetchOrg(orgSvc, false, req, nextSpy, doneSpy).catch(errorSpy);
             process.nextTick(function() {
                 expect(nextSpy).not.toHaveBeenCalled();
-                expect(doneSpy).toHaveBeenCalledWith({ code: 400, body: 'Must provide an org id' });
+                expect(doneSpy).toHaveBeenCalledWith({ code: 400, body: 'Must provide an org id in the query string' });
                 expect(errorSpy).not.toHaveBeenCalled();
                 expect(orgSvc.getObjs).not.toHaveBeenCalled();
                 done();
@@ -364,7 +399,7 @@ describe('orgSvc-payments (UT)', function() {
             payModule.fetchOrg(orgSvc, true, req, nextSpy, doneSpy).catch(errorSpy);
             process.nextTick(function() {
                 expect(nextSpy).not.toHaveBeenCalled();
-                expect(doneSpy).toHaveBeenCalledWith({ code: 400, body: 'Must provide an org id' });
+                expect(doneSpy).toHaveBeenCalledWith({ code: 400, body: 'Must provide an org id in the query string' });
                 expect(errorSpy).not.toHaveBeenCalled();
                 expect(orgSvc.getObjs).not.toHaveBeenCalled();
                 done();
@@ -1655,6 +1690,167 @@ describe('orgSvc-payments (UT)', function() {
         });
     });
     
+    describe('producePaymentEvent', function() {
+        var payment, resps;
+        beforeEach(function() {
+            payment = { id: 'pay1', amount: 666.66 };
+            req.org = { id: 'o-1' };
+            req.user = { id: 'u-1', org: 'o-1', email: 'foo@test.com' };
+            req.query = {};
+
+            resps = {
+                user: {
+                    response: { statusCode: 200 },
+                    body: [{ id: 'u-2', org: 'o-1', email: 'bar@test.com' }]
+                },
+                balance: {
+                    response: { statusCode: 200 },
+                    body: { balance: 9001.12, outstandingBudget: 500.43 }
+                }
+            };
+            spyOn(requestUtils, 'proxyRequest').and.callFake(function(req, method, opts) {
+                if (/balance/.test(opts.url)) return q(resps.balance);
+                else return q(resps.user);
+            });
+
+            mockProducer = {
+                produce: jasmine.createSpy('producer.produce()').and.returnValue(q({ success: 'yes' }))
+            };
+            spyOn(rcKinesis, 'JsonProducer').and.returnValue(mockProducer);
+        });
+        
+        it('should produce an event into the kinesis stream', function(done) {
+            payModule.producePaymentEvent(req, payment).then(function() {
+                expect(rcKinesis.JsonProducer).toHaveBeenCalledWith('utStream', { region: 'us-east-1' });
+                expect(mockProducer.produce).toHaveBeenCalledWith({
+                    type: 'paymentMade',
+                    data: {
+                        payment: { id: 'pay1', amount: 666.66 },
+                        user: { id: 'u-1', org: 'o-1', email: 'foo@test.com' },
+                        balance: 9001.12,
+                        target: undefined
+                    }
+                });
+                expect(requestUtils.proxyRequest.calls.count()).toBe(1);
+                expect(requestUtils.proxyRequest).toHaveBeenCalledWith(req, 'get', {
+                    url: 'https://test.com/api/accounting/balance/',
+                    qs: { org: 'o-1' }
+                });
+                expect(mockLog.error).not.toHaveBeenCalled();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should pass the target into the event body, if defined', function(done) {
+            req.query.target = 'bob';
+            payModule.producePaymentEvent(req, payment).then(function() {
+                expect(rcKinesis.JsonProducer).toHaveBeenCalledWith('utStream', { region: 'us-east-1' });
+                expect(mockProducer.produce).toHaveBeenCalledWith({
+                    type: 'paymentMade',
+                    data: {
+                        payment: { id: 'pay1', amount: 666.66 },
+                        user: { id: 'u-1', org: 'o-1', email: 'foo@test.com' },
+                        balance: 9001.12,
+                        target: 'bob'
+                    }
+                });
+                expect(mockLog.error).not.toHaveBeenCalled();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
+        });
+        
+        describe('if the requester does not belong to the affected org', function() {
+            beforeEach(function() {
+                req.user.org = 'o-2';
+            });
+            
+            it('should look up a user in the org to email', function(done) {
+                payModule.producePaymentEvent(req, payment).then(function() {
+                    expect(mockProducer.produce).toHaveBeenCalledWith({
+                        type: 'paymentMade',
+                        data: {
+                            payment: { id: 'pay1', amount: 666.66 },
+                            user: { id: 'u-2', org: 'o-1', email: 'bar@test.com' },
+                            balance: 9001.12,
+                            target: undefined
+                        }
+                    });
+                    expect(requestUtils.proxyRequest.calls.count()).toBe(2);
+                    expect(requestUtils.proxyRequest).toHaveBeenCalledWith(req, 'get', {
+                        url: 'https://test.com/api/account/users/',
+                        qs: { org: 'o-1', limit: 1 }
+                    });
+                    expect(mockLog.error).not.toHaveBeenCalled();
+                }).catch(function(error) {
+                    expect(error.toString()).not.toBeDefined();
+                }).done(done);
+            });
+
+            it('should resolve and log an error if the user request finds no users', function(done) {
+                resps.user = {
+                    response: { statusCode: 200 },
+                    body: []
+                };
+            
+                payModule.producePaymentEvent(req, payment).then(function() {
+                    expect(mockProducer.produce).not.toHaveBeenCalled();
+                    expect(mockLog.error).toHaveBeenCalled();
+                    expect(mockLog.error.calls.mostRecent().args).toContain(util.inspect({
+                        message: 'Failed looking up user for o-1',
+                        reason: 'No users found'
+                    }));
+                }).catch(function(error) {
+                    expect(error.toString()).not.toBeDefined();
+                }).done(done);
+            });
+            
+            ['balance', 'user'].forEach(function(type) {
+                it('should resolve and log an error if the ' + type + ' request returns a 4xx', function(done) {
+                    resps[type] = {
+                        response: { statusCode: 400 },
+                        body: 'I got a problem with YOU'
+                    };
+                
+                    payModule.producePaymentEvent(req, payment).then(function() {
+                        expect(mockProducer.produce).not.toHaveBeenCalled();
+                        expect(mockLog.error).toHaveBeenCalled();
+                        expect(mockLog.error.calls.mostRecent().args).toContain(util.inspect({
+                            message: 'Failed looking up ' + type + ' for o-1',
+                            reason: { code: 400, body: 'I got a problem with YOU' }
+                        }));
+                    }).catch(function(error) {
+                        expect(error.toString()).not.toBeDefined();
+                    }).done(done);
+                });
+
+                it('should resolve and log an error if the ' + type + ' request rejects', function(done) {
+                    resps[type] = q.reject('I GOT A PROBLEM');
+                
+                    payModule.producePaymentEvent(req, payment).then(function() {
+                        expect(mockProducer.produce).not.toHaveBeenCalled();
+                        expect(mockLog.error).toHaveBeenCalled();
+                        expect(mockLog.error.calls.mostRecent().args).toContain(util.inspect('I GOT A PROBLEM'));
+                    }).catch(function(error) {
+                        expect(error.toString()).not.toBeDefined();
+                    }).done(done);
+                });
+            });
+        });
+        
+        it('should resolve and log an error if producing the event fails', function(done) {
+            mockProducer.produce.and.returnValue(q.reject('I GOT A PROBLEM'));
+        
+            payModule.producePaymentEvent(req, payment).then(function() {
+                expect(mockLog.error).toHaveBeenCalled();
+                expect(mockLog.error.calls.mostRecent().args).toContain(util.inspect('I GOT A PROBLEM'));
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
+        });
+    });
+    
     describe('createPayment', function() {
         var transResp, appCreds;
         beforeEach(function() {
@@ -1678,6 +1874,7 @@ describe('orgSvc-payments (UT)', function() {
                 response: { statusCode: 201 },
                 body: { id: 't-1234' }
             }));
+            spyOn(payModule, 'producePaymentEvent').and.returnValue(q());
         });
         
         it('should create a transaction in braintree and in our system', function(done) {
@@ -1697,7 +1894,7 @@ describe('orgSvc-payments (UT)', function() {
                 });
                 expect(orgSvc.customMethod).toHaveBeenCalledWith(req, 'createPayment', jasmine.any(Function));
                 expect(mockGateway.transaction.sale).toHaveBeenCalledWith({
-                    amount: '100',
+                    amount: '100.00',
                     paymentMethodToken: 'method1',
                     options: { submitForSettlement: true }
                 }, jasmine.any(Function));
@@ -1705,9 +1902,9 @@ describe('orgSvc-payments (UT)', function() {
                     url: 'https://test.com/api/transactions/',
                     json: { amount: 100, org: 'o-1', braintreeId: 'trans1' }
                 });
+                expect(payModule.producePaymentEvent).toHaveBeenCalledWith(req, resp.body);
                 expect(mockLog.error).not.toHaveBeenCalled();
             }).catch(function(error) {
-                console.log(mockLog.error.calls.argsFor(0));
                 expect(error.toString()).not.toBeDefined();
             }).done(done);
         });
@@ -1730,6 +1927,7 @@ describe('orgSvc-payments (UT)', function() {
                 expect(mockLog.info.calls.mostRecent().args).toContain('2001');
                 expect(mockLog.info.calls.mostRecent().args).toContain('Insufficient Funds');
                 expect(mockLog.error).not.toHaveBeenCalled();
+                expect(payModule.producePaymentEvent).not.toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
             }).done(done); 
@@ -1750,6 +1948,7 @@ describe('orgSvc-payments (UT)', function() {
                 expect(requestUtils.makeSignedRequest).not.toHaveBeenCalled();
                 expect(mockLog.error).toHaveBeenCalled();
                 expect(mockLog.error.calls.mostRecent().args).toContain('[ { attribute: \'amount\', code: \'123\', message: \'TOO MUCH\' } ]');
+                expect(payModule.producePaymentEvent).not.toHaveBeenCalled();
             }).done(done);
         });
         
@@ -1766,6 +1965,7 @@ describe('orgSvc-payments (UT)', function() {
                 expect(requestUtils.makeSignedRequest).not.toHaveBeenCalled();
                 expect(mockLog.error).toHaveBeenCalled();
                 expect(mockLog.error.calls.mostRecent().args).toContain('i dunno what to tell you');
+                expect(payModule.producePaymentEvent).not.toHaveBeenCalled();
             }).done(done);
         });
 
@@ -1777,7 +1977,8 @@ describe('orgSvc-payments (UT)', function() {
                 expect(error).toBe('Failed to charge payment method');
                 expect(requestUtils.makeSignedRequest).not.toHaveBeenCalled();
                 expect(mockLog.error).toHaveBeenCalled();
-                expect(mockLog.error.calls.mostRecent().args).toContain('\'I GOT A PROBLEM\'');
+                expect(mockLog.error.calls.mostRecent().args).toContain(util.inspect('I GOT A PROBLEM'));
+                expect(payModule.producePaymentEvent).not.toHaveBeenCalled();
             }).done(done);
         });
 
@@ -1792,7 +1993,8 @@ describe('orgSvc-payments (UT)', function() {
             }).catch(function(error) {
                 expect(error).toBe('Failed to create transaction for payment');
                 expect(mockLog.error).toHaveBeenCalled();
-                expect(mockLog.error.calls.mostRecent().args).toContain('{ code: 400, body: \'Cant let you do that, sixxy\' }');
+                expect(mockLog.error.calls.mostRecent().args).toContain(util.inspect({ code: 400, body: 'Cant let you do that, sixxy' }));
+                expect(payModule.producePaymentEvent).not.toHaveBeenCalled();
             }).done(done);
         });
 
@@ -1804,7 +2006,8 @@ describe('orgSvc-payments (UT)', function() {
             }).catch(function(error) {
                 expect(error).toBe('Failed to create transaction for payment');
                 expect(mockLog.error).toHaveBeenCalled();
-                expect(mockLog.error.calls.mostRecent().args).toContain('\'honey, you got a big storm comin\'');
+                expect(mockLog.error.calls.mostRecent().args).toContain(util.inspect('honey, you got a big storm comin'));
+                expect(payModule.producePaymentEvent).not.toHaveBeenCalled();
             }).done(done);
         });
 
@@ -1815,6 +2018,7 @@ describe('orgSvc-payments (UT)', function() {
                 expect(mockGateway.transaction.sale).not.toHaveBeenCalled();
                 expect(requestUtils.makeSignedRequest).not.toHaveBeenCalled();
                 expect(mockLog.error).not.toHaveBeenCalled();
+                expect(payModule.producePaymentEvent).not.toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
             }).done(done);

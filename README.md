@@ -135,22 +135,22 @@ In order to run a service locally, you'll need to setup a few things:
   **Note**: Most services have dependencies on other services, so the
   dependents will need to be started as well when testing:
 
-  | Service    | Dependencies                        |
-  | ---------- | ----------------------------------- |
-  | accountant | auth, monitor, ads, orgSvc          |
-  | ads        | auth, content, monitor, orgSvc, geo |
-  | auth       | monitor                             |
-  | collateral | auth, monitor                       |
-  | content    | auth, monitor                       |
-  | geo        | auth, monitor                       |
-  | maint      | none                                |
-  | monitor    | maint                               |
-  | orgSvc     | auth, monitor, accountant           |
-  | player     | auth, monitor, content              |
-  | querybot   | auth, monitor                       |
-  | search     | auth, monitor                       |
-  | userSvc    | auth, orgSvc, ads, monitor          |
-  | vote       | auth, monitor, maint                |
+  | Service    | Dependencies                            |
+  | ---------- | --------------------------------------- |
+  | accountant | auth, monitor, ads, orgSvc              |
+  | ads        | auth, content, monitor, orgSvc, geo     |
+  | auth       | monitor                                 |
+  | collateral | auth, monitor                           |
+  | content    | auth, monitor                           |
+  | geo        | auth, monitor                           |
+  | maint      | none                                    |
+  | monitor    | maint                                   |
+  | orgSvc     | auth, monitor, accountant, userSvc, ads |
+  | player     | auth, monitor, content                  |
+  | querybot   | auth, monitor                           |
+  | search     | auth, monitor                           |
+  | userSvc    | auth, orgSvc, ads, monitor              |
+  | vote       | auth, monitor, maint                    |
 
 - Secrets file. The path will generally be `~/.<svcName>.secrets.json` and the content should look like this:
  ```json

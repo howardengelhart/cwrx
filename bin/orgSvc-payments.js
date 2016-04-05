@@ -5,6 +5,7 @@
         urlUtils        = require('url'),
         util            = require('util'),
         express         = require('express'),
+        rcKinesis       = require('rc-kinesis'),
         Model           = require('../lib/model'),
         logger          = require('../lib/logger'),
         authUtils       = require('../lib/authUtils'),
@@ -15,12 +16,17 @@
 
     // Adds extra middleware to orgSvc for custom payment methods. gateway === braintree client
     payModule.extendSvc = function(orgSvc, gateway, config) {
+        payModule.config.kinesis = config.kinesis;
         payModule.config.minPayment = config.minPayment;
         payModule.config.api = config.api;
-        payModule.config.api.transactions.baseUrl = urlUtils.resolve(
-            payModule.config.api.root,
-            payModule.config.api.transactions.endpoint
-        );
+        Object.keys(payModule.config.api)
+        .filter(function(key) { return key !== 'root'; })
+        .forEach(function(key) {
+            payModule.config.api[key].baseUrl = urlUtils.resolve(
+                payModule.config.api.root,
+                payModule.config.api[key].endpoint
+            );
+        });
     
         var fetchAnyOrg = payModule.fetchOrg.bind(payModule, orgSvc, true),
             fetchOwnOrg = payModule.fetchOrg.bind(payModule, orgSvc, false),
@@ -96,7 +102,7 @@
             orgId = (!!useParam && req.query.org) || (req.user && req.user.org);
             
         if (!orgId || typeof orgId !== 'string') {
-            return q(done({ code: 400, body: 'Must provide an org id' }));
+            return q(done({ code: 400, body: 'Must provide an org id in the query string' }));
         }
             
         log.trace('[%1] Fetching org %2', req.uuid, String(orgId));
@@ -572,13 +578,97 @@
         });
     };
     
+    /* Produce a 'paymentMade' event into configured kinesis stream. The data for this event will
+     * include the payment, a user from the org, and the org's account balance */
+    payModule.producePaymentEvent = function(req, payment) {
+        var log = logger.getLog(),
+            producer = new rcKinesis.JsonProducer(payModule.config.kinesis.streamName, {
+                region: payModule.config.kinesis.region
+            }),
+            userPromise, balancePromise;
+        
+        // If requester belongs to affected org, send receipt to them
+        if (!!req.user && (req.org.id === req.user.org)) {
+            userPromise = q(req.user);
+        } else {
+            // Otherwise, find a user from affected org to email
+            log.info('[%1] Requester %2 looking up user from %3 to send receipt to',
+                     req.uuid, req.requester.id, req.org.id);
+            
+            userPromise = requestUtils.proxyRequest(req, 'get', {
+                url: payModule.config.api.users.baseUrl,
+                qs: { org: req.org.id, limit: 1 }
+            })
+            .then(function(resp) {
+                if (resp.response.statusCode !== 200) {
+                    return q.reject({
+                        message: 'Failed looking up user for ' + req.org.id,
+                        reason: {
+                            code: resp.response.statusCode,
+                            body: resp.body
+                        }
+                    });
+                }
+                if (resp.body.length === 0) {
+                    return q.reject({
+                        message: 'Failed looking up user for ' + req.org.id,
+                        reason: 'No users found'
+                    });
+                }
+                
+                return resp.body[0];
+            });
+        }
+        
+        // Fetch org's account balance to display in receipt
+        balancePromise = requestUtils.proxyRequest(req, 'get', {
+            url: payModule.config.api.balance.baseUrl,
+            qs: { org: req.org.id }
+        })
+        .then(function(resp) {
+            if (resp.response.statusCode !== 200) {
+                return q.reject({
+                    message: 'Failed looking up balance for ' + req.org.id,
+                    reason: {
+                        code: resp.response.statusCode,
+                        body: resp.body
+                    }
+                });
+            }
+            
+            return resp.body.balance;
+        });
+        
+        return q.all([userPromise, balancePromise]).spread(function(user, balance) {
+            log.info('[%1] Producing paymentMade event, user is %2, email %3',
+                     req.uuid, user.id, user.email);
+            return producer.produce({
+                type: 'paymentMade',
+                data: {
+                    payment: payment,
+                    balance: balance,
+                    user: user,
+                    target: req.query.target || undefined
+                }
+            });
+        })
+        .then(function(/*resp*/) {
+            log.info('[%1] Produced paymentMade event for payment %2', req.uuid, payment.id);
+        })
+        .catch(function(error) {
+            log.error('[%1] Failed producing paymentMade event for payment %2: %3',
+                      req.uuid, payment.id, util.inspect(error));
+        })
+        .thenResolve(); // always resolve so a successful request does not fail b/c of watchman
+    };
+    
     // Charge a user's paymentMethod in braintree + create a corresponding transaction in our db
     payModule.createPayment = function(gateway, orgSvc, appCreds, req) {
         var log = logger.getLog();
         
         return orgSvc.customMethod(req, 'createPayment', function() {
             return q.npost(gateway.transaction, 'sale', [{
-                amount: String(req.body.amount),
+                amount: req.body.amount.toFixed(2),
                 paymentMethodToken: req.body.paymentMethod,
                 options: {
                     submitForSettlement: true
@@ -649,11 +739,12 @@
                     log.info('[%1] Successfully created transaction %2 for payment %3, org %4',
                              req.uuid, resp.body.id, req.body.paymentMethod, req.org.id);
                              
-                    //TODO: publish watchman event
-                             
-                    return q({
+                    var formatted = payModule.formatPaymentOutput(result.transaction);
+                    
+                    return payModule.producePaymentEvent(req, formatted)
+                    .thenResolve({
                         code: 201,
-                        body: payModule.formatPaymentOutput(result.transaction)
+                        body: formatted
                     });
                 })
                 .catch(function(error) {

@@ -1,11 +1,16 @@
 # Org Service Changelog
 
+* [FEATURE]: Publish `paymentMade` event upon successful `POST /api/payments` so watchman can send receipt: [#845](https://github.com/cinema6/cwrx/issues/845)
 * [FEATURE]: Allow apps with `makePaymentForAny` to make payments + paymentMethods for any org: [#837](https://github.com/cinema6/cwrx/issues/837)
 * [FEATURE]: Allow apps to get payments + paymentMethods for orgs: [#837](https://github.com/cinema6/cwrx/issues/837)
 * [FIX]: Make minimum amount for `POST /api/payments` configurable: [#843](https://github.com/cinema6/cwrx/issues/843)
 * [FEATURE]: Support `hasPaymentPlan` query parameter on
   `GET /api/account/orgs` to find all orgs with a `paymentPlanId`:
   [#838](https://github.com/cinema6/cwrx/pull/838/files)
+* Extra deployment steps:
+    * Ensure watchman app has necessary permissions to `POST /api/payments`
+    * Update nightly_build and orgSvc jobs to create + destroy watchman streams
+    * Deploy version 1.1.4 of orgSvc cookbook
 
 ### 1.7.0: Wed Mar 30 14:41:02 EDT 2016
 * [FEATURE]: Add `POST /api/payment` endpoint: [#811](https://github.com/cinema6/cwrx/issues/811)
