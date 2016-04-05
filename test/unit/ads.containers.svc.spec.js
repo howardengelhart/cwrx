@@ -200,5 +200,19 @@ describe('ads-containers (UT)', function() {
                 }
             });
         });
+        
+        it('should handle null fields in defaultTagParams', function() {
+            req.body.defaultTagParams.html = null;
+            conModule.copyName(req, nextSpy, doneSpy);
+            expect(nextSpy).toHaveBeenCalled();
+            expect(req.body).toEqual({
+                name: 'heavy duty box',
+                defaultTagParams: {
+                    mraid: { network: 'google', container: 'heavy duty box' },
+                    vpaid: { network: 'facebook', container: 'heavy duty box' },
+                    html: null
+                }
+            });
+        });
     });
 });

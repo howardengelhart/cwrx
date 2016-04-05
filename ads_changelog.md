@@ -1,5 +1,6 @@
 # Ads Service Changelog
 
+* [FIX]: Don't error when `defaultTagParams` subfields are null: [#848](https://github.com/cinema6/cwrx/pull/848)
 * Remove `paymentMethod` from campaigns: [#814](https://github.com/cinema6/cwrx/issues/814)
 
 ### 4.5.3: Mon Mar 21 16:37:19 EDT 2016

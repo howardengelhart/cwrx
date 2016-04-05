@@ -3,6 +3,7 @@
 
     var express     = require('express'),
         CrudSvc     = require('../lib/crudSvc'),
+        objUtils    = require('../lib/objUtils'),
         authUtils   = require('../lib/authUtils'),
 
         conModule = {};
@@ -46,7 +47,7 @@
         var name = req.body.name || req.origObj.name;
         
         Object.keys(req.body.defaultTagParams).filter(function(key) {
-            return typeof req.body.defaultTagParams[key] === 'object';
+            return objUtils.isPOJO(req.body.defaultTagParams[key]);
         }).forEach(function(tagType) {
             req.body.defaultTagParams[tagType].container = name;
         });
