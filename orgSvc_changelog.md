@@ -10,6 +10,7 @@
 * Extra deployment steps:
     * Ensure watchman app has necessary permissions to `POST /api/payments`
     * Update nightly_build and orgSvc jobs to create + destroy watchman streams
+    * Deploy version 1.1.4 of orgSvc cookbook
 
 ### 1.7.0: Wed Mar 30 14:41:02 EDT 2016
 * [FEATURE]: Add `POST /api/payment` endpoint: [#811](https://github.com/cinema6/cwrx/issues/811)
