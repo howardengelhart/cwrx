@@ -457,6 +457,26 @@ describe('ads containers endpoints (E2E):', function() {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
+        
+        it('should handle null subfields on defaultTagParams', function(done) {
+            options.json.defaultTagParams.html = null;
+            requestUtils.qRequest('post', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(201);
+                expect(resp.body).toEqual(jasmine.objectContaining({
+                    defaultTagParams : {
+                        vpaid: {
+                            container   : 'fake-container',
+                            type        : 'full',
+                            branding    : 'elitedaily'
+                        },
+                        html: null
+                    }
+                }));
+                expect(new Date(resp.body.created).toString()).not.toEqual('Invalid Date');
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
 
         it('should throw a 401 error if the user is not authenticated', function(done) {
             delete options.jar;
