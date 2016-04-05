@@ -58,6 +58,9 @@ module.exports = function(grunt) {
             process.env.mongo = '{"host": "' +
                 lookupIp(ec2Data,grunt.option('dbHost'),'private') + '"}';
         }
+        if (grunt.option('streamName')) {
+            process.env.streamName = grunt.option('streamName');
+        }
         if (grunt.option('e2e-config')){
             var cfgObj = JSON.parse(grunt.option('e2e-config'));
             for (var key in cfgObj){

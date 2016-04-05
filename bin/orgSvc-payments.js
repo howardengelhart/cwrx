@@ -101,8 +101,8 @@
         var log = logger.getLog(),
             orgId = (!!useParam && req.query.org) || (req.user && req.user.org);
             
-        if (!orgId || typeof orgId !== 'string') { //TODO: update tests
-            return q(done({ code: 400, body: 'Must provide an org id in query string' }));
+        if (!orgId || typeof orgId !== 'string') {
+            return q(done({ code: 400, body: 'Must provide an org id in the query string' }));
         }
             
         log.trace('[%1] Fetching org %2', req.uuid, String(orgId));
@@ -578,7 +578,9 @@
         });
     };
     
-    payModule.producePaymentEvent = function(req, payment) { //TODO: comment, test
+    /* Produce a 'paymentMade' event into configured kinesis stream. The data for this event will
+     * include the payment, a user from the org, and the org's account balance */
+    payModule.producePaymentEvent = function(req, payment) {
         var log = logger.getLog(),
             producer = new rcKinesis.JsonProducer(payModule.config.kinesis.streamName, {
                 region: payModule.config.kinesis.region

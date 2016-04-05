@@ -361,7 +361,7 @@ describe('orgSvc-payments (UT)', function() {
             payModule.fetchOrg(orgSvc, false, req, nextSpy, doneSpy).catch(errorSpy);
             process.nextTick(function() {
                 expect(nextSpy).not.toHaveBeenCalled();
-                expect(doneSpy).toHaveBeenCalledWith({ code: 400, body: 'Must provide an org id in query string' });
+                expect(doneSpy).toHaveBeenCalledWith({ code: 400, body: 'Must provide an org id in the query string' });
                 expect(errorSpy).not.toHaveBeenCalled();
                 expect(orgSvc.getObjs).not.toHaveBeenCalled();
                 done();
@@ -399,7 +399,7 @@ describe('orgSvc-payments (UT)', function() {
             payModule.fetchOrg(orgSvc, true, req, nextSpy, doneSpy).catch(errorSpy);
             process.nextTick(function() {
                 expect(nextSpy).not.toHaveBeenCalled();
-                expect(doneSpy).toHaveBeenCalledWith({ code: 400, body: 'Must provide an org id in query string' });
+                expect(doneSpy).toHaveBeenCalledWith({ code: 400, body: 'Must provide an org id in the query string' });
                 expect(errorSpy).not.toHaveBeenCalled();
                 expect(orgSvc.getObjs).not.toHaveBeenCalled();
                 done();

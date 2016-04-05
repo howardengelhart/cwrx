@@ -162,6 +162,102 @@ testUtils.resetCollection = function(collection, data,userCfg) {
     .thenResolve();
 };
 
+////////////////////////////////// AWS Helper Methods //////////////////////////////////
+
+testUtils.putS3File = function(params, fpath) {
+    aws.config.loadFromPath(awsAuth);
+    var s3 = new aws.S3();
+    return s3util.putObject(s3, fpath, params);
+};
+
+testUtils.removeS3File = function(bucket, key) {
+    aws.config.loadFromPath(awsAuth);
+    var s3 = new aws.S3(),
+        deferred = q.defer(),
+        params = { Bucket: bucket, Key: key };
+
+    q.npost(s3, 'deleteObject', [params]).then(function() {
+        deferred.resolve();
+    }).catch(function(error) {
+        deferred.reject('Error deleting ' + bucket + '/' + key + ' : ' + error);
+    });
+    
+    return deferred.promise;
+};
+
+/**
+ * "Mock" version of watchman: takes a stream name from opts or process.env and "listens" for new
+ * records (by polling every 3 seconds). Will emit a 'data' event with the record parsed as JSON
+ * whenever it gets a new record.
+ */
+testUtils.Mockman = function(opts) {
+    var self = this;
+    opts = opts || {};
+
+    aws.config.loadFromPath(awsAuth);
+    
+    self.kinesis = new aws.Kinesis();
+    self.streamName = opts.streamName || process.env.streamName || 'devCwrxStream';
+    self.shardId = opts.shardId || 'shardId-000000000000';
+    self.shardIterator = null;
+    self.pollInterval = opts.pollInterval || 3000;
+
+    events.EventEmitter.call(this);
+};
+util.inherits(testUtils.Mockman, events.EventEmitter);
+
+testUtils.Mockman.prototype.start = function() {
+    var self = this;
+    
+    if (!!self.shardIterator) {
+        return q('already started');
+    }
+    
+    return q.npost(self.kinesis, 'getShardIterator', [{
+        ShardId: self.shardId,
+        ShardIteratorType: 'LATEST',
+        StreamName: self.streamName
+    }])
+    .then(function(resp) {
+        self.shardIterator = resp.ShardIterator;
+        
+        self._interval = setInterval(function() {
+            q.npost(self.kinesis, 'getRecords', [{ ShardIterator: self.shardIterator }])
+            .then(function(resp) {
+                if (!!resp.NextShardIterator) {
+                    self.shardIterator = resp.NextShardIterator;
+                }
+                
+                if (!!resp.Records && resp.Records.length > 0) {
+                    resp.Records.forEach(function(record) {
+                        var dataStr = record.Data.toString(),
+                            jsonData;
+                        try {
+                            jsonData = JSON.parse(dataStr);
+                        } catch(e) {
+                            console.log(util.format('Mockman: error parsing data for record %s: %s', record.SequenceNumber, util.inspect(e)));
+                            return;
+                        }
+                        
+                        self.emit('data', jsonData);
+                    });
+                }
+            })
+            .catch(function(error) {
+                console.log(util.format('Mockman: error calling getRecords on %s: %s', self.streamName, util.inspect(error)));
+            });
+        }, self.pollInterval);
+    })
+};
+
+testUtils.Mockman.prototype.stop = function() {
+    var self = this;
+    
+    clearInterval(self._interval);
+    delete self._interval;
+    delete self.shardIterator;
+};
+
 ///////////////////////////// Miscellaneous Helper Methods /////////////////////////////
 
 // For each entry in camp.cards, check that it matches the card entity (fetched through content svc)
@@ -210,27 +306,6 @@ testUtils.checkStatus = function(jobId, host, statusUrl, statusTimeout, pollInte
         clearInterval(interval);
         deferred.reject('Timed out polling status of job');
     }, statusTimeout);
-    
-    return deferred.promise;
-};
-
-testUtils.putS3File = function(params, fpath) {
-    aws.config.loadFromPath(awsAuth);
-    var s3 = new aws.S3();
-    return s3util.putObject(s3, fpath, params);
-};
-
-testUtils.removeS3File = function(bucket, key) {
-    aws.config.loadFromPath(awsAuth);
-    var s3 = new aws.S3(),
-        deferred = q.defer(),
-        params = { Bucket: bucket, Key: key };
-
-    q.npost(s3, 'deleteObject', [params]).then(function() {
-        deferred.resolve();
-    }).catch(function(error) {
-        deferred.reject('Error deleting ' + bucket + '/' + key + ' : ' + error);
-    });
     
     return deferred.promise;
 };

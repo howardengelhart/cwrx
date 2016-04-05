@@ -8,7 +8,7 @@ module.exports = function(grunt) {
         collateral  : 'auth,monitor',
         geo         : 'auth,monitor',
         content     : 'auth,monitor',
-        orgSvc      : 'auth,monitor,accountant',
+        orgSvc      : 'auth,monitor,accountant,ads,userSvc',
         player      : 'content,auth,monitor',
         search      : 'auth,monitor',
         userSvc     : 'auth,monitor',

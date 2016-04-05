@@ -67,6 +67,7 @@ describe('orgSvc payments (E2E):', function() {
                 status: 'active',
                 priority: 1,
                 permissions: {
+                    campaigns: { read: 'all' },
                     orgs: { read: 'all', create: 'all', edit: 'all', delete: 'all' }
                 },
                 entitlements: {
@@ -79,6 +80,7 @@ describe('orgSvc payments (E2E):', function() {
                 status: 'active',
                 priority: 1,
                 permissions: {
+                    campaigns: { read: 'own' },
                     orgs: { read: 'own' }
                 }
             }
@@ -89,7 +91,9 @@ describe('orgSvc payments (E2E):', function() {
             status: 'active',
             secret: 'wowsuchsecretverysecureamaze',
             permissions: {
-                orgs: { read: 'all' }
+                orgs: { read: 'all' },
+                campaigns: { read: 'all' },
+                users: { read: 'all' }
             },
             entitlements: {
                 makePaymentForAny: true
@@ -394,7 +398,7 @@ describe('orgSvc payments (E2E):', function() {
             options.qs = {};
             requestUtils.makeSignedRequest(appCreds, 'get', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(400);
-                expect(resp.body).toBe('Must provide an org id');
+                expect(resp.body).toBe('Must provide an org id in the query string');
             }).catch(function(error) {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
@@ -536,7 +540,7 @@ describe('orgSvc payments (E2E):', function() {
             options.qs = {};
             requestUtils.makeSignedRequest(appCreds, 'get', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(400);
-                expect(resp.body).toBe('Must provide an org id');
+                expect(resp.body).toBe('Must provide an org id in the query string');
             }).catch(function(error) {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
@@ -936,7 +940,7 @@ describe('orgSvc payments (E2E):', function() {
     });
     
     describe('POST /api/payments', function() {
-        var options, amount, expectedMethodOutput;
+        var options, amount, expectedMethodOutput, mockman;
         beforeEach(function(done) {
             // randomize transaction amounts to avoid duplicate payment rejections when re-running tests
             amount = parseFloat(( Math.random() * 100 + 100 ).toFixed(2));
@@ -955,8 +959,15 @@ describe('orgSvc payments (E2E):', function() {
                 type: 'paypal',
                 email: jasmine.any(String),
             };
-
-            testUtils.resetPGTable('fct.billing_transactions').done(done);
+            
+            mockman = new testUtils.Mockman();
+            mockman.start().then(function() {
+                testUtils.resetPGTable('fct.billing_transactions').done(done);
+            });
+        });
+        
+        afterEach(function() {
+            mockman.removeAllListeners();
         });
         
         it('should create a braintree transaction + a credit transaction in our db', function(done) {
@@ -994,13 +1005,27 @@ describe('orgSvc payments (E2E):', function() {
                 }));
             }).catch(function(error) {
                 expect(util.inspect(error)).not.toBeDefined();
-            }).done(done);
+                done();
+            });
+            
+            mockman.on('data', function(record) {
+                expect(record.type).toBe('paymentMade');
+                expect(record.data.balance).toBe(amount);
+                expect(record.data.payment).toEqual(createdTransaction);
+                expect(record.data.user).toEqual(jasmine.objectContaining({
+                    id: 'u-e2e-payments',
+                    status: 'active',
+                    email: 'requester@c6.com',
+                }));
+                expect(record.data.user.password).not.toBeDefined();
+                done();
+            });
         });
         
         it('should write an entry to the audit collection', function(done) {
             requestUtils.qRequest('post', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(201);
-                return testUtils.mongoFind('audit', { service: 'orgSvc' }, {$natural: -1}, 1, 0, {db: 'c6Journal'});
+                return testUtils.mongoFind('audit', { service: 'orgSvc', 'data.route': /^POST/ }, {$natural: -1}, 1, 0, {db: 'c6Journal'});
             }).then(function(results) {
                 expect(results[0].user).toBe('u-e2e-payments');
                 expect(results[0].created).toEqual(jasmine.any(Date));
@@ -1014,7 +1039,13 @@ describe('orgSvc payments (E2E):', function() {
                                                  params: {}, query: {} });
             }).catch(function(error) {
                 expect(util.inspect(error)).not.toBeDefined();
-            }).done(done);
+                done();
+            });
+
+            mockman.on('data', function(record) {
+                expect(record.type).toBe('paymentMade');
+                done();
+            });
         });
         
         it('should return a 400 if the body is missing a required parameter', function(done) {
@@ -1029,6 +1060,10 @@ describe('orgSvc payments (E2E):', function() {
             }).catch(function(error) {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
+
+            mockman.on('data', function(record) {
+                expect(record).not.toBeDefined();
+            });
         });
         
         it('should return a 400 if the amount is too small', function(done) {
@@ -1043,6 +1078,10 @@ describe('orgSvc payments (E2E):', function() {
             }).catch(function(error) {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
+
+            mockman.on('data', function(record) {
+                expect(record).not.toBeDefined();
+            });
         });
         
         it('should return a 400 if the payment method does not exist', function(done) {
@@ -1053,6 +1092,10 @@ describe('orgSvc payments (E2E):', function() {
             }).catch(function(error) {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
+
+            mockman.on('data', function(record) {
+                expect(record).not.toBeDefined();
+            });
         });
         
         it('should return a 403 if the user does not have permission to make payments', function(done) {
@@ -1064,6 +1107,10 @@ describe('orgSvc payments (E2E):', function() {
             }).catch(function(error) {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
+
+            mockman.on('data', function(record) {
+                expect(record).not.toBeDefined();
+            });
         });
         
         it('should not allow a user to post a payment with a paymentMethod they do not own', function(done) {
@@ -1075,6 +1122,10 @@ describe('orgSvc payments (E2E):', function() {
             }).catch(function(error) {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
+
+            mockman.on('data', function(record) {
+                expect(record).not.toBeDefined();
+            });
         });
         
         it('should return a 400 if the org has no braintreeCustomer', function(done) {
@@ -1085,6 +1136,10 @@ describe('orgSvc payments (E2E):', function() {
             }).catch(function(error) {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
+
+            mockman.on('data', function(record) {
+                expect(record).not.toBeDefined();
+            });
         });
         
         it('should return a 401 if no user is logged in', function(done) {
@@ -1095,6 +1150,10 @@ describe('orgSvc payments (E2E):', function() {
             }).catch(function(error) {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
+
+            mockman.on('data', function(record) {
+                expect(record).not.toBeDefined();
+            });
         });
         
         it('should allow an app to post a payment for an org', function(done) {
@@ -1132,7 +1191,25 @@ describe('orgSvc payments (E2E):', function() {
                 }));
             }).catch(function(error) {
                 expect(util.inspect(error)).not.toBeDefined();
-            }).done(done);
+                done();
+            });
+            
+            mockman.on('data', function(record) {
+                expect(record.type).toBe('paymentMade');
+                expect(record.data.balance).toBe(amount);
+                expect(record.data.payment).toEqual(createdTransaction);
+                expect(record.data.user).toEqual(jasmine.objectContaining({
+                    id: 'u-e2e-payments',
+                    status: 'active',
+                    email: 'requester@c6.com',
+                }));
+                expect(record.data.user.password).not.toBeDefined();
+                done();
+            });
+        });
+        
+        afterAll(function() {
+            mockman.stop();
         });
     });
         
