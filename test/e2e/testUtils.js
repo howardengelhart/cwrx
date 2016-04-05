@@ -197,7 +197,7 @@ testUtils.Mockman = function(opts) {
     aws.config.loadFromPath(awsAuth);
     
     self.kinesis = new aws.Kinesis();
-    self.streamName = opts.streamName || process.env.streamName || 'devCwrxStream';
+    self.streamName = opts.streamName || process.env.streamName || 'devCwrxStream-jenkins';
     self.shardId = opts.shardId || 'shardId-000000000000';
     self.shardIterator = null;
     self.pollInterval = opts.pollInterval || 3000;

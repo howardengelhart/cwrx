@@ -18,6 +18,11 @@ module.exports = function (grunt) {
         configPath: path.join(__dirname, 'tasks/options'),
         config: {
             settings: initProps
+        },
+        loadGruntTasks: {
+            pattern: 'grunt-*',
+            config: require('./package.json'),
+            scope: 'devDependencies'
         }
     });
     grunt.loadTasks('tasks');

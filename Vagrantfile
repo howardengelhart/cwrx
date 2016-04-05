@@ -36,6 +36,9 @@ Vagrant.configure("2") do |config|
     chef.environment = "Development"
     chef.json = {
         :c6env => {
+            :nodejs => {
+                :npm => '2.15.0'
+            },
             :npm => {
                 :registry => 'http://deployer1.corp.cinema6.com:4873'
             }
@@ -161,7 +164,7 @@ Vagrant.configure("2") do |config|
                 }
             }
         end
-
+        
         if svc == 'accountant'
             chef.json[svc][:config] = {
                 "sessions" => {
