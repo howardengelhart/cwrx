@@ -17,7 +17,7 @@
             __allowed: true,
             __type: 'string',
             __required: true,
-            __acceptableValues: ['signupReward'] //TODO: rename?
+            __acceptableValues: ['signupReward']
         },
         data: {
             __allowed: true,
@@ -32,7 +32,7 @@
             __allowed: true,
             __type: 'number',
             __required: true,
-            __min: 0 //TODO: this ok? also __max?
+            __min: 0
         }
     };
     
@@ -69,7 +69,6 @@
     promModule.setupEndpoints = function(app, svc, sessions, audit, jobManager) {
         var router      = express.Router(),
             mountPath   = '/api/promotions?'; // prefix to all endpoints declared here
-            //TODO: update cookbook with nginx config
             
         router.use(jobManager.setJobTimeout.bind(jobManager));
         

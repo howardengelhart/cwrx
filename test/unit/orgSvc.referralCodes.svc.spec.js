@@ -1,5 +1,5 @@
 var flush = true;
-describe('orgSvc-orgs (UT)', function() {
+describe('orgSvc-referralCodes (UT)', function() {
     var refModule, q, mockLog, logger, CrudSvc, Model, mockDb, req, nextSpy, doneSpy, errorSpy;
 
     beforeEach(function() {

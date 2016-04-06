@@ -33,7 +33,7 @@ describe('Model', function() {
     describe('personalizeSchema', function() {
         var model, requester;
         beforeEach(function() {
-            model = new Model('puppies', {
+            schema = {
                 id: {
                     __type: 'string', __allowed: false, __locked: true
                 },
@@ -54,7 +54,8 @@ describe('Model', function() {
                         __type: 'string', __allowed: true, __acceptableValues: '*'
                     },
                 }
-            });
+            };
+            model = new Model('puppies', schema);
             requester = {
                 id: 'u-1',
                 fieldValidation: {
@@ -147,6 +148,20 @@ describe('Model', function() {
             var personalized = model.personalizeSchema(requester);
             expect(personalized.likesCats).toEqual({
                 __type: 'boolean', __allowed: true
+            });
+        });
+        
+        it('should be able to work with a subset of the whole schema', function() {
+            model = new Model('puppies.snax', schema.snax);
+            var personalized = model.personalizeSchema(requester);
+            expect(personalized).not.toEqual(model.schema);
+            expect(personalized).toEqual({
+                kibbles: {
+                    __type: 'string', __allowed: true, __acceptableValues: ['very yes']
+                },
+                bacon: {
+                    __type: 'string', __allowed: true, __acceptableValues: '*'
+                }
             });
         });
     });
@@ -262,6 +277,13 @@ describe('Model', function() {
                     reason: 'Missing required field: name' });
                 expect(model.validate('edit', newObj, origObj, requester)).toEqual({ isValid: false,
                     reason: 'Missing required field: name' });
+            });
+            
+            it('should add to the printed keyStr if the model is for a nested object', function() {
+                model.objName = 'pets.puppies';
+                requester.fieldValidation = { pets: { puppies: {} } };
+                expect(model.validate('create', newObj, origObj, requester)).toEqual({ isValid: false,
+                    reason: 'Missing required field: puppies.name' });
             });
             
             it('should fail if the field is null on newObj and/or origObj', function() {
@@ -499,6 +521,18 @@ describe('Model', function() {
                 
                 expect(model.validate('create', newObj, origObj, requester)).toEqual({ isValid: false,
                     reason: 'snax.kibbles is UNACCEPTABLE! acceptable values are: [yes,no]' });
+            });
+
+            it('should appropriately add to the printed keyStr if the model is for a nested object', function() {
+                model.objName = 'pets.puppies';
+                requester.fieldValidation = { pets: { puppies: {} } };
+
+                newObj.snax = {
+                    kibbles: 'maybe', bacon: 'always', chocolate: 'do want'
+                };
+                
+                expect(model.validate('create', newObj, origObj, requester)).toEqual({ isValid: false,
+                    reason: 'puppies.snax.kibbles is UNACCEPTABLE! acceptable values are: [yes,no]' });
             });
             
             it('should trim the entire block if the whole block is forbidden', function() {
