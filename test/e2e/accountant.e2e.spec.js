@@ -124,30 +124,31 @@ describe('accountant (E2E):', function() {
             { id: 'o-efgh', name: 'org 4', status: 'active' },
         ];
         var testCamps = [
-            { id: 'cam-1', status: 'active', org: 'o-1234', pricing: { budget: 1000 } },
-            { id: 'cam-2', status: 'paused', org: 'o-1234', pricing: { budget: 500 } },
+            { id: 'cam-o1-active', status: 'active', org: 'o-1234', pricing: { budget: 1000 } },
+            { id: 'cam-o1-paused', status: 'paused', org: 'o-1234', pricing: { budget: 500 } },
+            { id: 'cam-o1-pending', status: 'pending', org: 'o-1234', pricing: { budget: 50 } },
 
-            { id: 'cam-3', status: 'active', org: 'o-5678', pricing: { budget: 600 } },
-            { id: 'cam-4', status: 'expired', org: 'o-5678', pricing: { budget: 8000 } },
-            { id: 'cam-5', status: 'active', org: 'o-5678', pricing: { budget: 300 } }
+            { id: 'cam-o2-active', status: 'active', org: 'o-5678', pricing: { budget: 600 } },
+            { id: 'cam-o2-expired', status: 'expired', org: 'o-5678', pricing: { budget: 8000 } },
+            { id: 'cam-o2-active-2', status: 'active', org: 'o-5678', pricing: { budget: 300 } }
         ];
         var testTransactions = [
             creditRecord('o-1234', 5000, 'pay1'),
-            debitRecord('o-1234', 20, 10, 'cam-1'),
-            debitRecord('o-1234', 444, 500, 'cam-1'),
-            debitRecord('o-1234', 16, 1, 'cam-1'),
-            debitRecord('o-1234', 200, 30, 'cam-1'),
-            debitRecord('o-1234', 66, 5, 'cam-2'),
-            debitRecord('o-1234', 77, 10, 'cam-2'),
+            debitRecord('o-1234', 20, 10, 'cam-o1-active'),
+            debitRecord('o-1234', 444, 500, 'cam-o1-active'),
+            debitRecord('o-1234', 16, 1, 'cam-o1-active'),
+            debitRecord('o-1234', 200, 30, 'cam-o1-active'),
+            debitRecord('o-1234', 66, 5, 'cam-o1-paused'),
+            debitRecord('o-1234', 77, 10, 'cam-o1-paused'),
         
             creditRecord('o-5678', 10000, 'pay2'),
             creditRecord('o-5678', 4000, 'pay3'),
-            debitRecord('o-5678', 45, 10, 'cam-3'),
-            debitRecord('o-5678', 123, 500, 'cam-3'),
-            debitRecord('o-5678', 16, 1, 'cam-3'),
-            debitRecord('o-5678', 6000, 666, 'cam-4'),
-            debitRecord('o-5678', 1000, 666, 'cam-4'),
-            debitRecord('o-5678', 500, 666, 'cam-4'),
+            debitRecord('o-5678', 45, 10, 'cam-o2-active'),
+            debitRecord('o-5678', 123, 500, 'cam-o2-active'),
+            debitRecord('o-5678', 16, 1, 'cam-o2-active'),
+            debitRecord('o-5678', 6000, 666, 'cam-o2-expired'),
+            debitRecord('o-5678', 1000, 666, 'cam-o2-expired'),
+            debitRecord('o-5678', 500, 666, 'cam-o2-expired'),
             
             creditRecord('o-efgh', 400, null, 'pro-1'),
             creditRecord('o-efgh', 400, 'pay4'),
@@ -399,7 +400,7 @@ describe('accountant (E2E):', function() {
                 expect(resp.response.statusCode).toBe(200);
                 expect(resp.body).toEqual({
                     balance: 4177,
-                    outstandingBudget: 677
+                    outstandingBudget: 727
                 });
             }).catch(function(error) {
                 expect(util.inspect(error)).not.toBeDefined();
@@ -421,6 +422,32 @@ describe('accountant (E2E):', function() {
                 expect(results[0].version).toEqual(jasmine.any(String));
                 expect(results[0].data).toEqual({route: 'GET /api/accounting/balance',
                                                  params: {}, query: {} });
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should handle update requests that change campaign budgets', function(done) {
+            // testUtils.mongoUpsert('applications', { key: mockApp.key }, mockApp)
+            var updates = [
+                { id: 'ur-pending-1', status: 'pending', campaign: 'cam-o1-active', data: { pricing: { budget: 4 } } }, // decrease, but will be ignored
+                { id: 'ur-pending-2', status: 'pending', campaign: 'cam-o1-paused', data: { pricing: { budget: 1000 } } } // increase of $500
+            ];
+
+            // Insert update requests, and update parent campaigns with update's id. Will be overriden in beforeEach for next test.
+            q.all(updates.map(function(obj) {
+                return q.all([
+                    testUtils.mongoUpsert('campaignUpdates', { id: obj.id }, obj),
+                    testUtils.mongoUpsert('campaigns', { id: obj.campaign }, { $set: { updateRequest: obj.id } })
+                ]);
+            })).then(function() {
+                return requestUtils.qRequest('get', options);
+            }).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.body).toEqual({
+                    balance: 4177,
+                    outstandingBudget: 1227
+                });
             }).catch(function(error) {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
@@ -506,7 +533,7 @@ describe('accountant (E2E):', function() {
                 expect(resp.response.statusCode).toBe(200);
                 expect(resp.body).toEqual({
                     balance: 4177,
-                    outstandingBudget: 677
+                    outstandingBudget: 727
                 });
             }).catch(function(error) {
                 expect(util.inspect(error)).not.toBeDefined();

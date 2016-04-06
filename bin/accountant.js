@@ -7,6 +7,7 @@
         urlUtils        = require('url'),
         util            = require('util'),
         path            = require('path'),
+        lodash          = require('lodash'),
         express         = require('express'),
         uuid            = require('rc-uuid'),
         bodyParser      = require('body-parser'),
@@ -255,7 +256,7 @@
         });
     };
     
-    accountant.getOutstandingBudget = function(req, config) {
+    accountant.getOutstandingBudget = function(req, config, c6Db) {
         var log = logger.getLog();
         
         req.query.org = req.query.org || (req.user && req.user.org);
@@ -263,48 +264,51 @@
             return q({ code: 400, body: 'Must provide an org id' });
         }
         
-        var statuses = [Status.Active, Status.Paused];
+        var statuses = [Status.Active, Status.Paused, Status.Pending],
+            campaigns, updates;
         
-        return requestUtils.proxyRequest(req, 'get', {
-            url: urlUtils.resolve(config.api.root, config.api.campaigns.endpoint),
-            qs: {
-                org: req.query.org,
-                statuses: statuses.join(','),
-                fields: 'id,pricing'
-            }
+        // query db directly for campaigns to avoid permissions check
+        return q(c6Db.collection('campaigns').find(
+            { org: req.query.org, status: { $in: statuses } },
+            { fields: { id: 1, pricing: 1, updateRequest: 1 } }
+        ).toArray())
+        .then(function(objs) {
+            log.trace('[%1] Fetched %2 campaigns for org %3', req.uuid, objs.length, req.query.org);
+            campaigns = objs;
+            
+            // Need to look for campaigns' update requests to get pending budget changes
+            var urIds = campaigns.map(function(camp) { return camp.updateRequest; })
+                                 .filter(function(id) { return !!id; });
+            
+            return (urIds.length === 0) ? q([]) : q(c6Db.collection('campaignUpdates').find(
+                { id: { $in: urIds } },
+                { fields: { id: 1, campaign: 1, 'data.pricing': 1 } }
+            ).toArray());
         })
-        .then(function(resp) {
-            if (resp.response.statusCode !== 200) {
-                log.info(
-                    '[%1] Requester %2 could not fetch campaigns for %3: %4, %5',
-                    req.uuid,
-                    req.requester.id,
-                    req.query.org,
-                    resp.response.statusCode,
-                    resp.body
-                );
-                return q({
-                    code: 400,
-                    body: 'Cannot fetch campaigns for this org'
-                });
-            }
-            log.trace('[%1] Requester %2 fetched %3 campaigns for org %4',
-                      req.uuid, req.requester.id, resp.body.length, req.query.org);
+        .then(function(objs) {
+            updates = objs;
             
-            var totalBudget = 0, campIds = [];
-            
-            resp.body.forEach(function(camp) {
-                totalBudget += (camp.pricing && camp.pricing.budget) || 0;
-                campIds.push(camp.id);
-            });
+            var totalBudget = campaigns.reduce(function(total, camp) {
+                var budget = lodash.get(camp, 'pricing.budget', 0);
+                
+                // If camp has update request, use max of current budget and update's budget
+                if (camp.updateRequest) {
+                    var update = updates.filter(function(ur) {
+                        return ur.id === camp.updateRequest;
+                    })[0];
+                    
+                    budget = Math.max(budget, lodash.get(update, 'data.pricing.budget', 0));
+                }
+                
+                return total + budget;
+            }, 0);
             
             // If sum of campaign budgets is 0, don't need to fetch transactions
             if (totalBudget === 0) {
-                return q({
-                    code: 200,
-                    body: 0
-                });
+                return q({ code: 200, body: 0 });
             }
+            
+            var campIds = campaigns.map(function(camp) { return camp.id; });
             
             var statement = [
                 'SELECT sum(amount * sign) as spend from fct.billing_transactions',
@@ -327,17 +331,18 @@
                     body: outstandingBudget
                 });
             });
-        }, function(error) {
-            log.error('[%1] Failed fetching campaigns for %2: %3',
+        })
+        .catch(function(error) {
+            log.error('[%1] Failed computing outstanding budget for %2: %3',
                       req.uuid, req.query.org, util.inspect(error));
-            return q.reject('Error fetching campaigns');
+            return q.reject('Error computing outstanding budget');
         });
     };
     
-    accountant.getBalanceStats = function(req, config) {
+    accountant.getBalanceStats = function(req, config, c6Db) {
         return q.all([
             accountant.getAccountBalance(req, config),
-            accountant.getOutstandingBudget(req, config)
+            accountant.getOutstandingBudget(req, config, c6Db)
         ])
         .spread(function(balanceResp, budgetResp) {
             if (balanceResp.code !== 200) {
@@ -415,10 +420,14 @@
 
         var authGetBal = authUtils.middlewarify({
             allowApps: true,
-            permissions: { orgs: 'read', campaigns: 'read' }
+            permissions: { orgs: 'read' }
         });
         app.get('/api/accounting/balance', state.sessions, authGetBal, audit, function(req, res) {
-            return accountant.getBalanceStats(req, state.config).then(function(resp) {
+            return accountant.getBalanceStats(
+                req,
+                state.config,
+                state.dbs.c6Db
+            ).then(function(resp) {
                 expressUtils.sendResponse(res, resp);
             }).catch(function(error) {
                 expressUtils.sendResponse(res, {

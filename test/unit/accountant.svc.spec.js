@@ -448,7 +448,7 @@ describe('geo (UT)', function() {
     });
     
     describe('getOutstandingBudget', function() {
-        var config, mockCamps;
+        var config, mockCamps, mockUpdates, colls, mockDb;
         beforeEach(function() {
             config = { api: {
                 root: 'http://c6.com',
@@ -464,27 +464,34 @@ describe('geo (UT)', function() {
                 { id: 'cam-3', pricing: {} },
                 { id: 'cam-4' }
             ];
+            mockUpdates = [
+                { id: 'ur-1', campaign: 'cam-1', data: { pricing: { budget: 1400 } } },
+                { id: 'ur-2', campaign: 'cam-2', data: { pricing: { budget: 100 } } },
+                { id: 'ur-3', campaign: 'cam-3', data: { pricing: { budget: 100.1 } } }
+            ];
+            cursors = {
+                campaigns: { toArray: jasmine.createSpy('cursor.toArray()').and.callFake(function() { return q(mockCamps); }) },
+                campaignUpdates: { toArray: jasmine.createSpy('cursor.toArray()').and.callFake(function() { return q(mockUpdates); }) }
+            };
+            colls = {
+                campaigns: { find: jasmine.createSpy('campaigns.find()').and.callFake(function() { return cursors.campaigns; }) },
+                campaignUpdates: { find: jasmine.createSpy('campaignUpdates.find()').and.callFake(function() { return cursors.campaignUpdates; }) }
+            };
+            mockDb = {
+                collection: jasmine.createSpy('db.collection()').and.callFake(function(collName) { return colls[collName]; })
+            };
 
-            spyOn(requestUtils, 'proxyRequest').and.callFake(function() {
-                return q({
-                    response: { statusCode: 200 },
-                    body: mockCamps
-                });
-            });
             spyOn(pgUtils, 'query').and.returnValue(q({ rows: [{ spend: -567.89 }] }));
         });
 
         it('should sum the org\'s campaign budgets and campaign spend and return the difference', function(done) {
-            accountant.getOutstandingBudget(req, config).then(function(resp) {
+            accountant.getOutstandingBudget(req, config, mockDb).then(function(resp) {
                 expect(resp).toEqual({ code: 200, body: 632.11 });
-                expect(requestUtils.proxyRequest).toHaveBeenCalledWith(req, 'get', {
-                    url: 'http://c6.com/api/campaigns/',
-                    qs: {
-                        org: 'o-1',
-                        statuses: [ Status.Active, Status.Paused ].join(','),
-                        fields: 'id,pricing'
-                    }
-                });
+                expect(colls.campaigns.find).toHaveBeenCalledWith(
+                    { org: 'o-1', status: { $in: [ Status.Active, Status.Paused, Status.Pending ] } },
+                    { fields: { id: 1, pricing: 1, updateRequest: 1 } }
+                );
+                expect(colls.campaignUpdates.find).not.toHaveBeenCalled();
                 expect(pgUtils.query).toHaveBeenCalledWith(jasmine.any(String), ['o-1', ['cam-1', 'cam-2', 'cam-3', 'cam-4'] ]);
                 expect(pgUtils.query.calls.argsFor(0)[0]).toMatch(/SELECT sum\(amount \* sign\) as spend from fct.billing_transactions/);
                 expect(pgUtils.query.calls.argsFor(0)[0]).toMatch(/where org_id = \$1/);
@@ -498,27 +505,77 @@ describe('geo (UT)', function() {
         
         it('should default to the requester\'s org', function(done) {
             delete req.query.org;
-            accountant.getOutstandingBudget(req, config).then(function(resp) {
+            accountant.getOutstandingBudget(req, config, mockDb).then(function(resp) {
                 expect(resp).toEqual({ code: 200, body: 632.11 });
-                expect(requestUtils.proxyRequest).toHaveBeenCalledWith(req, 'get', {
-                    url: 'http://c6.com/api/campaigns/',
-                    qs: {
-                        org: 'o-2',
-                        statuses: [ Status.Active, Status.Paused ].join(','),
-                        fields: 'id,pricing'
-                    }
-                });
+                expect(colls.campaigns.find).toHaveBeenCalledWith(
+                    { org: 'o-2', status: { $in: [ Status.Active, Status.Paused, Status.Pending ] } },
+                    { fields: { id: 1, pricing: 1, updateRequest: 1 } }
+                );
+                expect(colls.campaignUpdates.find).not.toHaveBeenCalled();
                 expect(pgUtils.query).toHaveBeenCalledWith(jasmine.any(String), ['o-2', ['cam-1', 'cam-2', 'cam-3', 'cam-4'] ]);
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
             }).done(done);
         });
 
+        describe('if campaigns have update requests', function() {
+            beforeEach(function() {
+                mockCamps[0].updateRequest = 'ur-1';
+                mockCamps[1].updateRequest = 'ur-2';
+                mockCamps[2].updateRequest = 'ur-3';
+            });
+
+            it('should use the max of the campaigns\' and update requests\' budgets', function(done) {
+                accountant.getOutstandingBudget(req, config, mockDb).then(function(resp) {
+                    expect(resp).toEqual({ code: 200, body: 1132.21 });
+                    expect(colls.campaigns.find).toHaveBeenCalledWith(
+                        { org: 'o-1', status: { $in: [ Status.Active, Status.Paused, Status.Pending ] } },
+                        { fields: { id: 1, pricing: 1, updateRequest: 1 } }
+                    );
+                    expect(colls.campaignUpdates.find).toHaveBeenCalledWith(
+                        { id: { $in: ['ur-1', 'ur-2', 'ur-3'] } },
+                        { fields: { id: 1, 'data.pricing': 1, campaign: 1 } }
+                    );
+                    expect(pgUtils.query).toHaveBeenCalledWith(jasmine.any(String), ['o-1', ['cam-1', 'cam-2', 'cam-3', 'cam-4'] ]);
+                    expect(mockLog.error).not.toHaveBeenCalled();
+                }).catch(function(error) {
+                    expect(error.toString()).not.toBeDefined();
+                }).done(done);
+            });
+            
+            it('should effectively ignore updates that do not change the budget', function(done) {
+                mockUpdates[0].data = { name: 'foo', pricing: { dailyLimit: 100 } };
+                accountant.getOutstandingBudget(req, config, mockDb).then(function(resp) {
+                    expect(resp.code).toBe(200);
+                    expect(resp.body.toFixed(2)).toBe('732.21');
+                    expect(colls.campaigns.find).toHaveBeenCalled();
+                    expect(colls.campaignUpdates.find).toHaveBeenCalled();
+                    expect(pgUtils.query).toHaveBeenCalledWith(jasmine.any(String), ['o-1', ['cam-1', 'cam-2', 'cam-3', 'cam-4'] ]);
+                    expect(mockLog.error).not.toHaveBeenCalled();
+                }).catch(function(error) {
+                    expect(error.toString()).not.toBeDefined();
+                }).done(done);
+            });
+            
+            it('should reject if querying for campaignUpdates fails', function(done) {
+                cursors.campaignUpdates.toArray.and.returnValue(q.reject('I GOT A PROBLEM'));
+                accountant.getOutstandingBudget(req, config, mockDb).then(function(resp) {
+                    expect(resp).not.toBeDefined();
+                }).catch(function(error) {
+                    expect(error).toBe('Error computing outstanding budget');
+                    expect(pgUtils.query).not.toHaveBeenCalled();
+                    expect(mockLog.error).toHaveBeenCalled();
+                    expect(mockLog.error.calls.mostRecent().args).toContain('\'I GOT A PROBLEM\'');
+                }).done(done);
+            });
+        });
+
         it('should not query postgres if no campaigns have a budget', function(done) {
             mockCamps = [{ id: 'cam-1', pricing: {} }];
-            accountant.getOutstandingBudget(req, config).then(function(resp) {
+            accountant.getOutstandingBudget(req, config, mockDb).then(function(resp) {
                 expect(resp).toEqual({ code: 200, body: 0 });
-                expect(requestUtils.proxyRequest).toHaveBeenCalled();
+                expect(colls.campaigns.find).toHaveBeenCalled();
+                expect(colls.campaignUpdates.find).not.toHaveBeenCalled();
                 expect(pgUtils.query).not.toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
@@ -527,41 +584,49 @@ describe('geo (UT)', function() {
         
         it('should return a 400 if the org is invalid', function(done) {
             req.query.org = { hax: true };
-            accountant.getOutstandingBudget(req, config).then(function(resp) {
+            accountant.getOutstandingBudget(req, config, mockDb).then(function(resp) {
                 expect(resp).toEqual({ code: 400, body: 'Must provide an org id' });
-                expect(requestUtils.proxyRequest).not.toHaveBeenCalled();
+                expect(colls.campaigns.find).not.toHaveBeenCalled();
+                expect(colls.campaignUpdates.find).not.toHaveBeenCalled();
                 expect(pgUtils.query).not.toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
             }).done(done);
         });
         
-        it('should return a 400 if campaigns cannot be fetched', function(done) {
-            requestUtils.proxyRequest.and.returnValue(q({ response: { statusCode: 400 }, body: 'NOPE' }));
-            accountant.getOutstandingBudget(req, config).then(function(resp) {
-                expect(resp).toEqual({ code: 400, body: 'Cannot fetch campaigns for this org' });
+        it('should handle the case where no campaigns are returned', function(done) {
+            mockCamps = [];
+            accountant.getOutstandingBudget(req, config, mockDb).then(function(resp) {
+                expect(resp).toEqual({ code: 200, body: 0 });
+                expect(colls.campaigns.find).toHaveBeenCalled();
+                expect(colls.campaignUpdates.find).not.toHaveBeenCalled();
                 expect(pgUtils.query).not.toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
             }).done(done);
         });
         
-        it('should reject if the campaign request fails', function(done) {
-            requestUtils.proxyRequest.and.returnValue(q.reject('I GOT A PROBLEM'));
-            accountant.getOutstandingBudget(req, config).then(function(resp) {
+        it('should reject if querying for campaigns fails', function(done) {
+            cursors.campaigns.toArray.and.returnValue(q.reject('I GOT A PROBLEM'));
+            accountant.getOutstandingBudget(req, config, mockDb).then(function(resp) {
                 expect(resp).not.toBeDefined();
             }).catch(function(error) {
-                expect(error).toBe('Error fetching campaigns');
+                expect(error).toBe('Error computing outstanding budget');
+                expect(colls.campaignUpdates.find).not.toHaveBeenCalled();
+                expect(pgUtils.query).not.toHaveBeenCalled();
                 expect(mockLog.error).toHaveBeenCalled();
+                expect(mockLog.error.calls.mostRecent().args).toContain('\'I GOT A PROBLEM\'');
             }).done(done);
         });
         
         it('should reject if the query fails', function(done) {
             pgUtils.query.and.returnValue(q.reject('I GOT A PROBLEM'));
-            accountant.getOutstandingBudget(req, config).then(function(resp) {
+            accountant.getOutstandingBudget(req, config, mockDb).then(function(resp) {
                 expect(resp).not.toBeDefined();
             }).catch(function(error) {
-                expect(error).toBe('I GOT A PROBLEM');
+                expect(error).toBe('Error computing outstanding budget');
+                expect(mockLog.error).toHaveBeenCalled();
+                expect(mockLog.error.calls.mostRecent().args).toContain('\'I GOT A PROBLEM\'');
             }).done(done);
         });
     });
@@ -575,13 +640,13 @@ describe('geo (UT)', function() {
         });
         
         it('should get the account balance + outstanding budget, and respond with both', function(done) {
-            accountant.getBalanceStats(req, config).then(function(resp) {
+            accountant.getBalanceStats(req, config, 'c6Db').then(function(resp) {
                 expect(resp).toEqual({
                     code: 200,
                     body: { balance: 456.1, outstandingBudget: 123.2 }
                 });
                 expect(accountant.getAccountBalance).toHaveBeenCalledWith(req, config);
-                expect(accountant.getOutstandingBudget).toHaveBeenCalledWith(req, config);
+                expect(accountant.getOutstandingBudget).toHaveBeenCalledWith(req, config, 'c6Db');
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
             }).done(done);
@@ -826,7 +891,7 @@ describe('geo (UT)', function() {
                     q(handler(req, res, next)).finally(function() {
                         expect(res.send).toHaveBeenCalledWith(200, { balance: 100, outstandingBudget: 20 });
                         expect(next).not.toHaveBeenCalled();
-                        expect(accountant.getBalanceStats).toHaveBeenCalledWith(req, state.config);
+                        expect(accountant.getBalanceStats).toHaveBeenCalledWith(req, state.config, state.dbs.c6Db);
                     }).done(done);
                 });
                 
@@ -836,7 +901,7 @@ describe('geo (UT)', function() {
                         expect(res.send).toHaveBeenCalledWith(500, { error: 'Error retrieving balance', detail: 'I GOT A PROBLEM' });
                         expect(res.header).not.toHaveBeenCalled();
                         expect(next).not.toHaveBeenCalled();
-                        expect(accountant.getBalanceStats).toHaveBeenCalledWith(req, state.config);
+                        expect(accountant.getBalanceStats).toHaveBeenCalledWith(req, state.config, state.dbs.c6Db);
                     }).done(done);
                 });
             });
