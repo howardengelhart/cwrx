@@ -1088,10 +1088,8 @@ describe('content card endpoints (E2E):', function() {
             requestUtils.qRequest('post', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(201);
                 expect(resp.body.data.duration).toEqual(62.51);
-                expect(resp.body.data.thumbs).toEqual({
-                    small: 'https://scontent.xx.fbcdn.net/hvthumb-xta1/v/t15.0-10/s130x130/10675811_10152454701563553_10152454700553553_5106_2195_b.jpg?oh=bc1fc4bd9e29873fa5e54c61af353c94&oe=57910026',
-                    large: 'https://scontent.xx.fbcdn.net/hvthumb-xta1/v/t15.0-10/10675811_10152454701563553_10152454700553553_5106_2195_b.jpg?oh=c1fbab08a772b964d30324160c9a6aca&oe=578CE835'
-                });
+                expect(resp.body.data.thumbs.small).toContain('https://scontent.xx.fbcdn.net/hvthumb-xta1/v/t15.0-10/s130x130/10675811_10152454701563553_10152454700553553_5106_2195_b.jpg');
+                expect(resp.body.data.thumbs.large).toContain('https://scontent.xx.fbcdn.net/hvthumb-xta1/v/t15.0-10/10675811_10152454701563553_10152454700553553_5106_2195_b.jpg');
             }).catch(function(error) {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
