@@ -18,38 +18,9 @@ export PGUSER=c6admin
 export PGPASSWORD=abc12345
 export PGDATABASE=template1
 
-if [  "$1" = "-init" ] || [ "$1" = "--init" ]; then
-
-    if [ -n "$2" ]; then
-        export PGHOST=$2
-    fi
-    
-    # These are things you should only do once, just after you've
-    # installed pg on your vagrant box (using the c6postgres cookbook)
-    psql -c "alter user c6admin with encrypted password 'password' valid until 'infinity';"
-
-    export PGPASSWORD=password
-
-    psql -c "CREATE ROLE editor NOSUPERUSER INHERIT NOCREATEDB NOCREATEROLE NOREPLICATION;"
-    psql -c "CREATE USER cwrx WITH CREATEDB LOGIN PASSWORD 'password';"
-    psql -c "CREATE USER sixxy WITH NOCREATEDB NOCREATEROLE LOGIN PASSWORD 'password';"
-    psql -c "GRANT editor TO sixxy;"
-elif [ -n "$1" ]; then
+if [ -n "$1" ]; then
     export PGHOST=$1
 fi
-
-
-# From here down we're destroying and recreating our test db
-export PGUSER=cwrx
-export PGPASSWORD=password
-
-dropdb 'campfire_cwrx'
-createdb 'campfire_cwrx'
-
-export PGDATABASE='campfire_cwrx'
-
-psql -c "CREATE SCHEMA rpt;"
-psql -c "GRANT USAGE ON SCHEMA rpt TO editor;"
 
 read -r -d '' campaign_summary_hourly <<- EOM
 CREATE TABLE rpt.campaign_summary_hourly
@@ -63,14 +34,7 @@ CREATE TABLE rpt.campaign_summary_hourly
 ) WITH ( OIDS=FALSE);
 EOM
 
-psql -c "${campaign_summary_hourly}"
-psql -c "GRANT SELECT ON TABLE rpt.campaign_summary_hourly TO editor;"
-
-
-psql -c "CREATE SCHEMA fct;"
-psql -c "GRANT USAGE ON SCHEMA fct TO editor;"
-
-read -r -d '' transactions <<- EOM
+read -r -d '' billing_transactions <<- EOM
 CREATE TABLE fct.billing_transactions
 (
   rec_key bigserial NOT NULL,
@@ -93,7 +57,58 @@ WITH (
 );
 EOM
 
-psql -c "${transactions}"
-psql -c "GRANT SELECT, INSERT ON TABLE fct.billing_transactions TO editor;"
-psql -c "GRANT USAGE, SELECT ON fct.billing_transactions_rec_key_seq TO editor;"
+initDb()
+{
+    # These are things you should only do once, just after you've
+    # installed pg on your vagrant box (using the c6postgres cookbook)
+    
+    echo "Initialize test users, roles, reset c6admin password."
+    psql -c "alter user c6admin with encrypted password 'password' valid until 'infinity';" > /dev/null
+
+    export PGPASSWORD=password
+
+    psql -c "CREATE ROLE editor NOSUPERUSER INHERIT NOCREATEDB NOCREATEROLE NOREPLICATION;" > /dev/null
+    psql -c "CREATE USER cwrx WITH CREATEDB LOGIN PASSWORD 'password';" > /dev/null
+    psql -c "CREATE USER sixxy WITH NOCREATEDB NOCREATEROLE LOGIN PASSWORD 'password';" > /dev/null
+    psql -c "GRANT editor TO sixxy;" > /dev/null
+}
+
+configDb()
+{
+    echo "Install test tables."
+    export PGUSER=cwrx
+    export PGPASSWORD=password
+
+    dropdb 'campfire_cwrx' > /dev/null 2>&1
+    createdb 'campfire_cwrx'
+
+    export PGDATABASE='campfire_cwrx'
+
+    psql -c "CREATE SCHEMA rpt;" > /dev/null
+    psql -c "GRANT USAGE ON SCHEMA rpt TO editor;" > /dev/null
+
+    psql -c "${campaign_summary_hourly}" > /dev/null
+    psql -c "GRANT SELECT ON TABLE rpt.campaign_summary_hourly TO editor;" > /dev/null
+
+
+    psql -c "CREATE SCHEMA fct;" > /dev/null
+    psql -c "GRANT USAGE ON SCHEMA fct TO editor;" > /dev/null
+
+    psql -c "${billing_transactions}" > /dev/null
+    psql -c "GRANT SELECT, INSERT ON TABLE fct.billing_transactions TO editor;" > /dev/null
+    psql -c "GRANT USAGE, SELECT ON fct.billing_transactions_rec_key_seq TO editor;" > /dev/null
+}
+
+psql -tAc "select 1 from pg_roles where rolname = 'sixxy'" > /dev/null 2>&1
+INIT_CHECK=$?
+if [ $INIT_CHECK -eq "0" ]
+then
+    initDb
+else
+    echo "Postgres already initialized."
+fi
+
+configDb
+
+exit $?
 

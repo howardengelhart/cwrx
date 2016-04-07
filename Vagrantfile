@@ -194,7 +194,7 @@ Vagrant.configure("2") do |config|
 
         if svc == 'c6postgres'
             chef.json[svc][:pg_hba] = [
-                "local all all md5",
+                "local all all peer",
                 "host all all 127.0.0.1/8 md5",
                 "host all all 33.33.33.0/24 md5"
             ]
