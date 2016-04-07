@@ -17,6 +17,7 @@
         email           = require('../lib/email'),
         enums           = require('../lib/enums'),
         CacheMutex      = require('../lib/cacheMutex.js'),
+        streamUtils     = require('../lib/streamUtils'),
         Status          = enums.Status,
         Scope           = enums.Scope,
 
@@ -109,6 +110,8 @@
             userSvc = new CrudSvc(db.collection('users'), 'u', opts, userModule.userSchema);
 
         userSvc._db = db;
+
+        streamUtils.createProducer(config.kinesis);
 
         var hashPassword = userModule.hashProp.bind(userModule, 'password');
         var hashNewPassword = userModule.hashProp.bind(userModule, 'newPassword');
@@ -452,7 +455,6 @@
 
         return email.activateAccount(sender, reqEmail, link)
             .then(function() {
-                delete req.tempToken;
                 return next();
             })
             .catch(function(error) {
@@ -794,6 +796,117 @@
             });
     };
 
+    userModule.produceAccountActivated = function(req, resp) {
+        var log = logger.getLog();
+        
+        if(resp.code === 200 && typeof resp.body === 'object') {
+            return streamUtils.produceEvent('accountActivated', {
+                target: 'selfie',
+                user: resp.body
+            }).then(function() {
+                log.info('[%1] Produced accountActivated event for user %2', req.uuid,
+                    resp.body.id);
+            }).catch(function(error) {
+                log.error('[%1] Error producing accountActivated event for user %2: %3',
+                    req.uuid, resp.body.id, inspect(error));
+            }).thenResolve(resp);
+        } else {
+            return q(resp);
+        }
+    };
+    
+    userModule.produceAccountCreated = function(req, resp) {
+        var log = logger.getLog();
+        
+        if(resp.code === 201 && typeof resp.body === 'object') {
+            return streamUtils.produceEvent('accountCreated', {
+                target: 'selfie',
+                token: req.tempToken,
+                user: resp.body
+            }).then(function() {
+                log.info('[%1] Produced accountCreated event for user %2', req.uuid,
+                    resp.body.id);
+                return resp;
+            }).finally(function() {
+                delete req.tempToken;
+            });
+        } else {
+            delete req.tempToken;
+            return q(resp);
+        }
+    };
+    
+    userModule.producePasswordChanged = function(req, resp) {
+        var log = logger.getLog();
+        
+        if(resp.code === 200) {
+            return streamUtils.produceEvent('passwordChanged', {
+                user: req.user
+            }).then(function() {
+                log.info('[%1] Produced passwordChanged event for user %2', req.uuid,
+                    req.user.id);
+            }).catch(function(error) {
+                log.error('[%1] Error producing passwordChanged event for user %2: %3',
+                    req.uuid, req.user.id, inspect(error));
+            }).thenResolve(resp);
+        } else {
+            return q(resp);
+        }
+    };
+    
+    userModule.produceEmailChanged = function(req, resp){
+        var log = logger.getLog();
+        
+        if(resp.code === 200) {
+            var oldEmail = req.body.email;
+            var newEmail = req.body.newEmail;
+            var oldUser = req.user;
+            var newUser = objUtils.extend({ email: newEmail }, oldUser);
+
+            return q.allSettled([oldUser, newUser].map(function(user) {
+                return streamUtils.produceEvent('emailChanged', {
+                    oldEmail: oldEmail,
+                    newEmail: newEmail,
+                    user: user
+                });
+            })).then(function(results) {
+                results.forEach(function(result) {
+                    if(result.state === 'fulfilled') {
+                        log.info('[%1] Produced emailChanged event for user %2', req.uuid,
+                            oldUser.id);
+                    } else {
+                        log.error('[%1] Error producing emailChanged event for user %2: %3',
+                            req.uuid, oldUser.id, inspect(result.reason));
+                    }
+                });
+                return resp;
+            });
+        } else {
+            return q(resp);
+        }
+    };
+    
+    userModule.produceResendActivation = function(req, resp) {
+        var log = logger.getLog();
+        
+        if(resp.code === 204) {
+            return streamUtils.produceEvent('resendActivation', {
+                target: 'selfie',
+                token: req.tempToken,
+                user: req.user
+            }).then(function() {
+                log.info('[%1] Produced resendActivation event for user %2', req.uuid,
+                    req.user.id);
+                return resp;
+            }).finally(function() {
+                delete req.tempToken;
+            });
+        } else {
+            delete req.tempToken;
+            return q(resp);
+        }
+    };
+
     userModule.setupEndpoints = function(app, svc, sessions, audit, sessionStore, config,
                                                                     journal, jobManager) {
         var router      = express.Router(),
@@ -807,7 +920,10 @@
         router.post('/email', credsChecker, audit, function(req, res) {
             var promise = userModule.changeEmail(svc, req, config.emails.sender,
                                                            config.emails.supportAddress,
-                                                           config.emails.enabled);
+                                                           config.emails.enabled)
+            .then(function(resp) {
+                return userModule.produceEmailChanged(req, resp);
+            });
             promise.finally(function() {
                 jobManager.endJob(req, res, promise.inspect())
                 .catch(function(error) {
@@ -819,7 +935,10 @@
         router.post('/password', credsChecker, audit, function(req, res) {
             var promise = userModule.changePassword(svc, req, config.emails.sender,
                                                               config.emails.supportAddress,
-                                                              config.emails.enabled);
+                                                              config.emails.enabled)
+            .then(function(resp) {
+                return userModule.producePasswordChanged(req, resp);
+            });
             promise.finally(function() {
                 jobManager.endJob(req, res, promise.inspect())
                 .catch(function(error) {
@@ -829,7 +948,9 @@
         });
 
         router.post('/signup', function(req, res) {
-            var promise = userModule.signupUser(svc, req);
+            var promise = userModule.signupUser(svc, req).then(function(resp) {
+                return userModule.produceAccountCreated(req, resp);
+            });
             promise.finally(function() {
                 jobManager.endJob(req, res, promise.inspect())
                 .catch(function(error) {
@@ -839,7 +960,10 @@
         });
 
         router.post('/confirm/:id', sessions, function(req, res) {
-            var promise = userModule.confirmUser(svc, req, journal, config.sessions.maxAge);
+            var promise = userModule.confirmUser(svc, req, journal, config.sessions.maxAge)
+            .then(function(resp) {
+                return userModule.produceAccountActivated(req, resp);
+            });
             promise.finally(function() {
                 jobManager.endJob(req, res, promise.inspect())
                 .catch(function(error) {
@@ -850,7 +974,9 @@
 
         var authNewUser = authUtils.middlewarify({ userStatuses: [Status.New] });
         router.post('/resendActivation', sessions, authNewUser, function(req, res) {
-            var promise = userModule.resendActivation(svc, req);
+            var promise = userModule.resendActivation(svc, req).then(function(resp) {
+                return userModule.produceResendActivation(req, resp);
+            });
             promise.finally(function() {
                 jobManager.endJob(req, res, promise.inspect())
                 .catch(function(error) {

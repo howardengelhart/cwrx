@@ -12,7 +12,12 @@ var q               = require('q'),
     };
 
 describe('userSvc users (E2E):', function() {
-    var cookieJar, adminJar, mockRequester, mockAdmin, mockServiceUser, testPolicies, mailman, mailman2, urlRegex, mockApp, appCreds;
+    var cookieJar, adminJar, mockRequester, mockAdmin, mockServiceUser, testPolicies, mailman, mailman2, urlRegex, mockApp, appCreds, mockman;
+
+    beforeAll(function(done) {
+        mockman = new testUtils.Mockman();
+        mockman.start().then(done, done.fail);
+    });
 
     beforeEach(function(done) {
         jasmine.DEFAULT_TIMEOUT_INTERVAL = 30000;
@@ -151,6 +156,7 @@ describe('userSvc users (E2E):', function() {
     });
 
     afterEach(function() {
+        mockman.removeAllListeners();
         mailman.removeAllListeners();
         mailman2.removeAllListeners();
     });
@@ -1382,6 +1388,30 @@ describe('userSvc users (E2E):', function() {
                 done();
             });
         });
+        
+        it('should produce two emailChanged events', function(done) {
+            requestUtils.qRequest('post', options).then(function(resp) {
+                var emailRecords = { };
+                mockman.on('emailChanged', function(record) {
+                    emailRecords[record.data.user.email] = record;
+                    if(emailRecords['c6e2etester@gmail.com'] && emailRecords['c6e2etester2@gmail.com']) {
+                        Object.keys(emailRecords).forEach(function(email) {
+                            var record = emailRecords[email];
+                            expect(new Date(record.data.date)).not.toBe(NaN);
+                            expect(record.data.oldEmail).toBe('c6e2etester@gmail.com');
+                            expect(record.data.newEmail).toBe('c6e2etester2@gmail.com');
+                            expect(record.data.user.password).not.toBeDefined();
+                            expect(record.data.user).toEqual(jasmine.objectContaining({
+                                email: email,
+                                id: 'u-1',
+                                status: 'active'
+                            }));
+                        });
+                        done();
+                    }
+                });
+            }).catch(done.fail);
+        });
     });
 
     describe('POST /api/account/users/password', function() {
@@ -1542,6 +1572,21 @@ describe('userSvc users (E2E):', function() {
                 expect(util.inspect(error)).not.toBeDefined();
                 done();
             });
+        });
+        
+        it('should produce a passwordChanged event', function(done) {
+            requestUtils.qRequest('post', options).then(function(resp) {
+                mockman.once('passwordChanged', function(record) {
+                    expect(new Date(record.data.date)).not.toBe(NaN);
+                    expect(record.data.user.password).not.toBeDefined();
+                    expect(record.data.user).toEqual(jasmine.objectContaining({
+                        id: 'u-1',
+                        email: 'c6e2etester@gmail.com',
+                        status: 'active'
+                    }));
+                    done();
+                });
+            }).catch(done.fail);
         });
     });
 
@@ -1840,6 +1885,19 @@ describe('userSvc users (E2E):', function() {
                 done();
             });
         });
+        
+        it('should be able to produce an accountCreated event', function(done) {
+            requestUtils.qRequest('post', options).then(function(resp) {
+                mockman.once('accountCreated', function(record) {
+                    expect(record.data.target).toBe('selfie');
+                    expect(record.data.token).toEqual(jasmine.any(String));
+                    expect(new Date(record.data.date)).not.toBe(NaN);
+                    expect(record.data.user.password).not.toBeDefined();
+                    expect(record.data.user).toEqual(resp.body);
+                    done();
+                });
+            }).catch(done.fail);
+        });
     });
 
     describe('POST /api/account/users/confirm/:id', function() {
@@ -1994,6 +2052,18 @@ describe('userSvc users (E2E):', function() {
                     expect(util.inspect(error)).not.toBeDefined();
                     done();
                 });
+            });
+            
+            it('should produce an accountActivated event', function(done) {
+                requestUtils.qRequest('post', options).then(function(resp) {
+                    mockman.once('accountActivated', function(record) {
+                        expect(record.data.target).toBe('selfie');
+                        expect(new Date(record.data.date)).not.toBe(NaN);
+                        expect(record.data.user.password).not.toBeDefined();
+                        expect(record.data.user).toEqual(resp.body);
+                        done();
+                    });
+                }).catch(done.fail);
             });
 
             it('should create an org for the user', function(done) {
@@ -2179,6 +2249,40 @@ describe('userSvc users (E2E):', function() {
                         done();
                     });
             });
+        });
+        
+        it('should produce a record containing a token which works properly with /api/account/users/signup', function(done) {
+            var userId;
+            testUtils.resetCollection('users')
+                .then(function() {
+                    var signupOptions = { url: config.usersUrl + '/signup', json: { email: 'c6e2etester@gmail.com', password: 'password' }};
+                    return requestUtils.qRequest('post', signupOptions);
+                })
+                .then(function(resp) {
+                    expect(resp.response.statusCode).toBe(201);
+                    expect(resp.body.status).toBe('new');
+                    return q.Promise(function(resolve) {
+                        mockman.once('accountCreated', function(record) {
+                            resolve(record.data);
+                        });
+                    });
+                }).then(function(data) {
+                    userId = data.user.id;
+                    var token = data.token;
+                    var confirmOptions = { url: config.usersUrl + '/confirm/' + userId, json: { token: token } };
+                    return requestUtils.qRequest('post', confirmOptions);
+                }).then(function(resp) {
+                    expect(resp.response.statusCode).toBe(200);
+                    return q.Promise(function(resolve) {
+                        mockman.once('accountActivated', function(record) {
+                            resolve(record.data);
+                        });
+                    });
+                }).then(function(data) {
+                    expect(data.user.id).toBe(userId);
+                    expect(data.user.status).toBe('active');
+                    expect(data.user.org).toBeDefined();
+                }).then(done, done.fail);
         });        
     });
 
@@ -2281,9 +2385,29 @@ describe('userSvc users (E2E):', function() {
                     done();
                 });
         });
+        
+        it('should be able to produce a resendActivation event', function(done) {
+            requestUtils.qRequest('post', resendOpts).then(function(resp) {
+                mockman.once('resendActivation', function(record) {
+                    expect(new Date(record.data.date)).not.toBe(NaN);
+                    expect(record.data.target).toBe('selfie');
+                    expect(record.data.token).toEqual(jasmine.any(String));
+                    expect(record.data.user.password).not.toBeDefined();
+                    expect(record.data.user).toEqual(jasmine.objectContaining({
+                        id: 'u-12345',
+                        status: 'new',
+                        email: 'c6e2etester@gmail.com'
+                    }));
+                    done();
+                });
+            }).catch(function(error) {
+                done.fail(util.inspect(error));
+            });
+        });
     });
 
     afterAll(function(done) {
+        mockman.stop();
         mailman.stop();
         mailman2.stop();
         testUtils.closeDbs().done(done);

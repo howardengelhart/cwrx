@@ -146,6 +146,10 @@ Vagrant.configure("2") do |config|
             chef.json[svc][:mongo][:voteDb] = { :host => "127.0.0.1" }
         end
         
+        if svc == 'userSvc'
+            chef.json[svc][:kinesis] = { :streamName => 'devCwrxStream-' + ENV['USER'] }
+        end
+
         if svc == 'orgSvc'
             chef.json[svc][:kinesis] = { :streamName => 'devCwrxStream-' + ENV['USER'] }
         end
