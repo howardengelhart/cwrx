@@ -19,7 +19,7 @@ var q               = require('q'),
     });
 
 describe('ads campaigns endpoints (E2E):', function() {
-    var selfieJar, adminJar, mockOrgs, mockCards, mockExps, mockApp, appCreds;
+    var selfieJar, adminJar, mockOrgs, mockCards, mockExps, mockApp, appCreds, mockman;
 
     beforeEach(function(done) {
         jasmine.DEFAULT_TIMEOUT_INTERVAL = 10000;
@@ -158,6 +158,10 @@ describe('ads campaigns endpoints (E2E):', function() {
         });
     });
     
+    afterEach(function() {
+        mockman.removeAllListeners();
+    });
+    
     // Ensure exps + cards
     beforeAll(function(done) {
         mockCards = [
@@ -169,10 +173,12 @@ describe('ads campaigns endpoints (E2E):', function() {
             { id: 'e2e-e-1', status: [{status: 'active'}], user: 'not-e2e-user', org: 'o-admin' },
             { id: 'e2e-e-2', status: [{status: 'active'}], user: 'not-e2e-user', org: 'o-selfie' }
         ];
+        mockman = new testUtils.Mockman();
 
         q.all([
             testUtils.resetCollection('cards', mockCards),
             testUtils.resetCollection('experiences', mockExps),
+            mockman.start()
         ]).done(function(results) { done(); });
     });
 
@@ -1576,6 +1582,25 @@ describe('ads campaigns endpoints (E2E):', function() {
                     expect(util.inspect(error)).not.toBeDefined();
                 }).done(done);
             });
+            
+            it('should be able to produce a campaignStateChange event', function(done) {
+                requestUtils.qRequest('put', options, null, { maxAttempts: 30 }).then(function(resp) {
+                    adminCreatedCamp = resp.body;
+                    return q.Promise(function(resolve) {
+                        mockman.on('campaignStateChange', function(record) {
+                            if(record.data.campaign.lastUpdated === resp.body.lastUpdated) {
+                                resolve(record);
+                            }
+                        });
+                    });
+                }).then(function(record) {
+                    expect(record.data.previousState).toBe('active');
+                    expect(record.data.currentState).toBe('expired');
+                    expect(new Date(record.data.date)).not.toBe(NaN);
+                    expect(record.data.campaign).toEqual(adminCreatedCamp);
+                    return testUtils.checkCardEntities(adminCreatedCamp, adminJar, config.contentUrl);
+                }).then(done, done.fail);
+            });
         });
         
         it('should be able to add+remove sponsored cards', function(done) {
@@ -2174,7 +2199,7 @@ describe('ads campaigns endpoints (E2E):', function() {
     });
     
     afterAll(function(done) {
+        mockman.stop();
         testUtils.closeDbs().done(done);
     });
 });
-

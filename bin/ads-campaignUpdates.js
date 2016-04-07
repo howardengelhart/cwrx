@@ -8,6 +8,7 @@
         Status          = require('../lib/enums').Status,
         campaignUtils   = require('../lib/campaignUtils'),
         requestUtils    = require('../lib/requestUtils'),
+        streamUtils     = require('../lib/streamUtils'),
         mongoUtils      = require('../lib/mongoUtils'),
         authUtils       = require('../lib/authUtils'),
         historian       = require('../lib/historian'),
@@ -78,6 +79,8 @@
             svc = new CrudSvc(coll, 'ur', { statusHistory: true }, updateModule.updateSchema);
         svc._db = db;
         
+        streamUtils.createProducer(config.kinesis);
+
         var campDataModel = updateModule.createCampModel(campSvc),
             autoApproveModel = updateModule.createAutoApproveModel();
         
@@ -614,6 +617,55 @@
         });
     };
 
+    updateModule.produceNewUpdateRequest = function(req, resp) {
+        var log = logger.getLog();
+        
+        if(resp.code === 201 && typeof resp.body === 'object') {
+            return streamUtils.produceEvent('newUpdateRequest', {
+                application: req.application,
+                campaign: req.campaign,
+                updateRequest: resp.body,
+                user: req.user
+            }).then(function() {
+                log.info('[%1] Produced newUpdateRequest event for updateRequest %2', req.uuid,
+                    resp.body.id);
+            }).catch(function(error) {
+                log.error('[%1] Error producing newUpdateRequest event for updateRequest %2: %3',
+                    req.uuid, resp.body.id, util.inspect(error));
+            }).thenResolve(resp);
+        } else {
+            return q(resp);
+        }
+    };
+    
+    updateModule.produceEditUpdateRequest = function(req, resp) {
+        var log = logger.getLog();
+        
+        if(resp.code !== 200 || typeof resp.body !== 'object') {
+            return q(resp);
+        }
+        
+        var campaignApproved = approvingUpdate(req);
+        var campaignRejected = rejectingUpdate(req);
+        
+        if(campaignApproved || campaignRejected) {
+            var eventName = campaignApproved ?
+                (req.origObj.initialSubmit ? 'campaignApproved' : 'campaignUpdateApproved') :
+                (req.origObj.initialSubmit ? 'campaignRejected' : 'campaignUpdateRejected');
+            return streamUtils.produceEvent(eventName, {
+                campaign: req.campaign,
+                updateRequest: resp.body
+            }).then(function() {
+                log.info('[%1] Produced %2 event for updateRequest %3', req.uuid, eventName,
+                    resp.body.id);
+            }).catch(function(error) {
+                log.error('[%1] Error producing %2 event for updateRequest %3: %4', req.uuid,
+                    eventName, resp.body.id, util.inspect(error));
+            }).thenResolve(resp);
+        } else {
+            return q(resp);
+        }
+    };
     
     // MUST be called before campaign module's setupEndpoints
     updateModule.setupEndpoints = function(app, svc, sessions, audit, jobManager) {
@@ -683,7 +735,9 @@
             if (updateModule.canAutoApprove(req)) {
                 promise = updateModule.autoApprove(svc, req);
             } else {
-                promise = svc.createObj(req);
+                promise = svc.createObj(req).then(function(resp) {
+                    return updateModule.produceNewUpdateRequest(req, resp);
+                });
             }
             
             promise.finally(function() {
@@ -696,7 +750,9 @@
 
         var authEditUpd = authUtils.middlewarify({ permissions: { campaignUpdates: 'edit' } });
         router.put('/:campId/updates?/:id', sessions, authEditUpd, audit, function(req, res) {
-            var promise = svc.editObj(req);
+            var promise = svc.editObj(req).then(function(resp) {
+                return updateModule.produceEditUpdateRequest(req, resp);
+            });
             promise.finally(function() {
                 jobManager.endJob(req, res, promise.inspect())
                 .catch(function(error) {

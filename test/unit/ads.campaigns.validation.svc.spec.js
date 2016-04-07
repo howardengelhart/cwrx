@@ -25,7 +25,8 @@ describe('campaign validation', function() {
 
         svc = campModule.setupSvc(mockDb, {
             api: { root: 'http://test.com', cards: { endpoint: '/cards/' }, experiences: { endpoint: '/experiences/' } },
-            emails: { enabled: true }
+            emails: { enabled: true },
+            kinesis: { streamName: 'utStream', region: 'somewhere' }
         });
         
         newObj = { advertiserId: 'a-new' };

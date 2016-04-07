@@ -3,7 +3,7 @@ var q = require('q');
 
 describe('ads-campaignUpdates (UT)', function() {
     var mockLog, CrudSvc, Model, logger, updateModule, campaignUtils, requestUtils, Status,
-        historian, mongoUtils, campModule, email, nextSpy, doneSpy, errorSpy, req, mockDb, appCreds;
+        historian, mongoUtils, campModule, email, nextSpy, doneSpy, errorSpy, req, mockDb, appCreds, streamUtils;
 
     beforeEach(function() {
         if (flush) { for (var m in require.cache){ delete require.cache[m]; } flush = false; }
@@ -12,6 +12,7 @@ describe('ads-campaignUpdates (UT)', function() {
         campModule      = require('../../bin/ads-campaigns');
         campaignUtils   = require('../../lib/campaignUtils');
         requestUtils    = require('../../lib/requestUtils');
+        streamUtils     = require('../../lib/streamUtils');
         mongoUtils      = require('../../lib/mongoUtils');
         historian       = require('../../lib/historian');
         CrudSvc         = require('../../lib/crudSvc');
@@ -62,6 +63,10 @@ describe('ads-campaignUpdates (UT)', function() {
             dashboardLink: 'http://seflie.c6.com/review/campaigns',
             enabled: true
         };
+        updateModule.config.kinesis = {
+            streamName: 'utStream',
+            region: 'narnia'
+        };
         appCreds = {
             key: 'ads-service',
             secret: 'supersecret'
@@ -80,7 +85,7 @@ describe('ads-campaignUpdates (UT)', function() {
     });
     
     describe('setupSvc', function() {
-        var config, svc, campSvc, fakeCampModel, fakeAutoApproveModel, histMidware;
+        var config, svc, campSvc, fakeCampModel, fakeAutoApproveModel, histMidware, mockProducer;
         beforeEach(function() {
             config = JSON.parse(JSON.stringify(updateModule.config));
             updateModule.config = {};
@@ -104,6 +109,8 @@ describe('ads-campaignUpdates (UT)', function() {
             
             campSvc = { model: new Model('campaigns', {}) };
             
+            spyOn(streamUtils, 'createProducer');
+
             svc = updateModule.setupSvc(mockDb, campSvc, config, appCreds);
         });
         
@@ -122,6 +129,10 @@ describe('ads-campaignUpdates (UT)', function() {
         it('should save some config variables locally', function() {
             expect(updateModule.config.api).toBeDefined();
             expect(updateModule.config.emails).toBeDefined();
+        });
+        
+        it('should create a JsonProducer', function() {
+            expect(streamUtils.createProducer).toHaveBeenCalledWith(config.kinesis);
         });
         
         it('should enable statusHistory', function() {
@@ -1417,6 +1428,210 @@ describe('ads-campaignUpdates (UT)', function() {
                 expect(error).toBe('I GOT A PROBLEM');
                 expect(mongoUtils.createObject).toHaveBeenCalled();
             }).done(done);
+        });
+    });
+    
+    describe('produceNewUpdateRequest', function() {
+        beforeEach(function() {
+            spyOn(streamUtils, 'produceEvent');
+            req.campaign = 'campaign';
+            req.application = 'app';
+            req.user = 'user';
+        });
+        
+        it('should produce a newUpdateRequest event', function(done) {
+            var mockResp = {
+                code: 201,
+                body: {
+                    id: 'ur-123'
+                }
+            };
+            req.campaign = 'campaign';
+            streamUtils.produceEvent.and.returnValue(q());
+            updateModule.produceNewUpdateRequest(req, mockResp).then(function(resp) {
+                expect(streamUtils.produceEvent).toHaveBeenCalledWith('newUpdateRequest', {
+                    application: 'app',
+                    campaign: 'campaign',
+                    updateRequest: {
+                        id: 'ur-123'
+                    },
+                    user: 'user'
+                });
+                expect(mockLog.error).not.toHaveBeenCalled();
+                expect(resp).toBe(mockResp);
+            }).then(done, done.fail);
+        });
+        
+        it('should resolve and log an error if producing the event fails', function(done) {
+            var mockResp = {
+                code: 201,
+                body: { }
+            };
+            streamUtils.produceEvent.and.returnValue(q.reject('epic fail'));
+            updateModule.produceNewUpdateRequest(req, mockResp).then(function(resp) {
+                expect(streamUtils.produceEvent).toHaveBeenCalled();
+                expect(mockLog.error).toHaveBeenCalled();
+                expect(resp).toEqual(mockResp);
+            }).then(done, done.fail);
+        });
+    });
+    
+    describe('produceEditUpdateRequest', function() {
+        beforeEach(function() {
+            spyOn(streamUtils, 'produceEvent');
+            req.campaign = 'campaign';
+        });
+        
+        it('should produce campaignApproved if approving an initial submit', function(done) {
+            req.origObj = {
+                status: 'pending',
+                initialSubmit: true
+            };
+            req.body = {
+                status: 'approved'
+            };
+            var mockResp = {
+                code: 200,
+                body: {
+                    status: 'approved'
+                }
+            };
+            streamUtils.produceEvent.and.returnValue(q());
+            updateModule.produceEditUpdateRequest(req, mockResp).then(function(resp) {
+                expect(streamUtils.produceEvent).toHaveBeenCalledWith('campaignApproved', {
+                    campaign: 'campaign',
+                    updateRequest: {
+                        status: 'approved'
+                    }
+                });
+                expect(resp).toEqual(mockResp);
+            }).then(done, done.fail);
+        });
+        
+        it('should produce campaignRejected if rejecting an initial submit', function(done) {
+            req.origObj = {
+                status: 'pending',
+                initialSubmit: true
+            };
+            req.body = {
+                status: 'rejected'
+            };
+            var mockResp = {
+                code: 200,
+                body: {
+                    status: 'rejected'
+                }
+            };
+            streamUtils.produceEvent.and.returnValue(q());
+            updateModule.produceEditUpdateRequest(req, mockResp).then(function(resp) {
+                expect(streamUtils.produceEvent).toHaveBeenCalledWith('campaignRejected', {
+                    campaign: 'campaign',
+                    updateRequest: {
+                        status: 'rejected'
+                    }
+                });
+                expect(resp).toEqual(mockResp);
+            }).then(done, done.fail);
+        });
+        
+        it('should produce campaignUpdateApproved if approving a subsequent update', function(done) {
+            req.origObj = {
+                status: 'pending',
+                initialSubmit: false
+            };
+            req.body = {
+                status: 'approved'
+            };
+            var mockResp = {
+                code: 200,
+                body: {
+                    status: 'approved'
+                }
+            };
+            streamUtils.produceEvent.and.returnValue(q());
+            updateModule.produceEditUpdateRequest(req, mockResp).then(function(resp) {
+                expect(streamUtils.produceEvent).toHaveBeenCalledWith('campaignUpdateApproved', {
+                    campaign: 'campaign',
+                    updateRequest: {
+                        status: 'approved'
+                    }
+                });
+                expect(resp).toEqual(mockResp);
+            }).then(done, done.fail);
+        });
+        
+        it('should produce campaignUpdateRejected if rejecting a subsequent update', function(done) {
+            req.origObj = {
+                status: 'pending',
+                initialSubmit: false
+            };
+            req.body = {
+                status: 'rejected'
+            };
+            var mockResp = {
+                code: 200,
+                body: {
+                    status: 'rejected'
+                }
+            };
+            streamUtils.produceEvent.and.returnValue(q());
+            updateModule.produceEditUpdateRequest(req, mockResp).then(function(resp) {
+                expect(streamUtils.produceEvent).toHaveBeenCalledWith('campaignUpdateRejected', {
+                    campaign: 'campaign',
+                    updateRequest: {
+                        status: 'rejected'
+                    }
+                });
+                expect(resp).toEqual(mockResp);
+            }).then(done, done.fail);
+        });
+        
+        it('should resolve an log and error if producing the event fails', function(done) {
+            req.origObj = {
+                status: 'pending',
+                initialSubmit: false
+            };
+            req.body = {
+                status: 'rejected'
+            };
+            var mockResp = {
+                code: 200,
+                body: {
+                    status: 'rejected'
+                }
+            };
+            streamUtils.produceEvent.and.returnValue(q.reject('epic fail'));
+            updateModule.produceEditUpdateRequest(req, mockResp).then(function(resp) {
+                expect(streamUtils.produceEvent).toHaveBeenCalled();
+                expect(mockLog.error).toHaveBeenCalled();
+                expect(resp).toEqual(mockResp);
+            }).then(done, done.fail);
+        });
+
+        it('should not produce if the edit does not approve or reject the request', function(done) {
+            req.origObj = {
+                status: 'pending'
+            };
+            var mockResp = {
+                code: 200,
+                body: {
+                    status: 'pending'
+                }
+            };
+            updateModule.produceEditUpdateRequest(req, mockResp).then(function(resp) {
+                expect(streamUtils.produceEvent).not.toHaveBeenCalled();
+                expect(resp).toEqual(mockResp);
+            }).then(done, done.fail);
+        });
+        
+        it('should not produce if not given a successfull response', function(done) {
+            q.all([{ code: 400, body: { } }, { code: 200, body: 'not an object' }].map(function(mockResp) {
+                return updateModule.produceEditUpdateRequest(req, mockResp).then(function(resp) {
+                    expect(streamUtils.produceEvent).not.toHaveBeenCalled();
+                    expect(mockLog.error).not.toHaveBeenCalled();
+                    expect(resp).toEqual(mockResp);
+                });
+            })).then(done, done.fail);
         });
     });
 });

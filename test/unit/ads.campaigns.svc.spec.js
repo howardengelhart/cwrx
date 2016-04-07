@@ -1,7 +1,7 @@
 var flush = true;
 describe('ads-campaigns (UT)', function() {
     var mockLog, CrudSvc, Model, logger, q, campModule, campaignUtils, requestUtils, email, historian,
-        mongoUtils, objUtils, nextSpy, doneSpy, errorSpy, req, anyNum, mockDb, Status;
+        mongoUtils, objUtils, nextSpy, doneSpy, errorSpy, req, anyNum, mockDb, Status, streamUtils;
 
     beforeEach(function() {
         if (flush) { for (var m in require.cache){ delete require.cache[m]; } flush = false; }
@@ -10,6 +10,7 @@ describe('ads-campaigns (UT)', function() {
         campModule      = require('../../bin/ads-campaigns');
         campaignUtils   = require('../../lib/campaignUtils');
         requestUtils    = require('../../lib/requestUtils');
+        streamUtils     = require('../../lib/streamUtils');
         mongoUtils      = require('../../lib/mongoUtils');
         historian       = require('../../lib/historian');
         objUtils        = require('../../lib/objUtils');
@@ -72,7 +73,7 @@ describe('ads-campaigns (UT)', function() {
     });
     
     describe('setupSvc', function() {
-        var config, svc, boundFns, statHistMidware, priceHistMidware;
+        var config, svc, boundFns, statHistMidware, priceHistMidware, mockProducer;
 
         function getBoundFn(original, argParams) {
             var boundObj = boundFns.filter(function(call) {
@@ -94,6 +95,10 @@ describe('ads-campaigns (UT)', function() {
                     root: 'https://foo.com',
                     cards: { endpoint: '/cards/' },
                     experiences: { endpoint: '/experiences/' },
+                },
+                kinesis: {
+                    streamName: 'devCwrxStream',
+                    region: 'narnia'
                 }
             };
 
@@ -121,6 +126,8 @@ describe('ads-campaigns (UT)', function() {
                 else if (field === 'pricing') return priceHistMidware;
                 else return;
             });
+            
+            spyOn(streamUtils, 'createProducer');
             
             svc = campModule.setupSvc(mockDb, config);
         });
@@ -155,6 +162,10 @@ describe('ads-campaigns (UT)', function() {
                 dashboardLink: 'dash.board',
                 enabled: true
             });
+        });
+        
+        it('should create a JsonProducer', function() {
+            expect(streamUtils.createProducer).toHaveBeenCalledWith(config.kinesis);
         });
         
         it('should enable statusHistory', function() {
@@ -1298,6 +1309,85 @@ describe('ads-campaigns (UT)', function() {
                 expect(mockLog.warn).toHaveBeenCalled();
                 done();
             });
+        });
+    });
+    
+    describe('produceStateChange', function() {
+        var producer, svc, mockCursor, mockColl;
+
+        beforeEach(function() {
+            spyOn(streamUtils, 'produceEvent');
+        });
+        
+        it('should resolve and not produce if the status has not changed', function(done) {
+            req.origObj = {
+                status: 'active'
+            };
+            var campResp = {
+                code: 200,
+                body: {
+                    status: 'active'
+                }
+            };
+            campModule.produceStateChange(req, campResp).then(function(resp) {
+                expect(streamUtils.produceEvent).not.toHaveBeenCalled();
+                expect(mockLog.warn).not.toHaveBeenCalled();
+                expect(resp).toEqual(campResp);
+            }).then(done, done.fail);
+        });
+        
+        it('should resolve and produce if the status has changed', function(done) {
+            req.origObj = {
+                status: 'active'
+            };
+            var campResp = {
+                code: 200,
+                body: {
+                    id: 'c-123',
+                    status: 'paused',
+                    user: 'u-2'
+                }
+            };
+            streamUtils.produceEvent.and.returnValue(q());
+            campModule.produceStateChange(req, campResp).then(function(resp) {
+                expect(mockLog.warn).not.toHaveBeenCalled();
+                expect(streamUtils.produceEvent).toHaveBeenCalledWith('campaignStateChange', {
+                    previousState: 'active',
+                    currentState: 'paused',
+                    campaign: campResp.body
+                });
+                expect(resp).toEqual(campResp);
+            }).then(done, done.fail);
+        });
+        
+        it('should resolve and error if there is a problem producing to the stream', function(done) {
+            req.origObj = {
+                status: 'active'
+            };
+            var campResp = {
+                code: 200,
+                body: {
+                    id: 'c-123',
+                    status: 'paused',
+                    user: 'u-2'
+                }
+            };
+            streamUtils.produceEvent.and.returnValue(q.reject('epic fail'));
+            campModule.produceStateChange(req, campResp).then(function(resp) {
+                expect(mockLog.error).toHaveBeenCalled();
+                expect(streamUtils.produceEvent).toHaveBeenCalled();
+                expect(resp).toEqual(campResp);
+            }).then(done, done.fail);
+        });
+        
+        it('should not produce if not given a successfull response', function(done) {
+            q.all([{ code: 400, body: { } }, { code: 200, body: 'not an object' }].map(function(campResp) {
+                return campModule.produceStateChange(req, campResp).then(function(resp) {
+                    expect(streamUtils.produceEvent).not.toHaveBeenCalled();
+                    expect(mockLog.error).not.toHaveBeenCalled();
+                    expect(resp).toEqual(campResp);
+                });
+            })).then(done, done.fail);
         });
     });
 
