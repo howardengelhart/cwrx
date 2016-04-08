@@ -28,12 +28,12 @@ describe('querybot (E2E)', function(){
             campaignId : 'cam-1757d5cd13e383',
             summary : {
                 impressions: 8409,
-                views      : 6460, // Add 1 if testing completedView config
-                quartile1  : 7031,
-                quartile2  : 5820,
-                quartile3  : 1962,
-                quartile4  : 1330,
-                totalSpend : '1227.4000', // Add 0.19 if testing completedView config
+                views      : 6461, // 7461, <-- comments are actual numbers in the db
+                quartile1  : 6073, // 7031, <-- values reflect adjustmentd based on
+                quartile2  : 5040, // 5820, <-- billable views, see notes below
+                quartile3  : 1680, // 1962,
+                quartile4  : 1163, // 1330,
+                totalSpend : '1227.5900', 
                 linkClicks : {
                     action      : 224,
                     facebook    : 18,
@@ -49,12 +49,12 @@ describe('querybot (E2E)', function(){
             },
             today : {
                 impressions : 7903,
-                views       : 6053, // Add 1 if testing completedView config
-                quartile1  : 6362,
-                quartile2  : 5355,
-                quartile3  : 1806,
-                quartile4  : 1240,
-                totalSpend  : '1150.0700', // Add 0.19 if testing completedViewConfig
+                views       : 6054,
+                quartile1  : 5449, // 6362,
+                quartile2  : 4601, // 5355,
+                quartile3  : 1574, // 1806,
+                quartile4  : 1090, // 1240,
+                totalSpend  : '1150.2600',
                 linkClicks : {
                     action      : 220,
                     facebook    : 18,
@@ -110,11 +110,11 @@ describe('querybot (E2E)', function(){
             campaignId : 'cam-cabd93049d032a',
             summary : {
                 impressions: 99,
-                views      : 69,
-                quartile1  : 84,
-                quartile2  : 74,
-                quartile3  : 52,
-                quartile4  : 30,
+                views      : 69, // 189,
+                quartile1  : 63, // 174,
+                quartile2  : 59, // 161,
+                quartile3  : 48, // 132,
+                quartile4  : 41, // 113,
                 totalSpend : '3.4500',
                 linkClicks : {
                     website     : 6
@@ -136,27 +136,52 @@ describe('querybot (E2E)', function(){
  
         var today = ((new Date()).toISOString()).substr(0,10);
 
-        // NOTE:  The cam-1757d5cd13e383 has 1 less view in billing transactions for today
-        // than the completedViews in pgdata_campaign_summary_hourly.  This is to ensure
-        // that the e2e tests are testing the configuration of querybot that uses
-        // billableViews, not completedViews.
-        // See comments on camp1Data for fields that need to be updated if testing
-        // using completedViews rather than billing transactions.
+        // Note: That there are less BillableViews than CompletedViews for cam-1757d5cd13e383
+        // and cam-cabd93049d032a will result in quartiles being adjusted for those campaigns.
+        // see lib.adjustCampaignSummary in bin/querybot.js.
+        //
+        // This table summarizes the actual data stored in the test tables.  The comments
+        // above show the adjusted differences vs actual numbers for views/quartiles in comments.
+        //
+        // Aggregated by Campaign, Date
+        //
+        //     Campaign Id    |    Date    | CompViews  | BillViews |  Q1  |  Q2  |  Q3  |  Q4
+        // -------------------|------------+------------+-----------+------+------+------+------
+        // cam-1757d5cd13e383 | 2015-12-01 |         89 |        89 |  223 |  155 |   52 |   30
+        // cam-1757d5cd13e383 | 2015-12-02 |        209 |       209 |  223 |  155 |   52 |   30
+        // cam-1757d5cd13e383 | 2015-12-03 |        109 |       109 |  223 |  155 |   52 |   30
+        // cam-1757d5cd13e383 | 2016-04-08 |       7054 |      6054 | 6362 | 5355 | 1806 | 1240
+        // cam-b651cde4158304 | 2015-12-03 |        194 |       194 |  215 |  211 |  202 |  193
+        // cam-b651cde4158304 | 2016-04-08 |        318 |       318 |  359 |  349 |  336 |  318
+        // cam-cabd93049d032a | 2015-12-03 |        189 |        69 |  174 |  161 |  132 |  113
+        //
+        //
+        // Aggregated by Campaign
+        //
+        // campaign_id        | CompViews | BillViews |  Q1  |  Q2  |  Q3  |  Q4 
+        // -------------------+-----------+-----------+------+------+------+------
+        // cam-1757d5cd13e383 |      7461 |      6461 | 7031 | 5820 | 1962 | 1330
+        // cam-b651cde4158304 |       512 |       512 |  574 |  560 |  538 |  511
+        // cam-cabd93049d032a |       189 |        69 |  174 |  161 |  132 |  113
+        //
+
         pgdata_billing_transactions = [
             'INSERT INTO fct.billing_transactions (rec_ts,transaction_ts,transaction_id,',
             '   org_id,campaign_id,sign,units,amount) VALUES',
             '(now(),\'' + today + ' 00:00:00+00\',\'t-1\',\'o1\',\'cam-1757d5cd13e383\',-1,987,187.53),',
             '(now(),\'' + today + ' 00:00:00+00\',\'t-1\',\'o1\',\'cam-1757d5cd13e383\',-1,499,94.81),',
             '(now(),\'' + today + ' 00:00:00+00\',\'t-1\',\'o1\',\'cam-1757d5cd13e383\',-1,1345,255.55),',
-            '(now(),\'' + today + ' 00:00:00+00\',\'t-1\',\'o1\',\'cam-1757d5cd13e383\',-1,850,161.50),',
+            '(now(),\'' + today + ' 00:00:00+00\',\'t-1\',\'o1\',\'cam-1757d5cd13e383\',-1,851,161.69),',
             '(now(),\'' + today + ' 00:00:00+00\',\'t-1\',\'o1\',\'cam-1757d5cd13e383\',-1,830,157.70),',
+            '(now(),\'' + today + ' 00:00:00+00\',\'t-1\',\'o1\',\'cam-1757d5cd13e383\',-1,1000,0),',
             '(now(),\'' + today + ' 01:00:00+00\',\'t-2\',\'o1\',\'cam-1757d5cd13e383\',-1,1542,292.98),',
             '(now(),\'' + today + ' 00:00:00+00\',\'t-3\',\'o2\',\'cam-b651cde4158304\',-1,318,34.98),',
             '(now(),\'2015-12-01 00:00:00+00\',\'t-4\',\'o1\',\'cam-1757d5cd13e383\',-1,89,16.91),',
             '(now(),\'2015-12-02 12:00:00+00\',\'t-5\',\'o1\',\'cam-1757d5cd13e383\',-1,209,39.71),',
             '(now(),\'2015-12-03 23:00:00+00\',\'t-6\',\'o1\',\'cam-1757d5cd13e383\',-1,109,20.71),',
             '(now(),\'2015-12-03 23:00:00+00\',\'t-7\',\'o2\',\'cam-b651cde4158304\',-1,194,21.34),',
-            '(now(),\'2015-12-03 23:00:00+00\',\'t-8\',\'o3\',\'cam-cabd93049d032a\',-1,69,3.45);'
+            '(now(),\'2015-12-03 23:00:00+00\',\'t-8\',\'o3\',\'cam-cabd93049d032a\',-1,69,3.45),',
+            '(now(),\'2015-12-03 23:00:00+00\',\'t-9\',\'o3\',\'cam-cabd93049d032a\',-1,120,0);'
         ];
 
         pgdata_campaign_summary_hourly = [
@@ -177,7 +202,7 @@ describe('querybot (E2E)', function(){
             '(\'' + today + ' 01:00:00+00\',\'cam-1757d5cd13e383\',\'shareLink.facebook\',11,0.0000),',
             '(\'' + today + ' 01:00:00+00\',\'cam-1757d5cd13e383\',\'shareLink.twitter\',21,0.0000),',
             '(\'' + today + ' 00:00:00+00\',\'cam-1757d5cd13e383\',\'cardView\',5871,0.0000),',
-            '(\'' + today + ' 00:00:00+00\',\'cam-1757d5cd13e383\',\'completedView\',4512,857.2800),',
+            '(\'' + today + ' 00:00:00+00\',\'cam-1757d5cd13e383\',\'completedView\',5512,876.2800),',
             '(\'' + today + ' 00:00:00+00\',\'cam-1757d5cd13e383\',\'launch\',5871,0.0000),',
             '(\'' + today + ' 00:00:00+00\',\'cam-1757d5cd13e383\',\'link.Action\',151,0.0000),',
             '(\'' + today + ' 00:00:00+00\',\'cam-1757d5cd13e383\',\'link.Facebook\',11,0.0000),',
@@ -250,14 +275,14 @@ describe('querybot (E2E)', function(){
             '(\'2015-12-03 23:00:00+00\',\'cam-b651cde4158304\',\'q3\',202,0.0000),',
             '(\'2015-12-03 23:00:00+00\',\'cam-b651cde4158304\',\'q4\',193,0.0000),',
             '(\'2015-12-03 23:00:00+00\',\'cam-cabd93049d032a\',\'cardView\',99,0.0000),',
-            '(\'2015-12-03 23:00:00+00\',\'cam-cabd93049d032a\',\'completedView\',69,3.4500),',
+            '(\'2015-12-03 23:00:00+00\',\'cam-cabd93049d032a\',\'completedView\',189,9.4500),',
             '(\'2015-12-03 23:00:00+00\',\'cam-cabd93049d032a\',\'launch\',98,0.0000),',
             '(\'2015-12-03 23:00:00+00\',\'cam-cabd93049d032a\',\'link.Website\',6,0.0000),',
             '(\'2015-12-03 23:00:00+00\',\'cam-cabd93049d032a\',\'play\',89,0.0000),',
-            '(\'2015-12-03 23:00:00+00\',\'cam-cabd93049d032a\',\'q1\',84,0.0000),',
-            '(\'2015-12-03 23:00:00+00\',\'cam-cabd93049d032a\',\'q2\',74,0.0000),',
-            '(\'2015-12-03 23:00:00+00\',\'cam-cabd93049d032a\',\'q3\',52,0.0000),',
-            '(\'2015-12-03 23:00:00+00\',\'cam-cabd93049d032a\',\'q4\',30,0.0000);'
+            '(\'2015-12-03 23:00:00+00\',\'cam-cabd93049d032a\',\'q1\',174,0.0000),',
+            '(\'2015-12-03 23:00:00+00\',\'cam-cabd93049d032a\',\'q2\',161,0.0000),',
+            '(\'2015-12-03 23:00:00+00\',\'cam-cabd93049d032a\',\'q3\',132,0.0000),',
+            '(\'2015-12-03 23:00:00+00\',\'cam-cabd93049d032a\',\'q4\',113,0.0000);'
         ];
 
         mockUser = {
@@ -488,10 +513,10 @@ describe('querybot (E2E)', function(){
                     endDate    : '2015-12-31',
                     impressions: 99,
                     views      : 69,
-                    quartile1  : 84,
-                    quartile2  : 74,
-                    quartile3  : 52,
-                    quartile4  : 30,
+                    quartile1  : 63,
+                    quartile2  : 59,
+                    quartile3  : 48,
+                    quartile4  : 41,
                     totalSpend : '3.4500',
                     linkClicks : {
                         website     : 6

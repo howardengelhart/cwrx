@@ -12,7 +12,7 @@ module.exports = function(grunt) {
         player      : 'content,auth,monitor',
         search      : 'auth,monitor',
         userSvc     : 'auth,monitor',
-        querybot    : 'ads,auth,content,monitor,c6postgres,c6postgres::admin',
+        querybot    : 'ads,auth,content,monitor,c6postgres,c6postgres::admin,querybot::initcamp',
         vote        : 'auth,monitor'
     };
 

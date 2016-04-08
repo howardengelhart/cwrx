@@ -1,5 +1,9 @@
 # QueryBot Service Changelog
 
+### 1.4.1: Fri Apr  8 15:27:09 EDT 2016
+* [FIX]: Quartiles adjusting for billable views: [#854](https://github.com/cinema6/cwrx/issues/854)
+* [DEV]: Updates to Vagrant, initcamp to enable auto running of the initcamp.sh script after a vagrant up.  Also, fixed issue with c6postgres breaking vagrant:provision.
+
 ### 1.4.0: Thu Mar 31 18:10:22 EDT 2016
 * [FEATURE]: Use billable_transactions for getting views and spend data [#840)[https://github.com/cinema6/cwrx/issues/840]
 * Extra deployment steps:

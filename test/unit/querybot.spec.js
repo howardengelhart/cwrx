@@ -688,7 +688,72 @@ describe('querybot (UT)', function() {
                     shareClicks : {}
                 }
             });
+            delete lib._state.config.useActualViews;
         });
+
+        it('adds actual view and cost to initialized record using billable views',function(){
+            var obj = lib.processCampaignSummaryRecord(record);
+            record.eventType = 'completedView';
+            lib.processCampaignSummaryRecord(record,obj);
+            expect(obj).toEqual({
+                campaignId : 'abc',
+                summary : {
+                    impressions : 100,
+                    views  : 0,
+                    quartile1 : 0,
+                    quartile2 : 0,
+                    quartile3 : 0,
+                    quartile4 : 0,
+                    totalSpend : '0.0000',
+                    linkClicks : {},
+                    shareClicks : {},
+                    actualViews : 100
+                },
+                today : {
+                    impressions : 0,
+                    views : 0,
+                    quartile1 : 0,
+                    quartile2 : 0,
+                    quartile3 : 0,
+                    quartile4 : 0,
+                    totalSpend : '0.0000',
+                    linkClicks : {},
+                    shareClicks : {}
+                }
+            });
+            
+            record.range = 'today';
+            lib.processCampaignSummaryRecord(record,obj);
+            expect(obj).toEqual({
+                campaignId : 'abc',
+                summary : {
+                    impressions : 100,
+                    views: 0,
+                    actualViews : 100,
+                    quartile1 : 0,
+                    quartile2 : 0,
+                    quartile3 : 0,
+                    quartile4 : 0,
+                    totalSpend : '0.0000',
+                    linkClicks : {},
+                    shareClicks : {}
+                },
+                today : {
+                    impressions : 0,
+                    views : 0,
+                    actualViews : 100,
+                    quartile1 : 0,
+                    quartile2 : 0,
+                    quartile3 : 0,
+                    quartile4 : 0,
+                    totalSpend : '0.0000',
+                    linkClicks : {},
+                    shareClicks : {}
+                }
+            });
+            
+        });
+        
         
         it('adds link click to initialized record',function(){
             var obj = lib.processCampaignSummaryRecord(record);
@@ -818,6 +883,160 @@ describe('querybot (UT)', function() {
                 }
             });
         });
+    });
+
+    describe('adjustCampaignSummary',function(){
+        var summary;
+        beforeEach(function(){
+            summary = {
+                campaignId : 'abc',
+                summary : {
+                    impressions : 0, views : 1000,
+                    quartile1 : 900, quartile2 : 800, quartile3 : 700, quartile4 : 600,
+                    totalSpend : '0.0000', linkClicks : { }, shareClicks : { }
+                },
+                today : {
+                    impressions : 0, views : 100,
+                    quartile1 : 90, quartile2 : 80, quartile3 : 70, quartile4 : 60,
+                    totalSpend : '0.0000',
+                    linkClicks : { facebook : 5}, shareClicks : { twitter: 3 }
+                },
+                range : {
+                    impressions : 0, views : 500,
+                    quartile1 : 400, quartile2 : 300, quartile3 : 200, quartile4 : 100,
+                    totalSpend : '0.0000', linkClicks : {}, shareClicks : {}
+                }
+            };
+        });
+
+        it('does nothing if there are no actual views defined',function(){
+            lib.adjustCampaignSummary(summary);
+            expect(summary.summary).toEqual(jasmine.objectContaining(
+                {  quartile1 : 900, quartile2 : 800, quartile3 : 700, quartile4 : 600 }
+            ));
+            expect(summary.today).toEqual(jasmine.objectContaining(
+                {  quartile1 : 90, quartile2 : 80, quartile3 : 70, quartile4 : 60 }
+            ));
+            expect(summary.range).toEqual(jasmine.objectContaining(
+                {  quartile1 : 400, quartile2 : 300, quartile3 : 200, quartile4 : 100 }
+            ));
+
+        });
+
+        it('does nothing to quartiles if actualViews = views, removes actualViews',function(){
+            summary.summary.actualViews = 1000;
+            summary.today.actualViews = 100;
+            summary.range.actualViews = 500;
+            lib.adjustCampaignSummary(summary);
+            expect(summary.summary).toEqual(jasmine.objectContaining(
+                {  quartile1 : 900, quartile2 : 800, quartile3 : 700, quartile4 : 600 }
+            ));
+            expect(summary.today).toEqual(jasmine.objectContaining(
+                {  quartile1 : 90, quartile2 : 80, quartile3 : 70, quartile4 : 60 }
+            ));
+            expect(summary.range).toEqual(jasmine.objectContaining(
+                {  quartile1 : 400, quartile2 : 300, quartile3 : 200, quartile4 : 100 }
+            ));
+            
+            expect(summary.summary.actualViews).not.toBeDefined();
+            expect(summary.today.actualViews).not.toBeDefined();
+            expect(summary.range.actualViews).not.toBeDefined();
+        });
+
+        it('does nothing to quartiles if actualViews < views, removes actualViews',function(){
+            summary.summary.actualViews = 950;
+            summary.today.actualViews = 95;
+            summary.range.actualViews = 450;
+            lib.adjustCampaignSummary(summary);
+            expect(summary.summary).toEqual(jasmine.objectContaining(
+                {  quartile1 : 900, quartile2 : 800, quartile3 : 700, quartile4 : 600 }
+            ));
+            expect(summary.today).toEqual(jasmine.objectContaining(
+                {  quartile1 : 90, quartile2 : 80, quartile3 : 70, quartile4 : 60 }
+            ));
+            expect(summary.range).toEqual(jasmine.objectContaining(
+                {  quartile1 : 400, quartile2 : 300, quartile3 : 200, quartile4 : 100 }
+            ));
+            
+            expect(summary.summary.actualViews).not.toBeDefined();
+            expect(summary.today.actualViews).not.toBeDefined();
+            expect(summary.range.actualViews).not.toBeDefined();
+        });
+
+        it('adjusts quartiles if actualViews > views, removes actualViews',function(){
+            summary.summary.actualViews = 1100;
+            summary.today.actualViews = 110;
+            summary.range.actualViews = 550;
+            lib.adjustCampaignSummary(summary);
+            expect(summary.summary).toEqual(jasmine.objectContaining(
+                {  quartile1 : 820, quartile2 : 730, quartile3 : 640, quartile4 : 550 }
+            ));
+            expect(summary.today).toEqual(jasmine.objectContaining(
+                {  quartile1 : 82, quartile2 : 73, quartile3 : 64, quartile4 : 55, 
+                    linkClicks : { facebook : 5}, shareClicks : { twitter: 3 } }
+            ));
+            expect(summary.range).toEqual(jasmine.objectContaining(
+                {  quartile1 : 365, quartile2 : 275, quartile3 : 180, quartile4 : 90 }
+            ));
+            
+            expect(summary.summary.actualViews).not.toBeDefined();
+            expect(summary.today.actualViews).not.toBeDefined();
+            expect(summary.range.actualViews).not.toBeDefined();
+        });
+
+        it('adjusts quartiles if actualViews + quartiles > views, removes actualViews',function(){
+            summary.summary =   {  views : 1500, actualViews: 2000,
+                quartile1 : 1900, quartile2 : 1800, quartile3 : 1700, quartile4 : 1600 };
+            summary.today   =   {  views : 150, actualViews: 200,
+                quartile1 : 190, quartile2 : 180, quartile3 : 170, quartile4 : 160 };
+            summary.range   =   {  views : 500, actualViews: 1000,
+                quartile1 : 900, quartile2 : 800, quartile3 : 700, quartile4 : 600 };
+
+            lib.adjustCampaignSummary(summary);
+            expect(summary.summary).toEqual(jasmine.objectContaining(
+                {  quartile1 : 1425, quartile2 : 1350, quartile3 : 1275, quartile4 : 1200 }
+            ));
+            expect(summary.today).toEqual(jasmine.objectContaining(
+                {  quartile1 : 143, quartile2 : 135, quartile3 : 128, quartile4 : 120 }
+            ));
+            expect(summary.range).toEqual(jasmine.objectContaining(
+                {  quartile1 : 450, quartile2 : 400, quartile3 : 350, quartile4 : 300 }
+            ));
+            
+            expect(summary.summary.actualViews).not.toBeDefined();
+            expect(summary.today.actualViews).not.toBeDefined();
+            expect(summary.range.actualViews).not.toBeDefined();
+        });
+
+        it('adjusts quartiles if actualViews > views and quartiles > actualViews, removes actualViews',function(){
+            summary.today   =   {  views : 150, actualViews: 200,
+                quartile1 : 300, quartile2 : 250, quartile3 : 200, quartile4 : 150 };
+
+            lib.adjustCampaignSummary(summary);
+            expect(summary.today).toEqual(jasmine.objectContaining(
+                {  quartile1 : 225, quartile2 : 188, quartile3 : 150, quartile4 : 113 }
+            ));
+            
+            expect(summary.today.actualViews).not.toBeDefined();
+        });
+
+        
+        it('handles 0 views',function(){
+            summary.today   =   {  views : 0, actualViews: 20,
+                quartile1 : 19, quartile2 : 18, quartile3 : 17, quartile4 : 16, 
+                linkClicks : { facebook : 5}, shareClicks : { twitter: 3 }
+            };
+            lib.adjustCampaignSummary(summary);
+            expect(summary.today).toEqual(jasmine.objectContaining(
+                {  
+                    quartile1 : 0, quartile2 : 0, quartile3 : 0, quartile4 : 0,
+                    linkClicks : { }, shareClicks : { }
+                }
+            ));
+            
+            expect(summary.today.actualViews).not.toBeDefined();
+        });
+
     });
 
     describe('queryCampaignSummary',function(){
