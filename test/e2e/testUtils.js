@@ -230,12 +230,17 @@ testUtils.Mockman.prototype.start = function() {
                 
                 if (!!resp.Records && resp.Records.length > 0) {
                     resp.Records.forEach(function(record) {
-                        var dataStr = record.Data.toString(),
-                            jsonData;
+                        var dataStr, jsonData;
+                        if (typeof record.data === 'string') {
+                            dataStr = new Buffer(record.Data, 'base64').toString();
+                        } else {
+                            dataStr = record.Data.toString();
+                        }
+                    
                         try {
                             jsonData = JSON.parse(dataStr);
                         } catch(e) {
-                            console.log(util.format('Mockman: error parsing data for record %s: %s', record.SequenceNumber, util.inspect(e)));
+                            console.log(util.format('Mockman: error parsing data for record %s: %s, data = %s', record.SequenceNumber, util.inspect(e), dataStr));
                             return;
                         }
                         
