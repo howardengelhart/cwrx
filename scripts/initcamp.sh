@@ -99,7 +99,8 @@ configDb()
     psql -c "GRANT USAGE, SELECT ON fct.billing_transactions_rec_key_seq TO editor;" > /dev/null
 }
 
-psql -tAc "select 1 from pg_roles where rolname = 'sixxy'" > /dev/null
+echo "Check if init required."
+psql -tAc "select 1 from pg_roles where rolname = 'sixxy'"
 INIT_CHECK=$?
 if [ $INIT_CHECK -eq "0" ]
 then
