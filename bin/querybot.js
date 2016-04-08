@@ -197,9 +197,42 @@ lib.setCampaignDataInCache = function(data,startDate,endDate,keyScope){
     });
 };
 
+// Because we maybe returning only the billable views, which may be less than the total views
+// we have to account for quartiles that may exceed the number of billable views.  This function
+// will scale the quartiles down, based on the ration of quartile events to actual views, being
+// applied to the billable views for each quartile. This method also makes sure we don't end up
+// showing clicks in the weird scneario that there may 0 billable views.  Which generally shouldn't
+// happen.
+//
+lib.adjustCampaignSummary = function(summary) {
+    var section, sectionKey, ratio, actualViews, i, quartile;
+    for (sectionKey in summary) {
+        section = summary[sectionKey];
+        actualViews = section.actualViews;
+        delete section.actualViews;
+
+        if (!actualViews)                   { continue; }
+        if (section.views >= actualViews)   { continue; }
+
+        for (i = 1; i <= 4; i++) {
+            quartile = 'quartile' + i;
+            if (section[quartile] > 0) {
+                ratio = Math.round((section[quartile] / actualViews) * 100) / 100;
+                section[quartile] = Math.round(section.views * ratio);
+            }
+        }
+
+        if (!section.views) {
+            section.linkClicks  = {};
+            section.shareClicks = {};
+        }
+    }
+
+    return summary;
+};
+
 lib.processCampaignSummaryRecord = function(record, obj, startDate, endDate) {
-    var m, eventCount = parseInt(record.eventCount,10), sub, viewEventName ;
-    viewEventName = state.config.useActualViews ? 'completedView' : 'billableView' ;
+    var m, eventCount = parseInt(record.eventCount,10), sub ;
     if (isNaN(eventCount)){
         eventCount = 0;
     }
@@ -270,9 +303,17 @@ lib.processCampaignSummaryRecord = function(record, obj, startDate, endDate) {
     if (record.eventType === 'q4') {
         sub.quartile4 = eventCount;
     } else
-    if (record.eventType === viewEventName) {
-        sub.views       = eventCount;
-        sub.totalSpend  = record.eventCost;
+    if (record.eventType === 'completedView') {
+        if (state.config.useActualViews) {
+            sub.views       = eventCount;
+            sub.totalSpend  = record.eventCost;
+        } else {
+            sub.actualViews = eventCount;
+        }
+    } else
+    if ((record.eventType === 'billableView') && (!state.config.useActualViews)) {
+        sub.views           = eventCount;
+        sub.totalSpend      = record.eventCost;
     } else  {
         m = record.eventType.match(/shareLink\.(.*)/);
         if (m) {
@@ -376,7 +417,7 @@ lib.queryCampaignSummary = function(campaignIds,startDate,endDate) {
     return pgUtils.query(statement.join('\n'),
         [campaignIds,['launch','load','play','impression','requestPlayer']])
         .then(function(result){
-            var res ;
+            var res, campId ;
             result.rows.forEach(function(row){
                 if (res === undefined) {
                     res = {};
@@ -384,7 +425,13 @@ lib.queryCampaignSummary = function(campaignIds,startDate,endDate) {
                 res[row.campaignId] = lib.processCampaignSummaryRecord(
                     row,res[row.campaignId],startDate,endDate
                 );
+
             });
+
+            for (campId in res) {
+                lib.adjustCampaignSummary(res[campId]);
+            }
+
             return res;
         });
 };

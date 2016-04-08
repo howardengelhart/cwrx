@@ -100,14 +100,13 @@ configDb()
 }
 
 echo "Check if init required."
-INIT_CHECK_RES=`psql -tAc "select 1 from pg_roles where rolname = 'sixxy'" 2>&1`
+`psql -tAc "select 1 from pg_roles where rolname = 'sixxy'" 2>&1`
 INIT_CHECK=$?
 if [ $INIT_CHECK -eq "0" ]
 then
     initDb
 else
     echo "Postgres already initialized."
-    echo "CHECK RESULT: ${INIT_CHECK_RES}"
 fi
 
 configDb

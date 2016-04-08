@@ -108,7 +108,9 @@ Vagrant.configure("2") do |config|
         "recipe[maint]"
     ]
     
-    svcs = ['ads', 'collateral', 'content', 'geo', 'monitor', 'orgSvc', 'player', 'search', 'userSvc', 'vote', 'querybot', 'c6postgres', 'accountant', 'c6postgres::admin']
+    svcs = [ 'ads', 'collateral', 'content', 'geo', 'monitor', 'orgSvc', 'player', 'search',
+             'userSvc', 'vote', 'querybot', 'c6postgres', 'accountant', 'c6postgres::admin',
+             'querybot::initcamp']
     
     if ENV['CWRX_APP'] == 'all'
         chosen = svcs
