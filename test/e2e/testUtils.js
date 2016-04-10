@@ -245,6 +245,9 @@ testUtils.Mockman.prototype.start = function() {
                         }
                         
                         self.emit('data', jsonData);
+                        if(jsonData.type) {
+                            self.emit(jsonData.type, jsonData);
+                        }
                     });
                 }
             })

@@ -87,6 +87,9 @@ Vagrant.configure("2") do |config|
             :cfg => {
                 :loglevel => "trace",
                 :sessions => { :mongo => { :host => "127.0.0.1" } },
+            },
+            :kinesis => {
+                :streamName => 'devCwrxStream-' + ENV['USER']
             }
         },
         :maint => {
@@ -157,7 +160,7 @@ Vagrant.configure("2") do |config|
         if svc == 'ads'
             chef.json[svc][:kinesis] = { :streamName => 'devCwrxStream-' + ENV['USER'] }
         end
-
+        
         if svc == 'geo'
             chef.json[svc][:config] = {
                 "sessions" => {

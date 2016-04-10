@@ -13,7 +13,13 @@ var q               = require('q'),
     };
 
 describe('auth (E2E):', function() {
-    var now, mockUser, mockPol, mockApp, appCreds, mailman;
+    var now, mockUser, mockPol, mockApp, appCreds, mailman, mockman;
+    
+    beforeAll(function(done) {
+        mockman = new testUtils.Mockman();
+        mockman.start().then(done, done.fail);
+    });
+    
     beforeEach(function(done) {
         jasmine.DEFAULT_TIMEOUT_INTERVAL = 30000;
 
@@ -297,6 +303,58 @@ describe('auth (E2E):', function() {
                     expect(msg.html).toMatch(regex);
                     expect(new Date() - msg.date).toBeLessThan(30000); // message should be recent
                     
+                    getCacheValue().then(function(value) {
+                        expect(value).toBe(3);
+                        return attemptLogin();
+                    }).then(function() {
+                        return getCacheValue();
+                    }).then(function(value) {
+                        expect(value).toBe(4);
+                    }).done(done);
+                });
+            });
+            
+            it('should produce the failedLogins event after three failed logins', function(done) {
+                var attemptLogin = function() {
+                    var options = {
+                        url: config.authUrl + '/login',
+                        json: {
+                            email: 'c6e2etester@gmail.com',
+                            password: 'notpassword'
+                        }
+                    };
+                    return requestUtils.qRequest('post', options);
+                };
+                
+                var getCacheValue = function() {
+                    return cacheConn.checkConnection().then(function() {
+                        return cacheConn.get('loginAttempts:u-1');
+                    });
+                };
+                
+                attemptLogin().then(function() {
+                    return getCacheValue();
+                }).then(function(value) {
+                    expect(value).toBe(1);
+                    return attemptLogin();
+                }).then(function() {
+                    return getCacheValue();
+                }).then(function(value) {
+                    expect(value).toBe(2);
+                    return attemptLogin();
+                }).catch(function(error) {
+                    expect(util.inspect(error)).not.toBeDefined();
+                    done();
+                });
+
+                mockman.once('failedLogins', function(record) {
+                    expect(record.data.user.password).not.toBeDefined();
+                    expect(record.data.user).toEqual(jasmine.objectContaining({
+                        id: 'u-1',
+                        status: 'active',
+                        email: 'c6e2etester@gmail.com'
+                    }));
+                    expect(new Date(record.data.date)).not.toBe(NaN);
                     getCacheValue().then(function(value) {
                         expect(value).toBe(3);
                         return attemptLogin();
@@ -669,6 +727,28 @@ describe('auth (E2E):', function() {
                 done();
             });
         });
+        
+        it('should produce a forgotPassword event', function(done) {
+            requestUtils.qRequest('post', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.body).toBe('Successfully generated reset token');
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+                done();
+            });
+            mockman.once('forgotPassword', function(record) {
+                expect(record.data.user.password).not.toBeDefined();
+                expect(record.data.user).toEqual(jasmine.objectContaining({
+                    id: 'u-1',
+                    status: 'active',
+                    email: 'c6e2etester@gmail.com'
+                }));
+                expect(record.data.target).toBe('portal');
+                expect(record.data.token).toEqual(jasmine.any(String));
+                expect(new Date(record.data.date)).not.toBe(NaN);
+                done();
+            });
+        });
 
         it('should write an entry to the audit collection', function(done) {
             requestUtils.qRequest('post', options).then(function(resp) {
@@ -790,6 +870,55 @@ describe('auth (E2E):', function() {
                 expect(msg.text).toMatch(regex);
                 expect(msg.html).toMatch(regex);
                 expect((new Date() - msg.date)).toBeLessThan(30000); // message should be recent
+
+                var loginOpts = {
+                    url: config.authUrl + '/login',
+                    json: { email: 'c6e2etester@gmail.com', password: 'newPass' }
+                };
+                requestUtils.qRequest('post', loginOpts).then(function(resp) {
+                    expect(resp.response.statusCode).toBe(200);
+                    expect(resp.body).toBeDefined();
+                    expect(resp.response.headers['set-cookie'].length).toBe(1);
+                }).catch(function(error) {
+                    expect(util.inspect(error)).not.toBeDefined();
+                }).done(done);
+            });
+        });
+        
+        it('should produce the passwordChanged event', function(done) {
+            testUtils.resetCollection('users', mockUser).then(function() {
+                return requestUtils.qRequest('post', options);
+            }).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.body).toEqual({
+                    id: 'u-1',
+                    email: 'c6e2etester@gmail.com',
+                    status: 'active',
+                    created: now.toISOString(),
+                    lastUpdated: jasmine.any(String),
+                    policies: ['testPol'],
+                    permissions: {
+                        users: { read: 'all' }
+                    },
+                    fieldValidation: {},
+                    entitlements: {},
+                    applications: []
+                });
+                expect(resp.response.headers['set-cookie'].length).toBe(1);
+                expect(resp.response.headers['set-cookie'][0]).toMatch(/^c6Auth=.+/);
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+                done();
+            });
+
+            mockman.once('passwordChanged', function(record) {
+                expect(new Date(record.data.date)).not.toBe(NaN);
+                expect(record.data.user.password).not.toBeDefined();
+                expect(record.data.user).toEqual(jasmine.objectContaining({
+                    id: 'u-1',
+                    status: 'active',
+                    email: 'c6e2etester@gmail.com'
+                }));
 
                 var loginOpts = {
                     url: config.authUrl + '/login',
