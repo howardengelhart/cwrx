@@ -10,6 +10,7 @@
   [#838](https://github.com/cinema6/cwrx/pull/838/files)
 * Extra deployment steps:
     * Ensure watchman app has necessary permissions to `POST /api/payments`
+    * Ensure watchman app has `permissions.orgs.edit === 'all'` and `fieldValidation.orgs.promotions.__allowed === true`
     * Update nightly_build and orgSvc jobs to create + destroy watchman streams
     * Deploy version 1.2.0 of orgSvc cookbook
 

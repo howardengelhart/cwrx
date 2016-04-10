@@ -204,6 +204,55 @@ describe('orgSvc-orgs (UT)', function() {
                 });
             });
         });
+        
+        describe('when handling promotions', function() {
+            beforeEach(function() {
+                requester.fieldValidation.orgs.promotions = {};
+            });
+            
+            it('should trim the field if set', function() {
+                newObj.promotions = [{ id: 'pro-1', date: new Date() }];
+                expect(svc.model.validate('create', newObj, origObj, requester))
+                    .toEqual({ isValid: true, reason: undefined });
+                expect(newObj.promotions).not.toBeDefined();
+            });
+            
+            describe('if the requester can set the field', function() {
+                beforeEach(function() {
+                    requester.fieldValidation.orgs.promotions.__allowed = true;
+                });
+
+                it('should succeed', function() {
+                    newObj.promotions = [{ id: 'pro-1', date: new Date('2016-04-10T00:25:32.645Z') }];
+                    expect(svc.model.validate('create', newObj, origObj, requester))
+                        .toEqual({ isValid: true, reason: undefined });
+                    expect(newObj.promotions).toEqual([{ id: 'pro-1', date: new Date('2016-04-10T00:25:32.645Z') }]);
+                });
+                
+                it('should cast a string date into a Date object', function() {
+                    newObj.promotions = [{ id: 'pro-1', date: '2016-04-10T00:25:32.645Z' }];
+                    expect(svc.model.validate('create', newObj, origObj, requester))
+                        .toEqual({ isValid: true, reason: undefined });
+                    expect(newObj.promotions).toEqual([{ id: 'pro-1', date: new Date('2016-04-10T00:25:32.645Z') }]);
+                });
+                
+                it('should fail if the field is not an object array', function() {
+                    newObj.promotions = ['foo', 'bar'];
+                    expect(svc.model.validate('create', newObj, origObj, requester))
+                        .toEqual({ isValid: false, reason: 'promotions must be in format: objectArray' });
+                });
+
+                it('should fail if the id or date are in the wrong format', function() {
+                    newObj.promotions = [{ id: 1234, date: new Date('2016-04-10T00:25:32.645Z') }];
+                    expect(svc.model.validate('create', newObj, origObj, requester))
+                        .toEqual({ isValid: false, reason: 'promotions[0].id must be in format: string' });
+                        
+                    newObj.promotions = [{ id: 'pro-1', date: { today: 'yes' } }];
+                    expect(svc.model.validate('create', newObj, origObj, requester))
+                        .toEqual({ isValid: false, reason: 'promotions[0].date must be in format: Date' });
+                });
+            });
+        });
     });
     
     describe('createPermCheck', function() {
