@@ -1,5 +1,6 @@
 # User Service Changelog
 
+* Validate `promotion` on signup: [#857](https://github.com/cinema6/cwrx/pull/857)
 * [FEATURE]: Add ability to give orgs a `paymentPlanId` when they are
   created via `POST /api/account/users/confirm/:id`: [#838](https://github.com/cinema6/cwrx/pull/838/files)
 

@@ -84,6 +84,10 @@
         paymentPlanId: {
             __allowed: false,
             __type: 'string'
+        },
+        promotion: {
+            __allowed: false,
+            __type: 'string'
         }
     };
 
@@ -120,6 +124,7 @@
             config.emails.sender, config.emails.activationTarget);
         var setupSignupUser = userModule.setupSignupUser.bind(userModule, userSvc,
             config.newUserPermissions.roles, config.newUserPermissions.policies);
+        var validatePromotion = userModule.validatePromotion.bind(userModule, userSvc);
         var checkValidToken = userModule.checkValidToken.bind(userModule, userSvc);
         var createLinkedEntities = userModule.createLinkedEntities.bind(userModule, config,
             cache, userSvc, appCreds);
@@ -157,6 +162,7 @@
         userSvc.use('signupUser', hashPassword);
         userSvc.use('signupUser', userModule.setupUser);
         userSvc.use('signupUser', validateUniqueEmail);
+        userSvc.use('signupUser', validatePromotion);
         userSvc.use('signupUser', giveActivationToken);
         if(emailingEnabled) {
             userSvc.use('signupUser', sendActivationEmail);
@@ -181,6 +187,7 @@
         var signupSchema = JSON.parse(JSON.stringify(svc.model.schema));
         signupSchema.referralCode.__allowed = true;
         signupSchema.paymentPlanId.__allowed = true;
+        signupSchema.promotion.__allowed = true;
 
         return new Model('users', signupSchema);
     };
@@ -406,6 +413,37 @@
         newUser.email = newUser.email.toLowerCase();
 
         return next();
+    };
+
+    // If a signup user has a `promotion`, check that it exists, is active, and is a signupReward
+    userModule.validatePromotion = function validatePromotion(svc, req, next, done) {
+        var log = logger.getLog();
+        
+        if (!req.body.promotion) {
+            return q(next());
+        }
+        
+        return mongoUtils.findObject(
+            svc._db.collection('promotions'),
+            { id: req.body.promotion, status: Status.Active, type: 'signupReward' }
+        )
+        .then(function(prom) {
+            if (prom) {
+                return next();
+            }
+            
+            log.info('[%1] User trying to signup with invalid signup promotion %2',
+                     req.uuid, req.body.promotion);
+            return done({
+                code: 400,
+                body: 'Invalid promotion'
+            });
+        })
+        .catch(function(error) {
+            log.error('[%1] Failed looking up promotion %2: %3',
+                      req.uuid, req.body.promotion, inspect(error));
+            return q.reject('Failed validating promotion');
+        });
     };
 
     // Give the user an activation token.
