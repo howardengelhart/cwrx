@@ -449,29 +449,31 @@ describe('userSvc (UT)', function() {
             });
         });
 
-        describe('when handling referralCode', function() {
-            it('should trim the field if set', function() {
-                newObj.referralCode = '123456';
-                expect(svc.model.validate('create', newObj, origObj, requester))
-                    .toEqual({ isValid: true, reason: undefined });
-                expect(newObj.referralCode).not.toBeDefined();
-            });
-            
-            it('should be able to allow some requesters to set the field', function() {
-                newObj.referralCode = '123456';
-                requester.fieldValidation.users.referralCode = { __allowed: true };
+        ['referralCode', 'paymentPlanId', 'promotion'].forEach(function(field) {
+            describe('when handling ' + field, function() {
+                it('should trim the field if set', function() {
+                    newObj[field] = '123456';
+                    expect(svc.model.validate('create', newObj, origObj, requester))
+                        .toEqual({ isValid: true, reason: undefined });
+                    expect(newObj[field]).not.toBeDefined();
+                });
+                
+                it('should be able to allow some requesters to set the field', function() {
+                    newObj[field] = '123456';
+                    requester.fieldValidation.users[field] = { __allowed: true };
 
-                expect(svc.model.validate('create', newObj, origObj, requester))
-                    .toEqual({ isValid: true, reason: undefined });
-                expect(newObj.referralCode).toEqual('123456');
-            });
-            
-            it('should fail if the field is not a string', function() {
-                newObj.referralCode = 123456;
-                requester.fieldValidation.users.referralCode = { __allowed: true };
+                    expect(svc.model.validate('create', newObj, origObj, requester))
+                        .toEqual({ isValid: true, reason: undefined });
+                    expect(newObj[field]).toEqual('123456');
+                });
+                
+                it('should fail if the field is not a string', function() {
+                    newObj[field] = 123456;
+                    requester.fieldValidation.users[field] = { __allowed: true };
 
-                expect(svc.model.validate('create', newObj, origObj, requester))
-                    .toEqual({ isValid: false, reason: 'referralCode must be in format: string' });
+                    expect(svc.model.validate('create', newObj, origObj, requester))
+                        .toEqual({ isValid: false, reason: field + ' must be in format: string' });
+                });
             });
         });
     });
@@ -493,8 +495,12 @@ describe('userSvc (UT)', function() {
             expect(newModel.schema.paymentPlanId.__allowed).toBe(true);
             expect(svc.model.schema.paymentPlanId.__allowed).toBe(false);
 
+            expect(newModel.schema.promotion.__allowed).toBe(true);
+            expect(svc.model.schema.promotion.__allowed).toBe(false);
+
             newModel.schema.referralCode.__allowed = false;
             newModel.schema.paymentPlanId.__allowed = false;
+            newModel.schema.promotion.__allowed = false;
             expect(newModel.schema).toEqual(svc.model.schema);
         });
     });

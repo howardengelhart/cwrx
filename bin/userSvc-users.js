@@ -84,6 +84,10 @@
         paymentPlanId: {
             __allowed: false,
             __type: 'string'
+        },
+        promotion: {
+            __allowed: false,
+            __type: 'string'
         }
     };
 
@@ -181,6 +185,7 @@
         var signupSchema = JSON.parse(JSON.stringify(svc.model.schema));
         signupSchema.referralCode.__allowed = true;
         signupSchema.paymentPlanId.__allowed = true;
+        signupSchema.promotion.__allowed = true;
 
         return new Model('users', signupSchema);
     };

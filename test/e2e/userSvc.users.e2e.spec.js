@@ -1694,8 +1694,9 @@ describe('userSvc users (E2E):', function() {
             });
         });
         
-        it('should save a referralCode if set', function(done) {
+        it('should save a referralCode and promotion if set', function(done) {
             options.json.referralCode = 'asdf123456';
+            options.json.promotion = 'pro-1';
 
             mailman.once(msgSubject, function(msg) {
                 expect(msg.from[0].address).toBe('no-reply@cinema6.com');
@@ -1712,6 +1713,7 @@ describe('userSvc users (E2E):', function() {
                     id: jasmine.any(String),
                     status: 'new',
                     referralCode: 'asdf123456',
+                    promotion: 'pro-1',
                     external: true
                 }));
             }).catch(function(error) {

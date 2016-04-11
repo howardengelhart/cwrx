@@ -39,6 +39,20 @@
         referralCode: {
             __allowed: false,
             __type: 'string'
+        },
+        promotions: {
+            __allowed: false,
+            __type: 'objectArray',
+            __entries: {
+                id: {
+                    __allowed: true,
+                    __type: 'string'
+                },
+                date: {
+                    __allowed: true,
+                    __type: 'Date'
+                }
+            }
         }
     };
 
