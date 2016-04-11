@@ -1888,7 +1888,12 @@ describe('userSvc users (E2E):', function() {
         
         it('should be able to produce an accountCreated event', function(done) {
             requestUtils.qRequest('post', options).then(function(resp) {
-                mockman.once('accountCreated', function(record) {
+                mockman.on('accountCreated', function(record) {
+                    
+                    if (record.data.user.id !== resp.body.id) {
+                        return;
+                    }
+                    
                     expect(record.data.target).toBe('selfie');
                     expect(record.data.token).toEqual(jasmine.any(String));
                     expect(new Date(record.data.date)).not.toBe(NaN);
