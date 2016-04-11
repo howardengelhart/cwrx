@@ -1,7 +1,7 @@
 # User Service Changelog
 
+### 3.4.0: Mon Apr 11 12:31:33 EDT 2016
 * Produce certain user account events to a Kinesis stream
-* Validate `promotion` on signup: [#857](https://github.com/cinema6/cwrx/pull/857)
 * [FEATURE]: Add ability to give orgs a `paymentPlanId` when they are
   created via `POST /api/account/users/confirm/:id`: [#838](https://github.com/cinema6/cwrx/pull/838/files)
 * Extra deployment steps:
