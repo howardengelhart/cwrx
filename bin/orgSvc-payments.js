@@ -767,7 +767,7 @@
     payModule.setupEndpoints = function(app, orgSvc, gateway, appCreds, sessions, audit,
                                                                                   jobManager) {
         var router      = express.Router({ mergeParams: true }),
-            mountPath   = '/api/payments'; // prefix to these endpoints
+            mountPath   = '/api/payments?'; // prefix to these endpoints
             
         router.use(jobManager.setJobTimeout.bind(jobManager));
         
