@@ -122,7 +122,7 @@ describe('userSvc (UT)', function() {
             [CrudSvc.prototype.validateUniqueProp, userModule.checkExistingWithNewEmail,
              userModule.hashProp, userModule.validateRoles, userModule.validatePolicies, userModule.setupSignupUser,
              userModule.giveActivationToken, userModule.sendActivationEmail, userModule.checkValidToken,
-             userModule.createLinkedEntities, userModule.sendConfirmationEmail, userModule.validatePromotion].forEach(function(fn) {
+             userModule.createLinkedEntities, userModule.sendConfirmationEmail].forEach(function(fn) {
                 spyOn(fn, 'bind').and.callFake(function() {
                     var boundFn = bind.apply(fn, arguments);
 
@@ -231,10 +231,6 @@ describe('userSvc (UT)', function() {
         it('should validate a unique email address when signing up a user', function() {
             expect(result.validateUniqueProp.bind).toHaveBeenCalledWith(result, 'email', null);
             expect(result._middleware.signupUser).toContain(getBoundFn(result.validateUniqueProp, [result, 'email', null]));
-        });
-
-        it('should validate a promotion when signing up a user', function() {
-            expect(result._middleware.signupUser).toContain(getBoundFn(userModule.validatePromotion, [userModule, result]));
         });
 
         it('should give an activation token when signing up a user', function() {
@@ -953,62 +949,6 @@ describe('userSvc (UT)', function() {
 
         it('should not call done', function() {
             expect(done).not.toHaveBeenCalled();
-        });
-    });
-    
-    describe('validatePromotion', function() {
-        var promResp, svc;
-        beforeEach(function() {
-            promResp = { id: 'pro-1', status: Status.Active, type: 'signupReward', data: {} };
-            spyOn(mongoUtils, 'findObject').and.callFake(function() { return q(promResp); });
-            req.body = {
-                email: 'foo@bar.com',
-                promotion: 'pro-1'
-            };
-            svc = { _db: mockDb };
-        });
-        
-        it('should skip if the new user has no promotion', function(done) {
-            delete req.body.promotion;
-            userModule.validatePromotion(svc, req, nextSpy, doneSpy).catch(errorSpy).finally(function() {
-                expect(nextSpy).toHaveBeenCalled();
-                expect(doneSpy).not.toHaveBeenCalled();
-                expect(errorSpy).not.toHaveBeenCalled();
-                expect(mongoUtils.findObject).not.toHaveBeenCalled();
-                expect(mockLog.error).not.toHaveBeenCalled();
-            }).done(done);
-        });
-        
-        it('should query the db for the promotion and call next', function(done) {
-            userModule.validatePromotion(svc, req, nextSpy, doneSpy).catch(errorSpy).finally(function() {
-                expect(nextSpy).toHaveBeenCalled();
-                expect(doneSpy).not.toHaveBeenCalled();
-                expect(errorSpy).not.toHaveBeenCalled();
-                expect(req.body.promotion).toBe('pro-1');
-                expect(mongoUtils.findObject).toHaveBeenCalledWith({ collectionName: 'promotions' },
-                    { id: 'pro-1', status: Status.Active, type: 'signupReward' });
-                expect(mockLog.error).not.toHaveBeenCalled();
-            }).done(done);
-        });
-        
-        it('should trim the property if no promotion is found', function(done) {
-            promResp = q();
-            userModule.validatePromotion(svc, req, nextSpy, doneSpy).catch(errorSpy).finally(function() {
-                expect(nextSpy).toHaveBeenCalled();
-                expect(doneSpy).not.toHaveBeenCalled();
-                expect(errorSpy).not.toHaveBeenCalled();
-                expect(mockLog.error).not.toHaveBeenCalled();
-            }).done(done);
-        });
-        
-        it('should reject if mongo fails', function(done) {
-            promResp = q.reject('I GOT A PROBLEM');
-            userModule.validatePromotion(svc, req, nextSpy, doneSpy).catch(errorSpy).finally(function() {
-                expect(nextSpy).not.toHaveBeenCalled();
-                expect(doneSpy).not.toHaveBeenCalled();
-                expect(errorSpy).toHaveBeenCalledWith('Failed validating promotion');
-                expect(mockLog.error).toHaveBeenCalled();
-            }).done(done);
         });
     });
 

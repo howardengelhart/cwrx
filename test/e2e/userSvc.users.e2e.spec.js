@@ -1634,7 +1634,7 @@ describe('userSvc users (E2E):', function() {
     });
 
     describe('POST /api/account/users/signup', function() {
-        var mockUser, mockRoles, mockPols, mockProms, options, msgSubject;
+        var mockUser, mockRoles, mockPols, options, msgSubject;
         beforeEach(function(done) {
             msgSubject = 'Welcome to Reelcontent Video Ads!';
             mockUser = {
@@ -1655,16 +1655,10 @@ describe('userSvc users (E2E):', function() {
                 { id: 'p-3', name: 'pol3', status: 'active', priority: 1 },
                 { id: 'p-4', name: 'newUserPolicy', status: 'active', priority: 1}
             ];
-            mockProms = [
-                { id: 'pro-valid', status: 'active', type: 'signupReward', data: {} },
-                { id: 'pro-loyalty', status: 'active', type: 'loyaltyReward', data: {} },
-                { id: 'pro-inactive', status: 'inactive', type: 'signupReward', data: {} }
-            ];
             options = { url: config.usersUrl + '/signup', json: mockUser };
             q.all([
                 testUtils.resetCollection('users', [mockRequester, mockAdmin]),
                 testUtils.resetCollection('roles', mockRoles),
-                testUtils.resetCollection('promotions', mockProms),
                 testUtils.resetCollection('policies', mockPols.concat(testPolicies))
             ]).done(function() {
                 done();
@@ -1700,8 +1694,9 @@ describe('userSvc users (E2E):', function() {
             });
         });
         
-        it('should save a referralCode if set', function(done) {
+        it('should save a referralCode and promotion if set', function(done) {
             options.json.referralCode = 'asdf123456';
+            options.json.promotion = 'pro-1';
 
             mailman.once(msgSubject, function(msg) {
                 expect(msg.from[0].address).toBe('no-reply@cinema6.com');
@@ -1718,57 +1713,12 @@ describe('userSvc users (E2E):', function() {
                     id: jasmine.any(String),
                     status: 'new',
                     referralCode: 'asdf123456',
+                    promotion: 'pro-1',
                     external: true
                 }));
             }).catch(function(error) {
                 expect(util.inspect(error)).not.toBeDefined();
                 done();
-            });
-        });
-        
-        describe('when setting a promotion id', function() {
-            it('should succeed if the promotion is valid', function(done) {
-                options.json.promotion = 'pro-valid';
-
-                mailman.once(msgSubject, function(msg) {
-                    expect(msg.from[0].address).toBe('no-reply@cinema6.com');
-                    expect(msg.to[0].address).toBe('c6e2etester@gmail.com');
-                    done();
-                });
-            
-                requestUtils.qRequest('post', options).then(function(resp) {
-                    expect(resp.response.statusCode).toBe(201);
-                    expect(resp.body).toEqual(jasmine.objectContaining({
-                        id: jasmine.any(String),
-                        status: 'new',
-                        promotion: 'pro-valid'
-                    }));
-                }).catch(function(error) {
-                    expect(util.inspect(error)).not.toBeDefined();
-                    done();
-                });
-            });
-
-            it('should trim the property if the promotion is not valid', function(done) {
-                options.json.promotion = 'pro-inactive';
-
-                mailman.once(msgSubject, function(msg) {
-                    expect(msg.from[0].address).toBe('no-reply@cinema6.com');
-                    expect(msg.to[0].address).toBe('c6e2etester@gmail.com');
-                    done();
-                });
-                
-                requestUtils.qRequest('post', options).then(function(resp) {
-                    expect(resp.response.statusCode).toBe(201);
-                    expect(resp.body).toEqual(jasmine.objectContaining({
-                        id: jasmine.any(String),
-                        status: 'new'
-                    }));
-                    expect(resp.body.promotion).not.toBeDefined();
-                }).catch(function(error) {
-                    expect(util.inspect(error)).not.toBeDefined();
-                    done();
-                });
             });
         });
 
