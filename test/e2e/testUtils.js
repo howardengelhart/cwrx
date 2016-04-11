@@ -196,7 +196,7 @@ testUtils.Mockman = function(opts) {
 
     aws.config.loadFromPath(awsAuth);
     
-    self.kinesis = new aws.Kinesis();
+    self.kinesis = new aws.Kinesis({ region: 'us-east-1' });
     self.streamName = opts.streamName || process.env.streamName || 'devCwrxStream-jenkins';
     self.shardId = opts.shardId || 'shardId-000000000000';
     self.shardIterator = null;
@@ -245,6 +245,9 @@ testUtils.Mockman.prototype.start = function() {
                         }
                         
                         self.emit('data', jsonData);
+                        if(jsonData.type) {
+                            self.emit(jsonData.type, jsonData);
+                        }
                     });
                 }
             })

@@ -103,6 +103,10 @@
             urlPrefix: '/api/adjobs',
             timeout: 5*1000,
             cacheTTL: 60*60*1000,
+        },
+        kinesis: {
+            streamName: 'devCwrxStream',
+            region: 'us-east-1'
         }
     };
 

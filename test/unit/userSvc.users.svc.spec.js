@@ -1,7 +1,7 @@
 var flush = true;
 describe('userSvc (UT)', function() {
     var userModule, q, bcrypt, mockLog, uuid, logger, CrudSvc, Model, mongoUtils, email, crypto, authUtils,
-        CacheMutex, requestUtils, objUtils, req, userSvc, mockDb, mockConfig, nextSpy, doneSpy, errorSpy, mockCache, appCreds;
+        CacheMutex, requestUtils, objUtils, req, userSvc, mockDb, mockConfig, nextSpy, doneSpy, errorSpy, mockCache, appCreds, streamUtils;
 
     var enums = require('../../lib/enums'),
         Status = enums.Status,
@@ -23,6 +23,7 @@ describe('userSvc (UT)', function() {
         email           = require('../../lib/email');
         CacheMutex      = require('../../lib/cacheMutex.js');
         requestUtils    = require('../../lib/requestUtils.js');
+        streamUtils     = require('../../lib/streamUtils.js');
 
         mockLog = {
             trace : jasmine.createSpy('log_trace'),
@@ -73,6 +74,10 @@ describe('userSvc (UT)', function() {
                 advertisers: {
                     endpoint: '/api/account/advertisers'
                 }
+            },
+            kinesis: {
+                streamName: 'superStream',
+                region: 'narnia'
             }
         };
         appCreds = {
@@ -136,6 +141,8 @@ describe('userSvc (UT)', function() {
                 });
             });
 
+            spyOn(streamUtils, 'createProducer');
+
             mockCache = {
                 
             };
@@ -151,6 +158,10 @@ describe('userSvc (UT)', function() {
             expect(result._userProp).toBe(false);
             expect(result.model).toEqual(jasmine.any(Model));
             expect(result.model.schema).toBe(userModule.userSchema);
+        });
+        
+        it('should create a kinesis producer', function() {
+            expect(streamUtils.createProducer).toHaveBeenCalledWith(mockConfig.kinesis);
         });
 
         it('should hash the user\'s passwords when creating', function() {
@@ -1079,23 +1090,6 @@ describe('userSvc (UT)', function() {
             .done(done);
         });
 
-        it('should remove the temporary token from the request object', function(done) {
-            userModule.sendActivationEmail('sender', 'target', req, nextSpy, doneSpy)
-            .then(function() {
-                expect(req.tempToken).not.toBeDefined();
-                expect(req).toEqual({
-                    body: {
-                        id: 'u-abcdefghijklmn',
-                        email: 'email@email.com'
-                    }
-                });
-            })
-            .catch(function(error) {
-                expect(error).not.toBeDefined();
-            })
-            .done(done);
-        });
-
         it('should call next', function(done) {
             userModule.sendActivationEmail('sender', 'target', req, nextSpy, doneSpy)
             .then(function() {
@@ -1793,6 +1787,15 @@ describe('userSvc (UT)', function() {
                     expect(email.passwordChanged).toHaveBeenCalledWith(emailSender, req.body.email, 'support@c6.com');
                 });
 
+                it('should not send an email if emailing is not enabled', function(done) {
+                    email.passwordChanged.calls.reset();
+                    result = userModule.changePassword(svc, req, emailSender, 'support@c6.com', false);
+                    callback = svc.customMethod.calls.mostRecent().args[2];
+                    callback().then(function() {
+                        expect(email.passwordChanged).not.toHaveBeenCalled();
+                    }).then(done, done.fail);
+                });
+
                 it('should not log an error', function() {
                     expect(mockLog.error).not.toHaveBeenCalled();
                 });
@@ -1828,16 +1831,6 @@ describe('userSvc (UT)', function() {
                     it('should log an error', function() {
                         expect(mockLog.error).toHaveBeenCalled();
                     });
-                });
-            });
-            
-            it('should not send an email if emailing is not enabled', function() {
-                result = userModule.changePassword(svc, req, emailSender, 'support@c6.com', false);
-                notifyDeffered = q.defer();
-                editObjectDeferred.resolve();
-                editObjectDeferred.promise.finally(function() {
-                    expect(email.passwordChange).not.toHaveBeenCalled();
-                    done();
                 });
             });
         });
@@ -1954,6 +1947,15 @@ describe('userSvc (UT)', function() {
                     );
                 });
 
+                it('should not send an email if emailing is not enabled', function(done) {
+                    email.emailChanged.calls.reset();
+                    result = userModule.changeEmail(svc, req, emailSender, 'support@c6.com', false);
+                    callback = svc.customMethod.calls.mostRecent().args[2];
+                    callback().then(function() {
+                        expect(email.emailChanged).not.toHaveBeenCalled();
+                    }).then(done, done.fail);
+                });
+
                 it('should not log an error', function() {
                     expect(mockLog.error).not.toHaveBeenCalled();
                 });
@@ -1989,16 +1991,6 @@ describe('userSvc (UT)', function() {
                     it('should log an error', function() {
                         expect(mockLog.error.calls.count()).toBe(2);
                     });
-                });
-            });
-            
-            it('should not send an email if emailing is not enabled', function() {
-                result = userModule.changeEmail(svc, req, emailSender, 'support@c6.com', false);
-                notifyDeffered = q.defer();
-                editObjectDeferred.resolve();
-                editObjectDeferred.promise.finally(function() {
-                    expect(email.passwordChange).not.toHaveBeenCalled();
-                    done();
                 });
             });
         });
@@ -2394,7 +2386,270 @@ describe('userSvc (UT)', function() {
             });
         });
     });
+    
+    describe('produceAccountActivated', function() {
+        beforeEach(function() {
+            spyOn(streamUtils, 'produceEvent');
+        });
+        
+        it('should produce the accountActivated event', function(done) {
+            streamUtils.produceEvent.and.returnValue(q());
+            var mockResp = {
+                code: 200,
+                body: {
+                    id: 'u-123'
+                }
+            };
+            userModule.produceAccountActivated(req, mockResp).then(function(resp) {
+                expect(streamUtils.produceEvent).toHaveBeenCalledWith('accountActivated', {
+                    target: 'selfie',
+                    user: {
+                        id: 'u-123'
+                    }
+                });
+                expect(mockLog.error).not.toHaveBeenCalled();
+                expect(resp).toEqual(mockResp);
+            }).then(done, done.fail);
+        });
+        
+        it('should resolve and log an error if there was an error producing the event', function(done) {
+            streamUtils.produceEvent.and.returnValue(q.reject('epic fail'));
+            var mockResp = {
+                code: 200,
+                body: {
+                    id: 'u-123'
+                }
+            };
+            userModule.produceAccountActivated(req, mockResp).then(function(resp) {
+                expect(streamUtils.produceEvent).toHaveBeenCalled();
+                expect(mockLog.error).toHaveBeenCalled();
+                expect(resp).toEqual(mockResp);
+            }).then(done, done.fail);
+        });
+        
+        it('should not produce if not given a successfull response', function(done) {
+            q.all([{ code: 400, body: { } }, { code: 200, body: 'not an object' }].map(function(mockResp) {
+                return userModule.produceAccountActivated(req, mockResp).then(function(resp) {
+                    expect(streamUtils.produceEvent).not.toHaveBeenCalled();
+                    expect(mockLog.error).not.toHaveBeenCalled();
+                    expect(resp).toEqual(mockResp);
+                });
+            })).then(done, done.fail);
+        });
+    });
 
+    describe('produceAccountCreated', function() {
+        beforeEach(function() {
+            spyOn(streamUtils, 'produceEvent');
+            req.tempToken = 'tolken'
+        });
+        
+        it('should produce the accountCreated event', function(done) {
+            streamUtils.produceEvent.and.returnValue(q());
+            var mockResp = {
+                code: 201,
+                body: {
+                    id: 'u-123'
+                }
+            };
+            userModule.produceAccountCreated(req, mockResp).then(function(resp) {
+                expect(streamUtils.produceEvent).toHaveBeenCalledWith('accountCreated', {
+                    target: 'selfie',
+                    token: 'tolken',
+                    user: {
+                        id: 'u-123'
+                    }
+                });
+                expect(mockLog.error).not.toHaveBeenCalled();
+                expect(req.tempToken).not.toBeDefined();
+                expect(resp).toEqual(mockResp);
+            }).then(done, done.fail);
+        });
+        
+        it('should reject if there was an error producing the event', function(done) {
+            streamUtils.produceEvent.and.returnValue(q.reject('epic fail'));
+            var mockResp = {
+                code: 201,
+                body: {
+                    id: 'u-123'
+                }
+            };
+            userModule.produceAccountCreated(req, mockResp).then(done.fail).catch(function(error) {
+                expect(error).toBe('epic fail');
+                expect(streamUtils.produceEvent).toHaveBeenCalled();
+                expect(req.tempToken).not.toBeDefined();
+            }).then(done, done.fail);
+        });
+        
+        it('should not produce if not given a successfull response', function(done) {
+            q.all([{ code: 400, body: { } }, { code: 201, body: 'not an object' }].map(function(mockResp) {
+                return userModule.produceAccountCreated(req, mockResp).then(function(resp) {
+                    expect(streamUtils.produceEvent).not.toHaveBeenCalled();
+                    expect(mockLog.error).not.toHaveBeenCalled();
+                    expect(req.tempToken).not.toBeDefined();
+                    expect(resp).toEqual(mockResp);
+                });
+            })).then(done, done.fail);
+        });
+    });
+    
+    describe('producePasswordChanged', function() {
+        beforeEach(function() {
+            spyOn(streamUtils, 'produceEvent');
+            req.user = 'user';
+        });
+        
+        it('should produce the passwordChanged event', function(done) {
+            streamUtils.produceEvent.and.returnValue(q());
+            var mockResp = {
+                code: 200,
+                body: 'password changed'
+            };
+            userModule.producePasswordChanged(req, mockResp).then(function(resp) {
+                expect(streamUtils.produceEvent).toHaveBeenCalledWith('passwordChanged', {
+                    user: 'user'
+                });
+                expect(mockLog.error).not.toHaveBeenCalled();
+                expect(resp).toEqual(mockResp);
+            }).then(done, done.fail);
+        });
+        
+        it('should resolve and log an error if there was an error producing the event', function(done) {
+            streamUtils.produceEvent.and.returnValue(q.reject('epic fail'));
+            var mockResp = {
+                code: 200,
+                body: 'password changed'
+            };
+            userModule.producePasswordChanged(req, mockResp).then(function(resp) {
+                expect(streamUtils.produceEvent).toHaveBeenCalled();
+                expect(mockLog.error).toHaveBeenCalled();
+                expect(resp).toEqual(mockResp);
+            }).then(done, done.fail);
+        });
+        
+        it('shoud not produce if not given a successfull response', function(done) {
+            var mockResp = {
+                code: 400,
+                body: 'password changed'
+            };
+            userModule.producePasswordChanged(req, mockResp).then(function(resp) {
+                expect(streamUtils.produceEvent).not.toHaveBeenCalled();
+                expect(mockLog.error).not.toHaveBeenCalled();
+                expect(resp).toEqual(mockResp);
+            }).then(done, done.fail);
+        });
+    });
+    
+    describe('produceEmailChanged', function() {
+        beforeEach(function() {
+            spyOn(streamUtils, 'produceEvent');
+            req.body = {
+                email: 'oldEmail@gmail.com',
+                newEmail: 'newEmail@gmail.com'
+            };
+            req.user = {
+                email: 'oldEmail@gmail.com'
+            };
+        });
+        
+        it('should produce the emailChanged event twice', function(done) {
+            streamUtils.produceEvent.and.returnValue(q());
+            var mockResp = {
+                code: 200,
+                body: 'email changed'
+            };
+            userModule.produceEmailChanged(req, mockResp).then(function(resp) {
+                expect(streamUtils.produceEvent.calls.count()).toBe(2);
+                expect(streamUtils.produceEvent).toHaveBeenCalledWith('emailChanged', {
+                    oldEmail: 'oldEmail@gmail.com',
+                    newEmail: 'newEmail@gmail.com',
+                    user: {
+                        email: 'oldEmail@gmail.com'
+                    }
+                });
+                expect(streamUtils.produceEvent).toHaveBeenCalledWith('emailChanged', {
+                    oldEmail: 'oldEmail@gmail.com',
+                    newEmail: 'newEmail@gmail.com',
+                    user: {
+                        email: 'newEmail@gmail.com'
+                    }
+                });
+                expect(mockLog.error).not.toHaveBeenCalled();
+                expect(resp).toEqual(mockResp);
+            }).then(done, done.fail);
+        });
+        
+        it('should resolve and log an error for each failed attempt to produce the event', function(done) {
+            streamUtils.produceEvent.and.returnValue(q.reject('epic fail'));
+            var mockResp = {
+                code: 200,
+                body: 'email changed'
+            };
+            userModule.produceEmailChanged(req, mockResp).then(function(resp) {
+                expect(streamUtils.produceEvent.calls.count()).toBe(2);
+                expect(mockLog.error.calls.count()).toBe(2);
+                expect(resp).toEqual(mockResp);
+            }).then(done, done.fail);
+        });
+        
+        it('should not produce if not given a successfull response', function(done) {
+            var mockResp = {
+                code: 400,
+                body: 'email changed'
+            };
+            userModule.produceEmailChanged(req, mockResp).then(function(resp) {
+                expect(streamUtils.produceEvent).not.toHaveBeenCalled();
+                expect(mockLog.error).not.toHaveBeenCalled();
+                expect(resp).toEqual(mockResp);
+            }).then(done, done.fail);
+        });
+    });
+
+    describe('produceResendActivation', function() {
+        beforeEach(function() {
+            spyOn(streamUtils, 'produceEvent');
+            req.tempToken = 'tolken'
+            req.user = 'user';
+        });
+        
+        it('should produce the resendActivation event', function(done) {
+            streamUtils.produceEvent.and.returnValue(q());
+            var mockResp = {
+                code: 204
+            };
+            userModule.produceResendActivation(req, mockResp).then(function(resp) {
+                expect(streamUtils.produceEvent).toHaveBeenCalledWith('resendActivation', { target: 'selfie', token: 'tolken', user: 'user' });
+                expect(mockLog.error).not.toHaveBeenCalled();
+                expect(req.tempToken).not.toBeDefined();
+                expect(resp).toEqual(mockResp);
+            }).then(done, done.fail);
+        });
+        
+        it('should reject if there was an error producing the event', function(done) {
+            streamUtils.produceEvent.and.returnValue(q.reject('epic fail'));
+            var mockResp = {
+                code: 204
+            };
+            userModule.produceResendActivation(req, mockResp).then(done.fail).catch(function(error) {
+                expect(error).toBe('epic fail');
+                expect(streamUtils.produceEvent).toHaveBeenCalled();
+                expect(req.tempToken).not.toBeDefined();
+            }).then(done, done.fail);
+        });
+        
+        it('should not produce if not given a successfull response', function(done) {
+            var mockResp = {
+                code: 400
+            };
+            userModule.produceResendActivation(req, mockResp).then(function(resp) {
+                expect(streamUtils.produceEvent).not.toHaveBeenCalled();
+                expect(mockLog.error).not.toHaveBeenCalled();
+                expect(req.tempToken).not.toBeDefined();
+                expect(resp).toEqual(mockResp);
+            }).then(done, done.fail);
+        });
+    });
+    
     describe('forceLogoutUser(svc, req, sessions)', function() {
         var customMethodDeffered;
         var svc, req, sessions;

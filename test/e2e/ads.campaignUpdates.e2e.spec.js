@@ -20,7 +20,7 @@ var q               = require('q'),
 jasmine.DEFAULT_TIMEOUT_INTERVAL = 60000;
 
 describe('ads campaignUpdates endpoints (E2E):', function() {
-    var selfieJar, adminJar, testPolicies, createdCamp, createdCampDecorated, mailman, mockOrgs, mockApp, appCreds;
+    var selfieJar, adminJar, testPolicies, createdCamp, createdCampDecorated, mailman, mockOrgs, mockApp, appCreds, mockman;
 
     beforeAll(function(done) {
 
@@ -172,6 +172,9 @@ describe('ads campaignUpdates endpoints (E2E):', function() {
         }).then(function(results) {
             // As long as createdCamp is used in resetCollection, changes to this campaign will not persist
             createdCamp = results[0];
+        }).then(function() {
+            mockman = new testUtils.Mockman();
+            return mockman.start();
         }).done(done, done.fail);
     });
     
@@ -190,8 +193,9 @@ describe('ads campaignUpdates endpoints (E2E):', function() {
 
     afterEach(function() {
         mailman.removeAllListeners();
+        mockman.removeAllListeners();
     });
-    
+
     
     // Performs some checks on a "New update request" email sent to support
     function testNewUpdateMsg(msg, camp) {
@@ -840,6 +844,28 @@ describe('ads campaignUpdates endpoints (E2E):', function() {
             }).done(done);
         });
 
+        it('should produce a newUpdateRequest event', function(done) {
+            requestUtils.qRequest('post', options).then(function(resp) {
+                mockman.on('newUpdateRequest', function(record) {
+                    expect(new Date(record.data.date)).not.toBe(NaN);
+                    expect(record.data.campaign).toEqual(jasmine.objectContaining({
+                        id: 'cam-1',
+                        name: 'e2e test 1',
+                        status: 'draft',
+                        user: 'e2e-user'
+                    }));
+                    expect(record.data.updateRequest).toEqual(resp.body);
+                    expect(record.data.user).toEqual(jasmine.objectContaining({
+                        id: 'e2e-user',
+                        status: 'active',
+                        email: 'c6e2etester@gmail.com',
+                        org: 'o-selfie'
+                    }));
+                    done();
+                });
+            }).catch(done.fail);
+        });
+
         describe('if sending an initial submit request', function(done) {
             beforeEach(function() {
                 options.json.data = { status: 'active' };
@@ -1349,6 +1375,40 @@ describe('ads campaignUpdates endpoints (E2E):', function() {
             });
         });
         
+        it('should be able to produce a campaignUpdateApproved event', function(done) {
+            options.json.status = 'approved';
+            requestUtils.qRequest('put', options).then(function(resp) {
+                mockman.on('campaignUpdateApproved', function(record) {
+                    expect(new Date(record.data.date)).not.toBe(NaN);
+                    expect(record.data.campaign).toEqual(jasmine.objectContaining({
+                        id: 'cam-1',
+                        name: 'e2e test 1',
+                        status: 'draft',
+                        user: 'e2e-user'
+                    }));
+                    expect(record.data.updateRequest).toEqual(resp.body);
+                    done();
+                });
+            }).catch(done.fail);
+        });
+        
+        it('should be able to produce a campaignUpdateRejected event', function(done) {
+            options.json = { status: 'rejected', rejectionReason: 'yo campaign stinks' };
+            requestUtils.qRequest('put', options).then(function(resp) {
+                mockman.on('campaignUpdateRejected', function(record) {
+                    expect(new Date(record.data.date)).not.toBe(NaN);
+                    expect(record.data.campaign).toEqual(jasmine.objectContaining({
+                        id: 'cam-1',
+                        name: 'e2e test 1',
+                        status: 'draft',
+                        user: 'e2e-user'
+                    }));
+                    expect(record.data.updateRequest).toEqual(resp.body);
+                    done();
+                });
+            }).catch(done.fail);
+        });
+        
         it('should return a 400 if attempting to reject an update without a reason', function(done) {
             options.json = { status: 'rejected' };
             mailman.once(rejectSubject, function(msg) { expect(util.inspect(msg).substring(0, 200)).not.toBeDefined(); });
@@ -1449,6 +1509,42 @@ describe('ads campaignUpdates endpoints (E2E):', function() {
                         expect(util.inspect(error)).not.toBeDefined();
                     }).done(done);
                 });
+            });
+
+            it('should be able to produce a campaignApproved event', function(done) {
+                options.json.status = 'approved';
+                requestUtils.qRequest('put', options).then(function(resp) {
+                    mockman.on('campaignApproved', function(record) {
+                        expect(record.type).toBe('campaignApproved');
+                        expect(new Date(record.data.date)).not.toBe(NaN);
+                        expect(record.data.campaign).toEqual(jasmine.objectContaining({
+                            id: 'cam-1',
+                            name: 'e2e test 1',
+                            status: 'pending',
+                            user: 'e2e-user'
+                        }));
+                        expect(record.data.updateRequest).toEqual(resp.body);
+                        done();
+                    });
+                }).catch(done.fail);
+            });
+            
+            it('should be able to produce a campaignRejected event', function(done) {
+                options.json = { status: 'rejected', rejectionReason: 'yo campaign stinks' };
+                requestUtils.qRequest('put', options).then(function(resp) {
+                    mockman.on('campaignRejected', function(record) {
+                        expect(record.type).toBe('campaignRejected');
+                        expect(new Date(record.data.date)).not.toBe(NaN);
+                        expect(record.data.campaign).toEqual(jasmine.objectContaining({
+                            id: 'cam-1',
+                            name: 'e2e test 1',
+                            status: 'pending',
+                            user: 'e2e-user'
+                        }));
+                        expect(record.data.updateRequest).toEqual(resp.body);
+                        done();
+                    });
+                }).catch(done.fail);
             });
         });
         
@@ -1621,7 +1717,7 @@ describe('ads campaignUpdates endpoints (E2E):', function() {
     });
 
     afterAll(function(done) {
+        mockman.stop();
         testUtils.closeDbs().done(done);
     });
 });
-

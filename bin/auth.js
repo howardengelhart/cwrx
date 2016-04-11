@@ -10,6 +10,7 @@
         aws             = require('aws-sdk'),
         express         = require('express'),
         bodyParser      = require('body-parser'),
+        util            = require('util'),
         expressUtils    = require('../lib/expressUtils'),
         logger          = require('../lib/logger'),
         mongoUtils      = require('../lib/mongoUtils'),
@@ -18,6 +19,7 @@
         service         = require('../lib/service'),
         email           = require('../lib/email'),
         enums           = require('../lib/enums'),
+        streamUtils     = require('../lib/streamUtils'),
         Status          = enums.Status,
 
         state   = {},
@@ -73,6 +75,10 @@
                 isPublisher: false
             }
         },
+        kinesis: {
+            streamName: 'devCwrxStream',
+            region: 'us-east-1'
+        },
         cache: {
             timeouts: {},
             servers: null
@@ -84,6 +90,40 @@
         },
         secretsPath     : path.join(process.env.HOME,'.auth.secrets.json'),
         rcAppCredsPath: path.join(process.env.HOME,'.rcAppCreds.json'),
+    };
+
+    auth.produceFailedLogins = function(req, user) {
+        var log = logger.getLog();
+
+        return streamUtils.produceEvent('failedLogins', { user: user }).then(function() {
+            log.info('[%1] Produced failedLogins event for user %2', req.uuid, user.id);
+        }).catch(function(error) {
+            log.error('[%1] Error producing failedLogins event for user %2: %3', req.uuid,
+                user.id, util.inspect(error));
+        });
+    };
+    
+    auth.produceForgotPassword = function(req, user, target, token) {
+        var log = logger.getLog();
+        
+        return streamUtils.produceEvent('forgotPassword', {
+            target: target,
+            user: user,
+            token: token
+        }).then(function() {
+            log.info('[%1] Produced forgotPassword event for user %2', req.uuid, user.id);
+        });
+    };
+    
+    auth.producePasswordChanged = function(req, user) {
+        var log = logger.getLog();
+        
+        return streamUtils.produceEvent('passwordChanged', { user: user }).then(function() {
+            log.info('[%1] Produced passwordChanged event for user %2', req.uuid, user.id);
+        }).catch(function(error) {
+            log.error('[%1] Error producing passwordChanged event for user %2: %3', req.uuid,
+                user.id, util.inspect(error));
+        });
     };
 
     auth.login = function(req, users, config, auditJournal, cache) {
@@ -119,17 +159,23 @@
                         .then(function(numAttempts) {
                             log.info('[%1] Failed login attempt #%2 for user %3: invalid password',
                                      req.uuid, numAttempts, req.body.email);
-                            if (numAttempts === loginAttempts.threshold && config.emails.enabled) {
-                                log.info('[%1] Sending email to %2 suggesting password reset ' +
-                                    'after %3 failed login attempts',
-                                    req.uuid, req.body.email, numAttempts);
-                                    
-                                var target = targets[(userAccount.external) ? 'selfie' : 'portal'];
-                                return email.failedLogins(
-                                    config.emails.sender,
-                                    req.body.email,
-                                    target
-                                );
+                            if (numAttempts === loginAttempts.threshold) {
+                                var safeUser = mongoUtils.safeUser(account);
+                                return auth.produceFailedLogins(req, safeUser).then(function() {
+                                    if(config.emails.enabled) {
+                                        log.info('[%1] Sending email to %2 suggesting password ' +
+                                            'reset after %3 failed login attempts',
+                                            req.uuid, req.body.email, numAttempts);
+                                            
+                                        var target = targets[(userAccount.external) ?
+                                            'selfie' : 'portal'];
+                                        return email.failedLogins(
+                                            config.emails.sender,
+                                            req.body.email,
+                                            target
+                                        );
+                                    }
+                                });
                             }
                         })
                         .catch(function(error) {
@@ -256,15 +302,19 @@
                 };
                 return mongoUtils.editObject(users, updates, account.id);
             })
-            .then(function() {
+            .then(function(updatedObject) {
                 log.info('[%1] Saved reset token for %2 to database', req.uuid, reqEmail);
 
-                if(config.emails.enabled) {
-                    var url = target + ((target.indexOf('?') === -1) ? '?' : '&') +
-                              'id=' + account.id + '&token=' + token;
+                var safeUser = mongoUtils.safeUser(updatedObject);
+                return auth.produceForgotPassword(req, safeUser, targetName, token)
+                .then(function() {
+                    if(config.emails.enabled) {
+                        var url = target + ((target.indexOf('?') === -1) ? '?' : '&') +
+                                  'id=' + account.id + '&token=' + token;
 
-                    return email.resetPassword(config.emails.sender, reqEmail, url);
-                }
+                        return email.resetPassword(config.emails.sender, reqEmail, url);
+                    }
+                });
             })
             .then(function() {
                 log.info('[%1] Successfully sent reset email to %2', req.uuid, reqEmail);
@@ -335,20 +385,25 @@
                     updatedAccount = result.value;
                     log.info('[%1] User %2 successfully reset their password', req.uuid, id);
                     
-                    if(config.emails.enabled) {
-                        email.passwordChanged(
-                            config.emails.sender,
-                            account.email,
-                            config.emails.supportAddress
-                        )
-                        .then(function() {
-                            log.info('[%1] Notified user of change at %2', req.uuid, account.email);
-                        }).catch(function(error) {
-                            log.error('[%1] Error sending msg to %2: %3', req.uuid, account.email,
-                                error);
-                        });
-                    }
-                    return q(sessions.deleteMany({ 'session.user': id }, { w: 1, j: true }));
+                    var safeUser = mongoUtils.safeUser(updatedAccount);
+                    return auth.producePasswordChanged(req, safeUser).then(function() {
+                        if(config.emails.enabled) {
+                            email.passwordChanged(
+                                config.emails.sender,
+                                account.email,
+                                config.emails.supportAddress
+                            )
+                            .then(function() {
+                                log.info('[%1] Notified user of change at %2', req.uuid,
+                                    account.email);
+                            }).catch(function(error) {
+                                log.error('[%1] Error sending msg to %2: %3', req.uuid,
+                                    account.email, error);
+                            });
+                        }
+                    }).then(function() {
+                        return q(sessions.deleteMany({ 'session.user': id }, { w: 1, j: true }));
+                    });
                 })
                 .then(function(result) {
                     log.info('[%1] Successfully deleted %2 session docs',
@@ -384,6 +439,8 @@
             auditJournal = new journal.AuditJournal(state.dbs.c6Journal.collection('audit'),
                                                     state.config.appVersion, state.config.appName);
         authUtils._db = state.dbs.c6Db;
+        
+        streamUtils.createProducer(state.config.kinesis);
         
         aws.config.region = state.config.emails.region;
 

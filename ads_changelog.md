@@ -1,7 +1,12 @@
 # Ads Service Changelog
 
+* Produce certain campaign events to a Kinesis stream
 * [FIX]: Don't error when `defaultTagParams` subfields are null: [#848](https://github.com/cinema6/cwrx/pull/848)
 * Remove `paymentMethod` from campaigns: [#814](https://github.com/cinema6/cwrx/issues/814)
+* Extra deployment steps:
+    * Deploy ads cookbook 2.1.3 to staging/production envs
+    * Deploy watchman 0.2.0
+    * Disable emailing in the ads environment
 
 ### 4.5.3: Mon Mar 21 16:37:19 EDT 2016
 * Add flag to toggle email notifications: [#825](https://github.com/cinema6/cwrx/pull/825)

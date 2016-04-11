@@ -1,7 +1,7 @@
 var flush = true;
 describe('auth (UT)', function() {
     var auth, mockLog, req, users, q, logger, mongoUtils, authUtils, email, enums, crypto,
-        Status, bcrypt, anyFunc, auditJournal, mockCache, config;
+        Status, bcrypt, anyFunc, auditJournal, mockCache, config, streamUtils;
         
     beforeEach(function() {
         if (flush) { for (var m in require.cache){ delete require.cache[m]; } flush = false; }
@@ -14,6 +14,7 @@ describe('auth (UT)', function() {
         auth        = require('../../bin/auth');
         email       = require('../../lib/email');
         enums       = require('../../lib/enums');
+        streamUtils = require('../../lib/streamUtils');
         Status      = enums.Status;
         
         mockLog = {
@@ -74,6 +75,75 @@ describe('auth (UT)', function() {
         anyFunc = jasmine.any(Function);
     });
     
+    describe('produceFailedLogins', function() {
+        beforeEach(function() {
+            spyOn(streamUtils, 'produceEvent');
+        });
+        
+        it('should be able to produce the failedLogins event', function(done) {
+            streamUtils.produceEvent.and.returnValue(q());
+            auth.produceFailedLogins(req, 'user').then(function() {
+                expect(streamUtils.produceEvent).toHaveBeenCalledWith('failedLogins', { user: 'user' });
+                expect(mockLog.error).not.toHaveBeenCalled();
+            }).then(done, done.fail);
+        });
+        
+        it('should resolve and log an error if there was an error producing the event', function(done) {
+            streamUtils.produceEvent.and.returnValue(q.reject('epic fail'));
+            auth.produceFailedLogins(req, 'user').then(function() {
+                expect(streamUtils.produceEvent).toHaveBeenCalled();
+                expect(mockLog.error).toHaveBeenCalled();
+            }).then(done, done.fail);
+        });
+    });
+    
+    describe('produceForgotPassword', function() {
+        beforeEach(function() {
+            spyOn(streamUtils, 'produceEvent');
+        });
+        
+        it('should be able to produce the forgotPassword event', function(done) {
+            streamUtils.produceEvent.and.returnValue(q());
+            auth.produceForgotPassword(req, 'user', 'target', 'token').then(function() {
+                expect(streamUtils.produceEvent).toHaveBeenCalledWith('forgotPassword', {
+                    user: 'user',
+                    token: 'token',
+                    target: 'target'
+                });
+                expect(mockLog.error).not.toHaveBeenCalled();
+            }).then(done, done.fail);
+        });
+        
+        it('should reject if there was an error producing the event', function(done) {
+            streamUtils.produceEvent.and.returnValue(q.reject());
+            auth.produceForgotPassword(req, 'user', 'target', 'token').then(done.fail, done);
+        });
+    });
+    
+    describe('producePasswordChanged', function() {
+        beforeEach(function() {
+            spyOn(streamUtils, 'produceEvent');
+        });
+        
+        it('should be able to produce the passwordChanged event', function(done) {
+            streamUtils.produceEvent.and.returnValue(q());
+            auth.producePasswordChanged(req, 'user').then(function() {
+                expect(streamUtils.produceEvent).toHaveBeenCalledWith('passwordChanged', {
+                    user: 'user'
+                });
+                expect(mockLog.error).not.toHaveBeenCalled();
+            }).then(done, done.fail);
+        });
+        
+        it('should resolve and log an error if there was an error producing the event', function(done) {
+            streamUtils.produceEvent.and.returnValue(q.reject());
+            auth.producePasswordChanged(req, 'user').then(function() {
+                expect(streamUtils.produceEvent).toHaveBeenCalled();
+                expect(mockLog.error).toHaveBeenCalled();
+            }).then(done, done.fail);
+        });
+    });
+    
     describe('login', function() {
         var origUser;
 
@@ -90,6 +160,7 @@ describe('auth (UT)', function() {
                 cb(null, true);
             });
             spyOn(authUtils, 'decorateUser').and.returnValue(q({ id: 'u-123', decorated: true }));
+            spyOn(auth, 'produceFailedLogins').and.returnValue(q());
         });
     
         it('should resolve with a 400 if not provided with the required parameters', function(done) {
@@ -180,6 +251,7 @@ describe('auth (UT)', function() {
                     cb(null, false);
                 });
                 spyOn(email, 'failedLogins');
+                mongoUtils.safeUser.and.returnValue('safeUser');
             });
 
             it('should resolve with a 401 code', function(done) {
@@ -225,6 +297,16 @@ describe('auth (UT)', function() {
                 mockCache.incrTouch.and.returnValue(3);
                 auth.login(req, users, config, auditJournal, mockCache).then(function() {
                     expect(email.failedLogins).toHaveBeenCalledWith('no-reply@cinema6.com', 'user', 'selfie link');
+                }).catch(function(error) {
+                    expect(error.toString()).not.toBeDefined();
+                }).done(done);
+            });
+            
+            it('should produce a failedLogins event on the third failed attempt', function(done) {
+                mockCache.incrTouch.and.returnValue(3);
+                auth.login(req, users, config, auditJournal, mockCache).then(function() {
+                    expect(mongoUtils.safeUser).toHaveBeenCalledWith(origUser);
+                    expect(auth.produceFailedLogins).toHaveBeenCalledWith(req, 'safeUser');
                 }).catch(function(error) {
                     expect(error.toString()).not.toBeDefined();
                 }).done(done);
@@ -490,6 +572,7 @@ describe('auth (UT)', function() {
             spyOn(bcrypt, 'genSaltSync').and.returnValue('sodiumChloride');
             spyOn(bcrypt, 'hash').and.callFake(function(txt, salt, cb) { cb(null, 'hashToken'); });
             spyOn(email, 'resetPassword').and.returnValue(q('success'));
+            spyOn(auth, 'produceForgotPassword').and.returnValue(q());
         });
         
         it('should fail with a 400 if the request is incomplete', function(done) {
@@ -583,6 +666,18 @@ describe('auth (UT)', function() {
                 expect(mongoUtils.editObject).toHaveBeenCalled();
                 expect(email.resetPassword).toHaveBeenCalledWith('no-reply@cinema6.com', 'user@c6.com',
                     'https://staging.cinema6.com/#/?selfie=barf&id=u-1&token=48454c4c4f');
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
+        });
+
+        it('should produce a forgotPassword event', function(done) {
+            targets.selfie = 'https://staging.cinema6.com/#/?selfie=barf';
+            req.body.target = 'selfie';
+            mongoUtils.safeUser.and.returnValue('safeUser');
+            auth.forgotPassword(req, users, config, auditJournal).then(function(resp) {
+                expect(mongoUtils.safeUser).toHaveBeenCalledWith('updated');
+                expect(auth.produceForgotPassword).toHaveBeenCalledWith(req, 'safeUser', 'selfie', '48454c4c4f');
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
             }).done(done);
@@ -739,6 +834,7 @@ describe('auth (UT)', function() {
             sessions = {
                 deleteMany: jasmine.createSpy('deleteMany()').and.returnValue(q({ deletedCount: 2 }))
             };
+            spyOn(auth, 'producePasswordChanged').and.returnValue(q());
         });
         
         it('should fail with a 400 if the request is incomplete', function(done) {

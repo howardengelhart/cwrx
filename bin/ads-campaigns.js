@@ -8,6 +8,7 @@
         Status          = require('../lib/enums').Status,
         campaignUtils   = require('../lib/campaignUtils'),
         requestUtils    = require('../lib/requestUtils'),
+        streamUtils     = require('../lib/streamUtils'),
         mongoUtils      = require('../lib/mongoUtils'),
         authUtils       = require('../lib/authUtils'),
         historian       = require('../lib/historian'),
@@ -162,6 +163,8 @@
         var campColl = db.collection('campaigns'),
             svc = new CrudSvc(campColl, 'cam', { statusHistory: true }, campModule.campSchema);
         svc._db = db;
+        
+        streamUtils.createProducer(config.kinesis);
         
         var extraValidation = campModule.extraValidation.bind(campModule, svc),
             notifyEnded     = campModule.notifyEnded.bind(campModule, svc),
@@ -728,6 +731,32 @@
         });
     };
 
+    // Produce an event if the campaign's status has changed
+    campModule.produceStateChange = function(req, resp) {
+        var log = logger.getLog();
+        
+        if(resp.code !== 200 || typeof resp.body !== 'object') {
+            return q(resp);
+        }
+
+        var statusChange = (req.origObj.status !== resp.body.status);
+
+        if(statusChange) {
+            return streamUtils.produceEvent('campaignStateChange', {
+                previousState: req.origObj.status,
+                currentState: resp.body.status,
+                campaign: resp.body
+            }).then(function() {
+                log.info('[%1] Produced campaignStateChange event for campaign %2', req.uuid,
+                    resp.body.id);
+            }).catch(function(error) {
+                log.error('[%1] Error producing campaignStateChange event for campaign %2: %3',
+                    req.uuid, resp.body.id, util.inspect(error));
+            }).thenResolve(resp);
+        } else {
+            return q(resp);
+        }
+    };
     
     campModule.setupEndpoints = function(app, svc, sessions, audit, jobManager) {
         var router      = express.Router(),
@@ -812,6 +841,8 @@
         router.put('/:id', sessions, authMidware.edit, audit, function(req, res) {
             var promise = svc.editObj(req).then(function(resp) {
                 return campModule.decorateWithCards(req, resp, svc);
+            }).then(function(resp) {
+                return campModule.produceStateChange(req, resp);
             });
             promise.finally(function() {
                 jobManager.endJob(req, res, promise.inspect())

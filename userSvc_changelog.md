@@ -1,8 +1,13 @@
 # User Service Changelog
 
+* Produce certain user account events to a Kinesis stream
 * Validate `promotion` on signup: [#857](https://github.com/cinema6/cwrx/pull/857)
 * [FEATURE]: Add ability to give orgs a `paymentPlanId` when they are
   created via `POST /api/account/users/confirm/:id`: [#838](https://github.com/cinema6/cwrx/pull/838/files)
+* Extra deployment steps:
+  * Deploy userSvc cookbook 1.4.3 to staging/production envs
+  * Deploy watchman 0.2.0
+  * Disable emailing in the userSvc environment
 
 ### 3.3.0: Wed Mar 16 16:07:41 EDT 2016
 * Add flag to toggle email notifications: [#825](https://github.com/cinema6/cwrx/pull/825)

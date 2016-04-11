@@ -41,7 +41,7 @@
     "q": "^1.4.1",
     "rc-app-builder": "^1.2.1",
     "rc-browser-info": "^1.0.0",
-    "rc-kinesis": "^1.0.0",
+    "rc-kinesis": "^1.1.0",
     "rc-uuid": "^2.0.1",
     "replacestream": "^4.0.0",
     "request": "^2.69.0",
