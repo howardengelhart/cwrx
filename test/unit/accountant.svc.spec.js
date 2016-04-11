@@ -47,6 +47,28 @@ describe('geo (UT)', function() {
             requester = { fieldValidation: { transactions: {} } };
         });
         
+        describe('when handling transactionTS', function() {
+            it('should allow the field to be set', function() {
+                newObj.transactionTS = new Date('2016-03-17T20:29:06.754Z');
+                expect(model.validate('create', newObj, origObj, requester))
+                    .toEqual({ isValid: true, reason: undefined });
+                expect(newObj.transactionTS).toEqual(new Date('2016-03-17T20:29:06.754Z'));
+            });
+
+            it('should cast a string date to a Date object', function() {
+                newObj.transactionTS = new Date('2016-03-17T20:29:06.754Z');
+                expect(model.validate('create', newObj, origObj, requester))
+                    .toEqual({ isValid: true, reason: undefined });
+                expect(newObj.transactionTS).toEqual(new Date('2016-03-17T20:29:06.754Z'));
+            });
+
+            it('fail if the field is not a valid date', function() {
+                newObj.transactionTS = 'fasdfasdfasdfasdf2016-03-17dfasdf:06.754Z';
+                expect(model.validate('create', newObj, origObj, requester))
+                    .toEqual({ isValid: false, reason: 'transactionTS must be in format: Date' });
+            });
+        });
+        
         describe('when handling org', function() {
             it('should fail if the field is not a string', function() {
                 newObj.org = 123;
@@ -262,6 +284,25 @@ describe('geo (UT)', function() {
                 });
                 expect(pgUtils.query).toHaveBeenCalledWith(jasmine.any(String), jasmine.any(Array));
                 expect(pgUtils.query.calls.argsFor(0)[0]).toMatch(/INSERT INTO fct.billing_transactions/);
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should allow passing a custom transactionTS', function(done) {
+            req.body.transactionTS = new Date('2016-04-11T19:26:20.967Z');
+            
+            accountant.createTransaction(req).then(function(resp) {
+                expect(resp).toEqual({
+                    code: 201,
+                    body: jasmine.objectContaining({
+                        id              : 't-asdfqwerzxcv1234',
+                        created         : jasmine.any(Date),
+                        transactionTS   : new Date('2016-04-11T19:26:20.967Z'),
+                        amount          : 123.12
+                    })
+                });
+                expect(pgUtils.query).toHaveBeenCalledWith(jasmine.any(String), jasmine.any(Array));
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
             }).done(done);

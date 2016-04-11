@@ -265,6 +265,28 @@ describe('accountant (E2E):', function() {
             }).done(done);
         });
         
+        it('should be able to specify a custom transactionTS', function(done) {
+            options.json.transactionTS = new Date('2016-03-17T20:29:06.754Z');
+            requestUtils.qRequest('post', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(201);
+                expect(resp.body).toEqual({
+                    id              : jasmine.any(String),
+                    created         : jasmine.any(String),
+                    transactionTS   : '2016-03-17T20:29:06.754Z',
+                    amount          : 123.45,
+                    sign            : 1,
+                    units           : 1,
+                    org             : 'o-1234',
+                    campaign        : null,
+                    braintreeId     : 'payment1',
+                    promotion       : null,
+                    description     : JSON.stringify({ eventType: 'credit', source: 'braintree' })
+                });
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
+        
         it('should not allow creating unlinked transactions', function(done) {
             delete options.json.braintreeId;
             
