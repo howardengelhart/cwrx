@@ -71,6 +71,10 @@
     };
     
     accountant.transactionSchema = {
+        transactionTS: {
+            __allowed: true,
+            __type: 'Date'
+        },
         org: {
             __allowed: true,
             __type: 'string',
@@ -157,6 +161,7 @@
         
         req.body.id = 't-' + uuid.createUuid();
         req.body.created = new Date();
+        req.body.transactionTS = req.body.transactionTS || req.body.created;
         
         // If no provided description, auto-generate based on amount + linked entities
         if (!req.body.description) {
@@ -180,7 +185,7 @@
         var values = [
             req.body.created.toISOString(),
             req.body.id,
-            req.body.created.toISOString(),
+            req.body.transactionTS.toISOString(),
             req.body.org,
             req.body.amount,
             req.body.sign,
