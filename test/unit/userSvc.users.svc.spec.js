@@ -984,17 +984,18 @@ describe('userSvc (UT)', function() {
                 expect(nextSpy).toHaveBeenCalled();
                 expect(doneSpy).not.toHaveBeenCalled();
                 expect(errorSpy).not.toHaveBeenCalled();
+                expect(req.body.promotion).toBe('pro-1');
                 expect(mongoUtils.findObject).toHaveBeenCalledWith({ collectionName: 'promotions' },
                     { id: 'pro-1', status: Status.Active, type: 'signupReward' });
                 expect(mockLog.error).not.toHaveBeenCalled();
             }).done(done);
         });
         
-        it('should call done if no promotion is found', function(done) {
+        it('should trim the property if no promotion is found', function(done) {
             promResp = q();
             userModule.validatePromotion(svc, req, nextSpy, doneSpy).catch(errorSpy).finally(function() {
-                expect(nextSpy).not.toHaveBeenCalled();
-                expect(doneSpy).toHaveBeenCalledWith({ code: 400, body: 'Invalid promotion' });
+                expect(nextSpy).toHaveBeenCalled();
+                expect(doneSpy).not.toHaveBeenCalled();
                 expect(errorSpy).not.toHaveBeenCalled();
                 expect(mockLog.error).not.toHaveBeenCalled();
             }).done(done);

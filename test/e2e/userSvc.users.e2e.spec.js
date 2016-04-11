@@ -1749,23 +1749,26 @@ describe('userSvc users (E2E):', function() {
                 });
             });
 
-            it('should return a 400 if the promotion is not valid', function(done) {
+            it('should trim the property if the promotion is not valid', function(done) {
+                options.json.promotion = 'pro-inactive';
+
                 mailman.once(msgSubject, function(msg) {
-                    expect(util.inspect(msg).substr(0, 100)).not.toBeDefined();
+                    expect(msg.from[0].address).toBe('no-reply@cinema6.com');
+                    expect(msg.to[0].address).toBe('c6e2etester@gmail.com');
                     done();
                 });
                 
-                q.all(['pro-inactive', 'pro-loyalty', 'notreal'].map(function(id) {
-                    options.json.promotion = id;
-                    return requestUtils.qRequest('post', options);
-                })).then(function(results) {
-                    results.forEach(function(resp) {
-                        expect(resp.response.statusCode).toBe(400);
-                        expect(resp.body).toBe('Invalid promotion');
-                    });
+                requestUtils.qRequest('post', options).then(function(resp) {
+                    expect(resp.response.statusCode).toBe(201);
+                    expect(resp.body).toEqual(jasmine.objectContaining({
+                        id: jasmine.any(String),
+                        status: 'new'
+                    }));
+                    expect(resp.body.promotion).not.toBeDefined();
                 }).catch(function(error) {
                     expect(util.inspect(error)).not.toBeDefined();
-                }).done(done);
+                    done();
+                });
             });
         });
 

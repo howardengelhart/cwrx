@@ -416,7 +416,7 @@
     };
 
     // If a signup user has a `promotion`, check that it exists, is active, and is a signupReward
-    userModule.validatePromotion = function validatePromotion(svc, req, next, done) {
+    userModule.validatePromotion = function validatePromotion(svc, req, next/*, done*/) {
         var log = logger.getLog();
         
         if (!req.body.promotion) {
@@ -428,16 +428,12 @@
             { id: req.body.promotion, status: Status.Active, type: 'signupReward' }
         )
         .then(function(prom) {
-            if (prom) {
-                return next();
+            if (!prom) {
+                log.warn('[%1] User trying to signup with invalid signup promotion %2, trimming',
+                         req.uuid, req.body.promotion);
+                delete req.body.promotion;
             }
-            
-            log.info('[%1] User trying to signup with invalid signup promotion %2',
-                     req.uuid, req.body.promotion);
-            return done({
-                code: 400,
-                body: 'Invalid promotion'
-            });
+            return next();
         })
         .catch(function(error) {
             log.error('[%1] Failed looking up promotion %2: %3',
