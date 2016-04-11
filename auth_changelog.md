@@ -1,5 +1,6 @@
 # Auth Service Changelog
 
+### 1.7.0: Mon Apr 11 12:31:33 EDT 2016
 * Produce certain auth events to a Kinesis stream
 * Extra deployment steps:
   * Deploy auth cookbook 1.3.9 to staging/production envs
