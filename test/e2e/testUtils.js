@@ -231,7 +231,7 @@ testUtils.Mockman.prototype.start = function() {
                 if (!!resp.Records && resp.Records.length > 0) {
                     resp.Records.forEach(function(record) {
                         var dataStr, jsonData;
-                        if (typeof record.data === 'string') {
+                        if (typeof record.Data === 'string') {
                             dataStr = new Buffer(record.Data, 'base64').toString();
                         } else {
                             dataStr = record.Data.toString();
