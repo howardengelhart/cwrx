@@ -1025,6 +1025,30 @@ describe('orgSvc payments (E2E):', function() {
         it('should write an entry to the audit collection', function(done) {
             requestUtils.qRequest('post', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(201);
+                expect(resp.body).toEqual({
+                    id: jasmine.any(String),
+                    status: 'settling',
+                    type: 'sale',
+                    amount: amount,
+                    createdAt: jasmine.any(String),
+                    updatedAt: jasmine.any(String),
+                    method: expectedMethodOutput
+                });
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+                done();
+            });
+
+            mockman.on('data', function(record) {
+                expect(record.type).toBe('paymentMade');
+                done();
+            });
+        });
+
+        it('should support the singular version of the endpoint', function(done) {
+            options.url = config.paymentUrl.replace('payments', 'payment');
+            requestUtils.qRequest('post', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(201);
                 return testUtils.mongoFind('audit', { service: 'orgSvc', 'data.route': /^POST/ }, {$natural: -1}, 1, 0, {db: 'c6Journal'});
             }).then(function(results) {
                 expect(results[0].user).toBe('u-e2e-payments');
@@ -1035,7 +1059,7 @@ describe('orgSvc payments (E2E):', function() {
                 expect(results[0].sessionID).toEqual(jasmine.any(String));
                 expect(results[0].service).toBe('orgSvc');
                 expect(results[0].version).toEqual(jasmine.any(String));
-                expect(results[0].data).toEqual({route: 'POST /api/payments/',
+                expect(results[0].data).toEqual({route: 'POST /api/payment/',
                                                  params: {}, query: {} });
             }).catch(function(error) {
                 expect(util.inspect(error)).not.toBeDefined();

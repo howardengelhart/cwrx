@@ -1,6 +1,7 @@
 # Org Service Changelog
 
 ### 1.8.0: Mon Apr 11 12:31:33 EDT 2016
+* [FIX]: Support `POST /api/payment` in addition to `POST /api/payments`: [#861](https://github.com/cinema6/cwrx/pull/861)
 * [FEATURE]: Add endpoints for promotion entities: [#841](https://github.com/cinema6/cwrx/issues/841)
 * [FEATURE]: Publish `paymentMade` event upon successful `POST /api/payments` so watchman can send receipt: [#845](https://github.com/cinema6/cwrx/issues/845)
 * [FEATURE]: Allow apps with `makePaymentForAny` to make payments + paymentMethods for any org: [#837](https://github.com/cinema6/cwrx/issues/837)
