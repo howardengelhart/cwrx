@@ -132,7 +132,7 @@ module.exports = function(grunt) {
                             var argValue = grunt.option(argName) || (function() {
                                 switch(argName) {
                                 case 'dbHost':
-                                    return JSON.parse(process.env.mongo).host;
+                                    return JSON.parse(process.env.mongo || '{}').host;
                                 default:
                                     return process.env[argName];
                                 }

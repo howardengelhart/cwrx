@@ -48,9 +48,17 @@
                     __allowed: true,
                     __type: 'string'
                 },
-                date: {
+                created: {
                     __allowed: true,
                     __type: 'Date'
+                },
+                lastUpdated: {
+                    __allowed: true,
+                    __type: 'Date'
+                },
+                status: {
+                    __allowed: true,
+                    __type: 'string'
                 }
             }
         }
@@ -241,6 +249,9 @@
             }
             if ('hasPaymentPlan' in req.query) {
                 query.paymentPlanId = { $exists: req.query.hasPaymentPlan === 'true' };
+            }
+            if ('promotion' in req.query) {
+                query.promotions = { $elemMatch: { id: String(req.query.promotion) } };
             }
 
             var promise = svc.getObjs(query, req, true);

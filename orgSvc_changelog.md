@@ -1,5 +1,9 @@
 # Org Service Changelog
 
+### 1.8.1: Tue Apr 12 17:42:09 EDT 2016
+* [FIX]: Update schema for `org.promotions`: [#864](https://github.com/cinema6/cwrx/pull/864)
+* Extra deployment steps: None
+
 ### 1.8.0: Mon Apr 11 12:31:33 EDT 2016
 * [FIX]: Support `POST /api/payment` in addition to `POST /api/payments`: [#861](https://github.com/cinema6/cwrx/pull/861)
 * [FEATURE]: Add endpoints for promotion entities: [#841](https://github.com/cinema6/cwrx/issues/841)

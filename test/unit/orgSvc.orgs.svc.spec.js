@@ -1,4 +1,6 @@
 var flush = true;
+var objUtils = require('../../lib/objUtils');
+
 describe('orgSvc-orgs (UT)', function() {
     var orgModule, q, mockLog, mockLogger, logger, CrudSvc, Model, enums, Status, Scope,
         mockDb, mockGateway, req, nextSpy, doneSpy, errorSpy;
@@ -223,17 +225,37 @@ describe('orgSvc-orgs (UT)', function() {
                 });
 
                 it('should succeed', function() {
-                    newObj.promotions = [{ id: 'pro-1', date: new Date('2016-04-10T00:25:32.645Z') }];
+                    newObj.promotions = [{
+                        id: 'pro-1',
+                        created: new Date('2016-02-20T00:25:32.645Z'),
+                        lastUpdated: new Date('2016-04-10T00:25:32.645Z'),
+                        status: Status.Active
+                    }];
                     expect(svc.model.validate('create', newObj, origObj, requester))
                         .toEqual({ isValid: true, reason: undefined });
-                    expect(newObj.promotions).toEqual([{ id: 'pro-1', date: new Date('2016-04-10T00:25:32.645Z') }]);
+                    expect(newObj.promotions).toEqual([{
+                        id: 'pro-1',
+                        created: new Date('2016-02-20T00:25:32.645Z'),
+                        lastUpdated: new Date('2016-04-10T00:25:32.645Z'),
+                        status: Status.Active
+                    }]);
                 });
                 
-                it('should cast a string date into a Date object', function() {
-                    newObj.promotions = [{ id: 'pro-1', date: '2016-04-10T00:25:32.645Z' }];
+                it('should cast string dates into Date objects', function() {
+                    newObj.promotions = [{
+                        id: 'pro-1',
+                        created: '2016-02-20T00:25:32.645Z',
+                        lastUpdated: '2016-04-10T00:25:32.645Z',
+                        status: Status.Canceled
+                    }];
                     expect(svc.model.validate('create', newObj, origObj, requester))
                         .toEqual({ isValid: true, reason: undefined });
-                    expect(newObj.promotions).toEqual([{ id: 'pro-1', date: new Date('2016-04-10T00:25:32.645Z') }]);
+                    expect(newObj.promotions).toEqual([{
+                        id: 'pro-1',
+                        created: new Date('2016-02-20T00:25:32.645Z'),
+                        lastUpdated: new Date('2016-04-10T00:25:32.645Z'),
+                        status: Status.Canceled
+                    }]);
                 });
                 
                 it('should fail if the field is not an object array', function() {
@@ -242,14 +264,23 @@ describe('orgSvc-orgs (UT)', function() {
                         .toEqual({ isValid: false, reason: 'promotions must be in format: objectArray' });
                 });
 
-                it('should fail if the id or date are in the wrong format', function() {
-                    newObj.promotions = [{ id: 1234, date: new Date('2016-04-10T00:25:32.645Z') }];
-                    expect(svc.model.validate('create', newObj, origObj, requester))
-                        .toEqual({ isValid: false, reason: 'promotions[0].id must be in format: string' });
-                        
-                    newObj.promotions = [{ id: 'pro-1', date: { today: 'yes' } }];
-                    expect(svc.model.validate('create', newObj, origObj, requester))
-                        .toEqual({ isValid: false, reason: 'promotions[0].date must be in format: Date' });
+                it('should fail if any entry subfields are in the wrong format', function() {
+                    var base = {
+                        id: 'pro-1',
+                        created: '2016-02-20T00:25:32.645Z',
+                        lastUpdated: '2016-04-10T00:25:32.645Z',
+                        status: Status.Canceled
+                    };
+                    
+                    var resps = [{ id: 123 }, { created: 'today' }, { lastUpdated: 432 }, { status: 4331 }].map(function(obj) {
+                        newObj.promotions = [obj];
+                        objUtils.extend(newObj.promotions[0], base);
+                        return svc.model.validate('create', newObj, origObj, requester);
+                    });
+                    expect(resps[0]).toEqual({ isValid: false, reason: 'promotions[0].id must be in format: string' });
+                    expect(resps[1]).toEqual({ isValid: false, reason: 'promotions[0].created must be in format: Date' });
+                    expect(resps[2]).toEqual({ isValid: false, reason: 'promotions[0].lastUpdated must be in format: Date' });
+                    expect(resps[3]).toEqual({ isValid: false, reason: 'promotions[0].status must be in format: string' });
                 });
             });
         });
