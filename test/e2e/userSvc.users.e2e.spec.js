@@ -1390,6 +1390,11 @@ describe('userSvc users (E2E):', function() {
         });
         
         it('should produce two emailChanged events', function(done) {
+            var newEmailDeferred = q.defer(), oldEmailDeferred = q.defer(), mockmanDef = q.defer();
+            mailman.once(msgSubject, oldEmailDeferred.resolve);
+            mailman2.once(msgSubject, newEmailDeferred.resolve);
+            q.all([oldEmailDeferred.promise, newEmailDeferred.promise, mockmanDef]).thenResolve().then(done);
+
             requestUtils.qRequest('post', options).then(function(resp) {
                 var emailRecords = { };
                 mockman.on('emailChanged', function(record) {
@@ -1407,7 +1412,7 @@ describe('userSvc users (E2E):', function() {
                                 status: 'active'
                             }));
                         });
-                        done();
+                        mockmanDef.resolve();
                     }
                 });
             }).catch(done.fail);
@@ -1575,6 +1580,10 @@ describe('userSvc users (E2E):', function() {
         });
         
         it('should produce a passwordChanged event', function(done) {
+            var mockmanDef = q.defer(), mailmanDef = q.defer();
+            q.all([mockmanDef.promise, mailmanDef.promise]).thenResolve().then(done);
+            mailman.once(msgSubject, mailmanDef.resolve);
+
             requestUtils.qRequest('post', options).then(function(resp) {
                 mockman.once('passwordChanged', function(record) {
                     expect(new Date(record.data.date)).not.toBe(NaN);
@@ -1584,7 +1593,7 @@ describe('userSvc users (E2E):', function() {
                         email: 'c6e2etester@gmail.com',
                         status: 'active'
                     }));
-                    done();
+                    mockmanDef.resolve();
                 });
             }).catch(done.fail);
         });
@@ -1887,6 +1896,10 @@ describe('userSvc users (E2E):', function() {
         });
         
         it('should be able to produce an accountCreated event', function(done) {
+            var mockmanDef = q.defer(), mailmanDef = q.defer();
+            q.all([mockmanDef.promise, mailmanDef.promise]).thenResolve().then(done);
+            mailman.once(msgSubject, mailmanDef.resolve);
+
             requestUtils.qRequest('post', options).then(function(resp) {
                 mockman.on('accountCreated', function(record) {
                     
@@ -1899,7 +1912,7 @@ describe('userSvc users (E2E):', function() {
                     expect(new Date(record.data.date)).not.toBe(NaN);
                     expect(record.data.user.password).not.toBeDefined();
                     expect(record.data.user).toEqual(resp.body);
-                    done();
+                    mockmanDef.resolve();
                 });
             }).catch(done.fail);
         });
@@ -2060,13 +2073,17 @@ describe('userSvc users (E2E):', function() {
             });
             
             it('should produce an accountActivated event', function(done) {
+            var mockmanDef = q.defer(), mailmanDef = q.defer();
+            q.all([mockmanDef.promise, mailmanDef.promise]).thenResolve().then(done);
+            mailman.once(msgSubject, mailmanDef.resolve);
+
                 requestUtils.qRequest('post', options).then(function(resp) {
                     mockman.once('accountActivated', function(record) {
                         expect(record.data.target).toBe('selfie');
                         expect(new Date(record.data.date)).not.toBe(NaN);
                         expect(record.data.user.password).not.toBeDefined();
                         expect(record.data.user).toEqual(resp.body);
-                        done();
+                        mockmanDef.resolve();
                     });
                 }).catch(done.fail);
             });
@@ -2392,6 +2409,10 @@ describe('userSvc users (E2E):', function() {
         });
         
         it('should be able to produce a resendActivation event', function(done) {
+            var mockmanDef = q.defer(), mailmanDef = q.defer();
+            q.all([mockmanDef.promise, mailmanDef.promise]).thenResolve().then(done);
+            mailman.once(msgSubject, mailmanDef.resolve);
+
             requestUtils.qRequest('post', resendOpts).then(function(resp) {
                 mockman.once('resendActivation', function(record) {
                     expect(new Date(record.data.date)).not.toBe(NaN);
@@ -2403,7 +2424,7 @@ describe('userSvc users (E2E):', function() {
                         status: 'new',
                         email: 'c6e2etester@gmail.com'
                     }));
-                    done();
+                    mockmanDef.resolve();
                 });
             }).catch(function(error) {
                 done.fail(util.inspect(error));

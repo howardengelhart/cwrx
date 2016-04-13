@@ -244,9 +244,10 @@ describe('auth (E2E):', function() {
         });
         
         describe('failed password attempts', function() {
-            var cacheConn;
+            var cacheConn, msgSubject;
             
             beforeEach(function(done) {
+                msgSubject = 'Reelcontent: Multiple-Failed Logins';
                 cacheConn = new cacheLib.Cache(cacheServer, { read: 5000, write: 5000 });
                 cacheConn.checkConnection().then(function() {
                     return cacheConn.delete('loginAttempts:u-1');
@@ -294,8 +295,7 @@ describe('auth (E2E):', function() {
                     done();
                 });
 
-                var msgSubject = 'Reelcontent: Multiple-Failed Logins',
-                    regex = /consecutive\s*failed\s*login\s*attempts/;
+                var regex = /consecutive\s*failed\s*login\s*attempts/;
                 mailman.once(msgSubject, function(msg) {
                     expect(msg.from[0].address).toBe('no-reply@cinema6.com');
                     expect(msg.to[0].address).toBe('c6e2etester@gmail.com');
@@ -347,6 +347,10 @@ describe('auth (E2E):', function() {
                     done();
                 });
 
+                var mockmanDef = q.defer(), mailmanDef = q.defer();
+                q.all([mockmanDef.promise, mailmanDef.promise]).thenResolve().then(done);
+                mailman.once(msgSubject, mailmanDef.resolve);
+
                 mockman.once('failedLogins', function(record) {
                     expect(record.data.user.password).not.toBeDefined();
                     expect(record.data.user).toEqual(jasmine.objectContaining({
@@ -362,11 +366,11 @@ describe('auth (E2E):', function() {
                         return getCacheValue();
                     }).then(function(value) {
                         expect(value).toBe(4);
-                    }).done(done);
+                    }).then(mockmanDef.resolve, done.fail);
                 });
             });
             
-            it('should reset the number of failed attempts after a successfull login', function(done) {
+            it('should reset the number of failed attempts after a successful login', function(done) {
                 var getCacheValue = function() {
                     return cacheConn.checkConnection().then(function() {
                         return cacheConn.get('loginAttempts:u-1');
@@ -736,6 +740,11 @@ describe('auth (E2E):', function() {
                 expect(util.inspect(error)).not.toBeDefined();
                 done();
             });
+
+            var mockmanDef = q.defer(), mailmanDef = q.defer();
+            q.all([mockmanDef.promise, mailmanDef.promise]).thenResolve().then(done);
+            mailman.once(msgSubject, mailmanDef.resolve);
+
             mockman.once('forgotPassword', function(record) {
                 expect(record.data.user.password).not.toBeDefined();
                 expect(record.data.user).toEqual(jasmine.objectContaining({
@@ -746,7 +755,7 @@ describe('auth (E2E):', function() {
                 expect(record.data.target).toBe('portal');
                 expect(record.data.token).toEqual(jasmine.any(String));
                 expect(new Date(record.data.date)).not.toBe(NaN);
-                done();
+                mockmanDef.resolve();
             });
         });
 
@@ -911,6 +920,10 @@ describe('auth (E2E):', function() {
                 done();
             });
 
+            var mockmanDef = q.defer(), mailmanDef = q.defer();
+            q.all([mockmanDef.promise, mailmanDef.promise]).thenResolve().then(done);
+            mailman.once(msgSubject, mailmanDef.resolve);
+
             mockman.once('passwordChanged', function(record) {
                 expect(new Date(record.data.date)).not.toBe(NaN);
                 expect(record.data.user.password).not.toBeDefined();
@@ -930,11 +943,13 @@ describe('auth (E2E):', function() {
                     expect(resp.response.headers['set-cookie'].length).toBe(1);
                 }).catch(function(error) {
                     expect(util.inspect(error)).not.toBeDefined();
-                }).done(done);
+                }).then(mockmanDef.resolve);
             });
         });
 
         it('should write an entry to the audit collection', function(done) {
+            mailman.once(msgSubject, function(msg) { done(); });
+
             testUtils.resetCollection('users', mockUser).then(function() {
                 return requestUtils.qRequest('post', options);
             }).then(function(resp) {
@@ -953,7 +968,7 @@ describe('auth (E2E):', function() {
                                                  params: {}, query: {} });
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
-            }).done(done);
+            });
         });
         
         it('should fail with a 404 if the user is not found', function(done) {
