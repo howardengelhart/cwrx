@@ -845,7 +845,9 @@ describe('ads campaignUpdates endpoints (E2E):', function() {
         });
 
         it('should produce a newUpdateRequest event', function(done) {
-            mailman.once(msgSubject, function(msg) { done(); });
+            var mockmanDef = q.defer(), mailmanDef = q.defer();
+            q.all([mockmanDef.promise, mailmanDef.promise]).thenResolve().then(done);
+            mailman.once(msgSubject, mailmanDef.resolve);
 
             requestUtils.qRequest('post', options).then(function(resp) {
                 mockman.on('newUpdateRequest', function(record) {
@@ -863,6 +865,7 @@ describe('ads campaignUpdates endpoints (E2E):', function() {
                         email: 'c6e2etester@gmail.com',
                         org: 'o-selfie'
                     }));
+                    mockmanDef.resolve();
                 });
             }).catch(done.fail);
         });
@@ -1377,7 +1380,9 @@ describe('ads campaignUpdates endpoints (E2E):', function() {
         });
         
         it('should be able to produce a campaignUpdateApproved event', function(done) {
-            mailman.once(approveSubject, function(msg) { done(); });
+            var mockmanDef = q.defer(), mailmanDef = q.defer();
+            q.all([mockmanDef.promise, mailmanDef.promise]).thenResolve().then(done);
+            mailman.once(approveSubject, mailmanDef.resolve);
 
             options.json.status = 'approved';
             requestUtils.qRequest('put', options).then(function(resp) {
@@ -1390,13 +1395,15 @@ describe('ads campaignUpdates endpoints (E2E):', function() {
                         user: 'e2e-user'
                     }));
                     expect(record.data.updateRequest).toEqual(resp.body);
-                    done();
+                    mockmanDef.resolve();
                 });
             }).catch(done.fail);
         });
         
         it('should be able to produce a campaignUpdateRejected event', function(done) {
-            mailman.once(rejectSubject, function(msg) { done(); });
+            var mockmanDef = q.defer(), mailmanDef = q.defer();
+            q.all([mockmanDef.promise, mailmanDef.promise]).thenResolve().then(done);
+            mailman.once(rejectSubject, mailmanDef.resolve);
 
             options.json = { status: 'rejected', rejectionReason: 'yo campaign stinks' };
             requestUtils.qRequest('put', options).then(function(resp) {
@@ -1409,7 +1416,7 @@ describe('ads campaignUpdates endpoints (E2E):', function() {
                         user: 'e2e-user'
                     }));
                     expect(record.data.updateRequest).toEqual(resp.body);
-                    done();
+                    mockmanDef.resolve();
                 });
             }).catch(done.fail);
         });
@@ -1517,7 +1524,9 @@ describe('ads campaignUpdates endpoints (E2E):', function() {
             });
 
             it('should be able to produce a campaignApproved event', function(done) {
-                mailman.once(approveSubject, function(msg) { done(); });
+                var mockmanDef = q.defer(), mailmanDef = q.defer();
+                q.all([mockmanDef.promise, mailmanDef.promise]).thenResolve().then(done);
+                mailman.once(approveSubject, mailmanDef.resolve);
 
                 options.json.status = 'approved';
                 requestUtils.qRequest('put', options).then(function(resp) {
@@ -1531,13 +1540,15 @@ describe('ads campaignUpdates endpoints (E2E):', function() {
                             user: 'e2e-user'
                         }));
                         expect(record.data.updateRequest).toEqual(resp.body);
-                        done();
+                        mockmanDef.resolve();
                     });
                 }).catch(done.fail);
             });
             
             it('should be able to produce a campaignRejected event', function(done) {
-                mailman.once(rejectSubject, function(msg) { done(); });
+                var mockmanDef = q.defer(), mailmanDef = q.defer();
+                q.all([mockmanDef.promise, mailmanDef.promise]).thenResolve().then(done);
+                mailman.once(rejectSubject, mailmanDef.resolve);
 
                 options.json = { status: 'rejected', rejectionReason: 'yo campaign stinks' };
                 requestUtils.qRequest('put', options).then(function(resp) {
@@ -1551,7 +1562,7 @@ describe('ads campaignUpdates endpoints (E2E):', function() {
                             user: 'e2e-user'
                         }));
                         expect(record.data.updateRequest).toEqual(resp.body);
-                        done();
+                        mockmanDef.resolve();
                     });
                 }).catch(done.fail);
             });

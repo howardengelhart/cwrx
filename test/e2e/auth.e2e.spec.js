@@ -347,7 +347,9 @@ describe('auth (E2E):', function() {
                     done();
                 });
 
-                mailman.once(msgSubject, function(msg) { done(); });
+                var mockmanDef = q.defer(), mailmanDef = q.defer();
+                q.all([mockmanDef.promise, mailmanDef.promise]).thenResolve().then(done);
+                mailman.once(msgSubject, mailmanDef.resolve);
 
                 mockman.once('failedLogins', function(record) {
                     expect(record.data.user.password).not.toBeDefined();
@@ -364,7 +366,7 @@ describe('auth (E2E):', function() {
                         return getCacheValue();
                     }).then(function(value) {
                         expect(value).toBe(4);
-                    }).catch(done.fail);
+                    }).then(mockmanDef.resolve, done.fail);
                 });
             });
             
@@ -739,7 +741,9 @@ describe('auth (E2E):', function() {
                 done();
             });
 
-            mailman.once(msgSubject, function(msg) { done(); });
+            var mockmanDef = q.defer(), mailmanDef = q.defer();
+            q.all([mockmanDef.promise, mailmanDef.promise]).thenResolve().then(done);
+            mailman.once(msgSubject, mailmanDef.resolve);
 
             mockman.once('forgotPassword', function(record) {
                 expect(record.data.user.password).not.toBeDefined();
@@ -751,6 +755,7 @@ describe('auth (E2E):', function() {
                 expect(record.data.target).toBe('portal');
                 expect(record.data.token).toEqual(jasmine.any(String));
                 expect(new Date(record.data.date)).not.toBe(NaN);
+                mockmanDef.resolve();
             });
         });
 
@@ -915,7 +920,9 @@ describe('auth (E2E):', function() {
                 done();
             });
 
-            mailman.once(msgSubject, function(msg) { done(); });
+            var mockmanDef = q.defer(), mailmanDef = q.defer();
+            q.all([mockmanDef.promise, mailmanDef.promise]).thenResolve().then(done);
+            mailman.once(msgSubject, mailmanDef.resolve);
 
             mockman.once('passwordChanged', function(record) {
                 expect(new Date(record.data.date)).not.toBe(NaN);
@@ -936,7 +943,7 @@ describe('auth (E2E):', function() {
                     expect(resp.response.headers['set-cookie'].length).toBe(1);
                 }).catch(function(error) {
                     expect(util.inspect(error)).not.toBeDefined();
-                });
+                }).then(mockmanDef.resolve);
             });
         });
 
