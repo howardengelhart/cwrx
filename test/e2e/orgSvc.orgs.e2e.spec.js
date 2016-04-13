@@ -336,6 +336,24 @@ describe('orgSvc orgs (E2E):', function() {
                 expect(resp.response.headers['content-range']).toBe('items 1-2/2');
             }).then(done, done.fail);
         });
+        
+        it('should get orgs with a given promotion', function(done) {
+            testUtils.resetCollection('orgs', [
+                { id: 'o-1', status: 'active', promotions: [{ id: 'pro-1' }, { id: 'pro-2' }] },
+                { id: 'o-2', status: 'active', promotions: [{ id: 'pro-2' }] },
+                { id: 'o-3', status: 'active', promotions: [{ id: 'pro-3' }, { id: 'pro-1' }] }
+            ]).then(function() {
+                options.qs.promotion = 'pro-1';
+                return requestUtils.qRequest('get', options);
+            }).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.body).toEqual([
+                    { id: 'o-1', status: 'active', promotions: [{ id: 'pro-1' }, { id: 'pro-2' }] },
+                    { id: 'o-3', status: 'active', promotions: [{ id: 'pro-3' }, { id: 'pro-1' }] }
+                ]);
+                expect(resp.response.headers['content-range']).toBe('items 1-2/2');
+            }).then(done, done.fail);
+        });
 
         it('should get all orgs without a payment plan', function(done) {
             options.qs.hasPaymentPlan = false;
