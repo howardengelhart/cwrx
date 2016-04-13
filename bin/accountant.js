@@ -117,23 +117,159 @@
         }
     };
     
-
+    accountant.fieldToColumn = { //TODO: comment
+        id              : 'transaction_id',
+        created         : 'rec_ts',
+        transactionTS   : 'transaction_ts',
+        amount          : 'amount',
+        sign            : 'sign',
+        units           : 'units',
+        org             : 'org_id',
+        campaign        : 'campaign_id',
+        braintreeId     : 'braintree_id',
+        promotion       : 'promotion_id',
+        description     : 'description'
+    };
+    
     accountant.formatTransOutput = function(row) {
-        /* jshint camelcase: false */
-        return {
-            id              : row.transaction_id,
-            created         : new Date(row.rec_ts),
-            transactionTS   : new Date(row.transaction_ts),
-            amount          : parseFloat(row.amount),
-            sign            : row.sign,
-            units           : row.units,
-            org             : row.org_id,
-            campaign        : row.campaign_id,
-            braintreeId     : row.braintree_id,
-            promotion       : row.promotion_id,
-            description     : row.description
+        var retObj = {};
+        Object.keys(accountant.fieldToColumn).forEach(function(field) {
+            retObj[field] = row[accountant.fieldToColumn[field]];
+        });
+        
+        retObj.amount = retObj.amount ? parseFloat(retObj.amount) : retObj.amount;
+        retObj.created = retObj.created ? new Date(retObj.created) : retObj.created;
+        retObj.transactionTS = retObj.transactionTS ? new Date(retObj.transactionTS)
+                                                    : retObj.transactionTS;
+        
+        return retObj;
+    };
+    
+    // Check that requester can read their org, for permissions purposes
+    accountant.canFetchOrg = function(org, req, config) { //TODO: rename, test
+        var log = logger.getLog(),
+            url = urlUtils.resolve(
+                urlUtils.resolve(config.api.root, config.api.orgs.endpoint),
+                org
+            );
+
+        return requestUtils.proxyRequest(req, 'get', {
+            url: url,
+            qs: { fields: 'id' }
+        })
+        .then(function(resp) {
+            if (resp && resp.response.statusCode !== 200) {
+                log.info(
+                    '[%1] Requester %2 could not fetch org %3: %4, %5',
+                    req.uuid,
+                    req.requester.id,
+                    org,
+                    resp.response.statusCode,
+                    resp.body
+                );
+                //TODO: BUT HOW YOU GONNA QUIT OUT OF THE CALLING CODE WITHOUT A DONE FUNCTION?
+                return q({
+                    code: 400,
+                    body: 'Cannot fetch balance for this org'
+                });
+            }
+        })
+        .catch(function(error) {
+            log.error('[%1] Error fetching org %2: %3', req.uuid, org, util.inspect(error));
+            return q.reject('Failed to fetch org');
+        });
+    };
+    
+    accountant.parseQueryParams = function(req) {
+        var params = {
+            limit: Math.max((Number(req.query.limit) || 0), 0),
+            skip: Math.max((Number(req.query.skip) || 0), 0)
         };
-        /* jshint camelcase: true */
+        
+        params.sort = (function() {
+            var sortParts = String(req.query.sort || '').split(',');
+            
+            return [
+                accountant.fieldToColumn[sortParts[0]] || 'transaction_id',
+                sortParts[1] === '-1' ? 'DESC' : 'ASC'
+            ].join(' ');
+        })();
+
+        params.fields = (function() {
+            var fieldParam = String(req.query.fields || '');
+            
+            if (!fieldParam) {
+                return '*';
+            }
+
+            var fields = fieldParam.split(',').map(function(field) {
+                return accountant.fieldToColumn[field];
+            }).filter(function(col) {
+                return !!col;
+            });
+            
+            if (fields.indexOf('transaction_id') === -1) { // always show the id
+                fields.push('transaction_id');
+            }
+                
+            return fields.join(',');
+        })();
+        
+        return params;
+    };
+    
+    accountant.getTransactions = function(req) {
+        var log = logger.getLog();
+
+        req.query.org = req.query.org || (req.user && req.user.org);
+        if (!req.query.org || typeof req.query.org !== 'string') {
+            return q({ code: 400, body: 'Must provide an org id' });
+        }
+        
+        //TODO: call canFetchOrg? or use permissions.transactions.read?
+        
+        var fetchParams = accountant.parseQueryParams(req);
+
+        //TODO: add log statement?
+
+        var statement = [
+            'SELECT ' + fetchParams.fields + ',count(*) OVER() as fullcount',
+            '  from fct.billing_transactions',
+            'WHERE org_id = $1 AND sign = 1',
+            'ORDER BY ' + fetchParams.sort,
+            'LIMIT ' + (fetchParams.limit || 'ALL'),
+            'OFFSET ' + fetchParams.skip
+        ];
+        var values = [
+            req.query.org
+        ];
+
+        return pgUtils.query(statement.join('\n'), values)
+        .then(function(result) {
+            log.info('[%1] Fetched %2 records for %3',req.uuid,result.rows.length,req.requester.id);
+            
+            var count = (result.rows[0] && result.rows[0].fullcount) || 0,
+                limit = fetchParams.limit,
+                skip = fetchParams.skip,
+                resp = {};
+                
+            /*
+                TODO: do we need to decorate transactions? Frontend will need:
+                - promotion `type` if it's a promotion (tho label could be "Promotional Credit")
+                - payment method descr if payment:
+                    "<method.cardType> + <method.cardholderName> + <method.last4>"
+            */
+                
+            resp.code = 200;
+            resp.headers = {
+                'content-range': expressUtils.formatContentRange(count, limit, skip)
+            };
+            resp.body = result.rows.map(function(row) {
+                return accountant.formatTransOutput(row);
+            });
+            
+            return q(resp);
+        });
     };
 
     accountant.createTransaction = function(req) {
@@ -239,6 +375,9 @@
                     body: 'Cannot fetch balance for this org'
                 });
             }
+            
+            /*TODO: may want to modify this to aggregate transactions by sign, so we can return
+             * balance and total spend */
 
             var statement = [
                 'SELECT sum(amount * sign) as balance from fct.billing_transactions',
@@ -404,6 +543,38 @@
         });
 
         app.use(bodyParser.json());
+
+        var authGetTrans = authUtils.middlewarify({
+            allowApps: true,
+            permissions: { orgs: 'read' } //TODO: or transactions.read?
+        });
+        app.get('/api/transactions?', state.sessions, authGetTrans, audit, function(req, res) {
+            return accountant.getTransactions(req).then(function(resp) {
+                expressUtils.sendResponse(res, resp);
+            }).catch(function(error) {
+                expressUtils.sendResponse(res, {
+                    code: 500,
+                    body: {
+                        error: 'Error fetching transaction',
+                        detail: error
+                    }
+                });
+            });
+        });
+
+        app.get('/api/transactions?', state.sessions, authGetTrans, audit, function(req, res) {
+            return accountant.getTransactions(req).then(function(resp) {
+                expressUtils.sendResponse(res, resp);
+            }).catch(function(error) {
+                expressUtils.sendResponse(res, {
+                    code: 500,
+                    body: {
+                        error: 'Error fetching transaction',
+                        detail: error
+                    }
+                });
+            });
+        });
 
         var authPostTrans = authUtils.middlewarify({
             allowApps: true,
