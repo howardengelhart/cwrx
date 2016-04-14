@@ -565,4 +565,23 @@ describe('expressUtils', function() {
             expect(res.header).toHaveBeenCalledWith('content-range', 'items 1-2/2');
         });
     });
+    
+    describe('formatContentRange', function() {
+        it('should return a formatted content-range header string', function() {
+            expect(expressUtils.formatContentRange(100, 20, 40)).toBe('items 41-60/100');
+            expect(expressUtils.formatContentRange(66, 11, 43)).toBe('items 44-54/66');
+        });
+
+        it('should handle end behavior appropriately', function() {
+            expect(expressUtils.formatContentRange(100, 20, 90)).toBe('items 91-100/100');
+        });
+
+        it('should handle a count of 0 appropriately', function() {
+            expect(expressUtils.formatContentRange(0, 20, 90)).toBe('items 0-0/0');
+        });
+
+        it('should handle a limit of 0 appropriately', function() {
+            expect(expressUtils.formatContentRange(100, 0, 10)).toBe('items 11-100/100');
+        });
+    });
 });

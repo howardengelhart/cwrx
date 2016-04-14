@@ -21,6 +21,7 @@ var q           = require('q'),
         'referralCodes',
         'roles',
         'sites',
+        'transactions',
         'users'
     ];
 
