@@ -802,6 +802,10 @@ describe('orgSvc-payments (UT)', function() {
                 customerId: jasmine.createSpy('search.customerId()').and.callFake(function() { return mockSearch._customerId; }),
                 _customerId: {
                     is: jasmine.createSpy('customerId().is()')
+                },
+                ids: jasmine.createSpy('search.ids()').and.callFake(function() { return mockSearch._ids; }),
+                _ids: {
+                    in: jasmine.createSpy('customerId().in()')
                 }
             };
             
@@ -828,6 +832,7 @@ describe('orgSvc-payments (UT)', function() {
             });
             spyOn(payModule, 'formatPaymentOutput').and.callThrough();
             req.org = { id: 'o-1', braintreeCustomer: '123456' };
+            req.query = {};
         });
         
         it('should get payments for the org', function(done) {
@@ -876,11 +881,53 @@ describe('orgSvc-payments (UT)', function() {
                 expect(mockGateway.transaction.search).toHaveBeenCalledWith(jasmine.any(Function));
                 expect(mockSearch.customerId).toHaveBeenCalledWith();
                 expect(mockSearch._customerId.is).toHaveBeenCalledWith('123456');
+                expect(mockSearch.ids).not.toHaveBeenCalled();
                 expect(payModule.formatPaymentOutput.calls.count()).toBe(2);
                 expect(mockLog.error).not.toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
             }).done(done);
+        });
+        
+        describe('if the ids query param is set', function() {
+            beforeEach(function() {
+                req.query.ids = 'p1,p2,pfake';
+            });
+
+            it('should apply the filter to the braintree search', function(done) {
+                payModule.getPayments(mockGateway, orgSvc, req).then(function(resp) {
+                    expect(resp.code).toEqual(200);
+                    expect(resp.body.length).toBe(2);
+                    expect(mockGateway.transaction.search).toHaveBeenCalledWith(jasmine.any(Function));
+                    expect(mockSearch.customerId).toHaveBeenCalledWith();
+                    expect(mockSearch._customerId.is).toHaveBeenCalledWith('123456');
+                    expect(mockSearch.ids).toHaveBeenCalledWith();
+                    expect(mockSearch._ids.in).toHaveBeenCalledWith(['p1', 'p2', 'pfake']);
+                    expect(mockLog.error).not.toHaveBeenCalled();
+                }).catch(function(error) {
+                    expect(error.toString()).not.toBeDefined();
+                }).done(done);
+            });
+            
+            it('should handle invalid or weird param values', function(done) {
+                q.all(['p1,,,,', 'p1', { $gt: '' }].map(function(val) {
+                    var reqCopy = JSON.parse(JSON.stringify(req));
+                    reqCopy.query.ids = val;
+                    return payModule.getPayments(mockGateway, orgSvc, reqCopy);
+                }))
+                .then(function(results) {
+                    results.forEach(function(resp) {
+                        expect(resp.code).toEqual(200);
+                    });
+                    expect(mockSearch._ids.in.calls.count()).toBe(3);
+                    expect(mockSearch._ids.in.calls.argsFor(0)).toEqual([['p1', '', '', '', '']]);
+                    expect(mockSearch._ids.in.calls.argsFor(1)).toEqual([['p1']]);
+                    expect(mockSearch._ids.in.calls.argsFor(2)).toEqual([['[object Object]']]);
+                    expect(mockLog.error).not.toHaveBeenCalled();
+                }).catch(function(error) {
+                    expect(error.toString()).not.toBeDefined();
+                }).done(done);
+            });
         });
         
         it('should return a 200 and [] if the org has no braintreeCustomer', function(done) {

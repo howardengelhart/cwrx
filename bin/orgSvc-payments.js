@@ -541,11 +541,15 @@
         var log = logger.getLog();
         
         return orgSvc.customMethod(req, 'getPayments', function() {
+            var ids;
 
             if (!req.org.braintreeCustomer) {
                 log.info('[%1] No braintreeCustomer for org %2, so no payments to show',
                          req.uuid, req.org.id);
                 return q({ code: 200, body: [] });
+            }
+            if ('ids' in req.query) {
+                ids = String(req.query.ids).split(',');
             }
             
             var streamDeferred = q.defer(),
@@ -553,6 +557,9 @@
 
             var stream = gateway.transaction.search(function(search) {
                 search.customerId().is(req.org.braintreeCustomer);
+                if (ids) {
+                    search.ids().in(ids);
+                }
             });
             
             stream.on('data', function(result) {
