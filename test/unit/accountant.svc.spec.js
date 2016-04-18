@@ -1,5 +1,5 @@
 var flush = true;
-describe('geo (UT)', function() {
+describe('accountant (UT)', function() {
     var mockLog, Model, logger, q, accountant, express, expressUtils, journal, authUtils, uuid,
         requestUtils, pgUtils, req, res, next, Status, Scope;
 
@@ -207,8 +207,9 @@ describe('geo (UT)', function() {
     });
     
     describe('formatTransOutput', function() {
-        it('should return a JSON representation of a row', function() {
-            var row = {
+        var row;
+        beforeEach(function() {
+            row = {
                 rec_key         : 1234,
                 rec_ts          : '2016-03-17T20:29:06.754Z',
                 transaction_id  : 't-1',
@@ -222,6 +223,9 @@ describe('geo (UT)', function() {
                 promotion_id    : 'pro-1',
                 description     : 'i paid a lot of money'
             };
+        });
+
+        it('should return a JSON representation of a row', function() {
             expect(accountant.formatTransOutput(row)).toEqual({
                 id              : 't-1',
                 created         : new Date('2016-03-17T20:29:06.754Z'),
@@ -235,6 +239,229 @@ describe('geo (UT)', function() {
                 promotion       : 'pro-1',
                 description     : 'i paid a lot of money'
             });
+        });
+        
+        it('should handle amounts of 0 or undefined/null', function() {
+            row.amount = 0;
+            expect(accountant.formatTransOutput(row).amount).toBe(0);
+            delete row.amount;
+            expect(accountant.formatTransOutput(row).amount).not.toBeDefined();
+            row.amount = null;
+            expect(accountant.formatTransOutput(row).amount).toBe(null);
+        });
+    });
+    
+    describe('parseQueryParams', function() {
+        beforeEach(function() {
+            req.query = {
+                limit: '10',
+                skip: '20',
+                fields: 'id,created,amount',
+                sort: 'amount,-1'
+            };
+        });
+        
+        it('should return an object of parsed pagination params', function() {
+            expect(accountant.parseQueryParams(req)).toEqual({
+                limit: 10,
+                skip: 20,
+                fields: 'transaction_id,rec_ts,amount',
+                sort: 'amount DESC'
+            });
+        });
+        
+        ['limit', 'skip'].forEach(function(param) {
+            describe('when handling ' + param, function() {
+                it('should default the param to 0 if not set or not a number', function() {
+                    delete req.query[param];
+                    expect(accountant.parseQueryParams(req)[param]).toBe(0);
+                    req.query[param] = 'DROP TABLE fct.billing_transactions';
+                    expect(accountant.parseQueryParams(req)[param]).toBe(0);
+                });
+
+                it('should not allow the param to be negative', function() {
+                    req.query[param] = -12;
+                    expect(accountant.parseQueryParams(req)[param]).toBe(0);
+                });
+            });
+        });
+
+        describe('when handling sort', function() {
+            it('should default to sorting by the transaction_id', function() {
+                delete req.query.sort;
+                expect(accountant.parseQueryParams(req).sort).toBe('transaction_id ASC');
+            });
+            
+            it('should handle invalid sorts', function() {
+                var resps = ['amount', 'amount,foo', ',,,,,', 'DROP TABLE fct.billing_transactions', 'email,1'].map(function(val) {
+                    req.query.sort = val;
+                    return accountant.parseQueryParams(req);
+                });
+                expect(resps[0].sort).toBe('amount ASC');
+                expect(resps[1].sort).toBe('amount ASC');
+                expect(resps[2].sort).toBe('transaction_id ASC');
+                expect(resps[3].sort).toBe('transaction_id ASC');
+                expect(resps[4].sort).toBe('transaction_id ASC');
+            });
+        });
+        
+        describe('when handling fields', function() {
+            it('should default to * if not set', function() {
+                delete req.query.fields;
+                expect(accountant.parseQueryParams(req).fields).toBe('*');
+            });
+
+            it('should always include the transaction_id', function() {
+                req.query.fields = 'amount,created';
+                expect(accountant.parseQueryParams(req).fields).toBe('amount,rec_ts,transaction_id');
+            });
+            
+            it('should only include valid columns', function() {
+                req.query.fields = 'units,foo,amount,bar,DROP TABLE fct.billing_transactions';
+                expect(accountant.parseQueryParams(req).fields).toBe('units,amount,transaction_id');
+            });
+
+            it('should support all valid columns', function() {
+                req.query.fields = 'id,created,transactionTS,amount,sign,units,org,campaign,braintreeId,promotion,description';
+                expect(accountant.parseQueryParams(req).fields)
+                    .toBe('transaction_id,rec_ts,transaction_ts,amount,sign,units,org_id,campaign_id,braintree_id,promotion_id,description');
+            });
+        });
+    });
+
+    describe('getTransactions', function() {
+        var pgResp;
+        beforeEach(function() {
+            req.requester.permissions = { transactions: { read: Scope.All } };
+            req.user = { id: 'u-1', org: 'o-1' };
+            req.query = {
+                org: 'o-2',
+                fields: 'amount,braintreeId,promotion',
+                limit: 2,
+                skip: 1,
+                sort: 'amount,-1'
+            };
+            pgResp = { rows: [
+                { transaction_id: 't-1', amount: '202.2', braintree_id: 'pay1', fullcount: 5 },
+                { transaction_id: 't-2', amount: '101.1', promotion_id: 'pro-1', fullcount: 5 }
+            ] };
+            spyOn(accountant, 'parseQueryParams').and.callThrough();
+            spyOn(pgUtils, 'query').and.callFake(function() { return q(pgResp); });
+        });
+        
+        it('should query for transactions', function(done) {
+            accountant.getTransactions(req).then(function(resp) {
+                expect(resp.code).toBe(200);
+                expect(resp.body).toEqual([
+                    jasmine.objectContaining({ id: 't-1', amount: 202.2, braintreeId: 'pay1' }),
+                    jasmine.objectContaining({ id: 't-2', amount: 101.1, promotion: 'pro-1' })
+                ]);
+                expect(resp.headers).toEqual({
+                    'content-range': 'items 2-3/5'
+                });
+                expect(accountant.parseQueryParams).toHaveBeenCalledWith(req);
+                expect(pgUtils.query).toHaveBeenCalledWith(jasmine.any(String), jasmine.any(Array));
+                expect(pgUtils.query.calls.argsFor(0)[0]).toMatch(/SELECT amount,braintree_id,promotion_id,transaction_id,count\(\*\) OVER\(\) as fullcount/);
+                expect(pgUtils.query.calls.argsFor(0)[0]).toMatch(/from fct.billing_transactions/);
+                expect(pgUtils.query.calls.argsFor(0)[0]).toMatch(/WHERE org_id = \$1 AND sign = 1/);
+                expect(pgUtils.query.calls.argsFor(0)[0]).toMatch(/ORDER BY amount DESC/);
+                expect(pgUtils.query.calls.argsFor(0)[0]).toMatch(/LIMIT 2/);
+                expect(pgUtils.query.calls.argsFor(0)[0]).toMatch(/OFFSET 1/);
+                expect(pgUtils.query.calls.argsFor(0)[1]).toEqual(['o-2']);
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should default the query org to the requester\'s org', function(done) {
+            accountant.getTransactions(req).then(function(resp) {
+                expect(resp).toEqual({ code: 200, body: jasmine.any(Array), headers: jasmine.any(Object) });
+                expect(pgUtils.query.calls.argsFor(0)[1]).toEqual(['o-2']);
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
+        });
+
+        it('should return a 400 if the requester is an app and does not specify an org', function(done) {
+            delete req.user;
+            delete req.query.org;
+            accountant.getTransactions(req).then(function(resp) {
+                expect(resp).toEqual({ code: 400, body: 'Must provide an org id' });
+                expect(pgUtils.query).not.toHaveBeenCalled();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should have defaults for pagination query params', function(done) {
+            req.query = {};
+            accountant.getTransactions(req).then(function(resp) {
+                expect(resp).toEqual({ code: 200, body: jasmine.any(Array), headers: jasmine.any(Object) });
+                expect(resp.headers['content-range']).toBe('items 1-5/5');
+                expect(pgUtils.query.calls.argsFor(0)[0]).toMatch(/ORDER BY transaction_id ASC/);
+                expect(pgUtils.query.calls.argsFor(0)[0]).toMatch(/LIMIT ALL/);
+                expect(pgUtils.query.calls.argsFor(0)[0]).toMatch(/OFFSET 0/);
+                expect(pgUtils.query.calls.argsFor(0)[1]).toEqual(['o-1']);
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
+        });
+        
+        describe('if the requester cannot read all transactions', function() {
+            beforeEach(function() {
+                req.requester.permissions.transactions.read = Scope.Org;
+            });
+
+            it('should return a 400 if the requester has no org', function(done) {
+                delete req.user;
+                accountant.getTransactions(req).then(function(resp) {
+                    expect(resp).toEqual({ code: 403, body: 'Not authorized to get transactions for this org' });
+                    expect(pgUtils.query).not.toHaveBeenCalled();
+                }).catch(function(error) {
+                    expect(error.toString()).not.toBeDefined();
+                }).done(done);
+            });
+
+            it('should return a 400 if the requester\'s org differs from the query org', function(done) {
+                accountant.getTransactions(req).then(function(resp) {
+                    expect(resp).toEqual({ code: 403, body: 'Not authorized to get transactions for this org' });
+                    expect(pgUtils.query).not.toHaveBeenCalled();
+                }).catch(function(error) {
+                    expect(error.toString()).not.toBeDefined();
+                }).done(done);
+            });
+
+            it('should query properly if the requester\'s org is the same as the query org', function(done) {
+                req.query.org = req.user.org;
+                accountant.getTransactions(req).then(function(resp) {
+                    expect(resp).toEqual({ code: 200, body: jasmine.any(Array), headers: jasmine.any(Object) });
+                    expect(pgUtils.query.calls.argsFor(0)[1]).toEqual(['o-1']);
+                }).catch(function(error) {
+                    expect(error.toString()).not.toBeDefined();
+                }).done(done);
+            });
+        });
+        
+        it('should handle postgres returning no rows', function(done) {
+            pgResp = { rows: [] };
+            accountant.getTransactions(req).then(function(resp) {
+                expect(resp).toEqual({
+                    code: 200,
+                    body: [],
+                    headers: { 'content-range': 'items 0-0/0' }
+                });
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should fail if postgres returns an error', function(done) {
+            pgResp = q.reject('I GOT A PROBLEM');
+            accountant.getTransactions(req).then(function(resp) {
+                expect(resp).not.toBeDefined();
+            }).catch(function(error) {
+                expect(error).toBe('I GOT A PROBLEM');
+            }).done(done);
         });
     });
 
@@ -376,7 +603,7 @@ describe('geo (UT)', function() {
     });
     
     describe('getAccountBalance', function() {
-        var config;
+        var config, pgResp;
         beforeEach(function() {
             config = { api: {
                 root: 'http://c6.com',
@@ -391,19 +618,27 @@ describe('geo (UT)', function() {
                 response: { statusCode: 200 },
                 body: { id: 'o-1' }
             }));
-            spyOn(pgUtils, 'query').and.returnValue(q({ rows: [{ balance: 1234.12 }] }));
+            pgResp = { rows: [
+                { sign: 1, total: '1112.34' },
+                { sign: -1, total: '666.7891' }
+            ] };
+            spyOn(pgUtils, 'query').and.callFake(function() { return q(pgResp); });
         });
 
-        it('should fetch and return the org\'s balance', function(done) {
+        it('should fetch and return the org\'s balance and total spend', function(done) {
             accountant.getAccountBalance(req, config).then(function(resp) {
-                expect(resp).toEqual({ code: 200, body: 1234.12 });
+                expect(resp).toEqual({
+                    code: 200,
+                    body: { balance: 445.55, totalSpend: 666.79 }
+                });
                 expect(requestUtils.proxyRequest).toHaveBeenCalledWith(req, 'get', {
                     url: 'http://c6.com/api/account/orgs/o-1',
                     qs: { fields: 'id' }
                 });
                 expect(pgUtils.query).toHaveBeenCalledWith(jasmine.any(String), ['o-1']);
-                expect(pgUtils.query.calls.argsFor(0)[0]).toMatch(/SELECT sum\(amount \* sign\) as balance from fct.billing_transactions/);
-                expect(pgUtils.query.calls.argsFor(0)[0]).toMatch(/where org_id = \$1/);
+                expect(pgUtils.query.calls.argsFor(0)[0]).toMatch(/SELECT sign,sum\(amount\) as total FROM fct.billing_transactions/);
+                expect(pgUtils.query.calls.argsFor(0)[0]).toMatch(/WHERE org_id = \$1/);
+                expect(pgUtils.query.calls.argsFor(0)[0]).toMatch(/GROUP BY sign/);
                 expect(mockLog.error).not.toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
@@ -413,7 +648,10 @@ describe('geo (UT)', function() {
         it('should default to the requester\'s org', function(done) {
             delete req.query.org;
             accountant.getAccountBalance(req, config).then(function(resp) {
-                expect(resp).toEqual({ code: 200, body: 1234.12 });
+                expect(resp).toEqual({
+                    code: 200,
+                    body: { balance: 445.55, totalSpend: 666.79 }
+                });
                 expect(requestUtils.proxyRequest).toHaveBeenCalledWith(req, 'get', {
                     url: 'http://c6.com/api/account/orgs/o-2',
                     qs: { fields: 'id' }
@@ -427,7 +665,10 @@ describe('geo (UT)', function() {
         it('should still fetch the org if the requester has read all priviledges', function(done) {
             req.requester.permissions.orgs.read = Scope.All;
             accountant.getAccountBalance(req, config).then(function(resp) {
-                expect(resp).toEqual({ code: 200, body: 1234.12 });
+                expect(resp).toEqual({
+                    code: 200,
+                    body: { balance: 445.55, totalSpend: 666.79 }
+                });
                 expect(requestUtils.proxyRequest).toHaveBeenCalled();
                 expect(pgUtils.query).toHaveBeenCalled();
             }).catch(function(error) {
@@ -435,13 +676,24 @@ describe('geo (UT)', function() {
             }).done(done);
         });
         
-        it('should handle postgres not returning a balance', function(done) {
-            pgUtils.query.and.returnValue(q({ rows: [{}] }));
-
-            accountant.getAccountBalance(req, config).then(function(resp) {
-                expect(resp).toEqual({ code: 200, body: 0 });
-                expect(requestUtils.proxyRequest).toHaveBeenCalled();
-                expect(pgUtils.query).toHaveBeenCalled();
+        it('should handle postgres returning partial data', function(done) {
+            var data = [
+                { rows: [{ sign: 1, total: '123.45' }] },
+                { rows: [{ sign: -1, total: '456.78' }] },
+                { rows: [{ sign: 1, total: '123.45' }, { sign: -1, total: null }] },
+                { rows: [{}] },
+            ];
+            pgUtils.query.and.callFake(function() {
+                return q(data[pgUtils.query.calls.count() - 1]);
+            });
+            
+            q.all(data.map(function() {
+                return accountant.getAccountBalance(req, config);
+            })).then(function(results) {
+                expect(results[0]).toEqual({ code: 200, body: { balance: 123.45, totalSpend: 0 } });
+                expect(results[1]).toEqual({ code: 200, body: { balance: -456.78, totalSpend: 456.78 } });
+                expect(results[2]).toEqual({ code: 200, body: { balance: 123.45, totalSpend: 0 } });
+                expect(results[3]).toEqual({ code: 200, body: { balance: 0, totalSpend: 0 } });
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
             }).done(done);
@@ -522,12 +774,12 @@ describe('geo (UT)', function() {
                 collection: jasmine.createSpy('db.collection()').and.callFake(function(collName) { return colls[collName]; })
             };
 
-            spyOn(pgUtils, 'query').and.returnValue(q({ rows: [{ spend: -567.89 }] }));
+            spyOn(pgUtils, 'query').and.returnValue(q({ rows: [{ spend: -567.789 }] }));
         });
 
         it('should sum the org\'s campaign budgets and campaign spend and return the difference', function(done) {
             accountant.getOutstandingBudget(req, config, mockDb).then(function(resp) {
-                expect(resp).toEqual({ code: 200, body: 632.11 });
+                expect(resp).toEqual({ code: 200, body: { outstandingBudget: 632.21 } });
                 expect(colls.campaigns.find).toHaveBeenCalledWith(
                     { org: 'o-1', status: { $in: [ Status.Active, Status.Paused, Status.Pending ] } },
                     { fields: { id: 1, pricing: 1, updateRequest: 1 } }
@@ -547,7 +799,7 @@ describe('geo (UT)', function() {
         it('should default to the requester\'s org', function(done) {
             delete req.query.org;
             accountant.getOutstandingBudget(req, config, mockDb).then(function(resp) {
-                expect(resp).toEqual({ code: 200, body: 632.11 });
+                expect(resp).toEqual({ code: 200, body: { outstandingBudget: 632.21 } });
                 expect(colls.campaigns.find).toHaveBeenCalledWith(
                     { org: 'o-2', status: { $in: [ Status.Active, Status.Paused, Status.Pending ] } },
                     { fields: { id: 1, pricing: 1, updateRequest: 1 } }
@@ -568,7 +820,7 @@ describe('geo (UT)', function() {
 
             it('should use the max of the campaigns\' and update requests\' budgets', function(done) {
                 accountant.getOutstandingBudget(req, config, mockDb).then(function(resp) {
-                    expect(resp).toEqual({ code: 200, body: 1132.21 });
+                    expect(resp).toEqual({ code: 200, body: { outstandingBudget: 1132.31 } });
                     expect(colls.campaigns.find).toHaveBeenCalledWith(
                         { org: 'o-1', status: { $in: [ Status.Active, Status.Paused, Status.Pending ] } },
                         { fields: { id: 1, pricing: 1, updateRequest: 1 } }
@@ -587,8 +839,7 @@ describe('geo (UT)', function() {
             it('should effectively ignore updates that do not change the budget', function(done) {
                 mockUpdates[0].data = { name: 'foo', pricing: { dailyLimit: 100 } };
                 accountant.getOutstandingBudget(req, config, mockDb).then(function(resp) {
-                    expect(resp.code).toBe(200);
-                    expect(resp.body.toFixed(2)).toBe('732.21');
+                    expect(resp).toEqual({ code: 200, body: { outstandingBudget: 732.31 } });
                     expect(colls.campaigns.find).toHaveBeenCalled();
                     expect(colls.campaignUpdates.find).toHaveBeenCalled();
                     expect(pgUtils.query).toHaveBeenCalledWith(jasmine.any(String), ['o-1', ['cam-1', 'cam-2', 'cam-3', 'cam-4'] ]);
@@ -610,11 +861,22 @@ describe('geo (UT)', function() {
                 }).done(done);
             });
         });
+        
+        it('should handle postgres returning partial data', function(done) {
+            pgUtils.query.and.returnValue(q({ rows: [] }));
+            accountant.getOutstandingBudget(req, config, mockDb).then(function(resp) {
+                expect(resp).toEqual({ code: 200, body: { outstandingBudget: 1200 } });
+                expect(pgUtils.query).toHaveBeenCalled();
+                expect(mockLog.error).not.toHaveBeenCalled();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
+        });
 
         it('should not query postgres if no campaigns have a budget', function(done) {
             mockCamps = [{ id: 'cam-1', pricing: {} }];
             accountant.getOutstandingBudget(req, config, mockDb).then(function(resp) {
-                expect(resp).toEqual({ code: 200, body: 0 });
+                expect(resp).toEqual({ code: 200, body: { outstandingBudget: 0 } });
                 expect(colls.campaigns.find).toHaveBeenCalled();
                 expect(colls.campaignUpdates.find).not.toHaveBeenCalled();
                 expect(pgUtils.query).not.toHaveBeenCalled();
@@ -638,7 +900,7 @@ describe('geo (UT)', function() {
         it('should handle the case where no campaigns are returned', function(done) {
             mockCamps = [];
             accountant.getOutstandingBudget(req, config, mockDb).then(function(resp) {
-                expect(resp).toEqual({ code: 200, body: 0 });
+                expect(resp).toEqual({ code: 200, body: { outstandingBudget: 0 } });
                 expect(colls.campaigns.find).toHaveBeenCalled();
                 expect(colls.campaignUpdates.find).not.toHaveBeenCalled();
                 expect(pgUtils.query).not.toHaveBeenCalled();
@@ -675,8 +937,8 @@ describe('geo (UT)', function() {
     describe('getBalanceStats', function() {
         var config;
         beforeEach(function() {
-            spyOn(accountant, 'getAccountBalance').and.returnValue(q({ code: 200, body: 456.1 }));
-            spyOn(accountant, 'getOutstandingBudget').and.returnValue(q({ code: 200, body: 123.2 }));
+            spyOn(accountant, 'getAccountBalance').and.returnValue(q({ code: 200, body: { balance: 789.01, totalSpend: 456.1 } }));
+            spyOn(accountant, 'getOutstandingBudget').and.returnValue(q({ code: 200, body: { outstandingBudget: 123.2 } }));
             config = { config: 'yes' };
         });
         
@@ -684,7 +946,7 @@ describe('geo (UT)', function() {
             accountant.getBalanceStats(req, config, 'c6Db').then(function(resp) {
                 expect(resp).toEqual({
                     code: 200,
-                    body: { balance: 456.1, outstandingBudget: 123.2 }
+                    body: { balance: 789.01, totalSpend: 456.1, outstandingBudget: 123.2 }
                 });
                 expect(accountant.getAccountBalance).toHaveBeenCalledWith(req, config);
                 expect(accountant.getOutstandingBudget).toHaveBeenCalledWith(req, config, 'c6Db');
@@ -779,6 +1041,10 @@ describe('geo (UT)', function() {
             };
             spyOn(journal, 'AuditJournal').and.returnValue(fakeJournal);
             
+            spyOn(authUtils, 'middlewarify').and.callFake(function(opts) {
+                return { opts: opts };
+            });
+            
             delete require.cache[require.resolve('../../bin/accountant')];
             accountant = require('../../bin/accountant');
         });
@@ -864,17 +1130,55 @@ describe('geo (UT)', function() {
             });
         });
 
-        describe('creates a handler for POST /api/transactions that', function() {
-            var authMidware;
+        describe('creates a handler for GET /api/transactions that', function() {
             beforeEach(function() {
-                authMidware = jasmine.createSpy('authMidware()');
-                spyOn(authUtils, 'middlewarify').and.returnValue(authMidware);
                 accountant.main(state);
             });
             
             it('should exist and include necessary middleware', function() {
-                expect(expressApp.post).toHaveBeenCalledWith('/api/transactions?',
-                    state.sessions, authMidware, fakeJournal._midware, jasmine.any(Function));
+                expect(expressApp.get).toHaveBeenCalledWith('/api/transactions?', state.sessions, { opts: {
+                    allowApps: true,
+                    permissions: { transactions: 'read' }
+                } }, fakeJournal._midware, jasmine.any(Function));
+            });
+            
+            describe('when called', function() {
+                var handler;
+                beforeEach(function() {
+                    handler = expressRoutes.get['/api/transactions?'][expressRoutes.get['/api/transactions?'].length - 1];
+                    spyOn(accountant, 'getTransactions').and.returnValue(q({ code: 400, body: 'i got a problem with YOU' }));
+                });
+                
+                it('should call accountant.getTransactions and return the response', function(done) {
+                    q(handler(req, res, next)).finally(function() {
+                        expect(res.send).toHaveBeenCalledWith(400, 'i got a problem with YOU');
+                        expect(res.header).not.toHaveBeenCalled();
+                        expect(next).not.toHaveBeenCalled();
+                        expect(accountant.getTransactions).toHaveBeenCalledWith(req);
+                    }).done(done);
+                });
+                
+                it('should return a 500 if accountant.getTransactions rejects', function(done) {
+                    accountant.getTransactions.and.returnValue(q.reject('I GOT A PROBLEM'));
+                    q(handler(req, res, next)).finally(function() {
+                        expect(res.send).toHaveBeenCalledWith(500, { error: 'Error fetching transactions', detail: 'I GOT A PROBLEM' });
+                        expect(next).not.toHaveBeenCalled();
+                        expect(accountant.getTransactions).toHaveBeenCalledWith(req);
+                    }).done(done);
+                });
+            });
+        });
+
+        describe('creates a handler for POST /api/transactions that', function() {
+            beforeEach(function() {
+                accountant.main(state);
+            });
+            
+            it('should exist and include necessary middleware', function() {
+                expect(expressApp.post).toHaveBeenCalledWith('/api/transactions?', { opts: {
+                    allowApps: true,
+                    permissions: { transactions: 'create' }
+                } }, fakeJournal._midware, jasmine.any(Function));
             });
             
             describe('when called', function() {
@@ -905,16 +1209,15 @@ describe('geo (UT)', function() {
         });
 
         describe('creates a handler for GET /api/accounting/balance that', function() {
-            var authMidware;
             beforeEach(function() {
-                authMidware = jasmine.createSpy('authMidware()');
-                spyOn(authUtils, 'middlewarify').and.returnValue(authMidware);
                 accountant.main(state);
             });
             
             it('should exist and include necessary middleware', function() {
-                expect(expressApp.get).toHaveBeenCalledWith('/api/accounting/balance',
-                    state.sessions, authMidware, fakeJournal._midware, jasmine.any(Function));
+                expect(expressApp.get).toHaveBeenCalledWith('/api/accounting/balance', state.sessions, { opts: {
+                    allowApps: true,
+                    permissions: { orgs: 'read' }
+                } }, fakeJournal._midware, jasmine.any(Function));
             });
             
             describe('when called', function() {

@@ -20,6 +20,7 @@
         expressUtils    = require('../lib/expressUtils'),
         requestUtils    = require('../lib/requestUtils'),
         Status          = require('../lib/enums').Status,
+        Scope           = require('../lib/enums').Scope,
         
         state = {},
         accountant = {}; // for exporting functions to unit tests
@@ -117,25 +118,138 @@
         }
     };
     
-
+    // For translating between JSON representation of field + PG column name
+    accountant.fieldToColumn = {
+        id              : 'transaction_id',
+        created         : 'rec_ts',
+        transactionTS   : 'transaction_ts',
+        amount          : 'amount',
+        sign            : 'sign',
+        units           : 'units',
+        org             : 'org_id',
+        campaign        : 'campaign_id',
+        braintreeId     : 'braintree_id',
+        promotion       : 'promotion_id',
+        description     : 'description'
+    };
+    
+    // Format a transaction row as a JSON doc for returning to the client
     accountant.formatTransOutput = function(row) {
-        /* jshint camelcase: false */
-        return {
-            id              : row.transaction_id,
-            created         : new Date(row.rec_ts),
-            transactionTS   : new Date(row.transaction_ts),
-            amount          : parseFloat(row.amount),
-            sign            : row.sign,
-            units           : row.units,
-            org             : row.org_id,
-            campaign        : row.campaign_id,
-            braintreeId     : row.braintree_id,
-            promotion       : row.promotion_id,
-            description     : row.description
+        var retObj = {};
+        Object.keys(accountant.fieldToColumn).forEach(function(field) {
+            retObj[field] = row[accountant.fieldToColumn[field]];
+        });
+        
+        retObj.amount = retObj.amount ? parseFloat(retObj.amount) : retObj.amount;
+        retObj.created = retObj.created ? new Date(retObj.created) : retObj.created;
+        retObj.transactionTS = retObj.transactionTS ? new Date(retObj.transactionTS)
+                                                    : retObj.transactionTS;
+        
+        return retObj;
+    };
+    
+    // Parse pagination query params for getTransactions endpoint
+    accountant.parseQueryParams = function(req) {
+        var params = {
+            limit: Math.max((Number(req.query.limit) || 0), 0),
+            skip: Math.max((Number(req.query.skip) || 0), 0)
         };
-        /* jshint camelcase: true */
+        
+        params.sort = (function() {
+            var sortParts = String(req.query.sort || '').split(',');
+            
+            return [
+                accountant.fieldToColumn[sortParts[0]] || 'transaction_id',
+                sortParts[1] === '-1' ? 'DESC' : 'ASC'
+            ].join(' ');
+        })();
+
+        params.fields = (function() {
+            var fieldParam = String(req.query.fields || '');
+            
+            if (!fieldParam) {
+                return '*';
+            }
+
+            var fields = fieldParam.split(',').map(function(field) {
+                return accountant.fieldToColumn[field];
+            }).filter(function(col) {
+                return !!col;
+            });
+            
+            if (fields.indexOf('transaction_id') === -1) { // always show the id
+                fields.push('transaction_id');
+            }
+                
+            return fields.join(',');
+        })();
+        
+        return params;
+    };
+    
+    // Fetch multiple transaction records for a given org.
+    accountant.getTransactions = function(req) {
+        var log = logger.getLog();
+
+        // Default query org to user's org; 400 if an app is requesting without an org
+        req.query.org = req.query.org || (req.user && req.user.org);
+        if (!req.query.org || typeof req.query.org !== 'string') {
+            return q({
+                code: 400,
+                body: 'Must provide an org id'
+            });
+        }
+        // Return 403 if requester doesn't have permission to read another org's transactions
+        if (req.requester.permissions.transactions.read !== Scope.All &&
+            (!req.user || req.user.org !== req.query.org)) {
+            log.info('[%1] Requester %2 not authorized to read other transactions for other org %3',
+                     req.uuid, req.requester.id, req.query.org);
+            return q({
+                code: 403,
+                body: 'Not authorized to get transactions for this org'
+            });
+        }
+        
+        var fetchParams = accountant.parseQueryParams(req);
+
+        log.info('[%1] Requester %2 getting transactions for %3, opts: %4',
+                 req.uuid, req.requester.id, req.query.org, JSON.stringify(fetchParams));
+
+        //  NOTE: be sure to carefully parse query params to avoid SQL injection!
+        var statement = [
+            'SELECT ' + fetchParams.fields + ',count(*) OVER() as fullcount',
+            '  from fct.billing_transactions',
+            'WHERE org_id = $1 AND sign = 1',
+            'ORDER BY ' + fetchParams.sort,
+            'LIMIT ' + (fetchParams.limit || 'ALL'),
+            'OFFSET ' + fetchParams.skip
+        ];
+        var values = [
+            req.query.org
+        ];
+
+        return pgUtils.query(statement.join('\n'), values)
+        .then(function(result) {
+            log.info('[%1] Fetched %2 records', req.uuid, result.rows.length);
+            
+            var count = (result.rows[0] && result.rows[0].fullcount) || 0,
+                limit = fetchParams.limit,
+                skip = fetchParams.skip,
+                resp = {};
+                
+            resp.code = 200;
+            resp.headers = {
+                'content-range': expressUtils.formatContentRange(count, limit, skip)
+            };
+            resp.body = result.rows.map(function(row) {
+                return accountant.formatTransOutput(row);
+            });
+            
+            return q(resp);
+        });
     };
 
+    // Insert a new transaction record into the database
     accountant.createTransaction = function(req) {
         var log = logger.getLog(),
             model = new Model('transactions', accountant.transactionSchema);
@@ -207,6 +321,7 @@
         });
     };
 
+    // Fetch the org's balance and total spend by aggregating transaction records
     accountant.getAccountBalance = function(req, config) {
         var log = logger.getLog();
         
@@ -239,19 +354,31 @@
                     body: 'Cannot fetch balance for this org'
                 });
             }
-
+            
             var statement = [
-                'SELECT sum(amount * sign) as balance from fct.billing_transactions',
-                'where org_id = $1'
+                'SELECT sign,sum(amount) as total FROM fct.billing_transactions',
+                'WHERE org_id = $1',
+                'GROUP BY sign'
             ];
             var values = [ req.query.org ];
         
             return pgUtils.query(statement.join('\n'), values)
             .then(function(result) {
                 log.info('[%1] Successfuly got balance for %2', req.uuid, req.query.org);
+                
+                var spendRow = result.rows.filter(function(row) { return row.sign === -1; })[0],
+                    spend = parseFloat((spendRow || {}).total || 0);
+                
+                var balance = result.rows.reduce(function(balance, row) {
+                    return balance + (parseFloat(row.total || 0) * (row.sign || 1));
+                }, 0);
+                
                 return q({
                     code: 200,
-                    body: parseFloat(result.rows[0].balance || 0)
+                    body: {
+                        balance: Math.round(balance * 100) / 100,
+                        totalSpend: Math.round(spend * 100) / 100
+                    }
                 });
             });
         }, function(error) {
@@ -261,6 +388,7 @@
         });
     };
     
+    // Fetch the org's outstanding budget, checking campaign budgets vs. campaign spend
     accountant.getOutstandingBudget = function(req, config, c6Db) {
         var log = logger.getLog();
         
@@ -310,7 +438,7 @@
             
             // If sum of campaign budgets is 0, don't need to fetch transactions
             if (totalBudget === 0) {
-                return q({ code: 200, body: 0 });
+                return q({ code: 200, body: { outstandingBudget: 0 } });
             }
             
             var campIds = campaigns.map(function(camp) { return camp.id; });
@@ -325,15 +453,15 @@
             
             return pgUtils.query(statement.join('\n'), values)
             .then(function(result) {
-                var spend = parseFloat(result.rows[0].spend || 0),
-                    outstandingBudget = totalBudget + spend;
+                var spend = parseFloat((result.rows[0] && result.rows[0].spend) || 0),
+                    outstandingBudget = Math.round((totalBudget + spend) * 100) / 100;
                     
                 log.info('[%1] Got outstandingBudget of %2 for %3',
                          req.uuid, outstandingBudget, req.query.org);
                 
                 return q({
                     code: 200,
-                    body: outstandingBudget
+                    body: { outstandingBudget: outstandingBudget }
                 });
             });
         })
@@ -359,8 +487,9 @@
             return q({
                 code: 200,
                 body: {
-                    balance: balanceResp.body,
-                    outstandingBudget: budgetResp.body,
+                    balance: balanceResp.body.balance,
+                    totalSpend: balanceResp.body.totalSpend,
+                    outstandingBudget: budgetResp.body.outstandingBudget
                 }
             });
         });
@@ -405,11 +534,29 @@
 
         app.use(bodyParser.json());
 
+        var authGetTrans = authUtils.middlewarify({
+            allowApps: true,
+            permissions: { transactions: 'read' }
+        });
+        app.get('/api/transactions?', state.sessions, authGetTrans, audit, function(req, res) {
+            return accountant.getTransactions(req).then(function(resp) {
+                expressUtils.sendResponse(res, resp);
+            }).catch(function(error) {
+                expressUtils.sendResponse(res, {
+                    code: 500,
+                    body: {
+                        error: 'Error fetching transactions',
+                        detail: error
+                    }
+                });
+            });
+        });
+
         var authPostTrans = authUtils.middlewarify({
             allowApps: true,
             permissions: { transactions: 'create' }
         });
-        app.post('/api/transactions?', state.sessions, authPostTrans, audit, function(req, res) {
+        app.post('/api/transactions?', authPostTrans, audit, function(req, res) {
             return accountant.createTransaction(req).then(function(resp) {
                 expressUtils.sendResponse(res, resp);
             }).catch(function(error) {
