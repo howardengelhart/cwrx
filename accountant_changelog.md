@@ -1,5 +1,6 @@
 # Accountant Service Changelog
 
+### 1.1.0: Mon Apr 18 17:05:16 EDT 2016
 * [FEATURE]: Add `GET /api/transactions` endpoint: [#833](https://github.com/cinema6/cwrx/issues/833)
 * [FEATURE]: Return `totalSpend` in body of `GET /api/accounting/balance` request: [#867](https://github.com/cinema6/cwrx/issues/867)
 * Extra deployment steps:
