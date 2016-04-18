@@ -207,8 +207,9 @@ describe('accountant (UT)', function() {
     });
     
     describe('formatTransOutput', function() {
-        it('should return a JSON representation of a row', function() {
-            var row = {
+        var row;
+        beforeEach(function() {
+            row = {
                 rec_key         : 1234,
                 rec_ts          : '2016-03-17T20:29:06.754Z',
                 transaction_id  : 't-1',
@@ -222,6 +223,9 @@ describe('accountant (UT)', function() {
                 promotion_id    : 'pro-1',
                 description     : 'i paid a lot of money'
             };
+        });
+
+        it('should return a JSON representation of a row', function() {
             expect(accountant.formatTransOutput(row)).toEqual({
                 id              : 't-1',
                 created         : new Date('2016-03-17T20:29:06.754Z'),
@@ -235,6 +239,15 @@ describe('accountant (UT)', function() {
                 promotion       : 'pro-1',
                 description     : 'i paid a lot of money'
             });
+        });
+        
+        it('should handle amounts of 0 or undefined/null', function() {
+            row.amount = 0;
+            expect(accountant.formatTransOutput(row).amount).toBe(0);
+            delete row.amount;
+            expect(accountant.formatTransOutput(row).amount).not.toBeDefined();
+            row.amount = null;
+            expect(accountant.formatTransOutput(row).amount).toBe(null);
         });
     });
     
@@ -667,6 +680,7 @@ describe('accountant (UT)', function() {
             var data = [
                 { rows: [{ sign: 1, total: '123.45' }] },
                 { rows: [{ sign: -1, total: '456.78' }] },
+                { rows: [{ sign: 1, total: '123.45' }, { sign: -1, total: null }] },
                 { rows: [{}] },
             ];
             pgUtils.query.and.callFake(function() {
@@ -678,7 +692,8 @@ describe('accountant (UT)', function() {
             })).then(function(results) {
                 expect(results[0]).toEqual({ code: 200, body: { balance: 123.45, totalSpend: 0 } });
                 expect(results[1]).toEqual({ code: 200, body: { balance: -456.78, totalSpend: 456.78 } });
-                expect(results[2]).toEqual({ code: 200, body: { balance: 0, totalSpend: 0 } });
+                expect(results[2]).toEqual({ code: 200, body: { balance: 123.45, totalSpend: 0 } });
+                expect(results[3]).toEqual({ code: 200, body: { balance: 0, totalSpend: 0 } });
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
             }).done(done);
@@ -845,6 +860,17 @@ describe('accountant (UT)', function() {
                     expect(mockLog.error.calls.mostRecent().args).toContain('\'I GOT A PROBLEM\'');
                 }).done(done);
             });
+        });
+        
+        it('should handle postgres returning partial data', function(done) {
+            pgUtils.query.and.returnValue(q({ rows: [] }));
+            accountant.getOutstandingBudget(req, config, mockDb).then(function(resp) {
+                expect(resp).toEqual({ code: 200, body: { outstandingBudget: 1200 } });
+                expect(pgUtils.query).toHaveBeenCalled();
+                expect(mockLog.error).not.toHaveBeenCalled();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
         });
 
         it('should not query postgres if no campaigns have a budget', function(done) {

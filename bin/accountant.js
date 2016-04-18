@@ -453,7 +453,7 @@
             
             return pgUtils.query(statement.join('\n'), values)
             .then(function(result) {
-                var spend = parseFloat(result.rows[0].spend || 0),
+                var spend = parseFloat((result.rows[0] && result.rows[0].spend) || 0),
                     outstandingBudget = Math.round((totalBudget + spend) * 100) / 100;
                     
                 log.info('[%1] Got outstandingBudget of %2 for %3',
