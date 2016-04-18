@@ -850,7 +850,7 @@ describe('accountant (UT)', function() {
         it('should not query postgres if no campaigns have a budget', function(done) {
             mockCamps = [{ id: 'cam-1', pricing: {} }];
             accountant.getOutstandingBudget(req, config, mockDb).then(function(resp) {
-                expect(resp).toEqual({ code: 200, body: 0 });
+                expect(resp).toEqual({ code: 200, body: { outstandingBudget: 0 } });
                 expect(colls.campaigns.find).toHaveBeenCalled();
                 expect(colls.campaignUpdates.find).not.toHaveBeenCalled();
                 expect(pgUtils.query).not.toHaveBeenCalled();
@@ -874,7 +874,7 @@ describe('accountant (UT)', function() {
         it('should handle the case where no campaigns are returned', function(done) {
             mockCamps = [];
             accountant.getOutstandingBudget(req, config, mockDb).then(function(resp) {
-                expect(resp).toEqual({ code: 200, body: 0 });
+                expect(resp).toEqual({ code: 200, body: { outstandingBudget: 0 } });
                 expect(colls.campaigns.find).toHaveBeenCalled();
                 expect(colls.campaignUpdates.find).not.toHaveBeenCalled();
                 expect(pgUtils.query).not.toHaveBeenCalled();

@@ -438,7 +438,7 @@
             
             // If sum of campaign budgets is 0, don't need to fetch transactions
             if (totalBudget === 0) {
-                return q({ code: 200, body: 0 });
+                return q({ code: 200, body: { outstandingBudget: 0 } });
             }
             
             var campIds = campaigns.map(function(camp) { return camp.id; });
@@ -555,7 +555,7 @@
         var authPostTrans = authUtils.middlewarify({
             allowApps: true,
             permissions: { transactions: 'create' }
-        }); //TODO: reconsider removing sessions middleware?
+        });
         app.post('/api/transactions?', authPostTrans, audit, function(req, res) {
             return accountant.createTransaction(req).then(function(resp) {
                 expressUtils.sendResponse(res, resp);
@@ -572,7 +572,7 @@
 
         var authGetBal = authUtils.middlewarify({
             allowApps: true,
-            permissions: { orgs: 'read' } //TODO: or transactions.read?
+            permissions: { orgs: 'read' }
         });
         app.get('/api/accounting/balance', state.sessions, authGetBal, audit, function(req, res) {
             return accountant.getBalanceStats(

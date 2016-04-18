@@ -25,7 +25,7 @@ describe('accountant (E2E):', function() {
             email : 'accountantuser',
             password : '$2a$10$XomlyDak6mGSgrC/g1L7FO.4kMRkj4UturtKSzy6mFeL8QWOBmIWq', // hash of 'password'
             org: 'o-1234',
-            policies: ['e2eGetOrgCamps']
+            policies: ['e2eGetOrgData']
         };
         mockAdmin = {
             id: 'e2e-admin-user',
@@ -38,12 +38,13 @@ describe('accountant (E2E):', function() {
         testPolicies = [
             {
                 id: 'p-e2e-basic',
-                name: 'e2eGetOrgCamps',
+                name: 'e2eGetOrgData',
                 status: 'active',
                 priority: 1,
                 permissions: {
                     orgs: { read: 'org' },
-                    campaigns: { read: 'org' }
+                    campaigns: { read: 'org' },
+                    transactions: { read: 'org' }
                 }
             },
             {
@@ -133,7 +134,10 @@ describe('accountant (E2E):', function() {
             { id: 'cam-o2-active-2', status: 'active', org: 'o-5678', pricing: { budget: 300 } }
         ];
         var testTransactions = [
-            creditRecord('o-1234', 5000, 'pay1'),
+            creditRecord('o-1234', 2200, 'pay11'),
+            creditRecord('o-1234', 1500, null, 'pro-11'),
+            creditRecord('o-1234', 500, 'pay12'),
+            creditRecord('o-1234', 800, 'pay13'),
             debitRecord('o-1234', 20, 10, 'cam-o1-active'),
             debitRecord('o-1234', 444, 500, 'cam-o1-active'),
             debitRecord('o-1234', 16, 1, 'cam-o1-active'),
@@ -141,8 +145,9 @@ describe('accountant (E2E):', function() {
             debitRecord('o-1234', 66, 5, 'cam-o1-paused'),
             debitRecord('o-1234', 77, 10, 'cam-o1-paused'),
         
-            creditRecord('o-5678', 10000, 'pay2'),
-            creditRecord('o-5678', 4000, 'pay3'),
+            creditRecord('o-5678', 10000, 'pay21'),
+            creditRecord('o-5678', 3000, 'pay22'),
+            creditRecord('o-5678', 1000, null, 'pro-21'),
             debitRecord('o-5678', 45, 10, 'cam-o2-active'),
             debitRecord('o-5678', 123, 500, 'cam-o2-active'),
             debitRecord('o-5678', 16, 1, 'cam-o2-active'),
@@ -150,8 +155,8 @@ describe('accountant (E2E):', function() {
             debitRecord('o-5678', 1000, 666, 'cam-o2-expired'),
             debitRecord('o-5678', 500, 666, 'cam-o2-expired'),
             
-            creditRecord('o-efgh', 400, null, 'pro-1'),
-            creditRecord('o-efgh', 400, 'pay4'),
+            creditRecord('o-efgh', 400, null, 'pro-31'),
+            creditRecord('o-efgh', 400, 'pay31'),
             debitRecord('o-efgh', 56, 1),
         ];
         
@@ -163,8 +168,155 @@ describe('accountant (E2E):', function() {
             done();
         });
     });
+    
+    describe('GET /api/transactions', function() {
+        var options;
+        beforeEach(function() {
+            options = {
+                url: config.accountantUrl + '/transactions',
+                qs: { sort: 'amount,-1', },
+                jar: cookieJar
+            };
+        });
+        
+        it('should get transaction records from the requester\'s org', function(done) {
+            requestUtils.qRequest('get', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.body.length).toBe(4);
+                expect(resp.body[0]).toEqual(jasmine.objectContaining({ id: 't-e2e-9999', org: 'o-1234', amount: 2200, braintreeId: 'pay11' }));
+                expect(resp.body[1]).toEqual(jasmine.objectContaining({ id: 't-e2e-10000', org: 'o-1234', amount: 1500, promotion: 'pro-11' }));
+                expect(resp.body[2]).toEqual(jasmine.objectContaining({ id: 't-e2e-10002', org: 'o-1234', amount: 800, braintreeId: 'pay13' }));
+                expect(resp.body[3]).toEqual(jasmine.objectContaining({ id: 't-e2e-10001', org: 'o-1234', amount: 500, braintreeId: 'pay12' }));
+                expect(resp.response.headers['content-range']).toBe('items 1-4/4');
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should write an entry to the audit collection', function(done) {
+            requestUtils.qRequest('get', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                return testUtils.mongoFind('audit', { service: 'accountant' }, {$natural: -1}, 1, 0, {db: 'c6Journal'});
+            }).then(function(results) {
+                expect(results[0].user).toBe('e2e-user');
+                expect(results[0].created).toEqual(jasmine.any(Date));
+                expect(results[0].host).toEqual(jasmine.any(String));
+                expect(results[0].pid).toEqual(jasmine.any(Number));
+                expect(results[0].uuid).toEqual(jasmine.any(String));
+                expect(results[0].sessionID).toEqual(jasmine.any(String));
+                expect(results[0].service).toBe('accountant');
+                expect(results[0].version).toEqual(jasmine.any(String));
+                expect(results[0].data).toEqual({route: 'GET /api/transactions?',
+                                                 params: {}, query: { sort: 'amount,-1' } });
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
 
-    describe('POST /api/transaction', function() {
+        it('should only allow an admin to specify another org', function(done) {
+            q.all([cookieJar, adminJar].map(function(jar) {
+                options.jar = jar;
+                options.qs.org = 'o-5678';
+                return requestUtils.qRequest('get', options);
+            })).then(function(results) {
+                expect(results[0].response.statusCode).toBe(403);
+                expect(results[0].body).toBe('Not authorized to get transactions for this org');
+                expect(results[1].response.statusCode).toBe(200);
+                expect(results[1].body).toEqual(jasmine.any(Array));
+                expect(results[1].body.length).toBe(3);
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should return a 200 and [] if nothing is found', function(done) {
+            options.jar = adminJar;
+            options.qs.org = 'o-aewoiruOIuvvsdf';
+            requestUtils.qRequest('get', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.body).toEqual([]);
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should allow specifying which fields to fetch', function(done) {
+            options.qs.fields = 'amount,units,braintreeId';
+            requestUtils.qRequest('get', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.body.length).toBe(4);
+                expect(resp.body[0]).toEqual({ id: 't-e2e-9999', units: 1, amount: 2200, braintreeId: 'pay11' });
+                expect(resp.body[1]).toEqual({ id: 't-e2e-10000', units: 1, amount: 1500, braintreeId: '' });
+                expect(resp.body[2]).toEqual({ id: 't-e2e-10002', units: 1, amount: 800, braintreeId: 'pay13' });
+                expect(resp.body[3]).toEqual({ id: 't-e2e-10001', units: 1, amount: 500, braintreeId: 'pay12' });
+                expect(resp.response.headers['content-range']).toBe('items 1-4/4');
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should allow paginating and sorting results', function(done) {
+            options.qs.limit = 2;
+            options.qs.sort = 'id,-1';
+            requestUtils.qRequest('get', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.body.length).toBe(2);
+                expect(resp.body[0].id).toBe('t-e2e-9999');
+                expect(resp.body[1].id).toBe('t-e2e-10002');
+                expect(resp.response.headers['content-range']).toBe('items 1-2/4');
+                
+                options.qs.skip = 2;
+                return requestUtils.qRequest('get', options);
+            }).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.body.length).toBe(2);
+                expect(resp.body[0].id).toBe('t-e2e-10001');
+                expect(resp.body[1].id).toBe('t-e2e-10000');
+                expect(resp.response.headers['content-range']).toBe('items 3-4/4');
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should return a 401 if no user is authenticated', function(done) {
+            delete options.jar;
+            requestUtils.qRequest('get', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(401);
+                expect(resp.body).toEqual('Unauthorized');
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should allow an app to get transactions', function(done) {
+            delete options.jar;
+            options.qs.org = 'o-1234';
+            requestUtils.makeSignedRequest(appCreds, 'get', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.body.length).toBe(4);
+                expect(resp.body[0].id).toBe('t-e2e-9999');
+                expect(resp.body[1].id).toBe('t-e2e-10000');
+                expect(resp.body[2].id).toBe('t-e2e-10002');
+                expect(resp.body[3].id).toBe('t-e2e-10001');
+                expect(resp.response.headers['content-range']).toBe('items 1-4/4');
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should return a 400 if the app does not specify an org param', function(done) {
+            delete options.jar;
+            delete options.qs.org;
+            requestUtils.makeSignedRequest(appCreds, 'get', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(400);
+                expect(resp.body).toEqual('Must provide an org id');
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
+    });
+
+    describe('POST /api/transactions', function() {
         var options;
         beforeEach(function() {
             options = {
@@ -173,15 +325,14 @@ describe('accountant (E2E):', function() {
                     org: 'o-1234',
                     amount: 123.45,
                     braintreeId: 'payment1'
-                },
-                jar: adminJar
+                }
             };
         });
         
         it('should create a transaction record', function(done) {
             var createdObj;
 
-            requestUtils.qRequest('post', options).then(function(resp) {
+            requestUtils.makeSignedRequest(appCreds, 'post', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(201);
                 expect(resp.body).toEqual({
                     id              : jasmine.any(String),
@@ -222,16 +373,15 @@ describe('accountant (E2E):', function() {
         });
         
         it('should write an entry to the audit collection', function(done) {
-            requestUtils.qRequest('post', options).then(function(resp) {
+            requestUtils.makeSignedRequest(appCreds, 'post', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(201);
                 return testUtils.mongoFind('audit', { service: 'accountant' }, {$natural: -1}, 1, 0, {db: 'c6Journal'});
             }).then(function(results) {
-                expect(results[0].user).toBe('e2e-admin-user');
+                expect(results[0].application).toBe('app-e2e-accountant');
                 expect(results[0].created).toEqual(jasmine.any(Date));
                 expect(results[0].host).toEqual(jasmine.any(String));
                 expect(results[0].pid).toEqual(jasmine.any(Number));
                 expect(results[0].uuid).toEqual(jasmine.any(String));
-                expect(results[0].sessionID).toEqual(jasmine.any(String));
                 expect(results[0].service).toBe('accountant');
                 expect(results[0].version).toEqual(jasmine.any(String));
                 expect(results[0].data).toEqual({route: 'POST /api/transactions?',
@@ -245,7 +395,7 @@ describe('accountant (E2E):', function() {
             delete options.json.braintreeId;
             options.json.promotion = 'pro-skillz';
             
-            requestUtils.qRequest('post', options).then(function(resp) {
+            requestUtils.makeSignedRequest(appCreds, 'post', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(201);
                 expect(resp.body).toEqual({
                     id              : jasmine.any(String),
@@ -267,7 +417,7 @@ describe('accountant (E2E):', function() {
         
         it('should be able to specify a custom transactionTS', function(done) {
             options.json.transactionTS = new Date('2016-03-17T20:29:06.754Z');
-            requestUtils.qRequest('post', options).then(function(resp) {
+            requestUtils.makeSignedRequest(appCreds, 'post', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(201);
                 expect(resp.body).toEqual({
                     id              : jasmine.any(String),
@@ -290,7 +440,7 @@ describe('accountant (E2E):', function() {
         it('should not allow creating unlinked transactions', function(done) {
             delete options.json.braintreeId;
             
-            requestUtils.qRequest('post', options).then(function(resp) {
+            requestUtils.makeSignedRequest(appCreds, 'post', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(400);
                 expect(resp.body).toEqual('Cannot create unlinked credit');
             }).catch(function(error) {
@@ -301,7 +451,7 @@ describe('accountant (E2E):', function() {
         it('should allow specifying a custom description', function(done) {
             options.json.description = 'here have a lil walkin around money man';
 
-            requestUtils.qRequest('post', options).then(function(resp) {
+            requestUtils.makeSignedRequest(appCreds, 'post', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(201);
                 expect(resp.body).toEqual({
                     id              : jasmine.any(String),
@@ -327,7 +477,7 @@ describe('accountant (E2E):', function() {
             options.json.sign = -1;
             options.json.units = 9001;
             
-            requestUtils.qRequest('post', options).then(function(resp) {
+            requestUtils.makeSignedRequest(appCreds, 'post', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(201);
                 expect(resp.body).toEqual({
                     id              : jasmine.any(String),
@@ -350,10 +500,22 @@ describe('accountant (E2E):', function() {
             }).done(done);
         });
         
-        it('should prevent users without transaction priviledges from creating transactions', function(done) {
-            options.jar = cookieJar;
-
-            requestUtils.qRequest('post', options).then(function(resp) {
+        it('should prevent apps without transaction priviledges from creating transactions', function(done) {
+            var newApp = {
+                id: 'app-e2e-watchkid',
+                key: 'e2e-watchkid',
+                status: 'active',
+                secret: 'wowsuchsecretverysecureamaze',
+                permissions: {
+                    orgs: { read: 'all' },
+                    campaigns: { read: 'all' },
+                    transactions: { read: 'all' }
+                }
+            };
+            var newAppCreds = { key: newApp.key, secret: newApp.secret };
+            testUtils.mongoUpsert('applications', { key: newApp.key }, newApp).then(function() {
+                return requestUtils.makeSignedRequest(newAppCreds, 'post', options);
+            }).then(function(resp) {
                 expect(resp.response.statusCode).toBe(403);
                 expect(resp.body).toEqual('Forbidden');
             }).catch(function(error) {
@@ -361,8 +523,8 @@ describe('accountant (E2E):', function() {
             }).done(done);
         });
 
-        it('should return a 401 if no requester is authenticated', function(done) {
-            delete options.jar;
+        it('should return a 401 if a user attempts to send a request', function(done) {
+            options.jar = adminJar;
 
             requestUtils.qRequest('post', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(401);
@@ -372,31 +534,7 @@ describe('accountant (E2E):', function() {
             }).done(done);
         });
         
-        it('should allow an app to create transactions', function(done) {
-            delete options.jar;
-
-            requestUtils.makeSignedRequest(appCreds, 'post', options).then(function(resp) {
-                expect(resp.response.statusCode).toBe(201);
-                expect(resp.body).toEqual({
-                    id              : jasmine.any(String),
-                    created         : jasmine.any(String),
-                    transactionTS   : resp.body.created,
-                    amount          : 123.45,
-                    sign            : 1,
-                    units           : 1,
-                    org             : 'o-1234',
-                    campaign        : null,
-                    braintreeId     : 'payment1',
-                    promotion       : null,
-                    description     : JSON.stringify({ eventType: 'credit', source: 'braintree' })
-                });
-            }).catch(function(error) {
-                expect(util.inspect(error)).not.toBeDefined();
-            }).done(done);
-        });
-        
         it('should fail if an app uses the wrong secret to make a request', function(done) {
-            delete options.jar;
             var badCreds = { key: mockApp.key, secret: 'WRONG' };
             requestUtils.makeSignedRequest(badCreds, 'post', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(401);
@@ -422,7 +560,8 @@ describe('accountant (E2E):', function() {
                 expect(resp.response.statusCode).toBe(200);
                 expect(resp.body).toEqual({
                     balance: 4177,
-                    outstandingBudget: 727
+                    outstandingBudget: 727,
+                    totalSpend: 823
                 });
             }).catch(function(error) {
                 expect(util.inspect(error)).not.toBeDefined();
@@ -450,7 +589,6 @@ describe('accountant (E2E):', function() {
         });
         
         it('should handle update requests that change campaign budgets', function(done) {
-            // testUtils.mongoUpsert('applications', { key: mockApp.key }, mockApp)
             var updates = [
                 { id: 'ur-pending-1', status: 'pending', campaign: 'cam-o1-active', data: { pricing: { budget: 4 } } }, // decrease, but will be ignored
                 { id: 'ur-pending-2', status: 'pending', campaign: 'cam-o1-paused', data: { pricing: { budget: 1000 } } } // increase of $500
@@ -468,7 +606,8 @@ describe('accountant (E2E):', function() {
                 expect(resp.response.statusCode).toBe(200);
                 expect(resp.body).toEqual({
                     balance: 4177,
-                    outstandingBudget: 1227
+                    outstandingBudget: 1227,
+                    totalSpend: 823
                 });
             }).catch(function(error) {
                 expect(util.inspect(error)).not.toBeDefined();
@@ -487,7 +626,8 @@ describe('accountant (E2E):', function() {
                 expect(results[1].response.statusCode).toBe(200);
                 expect(results[1].body).toEqual({
                     balance: 6316,
-                    outstandingBudget: 716
+                    outstandingBudget: 716,
+                    totalSpend: 7684
                 });
             }).catch(function(error) {
                 expect(util.inspect(error)).not.toBeDefined();
@@ -502,7 +642,8 @@ describe('accountant (E2E):', function() {
                 expect(resp.response.statusCode).toBe(200);
                 expect(resp.body).toEqual({
                     balance: 0,
-                    outstandingBudget: 0
+                    outstandingBudget: 0,
+                    totalSpend: 0
                 });
             }).catch(function(error) {
                 expect(util.inspect(error)).not.toBeDefined();
@@ -517,7 +658,8 @@ describe('accountant (E2E):', function() {
                 expect(resp.response.statusCode).toBe(200);
                 expect(resp.body).toEqual({
                     balance: 744,
-                    outstandingBudget: 0
+                    outstandingBudget: 0,
+                    totalSpend: 56
                 });
             }).catch(function(error) {
                 expect(util.inspect(error)).not.toBeDefined();
@@ -555,7 +697,8 @@ describe('accountant (E2E):', function() {
                 expect(resp.response.statusCode).toBe(200);
                 expect(resp.body).toEqual({
                     balance: 4177,
-                    outstandingBudget: 727
+                    outstandingBudget: 727,
+                    totalSpend: 823
                 });
             }).catch(function(error) {
                 expect(util.inspect(error)).not.toBeDefined();
