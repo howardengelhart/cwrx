@@ -730,6 +730,19 @@ describe('collateral (E2E):', function() {
             });
         });
 
+        describe('with an id-less Etsy URI', function() {
+            beforeEach(function(done) {
+                options.qs.uri = 'https://www.etsy.com/listing/277003994/huge-grab-bag-assorted-supplies-over-100?ref=featured_listings_row';
+
+                requestUtils.qRequest('get', options).then(success, failure).finally(done);
+            });
+
+            it('should [400]', function() {
+                expect(apiResponse.response.statusCode).toBe(400);
+                expect(apiResponse.body).toBe('URI is not for a shop.');
+            });
+        });
+
         describe('with a non-app App Store URI', function() {
             beforeEach(function(done) {
                 options.qs.uri = 'https://itunes.apple.com/us/album/babel/id547449573';
@@ -753,6 +766,19 @@ describe('collateral (E2E):', function() {
             it('should [404]', function() {
                 expect(apiResponse.response.statusCode).toBe(404);
                 expect(apiResponse.body).toBe('No app found with that ID.');
+            });
+        });
+
+        describe('with a non-existent Etsy store', function() {
+            beforeEach(function(done) {
+                options.qs.uri = 'https://www.etsy.com/shop/jewf8934yhr8934hr49';
+
+                requestUtils.qRequest('get', options).then(success, failure).finally(done);
+            });
+
+            it('should [404]', function() {
+                expect(apiResponse.response.statusCode).toBe(404);
+                expect(apiResponse.body).toBe('No store found with that name.');
             });
         });
 
@@ -794,6 +820,47 @@ describe('collateral (E2E):', function() {
                     expect(image.uri).toEqual(jasmine.any(String));
                     expect(image.type).toMatch(/^(screenshot|thumbnail)$/, 'Image is not a screenshot or thumbnail.');
                     expect(image.device).toMatch(/^(phone|tablet|undefined)$/, 'Image device is not "phone," "tablet" or undefined.');
+                });
+            });
+        });
+
+        describe('with an Etsy shop URI', function() {
+            beforeEach(function(done) {
+                options.qs.uri = 'https://www.etsy.com/shop/BohemianFindings';
+
+                requestUtils.qRequest('get', options).then(success, failure).finally(done);
+            });
+
+            it('should [200]', function() {
+                expect(apiResponse.response.statusCode).toBe(200);
+                expect(apiResponse.body).toEqual({
+                    type: 'ecommerce',
+                    platform: 'etsy',
+                    name: 'BohemianFindings',
+                    description: jasmine.any(String),
+                    uri: 'https://www.etsy.com/shop/BohemianFindings?utm_source=cinema6&utm_medium=api&utm_campaign=api',
+                    extID: 6004422,
+                    products: jasmine.any(Array)
+                });
+                expect(apiResponse.body.products.length).toBeGreaterThan(0, 'The store has no featured products!');
+                apiResponse.body.products.forEach(function(product, index) {
+                    expect(product).toEqual({
+                        name: jasmine.any(String),
+                        description: jasmine.any(String),
+                        uri: jasmine.stringMatching(/^https:\/\/www\.etsy\.com\/listing\//),
+                        category: jasmine.any(String),
+                        price: jasmine.stringMatching(/^\$\d*\.?\d*/),
+                        extID: jasmine.any(Number),
+                        images: jasmine.any(Array)
+                    }, 'Failed for products[' + index + ']');
+
+                    expect(product.images.length).toBeGreaterThan(0, 'products[' + index + '] has no images!');
+                    product.images.forEach(function(image, imageIndex) {
+                        expect(image).toEqual({
+                            uri: jasmine.stringMatching(/^https:\/\/img\d\.etsystatic\.com\//),
+                            averageColor: jasmine.stringMatching(/^[0-9A-Z]{6}$/)
+                        }, 'Failed for products[' + index + '].images[' + imageIndex + ']');
+                    });
                 });
             });
         });
