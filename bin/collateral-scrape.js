@@ -12,9 +12,16 @@
     });
     var inspect = util.inspect;
     var inherits = util.inherits;
+    var ld = require('lodash');
+    var formatURL = require('url').format;
+    var resolveURL = require('url').resolve;
+    var HtmlEntities = require('html-entities').AllHtmlEntities;
+    var html = new HtmlEntities();
+    var getSymbolFromCurrency = require('currency-symbol-map').getSymbolFromCurrency;
 
     var PRODUCT_TYPES = {
-        APP_STORE: 'APP_STORE'
+        APP_STORE: 'APP_STORE',
+        ETSY: 'ETSY'
     };
 
     var ERROR_CODES = {
@@ -125,7 +132,61 @@
     };
 
     scraper.productDataFrom = {};
-    scraper.productDataFrom[PRODUCT_TYPES.APP_STORE] = function getAppStoreData(id) {
+    scraper.productDataFrom[PRODUCT_TYPES.ETSY] = function getEtsyData(id, config, secrets) {
+        /* jshint camelcase: false */
+
+        function requetsy(pathname, query) {
+            return request(formatURL({
+                protocol: 'https',
+                hostname: 'openapi.etsy.com',
+                pathname: resolveURL('/v2/', pathname),
+                query: ld.merge({}, query || {}, { api_key: secrets.etsyKey })
+            }));
+        }
+
+        return q.all([
+            requetsy('shops/' + id),
+            requetsy('shops/' + id + '/listings/featured', { includes: 'Images' })
+        ]).spread(function getImages(shops, listings) {
+            var shop = shops.results[0];
+
+            return {
+                type: 'ecommerce',
+                platform: 'etsy',
+                name: shop.shop_name,
+                description: shop.announcement,
+                uri: shop.url,
+                extID: shop.shop_id,
+                products: listings.results.map(function(listing) {
+                    return {
+                        name: listing.title,
+                        description: html.decode(listing.description),
+                        uri: listing.url,
+                        category: listing.category_path[0],
+                        price: getSymbolFromCurrency(listing.currency_code) + listing.price,
+                        extID: listing.listing_id,
+                        images: listing.Images.map(function(image) {
+                            return {
+                                uri: image.url_570xN,
+                                averageColor: image.hex_code
+                            };
+                        })
+                    };
+                })
+            };
+        }).catch(function handleFailure(reason) {
+            if (reason.statusCode === 404) {
+                throw new NotFoundError('No store found with that name.');
+            }
+
+            throw reason;
+        });
+    };
+    scraper.productDataFrom[PRODUCT_TYPES.APP_STORE] = function getAppStoreData(
+        id/*,
+        config,
+        secrets*/
+    ) {
         return q().then(function sendRequest() {
             return request('https://itunes.apple.com/lookup?id=' + id);
         }).then(function createData(response) {
@@ -186,12 +247,23 @@
                 type: PRODUCT_TYPES.APP_STORE,
                 id: id
             };
+        case 'www.etsy.com':
+            id = (url.pathname.match(/\/shop\/([^\/]+)/) || [])[1];
+
+            if (!id) {
+                throw new InvalidError('URI is not for a shop.');
+            }
+
+            return {
+                type: PRODUCT_TYPES.ETSY,
+                id: id
+            };
         default:
             throw new InvalidError('URI is not from a valid platform.');
         }
     };
 
-    scraper.getProductData = function getProductData(req/*, config*/) {
+    scraper.getProductData = function getProductData(req, config, secrets) {
         var log = logger.getLog();
         var uuid = req.uuid;
         var uri = req.query.uri;
@@ -202,7 +274,7 @@
             return scraper.parseProductURI(uri);
         }).then(function getProductData(meta) {
             log.trace('[%1] Parsed product URI: %2.', uuid, inspect(meta));
-            return scraper.productDataFrom[meta.type](meta.id);
+            return scraper.productDataFrom[meta.type](meta.id, config, secrets);
         }).then(function createServiceReponse(data) {
             log.info('[%1] Successfully fetched product data.', uuid);
             return new ServiceResponse(200, data);
@@ -248,7 +320,7 @@
             '/api/collateral/product-data',
             setJobTimeout, state.sessions, requireAuth, audit,
             function(req, res) {
-                var promise = q.when(scraper.getProductData(req, state.config));
+                var promise = q.when(scraper.getProductData(req, state.config, state.secrets));
 
                 promise.finally(function() {
                     return jobManager.endJob(req, res, promise.inspect())
