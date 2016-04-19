@@ -372,6 +372,21 @@
             }
         });
     };
+
+    // Immediately edit campaign + set status to pending; used for renewal or init submit
+    updateModule.setPending = function(svc, req) {
+        var log = logger.getLog(),
+            updateObj = { status: Status.Pending };
+        
+        historian.historify('status', 'statusHistory', updateObj, req.campaign, req);
+        
+        req.body.data.statusHistory = updateObj.statusHistory;
+        
+        return mongoUtils.editObject(svc._db.collection('campaigns'), updateObj, req.campaign.id)
+        .then(function() {
+            log.trace('[%1] Edited %2 with pending status', req.uuid, req.campaign.id);
+        });
+    };
     
     // On user's initial submit, check for additional props + transition campaign to 'pending'
     updateModule.handleInitialSubmit = function(svc, req, next, done) {
