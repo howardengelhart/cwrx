@@ -795,9 +795,8 @@ describe('orgSvc-payments (UT)', function() {
     });
 
     describe('getPayments', function() {
-        var mockStream, mockSearch;
+        var mockSearch;
         beforeEach(function() {
-            mockStream = new events.EventEmitter();
             mockSearch = {
                 customerId: jasmine.createSpy('search.customerId()').and.callFake(function() { return mockSearch._customerId; }),
                 _customerId: {
@@ -810,9 +809,11 @@ describe('orgSvc-payments (UT)', function() {
             };
             
             mockGateway.transaction.search.and.callFake(function(queryCb) {
+                var mockStream = new events.EventEmitter();
                 queryCb(mockSearch);
                 
                 process.nextTick(function() {
+
                     mockStream.emit('data', {
                         id: 'p1',
                         amount: '10.00',
@@ -958,6 +959,7 @@ describe('orgSvc-payments (UT)', function() {
         
         it('should reject if streaming the results encounters an error', function(done) {
             mockGateway.transaction.search.and.callFake(function(queryCb) {
+                var mockStream = new events.EventEmitter();
                 queryCb(mockSearch);
                 
                 process.nextTick(function() {
