@@ -1,6 +1,8 @@
 # Org Service Changelog
 
+### 1.9.0: Tue Apr 19 17:17:50 EDT 2016
 * [FEATURE]: Support filtering by `ids` for `GET /api/payments`: [#868](https://github.com/cinema6/cwrx/pull/868)
+* Extra deployment steps: None
 
 ### 1.8.1: Tue Apr 12 17:42:09 EDT 2016
 * [FIX]: Update schema for `org.promotions`: [#864](https://github.com/cinema6/cwrx/pull/864)
