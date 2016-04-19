@@ -195,7 +195,6 @@ describe('ads campaignUpdates endpoints (E2E):', function() {
         mailman.removeAllListeners();
         mockman.removeAllListeners();
     });
-
     
     // Performs some checks on a "New update request" email sent to support
     function testNewUpdateMsg(msg, camp) {
@@ -205,8 +204,8 @@ describe('ads campaignUpdates endpoints (E2E):', function() {
             new RegExp('created\\s*by\\s*c6e2etester@gmail.com\\s*for\\s*campaign.*' + camp.name),
             new RegExp('review\\s*the\\s*campaign.*\\s*http.*' + camp.id + '\/admin')
         ].forEach(function(regex) {
-            expect(msg.text).toMatch(regex);
-            expect(msg.html).toMatch(regex);
+            expect(regex.test(msg.text)).toBeTruthy('Expected text to match ' + regex);
+            expect(regex.test(msg.html)).toBeTruthy('Expected html to match ' + regex);
         });
         expect((new Date() - msg.date)).toBeLessThan(30000); // message should be recent
     }
@@ -217,8 +216,8 @@ describe('ads campaignUpdates endpoints (E2E):', function() {
         
         var regex = new RegExp('Your\\s*' + (!isInitial ? 'change\\s*request\\s*to\\s*' : '') +
                                'campaign.*' + camp.name + '.*has\\s*been\\s*approved');
-        expect(msg.text).toMatch(regex);
-        expect(msg.html).toMatch(regex);
+        expect(regex.test(msg.text)).toBeTruthy('Expected text to match ' + regex);
+        expect(regex.test(msg.html)).toBeTruthy('Expected html to match ' + regex);
         expect((new Date() - msg.date)).toBeLessThan(30000); // message should be recent
     }
     
@@ -230,8 +229,8 @@ describe('ads campaignUpdates endpoints (E2E):', function() {
                        'campaign.*' + camp.name + '.*has\\s*been\\s*rejected'),
             new RegExp(reason)
         ].forEach(function(regex) {
-            expect(msg.text).toMatch(regex);
-            expect(msg.html).toMatch(regex);
+            expect(regex.test(msg.text)).toBeTruthy('Expected text to match ' + regex);
+            expect(regex.test(msg.html)).toBeTruthy('Expected html to match ' + regex);
         });
         expect((new Date() - msg.date)).toBeLessThan(30000); // message should be recent
     }
@@ -742,6 +741,7 @@ describe('ads campaignUpdates endpoints (E2E):', function() {
                     org: 'o-selfie'
                 },
                 { id: 'cam-active', advertiserId: 'e2e-a-keepme', status: 'active', user: 'e2e-user', org: 'o-selfie' },
+                { id: 'cam-expired', name: 'expired camp', advertiserId: 'e2e-a-keepme', status: 'expired', user: 'e2e-user', org: 'o-selfie' },
                 { id: 'cam-other', status: 'draft', user: 'not-e2e-user', org: 'o-admin' },
                 { id: 'cam-deleted', status: 'deleted', user: 'e2e-user', org: 'o-selfie' },
                 createdCamp
@@ -870,7 +870,7 @@ describe('ads campaignUpdates endpoints (E2E):', function() {
             }).catch(done.fail);
         });
 
-        describe('if sending an initial submit request', function(done) {
+        describe('if sending an initial submit request', function() {
             beforeEach(function() {
                 options.json.data = { status: 'active' };
             });
@@ -900,6 +900,50 @@ describe('ads campaignUpdates endpoints (E2E):', function() {
                     // test campaign updated successfully
                     requestUtils.qRequest('get', {
                         url: config.adsUrl + '/campaigns/cam-1',
+                        jar: selfieJar
+                    }).then(function(resp) {
+                        expect(resp.response.statusCode).toBe(200);
+                        expect(resp.body.status).toBe('pending');
+                        expect(resp.body.updateRequest).toBe(createdUpdate.id);
+                    }).catch(function(error) {
+                        expect(util.inspect(error)).not.toBeDefined();
+                    }).done(done);
+                });
+            });
+        });
+        
+        describe('if renewing a previously ended campaign', function() {
+            beforeEach(function() {
+                options.json.data = { status: 'active' };
+                options.url = config.adsUrl + '/campaigns/cam-expired/updates/';
+                msgSubject = 'New update request from Heinz for campaign "expired camp"';
+            });
+
+            it('should set the status of the campaign to pending', function(done) {
+                var createdUpdate;
+                requestUtils.qRequest('post', options).then(function(resp) {
+                    expect(resp.response.statusCode).toBe(201);
+                    if (resp.response.statusCode !== 201) {
+                        return q.reject({ code: resp.response.statusCode, body: resp.body });
+                    }
+                    
+                    expect(resp.body.id).toEqual(jasmine.any(String));
+                    expect(resp.body.status).toBe('pending');
+                    expect(resp.body.campaign).toBe('cam-expired');
+                    expect(resp.body.autoApproved).toBe(false);
+                    expect(resp.body.data.status).toBe('active');
+                    createdUpdate = resp.body;
+                }).catch(function(error) {
+                    expect(util.inspect(error)).not.toBeDefined();
+                    done();
+                });
+                
+                mailman.once(msgSubject, function(msg) {
+                    testNewUpdateMsg(msg, mockCamps[2]);
+                    
+                    // test campaign updated successfully
+                    requestUtils.qRequest('get', {
+                        url: config.adsUrl + '/campaigns/cam-expired',
                         jar: selfieJar
                     }).then(function(resp) {
                         expect(resp.response.statusCode).toBe(200);

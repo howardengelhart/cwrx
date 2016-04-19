@@ -1,5 +1,7 @@
 # Ads Service Changelog
 
+* Set campaigns to `pending` when update request is created that renews the campaign: [#855](https://github.com/cinema6/cwrx/issues/855)
+
 ### 4.6.0: Mon Apr 11 12:31:33 EDT 2016
 * Produce certain campaign events to a Kinesis stream
 * [FIX]: Don't error when `defaultTagParams` subfields are null: [#848](https://github.com/cinema6/cwrx/pull/848)
