@@ -35,6 +35,18 @@
             __default: false,
             __locked: true
         },
+        initialSubmit: { // set automatically if update is initial campaign submit
+            __type: 'boolean',
+            __allowed: false,
+            __default: false,
+            __locked: true
+        },
+        renewal: { // set automatically if update is campaign renewal
+            __type: 'boolean',
+            __allowed: false,
+            __default: false,
+            __locked: true
+        },
         campaign: { // set automatically based on campId in params
             __type: 'string',
             __allowed: false,
@@ -63,6 +75,22 @@
                req.body && req.body.status === Status.Rejected;
     }
 
+    // Helper to return true if update request is an initial campaign submit
+    function isInitSubmit(req) {
+        return req.body.initialSubmit || (req.origObj && req.origObj.initialSubmit) ||
+               (req.campaign.status === Status.Draft && req.body.data.status === Status.Active);
+    }
+
+    // Helper to return true if update request is a campaign renewal
+    function isRenewal(req) {
+        var finishedStatuses = [Status.Expired, Status.OutOfBudget, Status.Canceled],
+            oldStatus = req.campaign.status,
+            newStatus = req.body.data.status;
+
+        return req.body.renewal || (req.origObj && req.origObj.renewal) ||
+               (finishedStatuses.indexOf(oldStatus) !== -1 && newStatus === Status.Active);
+    }
+
     updateModule.setupSvc = function(db, campSvc, config, appCreds) {
         updateModule.config.emails = config.emails;
         updateModule.config.api = config.api;
@@ -88,6 +116,7 @@
             validateData        = updateModule.validateData.bind(updateModule, campDataModel),
             extraValidation     = updateModule.extraValidation.bind(updateModule, campDataModel),
             handleInitialSubmit = updateModule.handleInitialSubmit.bind(updateModule, svc),
+            handleRenewal       = updateModule.handleRenewal.bind(updateModule, svc),
             lockCampaign        = updateModule.lockCampaign.bind(updateModule, svc),
             unlockCampaign      = updateModule.unlockCampaign.bind(updateModule, svc),
             applyUpdate         = updateModule.applyUpdate.bind(updateModule, svc, appCreds),
@@ -102,6 +131,7 @@
         svc.use('create', updateModule.validateCards);
         svc.use('create', updateModule.validateZipcodes);
         svc.use('create', handleInitialSubmit);
+        svc.use('create', handleRenewal);
         if(emailingEnabled) {
             svc.use('create', updateModule.notifySupport);
         }
@@ -340,11 +370,26 @@
         });
     };
     
+    // Immediately edit campaign + set status to pending; used for renewal or init submit
+    updateModule.setPending = function(svc, req) {
+        var log = logger.getLog(),
+            updateObj = { status: Status.Pending };
+        
+        historian.historify('status', 'statusHistory', updateObj, req.campaign, req);
+        
+        req.body.data.statusHistory = updateObj.statusHistory;
+        
+        return mongoUtils.editObject(svc._db.collection('campaigns'), updateObj, req.campaign.id)
+        .then(function() {
+            log.trace('[%1] Edited %2 with pending status', req.uuid, req.campaign.id);
+        });
+    };
+    
     // On user's initial submit, check for additional props + transition campaign to 'pending'
     updateModule.handleInitialSubmit = function(svc, req, next, done) {
         var log = logger.getLog();
 
-        if (req.campaign.status !== Status.Draft || req.body.data.status !== Status.Active) {
+        if (!isInitSubmit(req)) {
             return q(next());
         }
 
@@ -363,16 +408,26 @@
                 return q(done({ code: 400, body: 'Missing required field: pricing.' + fields[i] }));
             }
         }
-        
-        var updateObj = { status: Status.Pending };
-        
-        historian.historify('status', 'statusHistory', updateObj, req.campaign, req);
-        
-        req.body.data.statusHistory = updateObj.statusHistory;
-        
-        return mongoUtils.editObject(svc._db.collection('campaigns'), updateObj, req.campaign.id)
+
+        return updateModule.setPending(svc, req)
         .then(function() {
-            log.trace('[%1] Edited %2 with pending status', req.uuid, req.campaign.id);
+            next();
+        });
+    };
+    
+    updateModule.handleRenewal = function(svc, req, next/*, done*/) {
+        var log = logger.getLog();
+
+        if (!isRenewal(req)) {
+            return q(next());
+        }
+
+        log.info('[%1] Renewal request for %2, setting status to pending',req.uuid,req.campaign.id);
+                 
+        req.body.renewal = true;
+        
+        return updateModule.setPending(svc, req)
+        .then(function() {
             next();
         });
     };
@@ -488,9 +543,9 @@
         });
     };
     
-    /* Apply update request to campaign by proxying a PUT request. Assumes the user editing the
-     * campaign update request has permission to edit all campaigns. Fails if any non-200 response
-     * is returned from the campaign service, and attempts to re-lock the campaign. */
+    /* Apply update request to campaign by proxying a PUT request. Uses the cwrx app for auth to
+     * ensure no permissions issues. Fails if any non-200 response is returned from the campaign
+     * service, and attempts to re-lock the campaign. */
     updateModule.applyUpdate = function(svc, appCreds, req, next/*, done*/) {
         var log = logger.getLog(),
             updateId = req.origObj && req.origObj.id || req.body.id,

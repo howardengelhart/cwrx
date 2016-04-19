@@ -90,8 +90,8 @@ describe('ads-campaignUpdates (UT)', function() {
             config = JSON.parse(JSON.stringify(updateModule.config));
             updateModule.config = {};
             
-            ['fetchCamp', 'validateData', 'extraValidation', 'handleInitialSubmit', 'lockCampaign',
-             'unlockCampaign', 'applyUpdate', 'notifyOwner'].forEach(function(method) {
+            ['fetchCamp', 'validateData', 'extraValidation', 'handleInitialSubmit', 'handleRenewal',
+             'lockCampaign', 'unlockCampaign', 'applyUpdate', 'notifyOwner'].forEach(function(method) {
                 var fn = updateModule[method];
                 spyOn(fn, 'bind').and.returnValue(fn);
             });
@@ -152,6 +152,7 @@ describe('ads-campaignUpdates (UT)', function() {
             expect(svc._middleware.create).toContain(updateModule.validateCards);
             expect(svc._middleware.create).toContain(updateModule.validateZipcodes);
             expect(svc._middleware.create).toContain(updateModule.handleInitialSubmit);
+            expect(svc._middleware.create).toContain(updateModule.handleRenewal);
             expect(svc._middleware.create).toContain(updateModule.notifySupport);
             expect(svc._middleware.create).toContain(updateModule.lockCampaign);
             updateModule.config.emails.enabled = false;
@@ -188,6 +189,7 @@ describe('ads-campaignUpdates (UT)', function() {
             expect(updateModule.validateData.bind).toHaveBeenCalledWith(updateModule, fakeCampModel);
             expect(updateModule.extraValidation.bind).toHaveBeenCalledWith(updateModule, fakeCampModel);
             expect(updateModule.handleInitialSubmit.bind).toHaveBeenCalledWith(updateModule, svc);
+            expect(updateModule.handleRenewal.bind).toHaveBeenCalledWith(updateModule, svc);
             expect(updateModule.lockCampaign.bind).toHaveBeenCalledWith(updateModule, svc);
             expect(updateModule.unlockCampaign.bind).toHaveBeenCalledWith(updateModule, svc);
             expect(updateModule.applyUpdate.bind).toHaveBeenCalledWith(updateModule, svc, appCreds);
@@ -228,17 +230,19 @@ describe('ads-campaignUpdates (UT)', function() {
             });
         });
         
-        describe('autoApproved', function() {
-            it('should always default to false', function() {
-                requester.fieldValidation.campaignUpdates.autoApproved = { __allowed: true };
-                newObj.autoApproved = true;
-                expect(svc.model.validate('create', newObj, origObj, requester))
-                    .toEqual({ isValid: true, reason: undefined });
-                expect(newObj.autoApproved).toBe(false);
+        ['autoApproved', 'initialSubmit', 'renewal'].forEach(function(field) {
+            describe('when handling ' + field, function() {
+                it('should always default to false', function() {
+                    requester.fieldValidation.campaignUpdates[field] = { __allowed: true };
+                    newObj[field] = true;
+                    expect(svc.model.validate('create', newObj, origObj, requester))
+                        .toEqual({ isValid: true, reason: undefined });
+                    expect(newObj[field]).toBe(false);
+                });
             });
         });
         
-        describe('campaign', function() {
+        describe('when handling campaign', function() {
             it('should not be settable', function() {
                 requester.fieldValidation.campaignUpdates.campaign = { __allowed: true };
                 newObj.campaign = 'cam-fake';
@@ -248,7 +252,7 @@ describe('ads-campaignUpdates (UT)', function() {
             });
         });
         
-        describe('rejectionReason', function() {
+        describe('when handling rejectionReason', function() {
             it('should trim the field if set', function() {
                 newObj.rejectionReason = 1234;
                 expect(svc.model.validate('create', newObj, origObj, requester))
@@ -793,7 +797,7 @@ describe('ads-campaignUpdates (UT)', function() {
         });
     });
     
-    describe('handleInitialSubmit', function() {
+    describe('setPending', function() {
         var svc;
         beforeEach(function() {
             req.campaign = {
@@ -801,13 +805,54 @@ describe('ads-campaignUpdates (UT)', function() {
                 status: Status.Draft,
                 statusHistory: [{ userId: 'u-2', user: 'me@c6.com', date: new Date(), status: Status.Draft }]
             };
+            req.body = { campaign: 'cam-1', data: { status: Status.Active } };
+
+            spyOn(mongoUtils, 'editObject').and.returnValue(q());
+            spyOn(historian, 'historify').and.callThrough();
+            svc = { _db: mockDb };
+        });
+        
+        it('should set the existing campaign to pending', function(done) {
+            var statHistory = [
+                { userId: 'u-1', user: 'selfie@c6.com', date: jasmine.any(Date), status: Status.Pending },
+                { userId: 'u-2', user: 'me@c6.com', date: jasmine.any(Date), status: Status.Draft }
+            ];
+            updateModule.setPending(svc, req).then(function(resp) {
+                expect(req.body.data.statusHistory).toEqual(statHistory);
+                expect(historian.historify).toHaveBeenCalledWith('status', 'statusHistory',
+                    jasmine.objectContaining({ status: Status.Pending }), req.campaign, req);
+                expect(mongoUtils.editObject).toHaveBeenCalledWith({ collectionName: 'campaigns' }, {
+                    status: Status.Pending,
+                    statusHistory: statHistory
+                }, 'cam-1');
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should reject if editing the campaign fails', function(done) {
+            mongoUtils.editObject.and.returnValue(q.reject('I GOT A PROBLEM'));
+            updateModule.setPending(svc, req).then(function(resp) {
+                expect(resp).not.toBeDefined();
+            }).catch(function(error) {
+                expect(error).toBe('I GOT A PROBLEM');
+            }).done(done);
+        });
+    });
+    
+    describe('handleInitialSubmit', function() {
+        var svc;
+        beforeEach(function() {
+            req.campaign = {
+                id: 'cam-1',
+                status: Status.Draft
+            };
             req.body = { campaign: 'cam-1', data: {
                 pricing: { budget: 1000, dailyLimit: 200, cost: 0.15, model: 'cpv' },
                 status: Status.Active
             } };
             req.requester.entitlements = {};
-            spyOn(mongoUtils, 'editObject').and.returnValue(q());
-            spyOn(historian, 'historify').and.callThrough();
+            spyOn(updateModule, 'setPending').and.returnValue(q());
             svc = { _db: mockDb };
         });
 
@@ -820,7 +865,7 @@ describe('ads-campaignUpdates (UT)', function() {
                 expect(nextSpy.calls.count()).toBe(2);
                 expect(doneSpy).not.toHaveBeenCalled();
                 expect(errorSpy).not.toHaveBeenCalled();
-                expect(mongoUtils.editObject).not.toHaveBeenCalled();
+                expect(updateModule.setPending).not.toHaveBeenCalled();
                 expect(req1.body.initialSubmit).not.toBeDefined();
                 expect(req2.body.initialSubmit).not.toBeDefined();
                 done();
@@ -828,22 +873,12 @@ describe('ads-campaignUpdates (UT)', function() {
         });
         
         it('should check that required fields exist and then change the status of the campaign', function(done) {
-            var statHistory = [
-                { userId: 'u-1', user: 'selfie@c6.com', date: jasmine.any(Date), status: Status.Pending },
-                { userId: 'u-2', user: 'me@c6.com', date: jasmine.any(Date), status: Status.Draft }
-            ];
             updateModule.handleInitialSubmit(svc, req, nextSpy, doneSpy).catch(errorSpy).finally(function() {
                 expect(nextSpy).toHaveBeenCalled();
                 expect(doneSpy).not.toHaveBeenCalled();
                 expect(errorSpy).not.toHaveBeenCalled();
                 expect(req.body.initialSubmit).toBe(true);
-                expect(req.body.data.statusHistory).toEqual(statHistory);
-                expect(historian.historify).toHaveBeenCalledWith('status', 'statusHistory',
-                    jasmine.objectContaining({ status: Status.Pending }), req.campaign, req);
-                expect(mongoUtils.editObject).toHaveBeenCalledWith({ collectionName: 'campaigns' }, {
-                    status: Status.Pending,
-                    statusHistory: statHistory
-                }, 'cam-1');
+                expect(updateModule.setPending).toHaveBeenCalledWith(svc, req);
                 done();
             });
         });
@@ -864,13 +899,71 @@ describe('ads-campaignUpdates (UT)', function() {
                 expect(doneSpy.calls.argsFor(0)).toEqual([{ code: 400, body: 'Missing required field: pricing.budget' }]);
                 expect(doneSpy.calls.argsFor(1)).toEqual([{ code: 400, body: 'Missing required field: pricing.budget' }]);
                 expect(doneSpy.calls.argsFor(2)).toEqual([{ code: 400, body: 'Missing required field: pricing.cost' }]);
-                expect(mongoUtils.editObject).not.toHaveBeenCalled();
+                expect(updateModule.setPending).not.toHaveBeenCalled();
             }).done(done, done.fail);
         });
         
         it('should reject if editing the campaign fails', function(done) {
-            mongoUtils.editObject.and.returnValue(q.reject('I GOT A PROBLEM'));
+            updateModule.setPending.and.returnValue(q.reject('I GOT A PROBLEM'));
             updateModule.handleInitialSubmit(svc, req, nextSpy, doneSpy).catch(errorSpy).finally(function() {
+                expect(nextSpy).not.toHaveBeenCalled();
+                expect(doneSpy).not.toHaveBeenCalled();
+                expect(errorSpy).toHaveBeenCalledWith('I GOT A PROBLEM');
+                done();
+            });
+        });
+    });
+    
+    describe('handleRenewal', function() {
+        var svc;
+        beforeEach(function() {
+            req.campaign = { id: 'cam-1', status: Status.Canceled };
+            req.body = { campaign: 'cam-1', data: { status: Status.Active } };
+            spyOn(updateModule, 'setPending').and.returnValue(q());
+            svc = { _db: mockDb };
+        });
+        
+        it('should set the renewal prop and set the campaign to pending', function(done) {
+            updateModule.handleRenewal(svc, req, nextSpy, doneSpy).catch(errorSpy).finally(function() {
+                expect(nextSpy).toHaveBeenCalled();
+                expect(doneSpy).not.toHaveBeenCalled();
+                expect(errorSpy).not.toHaveBeenCalled();
+                expect(req.body.renewal).toBe(true);
+                expect(updateModule.setPending).toHaveBeenCalledWith(svc, req);
+                done();
+            });
+        });
+        
+        it('should handle all possible renewal status transitions', function(done) {
+            q.all([Status.Canceled, Status.Expired, Status.OutOfBudget].map(function(status) {
+                var reqCopy = JSON.parse(JSON.stringify(req));
+                reqCopy.campaign.status = status;
+                return updateModule.handleRenewal(svc, reqCopy, nextSpy, doneSpy).catch(errorSpy);
+            })).then(function(results) {
+                expect(nextSpy.calls.count()).toBe(3);
+                expect(doneSpy).not.toHaveBeenCalled();
+                expect(errorSpy).not.toHaveBeenCalled();
+                expect(updateModule.setPending.calls.count()).toBe(3);
+            }).then(done, done.fail);
+        });
+        
+        it('should skip if the update is not a campaign renewal', function(done) {
+            q.all([{ oldStatus: Status.Paused }, { oldStatus: Status.Draft }, { newStatus: Status.Draft }].map(function(obj) {
+                var reqCopy = JSON.parse(JSON.stringify(req));
+                reqCopy.campaign.status = obj.oldStatus || reqCopy.campaign.status;
+                reqCopy.body.data.status = obj.newStatus || reqCopy.body.data.status;
+                return updateModule.handleRenewal(svc, reqCopy, nextSpy, doneSpy).catch(errorSpy);
+            })).then(function(results) {
+                expect(nextSpy.calls.count()).toBe(3);
+                expect(doneSpy).not.toHaveBeenCalled();
+                expect(errorSpy).not.toHaveBeenCalled();
+                expect(updateModule.setPending).not.toHaveBeenCalled();
+            }).then(done, done.fail);
+        });
+        
+        it('should fail if editing the campaign fails', function(done) {
+            updateModule.setPending.and.returnValue(q.reject('I GOT A PROBLEM'));
+            updateModule.handleRenewal(svc, req, nextSpy, doneSpy).catch(errorSpy).finally(function() {
                 expect(nextSpy).not.toHaveBeenCalled();
                 expect(doneSpy).not.toHaveBeenCalled();
                 expect(errorSpy).toHaveBeenCalledWith('I GOT A PROBLEM');
