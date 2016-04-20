@@ -2,6 +2,7 @@ var q               = require('q'),
     util            = require('util'),
     fs              = require('fs-extra'),
     path            = require('path'),
+    formatURL       = require('url').format,
     testUtils       = require('./testUtils'),
     requestUtils    = require('../../lib/requestUtils'),
     request         = require('request'),
@@ -50,6 +51,106 @@ describe('search (E2E):', function() {
             return requestUtils.qRequest('post', loginOpts);
         }).done(function(resp) {
             done();
+        });
+    });
+
+    describe('GET /api/search/apps', function() {
+        var options;
+        var success, failure;
+        var apiResponse;
+
+        beforeEach(function() {
+            options = {
+                url: config.searchUrl + '/search/apps',
+                qs: {},
+                json: true,
+                jar: cookieJar
+            };
+
+            success = jasmine.createSpy('success()').and.callFake(function(response) {
+                apiResponse = response;
+            });
+            failure = jasmine.createSpy('failure()').and.callFake(function(error) {
+                console.error(error);
+            });
+
+            apiResponse = null;
+        });
+
+        describe('unauthenticated', function() {
+            beforeEach(function(done) {
+                options.jar = false;
+
+                requestUtils.qRequest('get', options).then(success, failure).finally(done);
+            });
+
+            it('should [401]', function() {
+                expect(apiResponse.response.statusCode).toBe(401);
+                expect(apiResponse.body).toBe('Unauthorized');
+            });
+        });
+
+        describe('with no query', function() {
+            beforeEach(function(done) {
+                delete options.qs.query;
+
+                requestUtils.qRequest('get', options).then(success, failure).finally(done);
+            });
+
+            it('should [400]', function() {
+                expect(apiResponse.response.statusCode).toBe(400);
+                expect(apiResponse.body).toBe('A search query is required.');
+            });
+        });
+
+        describe('with a search query', function() {
+            beforeEach(function(done) {
+                options.qs.query = 'coin counter';
+
+                requestUtils.qRequest('get', options).then(success, failure).finally(done);
+            });
+
+            it('should return results from the app store', function() {
+                expect(apiResponse.response.statusCode).toBe(200);
+                expect(apiResponse.body).toEqual(jasmine.any(Array));
+                expect(apiResponse.body.length).toBeGreaterThan(0, 'Response has no results');
+                apiResponse.body.forEach(function(result, index) {
+                    expect(result).toEqual(jasmine.objectContaining({
+                        title: jasmine.any(String),
+                        developer: jasmine.any(String),
+                        thumbnail: jasmine.stringMatching(/^https?:\/\/is\d\.mzstatic\.com\/image\/thumb/),
+                        category: jasmine.any(String),
+                        uri: jasmine.stringMatching(/^https:\/\/itunes\.apple\.com\//),
+                        productDataURI: formatURL({
+                            protocol: 'http',
+                            hostname: 'localhost',
+                            pathname: '/api/collateral/product-data',
+                            query: {
+                                uri: result.uri
+                            }
+                        })
+                    }), 'Failure for results[' + index + ']');
+
+                    if ('rating' in result) {
+                        expect(result.rating).toMatch(/^[0-5]\.?\d*$/, 'Bad rating for results[' + index + ']');
+                    }
+                });
+            });
+
+            describe('and a limit', function() {
+                var unlimitedResults;
+
+                beforeEach(function(done) {
+                    unlimitedResults = apiResponse.body;
+                    options.qs.limit = 10;
+
+                    requestUtils.qRequest('get', options).then(success, failure).finally(done);
+                });
+
+                it('should get a subset of results', function() {
+                    expect(apiResponse.body).toEqual(unlimitedResults.slice(0, 10));
+                });
+            });
         });
     });
 

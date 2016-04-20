@@ -1,5 +1,10 @@
 # Search Service Changelog
 
+* [FEATURE]: Add `GET [/api/search/apps]` endpoint to search the App
+  Store: [#875](https://github.com/cinema6/cwrx/pull/875)
+* **Extra Deployment Steps:**
+  * Upload `v1.1.0` of the search cookbook
+
 ### 1.4.1: Tue Mar 15 19:44:01 EDT 2016
 * [FIX]: Fix characters of uuids to be url-safe: [#822](https://github.com/cinema6/cwrx/pull/822)
 * Extra deployment steps:
