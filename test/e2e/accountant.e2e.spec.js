@@ -206,7 +206,7 @@ describe('accountant (E2E):', function() {
                 expect(results[0].sessionID).toEqual(jasmine.any(String));
                 expect(results[0].service).toBe('accountant');
                 expect(results[0].version).toEqual(jasmine.any(String));
-                expect(results[0].data).toEqual({route: 'GET /api/transactions?',
+                expect(results[0].data).toEqual({route: 'GET /api/transactions/',
                                                  params: {}, query: { sort: 'amount,-1' } });
             }).catch(function(error) {
                 expect(util.inspect(error)).not.toBeDefined();
@@ -384,7 +384,7 @@ describe('accountant (E2E):', function() {
                 expect(results[0].uuid).toEqual(jasmine.any(String));
                 expect(results[0].service).toBe('accountant');
                 expect(results[0].version).toEqual(jasmine.any(String));
-                expect(results[0].data).toEqual({route: 'POST /api/transactions?',
+                expect(results[0].data).toEqual({route: 'POST /api/transactions/',
                                                  params: {}, query: {} });
             }).catch(function(error) {
                 expect(util.inspect(error)).not.toBeDefined();

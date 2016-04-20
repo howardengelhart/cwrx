@@ -84,6 +84,12 @@ function setupOrgSvcFieldVal(policy) {
 // setup permissive fieldValidation rules for campaigns
 function setupCampaignSvcFieldVal(policy) {
     policy.fieldValidation.campaigns = {
+        user: {
+            __allowed: true
+        },
+        org: {
+            __allowed: true
+        },
         status: {
             __allowed: true
         },
