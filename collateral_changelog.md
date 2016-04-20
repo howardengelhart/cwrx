@@ -2,7 +2,10 @@
 
 * [FEATURE]: Add `[GET] /api/collateral/product-data` endpoint for
   fetching and normalizing data about products from various e-commerce
-  platforms: [#832](https://github.com/cinema6/cwrx/pull/832)
+  platforms: [#832](https://github.com/cinema6/cwrx/pull/832),
+  [#873](https://github.com/cinema6/cwrx/pull/873)
+* **Extra deployment steps:**
+    * Deploy `v1.1.0` of the collateral cookbook
 
 ### 2.2.3: Thu Mar 24 14:13:05 EDT 2016
 * [FIX]: Handle non-existant server addresses more gracefully when
