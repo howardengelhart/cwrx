@@ -13,6 +13,7 @@
         service         = require('../lib/service'),
 
         videosModule    = require('./search-videos'),
+        appsModule      = require('./search-apps'),
 
         state   = {},
         search  = {}; // for exporting functions to unit tests
@@ -23,6 +24,12 @@
         appDir: __dirname,
         caches : {
             run     : path.normalize('/usr/local/share/cwrx/search/caches/run/'),
+        },
+        api: {
+            root: 'http://localhost/',
+            productData: {
+                endpoint: '/api/collateral/product-data'
+            }
         },
         google: {
             apiUrl: 'https://www.googleapis.com/customsearch/v1',
@@ -97,6 +104,7 @@
         });
 
         videosModule.setupEndpoints(app, state, audit);
+        appsModule.setupEndpoints(app, state, audit);
 
         app.use(expressUtils.errorHandler());
 
