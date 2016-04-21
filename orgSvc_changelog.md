@@ -1,5 +1,9 @@
 # Org Service Changelog
 
+* Make `paymentPlanId` and `paymentPlanStart` forbidden fields: [#877](https://github.com/cinema6/cwrx/pull/877)
+* **Extra Deployment Steps:**
+  * Give the `cwrx-app` the ability to mutate an org's `paymentPlanId`
+
 ### 1.9.0: Tue Apr 19 17:17:50 EDT 2016
 * [FEATURE]: Support filtering by `ids` for `GET /api/payments`: [#868](https://github.com/cinema6/cwrx/pull/868)
 * Extra deployment steps: None
