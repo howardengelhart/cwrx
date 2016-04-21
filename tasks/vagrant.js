@@ -3,7 +3,7 @@ module.exports = function(grunt) {
         spawn   = require('child_process').spawn;
 
     var serviceDepends = {
-        accountant  : 'auth,monitor,orgSvc',
+        accountant  : 'auth,monitor,ads,orgSvc',
         ads         : 'accountant,auth,content,monitor,orgSvc,geo',
         collateral  : 'auth,monitor',
         geo         : 'auth,monitor',

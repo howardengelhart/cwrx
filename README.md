@@ -137,7 +137,7 @@ In order to run a service locally, you'll need to setup a few things:
 
   | Service    | Dependencies                                    |
   | ---------- | ----------------------------------------------- |
-  | accountant | auth, monitor, orgSvc                           |
+  | accountant | auth, monitor, orgSvc, ads                      |
   | ads        | accountant, auth, content, monitor, orgSvc, geo |
   | auth       | monitor                                         |
   | collateral | auth, monitor                                   |
