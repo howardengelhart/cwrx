@@ -757,6 +757,26 @@
             return q(resp);
         }
     };
+
+    campModule.produceCreation = function produceCreation(req, result) {
+        var log = logger.getLog();
+        var uuid = req.uuid;
+        var campaign = result.body;
+
+        if (result.code !== 201) { return q(result); }
+
+        return streamUtils.produceEvent('campaignCreated', {
+            campaign: campaign
+        }).catch(function handleRejection(reason) {
+            log.error(
+                '[%1] Failed producing campaignCreated event for %2: %3',
+                uuid, campaign.id, util.inspect(reason)
+            );
+            return result;
+        }).thenResolve(result).tap(function logSuccess() {
+            log.info('[%1] Produced campaignCreated event for %2.', uuid, campaign.id);
+        });
+    };
     
     campModule.setupEndpoints = function(app, svc, sessions, audit, jobManager) {
         var router      = express.Router(),
@@ -829,6 +849,8 @@
         router.post('/', sessions, authMidware.create, audit, function(req, res) {
             var promise = svc.createObj(req).then(function(resp) {
                 return campModule.decorateWithCards(req, resp, svc);
+            }).then(function produceCreation(response) {
+                return campModule.produceCreation(req, response);
             });
             promise.finally(function() {
                 jobManager.endJob(req, res, promise.inspect())
