@@ -61,6 +61,14 @@
                     __type: 'string'
                 }
             }
+        },
+        paymentPlanId: {
+            __allowed: false,
+            __type: 'string'
+        },
+        paymentPlanStart: {
+            __allowed: false,
+            __type: 'Date'
         }
     };
 
