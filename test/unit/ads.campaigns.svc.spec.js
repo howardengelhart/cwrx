@@ -1391,6 +1391,99 @@ describe('ads-campaigns (UT)', function() {
         });
     });
 
+    describe('produceCreation(req, result)', function() {
+        var req, result;
+        var success, failure;
+        var produceDeferred;
+
+        beforeEach(function(done) {
+            spyOn(streamUtils, 'produceEvent').and.returnValue((produceDeferred = q.defer()).promise);
+
+            req = {
+                uuid: 'w8rfhuiwe4hr89w34'
+            };
+            result = {
+                code: 201,
+                body: {
+                    id: 'cam-jfe8934uyr',
+                    application: 'selfie',
+                    cards: []
+                }
+            };
+
+            success = jasmine.createSpy('success()');
+            failure = jasmine.createSpy('failure()');
+
+            campModule.produceCreation(req, result).then(success, failure);
+            process.nextTick(done);
+        });
+
+        it('should not resolve the promise', function() {
+            expect(success).not.toHaveBeenCalled();
+            expect(failure).not.toHaveBeenCalled();
+        });
+
+        it('should produce an event to the watchman stream', function() {
+            expect(streamUtils.produceEvent).toHaveBeenCalledWith('campaignCreated', {
+                campaign: result.body
+            });
+        });
+
+        describe('if producing the event fails', function() {
+            var reason;
+
+            beforeEach(function(done) {
+                reason = new Error('Something very bad happened.');
+
+                produceDeferred.reject(reason);
+                process.nextTick(done);
+            });
+
+            it('should fulfill the promise', function() {
+                expect(success).toHaveBeenCalledWith(result);
+            });
+
+            it('should log an error', function() {
+                expect(mockLog.error).toHaveBeenCalled();
+            });
+        });
+
+        describe('if producing the event succeeds', function() {
+            var data;
+
+            beforeEach(function(done) {
+                data = { type: 'campaignCreated', data: streamUtils.produceEvent.calls.mostRecent().args[1] };
+
+                produceDeferred.fulfill(data);
+                process.nextTick(done);
+            });
+
+            it('should fulfill with the result', function() {
+                expect(success).toHaveBeenCalledWith(result);
+            });
+        });
+
+        [200, 202, 203, 400, 404, 500, 504].forEach(function(statusCode) {
+            describe('if the result.code is ' + statusCode, function() {
+                beforeEach(function(done) {
+                    result.code = statusCode;
+                    streamUtils.produceEvent.calls.reset();
+
+                    campModule.produceCreation(req, result).then(success, failure);
+                    process.nextTick(done);
+                });
+
+                it('should not produce an event', function() {
+                    expect(streamUtils.produceEvent).not.toHaveBeenCalled();
+                });
+
+                it('should fulfill the promise', function() {
+                    expect(success).toHaveBeenCalledWith(result);
+                });
+            });
+        });
+    });
+
     describe('sendDeleteRequest', function() {
         var resp;
         beforeEach(function() {

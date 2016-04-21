@@ -872,6 +872,31 @@ describe('ads campaigns endpoints (E2E):', function() {
             }).done(done);
         });
 
+        it('should produce a record into the cwrxStream', function(done) {
+            requestUtils.qRequest('post', options, null, { maxAttempts: 30 }).then(function(result) {
+                return q.all([
+                    result.body,
+                    new q.Promise(function(resolve) {
+                        mockman.on('campaignCreated', function(record) {
+                            if (record.data.campaign.created === result.body.created) {
+                                resolve(record);
+                            }
+                        });
+                    })
+                ]);
+            }).spread(function(campaign, record) {
+                expect(record.type).toBe('campaignCreated');
+                expect(record.data.campaign).toEqual(campaign);
+                expect(record).toEqual({
+                    type: jasmine.any(String),
+                    data: {
+                        campaign: jasmine.any(Object),
+                        date: jasmine.any(String)
+                    }
+                });
+            }).then(done, done.fail);
+        });
+
         it('should return a 400 if no advertiserId is provided', function(done) {
             delete options.json.advertiserId;
             requestUtils.qRequest('post', options, null, { maxAttempts: 30 }).then(function(resp) {
