@@ -179,7 +179,7 @@ describe('orgSvc-orgs (UT)', function() {
             });
         });
         
-        ['braintreeCustomer', 'referralCode'].forEach(function(field) {
+        ['braintreeCustomer', 'referralCode', 'paymentPlanId'].forEach(function(field) {
             describe('when handling ' + field, function() {
                 it('should trim the field if set', function() {
                     newObj[field] = '123456';
@@ -203,6 +203,43 @@ describe('orgSvc-orgs (UT)', function() {
 
                     expect(svc.model.validate('create', newObj, origObj, requester))
                         .toEqual({ isValid: false, reason: field + ' must be in format: string' });
+                });
+            });
+        });
+
+        ['paymentPlanStart'].forEach(function(field) {
+            describe('when handling ' + field, function() {
+                beforeEach(function() {
+                    jasmine.clock().install();
+                    jasmine.clock().mockDate();
+                });
+
+                afterEach(function() {
+                    jasmine.clock().uninstall();
+                });
+
+                it('should trim the field if set', function() {
+                    newObj[field] = new Date().toISOString();
+                    expect(svc.model.validate('create', newObj, origObj, requester))
+                        .toEqual({ isValid: true, reason: undefined });
+                    expect(newObj).toEqual({ name: 'test' });
+                });
+                
+                it('should be able to allow some requesters to set the field', function() {
+                    newObj[field] = new Date().toISOString();
+                    requester.fieldValidation.orgs[field] = { __allowed: true };
+
+                    expect(svc.model.validate('create', newObj, origObj, requester))
+                        .toEqual({ isValid: true, reason: undefined });
+                    expect(newObj[field]).toEqual(new Date());
+                });
+                
+                it('should fail if the field is not a Date', function() {
+                    newObj[field] = 'whaddup homes';
+                    requester.fieldValidation.orgs[field] = { __allowed: true };
+
+                    expect(svc.model.validate('create', newObj, origObj, requester))
+                        .toEqual({ isValid: false, reason: field + ' must be in format: Date' });
                 });
             });
         });

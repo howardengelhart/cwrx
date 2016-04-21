@@ -502,10 +502,18 @@ describe('orgSvc orgs (E2E):', function() {
         it('should trim off forbidden fields', function(done) {
             options.json.id = 'myfakeid';
             options.json.braintreeCustomer = 'fakecust';
+            options.json.referralCode = 'fwuei9fhrue9if';
+            options.json.promotions = [{ type: 'foo' }];
+            options.json.paymentPlanId = 'pp-u8w394hru4';
+            options.json.paymentPlanStart = new Date().toISOString();
             requestUtils.qRequest('post', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(201);
                 expect(resp.body.id).not.toBe('myfakeid');
                 expect(resp.body.braintreeCustomer).not.toBeDefined();
+                expect(resp.body.referralCode).toBeUndefined();
+                expect(resp.body.promotions).toBeUndefined();
+                expect(resp.body.paymentPlanId).toBeUndefined();
+                expect(resp.body.paymentPlanStart).toBeUndefined();
             }).catch(function(error) {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
@@ -716,10 +724,20 @@ describe('orgSvc orgs (E2E):', function() {
         it('should trim out forbidden fields', function(done) {
             options.json.id = 'qwer';
             options.json.created = 'new_created';
+            options.json.braintreeCustomer = 'your mom';
+            options.json.referralCode = 'fwuei9fhrue9if';
+            options.json.promotions = [{ type: 'foo' }];
+            options.json.paymentPlanId = 'pp-u8w394hru4';
+            options.json.paymentPlanStart = new Date().toISOString();
             requestUtils.qRequest('put', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
                 expect(resp.body.id).toBe('o-1234');
                 expect(resp.body.created).toBe(start.toISOString());
+                expect(resp.body.braintreeCustomer).toBeUndefined();
+                expect(resp.body.referralCode).toBeUndefined();
+                expect(resp.body.promotions).toBeUndefined();
+                expect(resp.body.paymentPlanId).toBeUndefined();
+                expect(resp.body.paymentPlanStart).toBeUndefined();
             }).catch(function(error) {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);

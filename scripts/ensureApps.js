@@ -22,7 +22,8 @@ var apps = [
                 org: { __allowed: true }
             },
             orgs: {
-                referralCode: { __allowed: true }
+                referralCode: { __allowed: true },
+                paymentPlanId: { __allowed: true }
             }
         },
         entitlements: {
