@@ -16,10 +16,10 @@
 
         statsModule = { config: {} };
         
-    // Schema for validating body of 
+    // Schema for validating body of credit check request
     statsModule.creditCheckSchema = {
         org: {
-            __allowed: true, //TODO: __locked for everythig here?
+            __allowed: true,
             __type: 'string',
             __required: true
         },
@@ -27,10 +27,6 @@
             __allowed: true,
             __type: 'string',
             __required: true
-        },
-        newStatus: {
-            __allowed: true,
-            __type: 'string'
         },
         newBudget: {
             __allowed: true,
@@ -67,13 +63,12 @@
     
     
     // Fetch the org requester is querying for, for permissions purposes
-    statsModule.fetchOrg = function(req, next, done) { //TODO: test
+    statsModule.fetchOrg = function(req, next, done) {
         var log = logger.getLog(),
             orgId = req.query.org || req.body.org;
 
         return requestUtils.proxyRequest(req, 'get', {
-            url: urlUtils.resolve(statsModule.config.api.orgs.baseUrl, orgId),
-            qs: { fields: 'id' }
+            url: urlUtils.resolve(statsModule.config.api.orgs.baseUrl, orgId)
         })
         .then(function(resp) {
             if (resp && resp.response.statusCode !== 200) {
@@ -101,10 +96,10 @@
     };
 
     // Fetch the campaign requester is doing credit check for
-    statsModule.fetchCampaign = function(req, next, done) { //TODO: test
+    statsModule.fetchCampaign = function(req, next, done) {
         var log = logger.getLog(),
             campId = req.body.campaign,
-            orgId = (req.org && req.org.id) || req.query.org || req.body.org;
+            orgId = req.body.org;
 
         return requestUtils.proxyRequest(req, 'get', {
             url: urlUtils.resolve(statsModule.config.api.campaigns.baseUrl, campId)

@@ -70,7 +70,6 @@
         svc.use('create', model.midWare.bind(model, 'create'));
         svc.use('create', transModule.setupTransaction);
         
-        
         return svc;
     };
 
@@ -144,18 +143,10 @@
         return params;
     };
     
-    transModule.checkReadPermissions = function(req, next, done) { //TODO: test, comment
+    // Check if requester can read transactions they're querying for
+    transModule.checkReadPermissions = function(req, next, done) {
         var log = logger.getLog();
         
-        // Default query org to user's org; 400 if an app is requesting without an org
-        req.query.org = req.query.org || (req.user && req.user.org);
-        if (!req.query.org || typeof req.query.org !== 'string') {
-            return done({
-                code: 400,
-                body: 'Must provide an org id'
-            });
-        }
-
         // Return 403 if requester doesn't have permission to read another org's transactions
         if (req.requester.permissions.transactions.read !== Scope.All &&
             (!req.user || req.user.org !== req.query.org)) {
@@ -170,7 +161,8 @@
         return next();
     };
     
-    transModule.setupTransaction = function(req, next, done) { //TODO: test, comment
+    // Set additional fields on req.body needed for new transaction entity
+    transModule.setupTransaction = function(req, next, done) {
         var log = logger.getLog();
 
         if (req.body.sign === 1 && !req.body.promotion && !req.body.braintreeId) {
@@ -192,7 +184,7 @@
                       (!!req.body.promotion && 'promotion');
 
             req.body.description = JSON.stringify({
-                eventType: req.body.sign === 1 ? 'credit' : -1 ,
+                eventType: req.body.sign === 1 ? 'credit' : 'debit',
                 source: src
             });
         }
@@ -204,6 +196,15 @@
     // Fetch multiple transaction records for a given org.
     transModule.getTransactions = function(svc, req) {
         var log = logger.getLog();
+
+        // Default query org to user's org; 400 if an app is requesting without an org
+        req.query.org = req.query.org || (req.user && req.user.org);
+        if (!req.query.org || typeof req.query.org !== 'string') {
+            return q({
+                code: 400,
+                body: 'Must provide an org id'
+            });
+        }
 
         return svc.runAction(req, 'read', function() {
             var fetchParams = transModule.parseQueryParams(req);
