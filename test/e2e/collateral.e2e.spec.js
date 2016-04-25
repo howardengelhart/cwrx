@@ -810,7 +810,7 @@ describe('collateral (E2E):', function() {
                     name: 'Facebook',
                     description: jasmine.any(String),
                     uri: 'https://itunes.apple.com/us/app/facebook/id284882215?mt=8&uo=4',
-                    category: 'Social Networking',
+                    categories: ['Social Networking'],
                     price: 'Free',
                     extID: 284882215,
                     images: jasmine.any(Array)
@@ -848,7 +848,7 @@ describe('collateral (E2E):', function() {
                         name: jasmine.any(String),
                         description: jasmine.any(String),
                         uri: jasmine.stringMatching(/^https:\/\/www\.etsy\.com\/listing\//),
-                        category: jasmine.any(String),
+                        categories: jasmine.arrayContaining([jasmine.any(String)]),
                         price: jasmine.stringMatching(/^\$\d*\.?\d*/),
                         extID: jasmine.any(Number),
                         images: jasmine.any(Array)
