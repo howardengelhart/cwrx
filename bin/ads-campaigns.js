@@ -404,8 +404,6 @@
             }
         }
         
-        //TODO: validate budget here? or when submitting update request?
-        
         return q(next());
     };
 

@@ -234,7 +234,7 @@
         var log = logger.getLog();
 
         var statement = [
-            'SELECT sum(amount * sign) as spend from fct.billing_transactions',
+            'SELECT sum(amount) as spend from fct.billing_transactions',
             'where org_id = $1',
             'and campaign_id = ANY($2::text[])',
             'and sign = -1'
@@ -269,7 +269,7 @@
             return statsModule.getCampSpend(orgId, campIds, req);
         })
         .then(function(resp) {
-            var outstandingBudget = Math.round((totalBudget + resp.spend) * 100) / 100;
+            var outstandingBudget = Math.round((totalBudget - resp.spend) * 100) / 100;
                     
             log.info('[%1] Got outstandingBudget of %2 for %3', req.uuid, outstandingBudget, orgId);
             
@@ -340,7 +340,7 @@
                         code: 402,
                         body: {
                             message: 'Insufficient funds for changes to campaign',
-                            depositAmount: deficit
+                            depositAmount: Math.max(deficit, 1.00)
                         }
                     });
                 }

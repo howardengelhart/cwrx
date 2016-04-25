@@ -469,14 +469,14 @@ describe('statsModule-stats (UT)', function() {
 
     describe('getCampSpend', function() {
         beforeEach(function() {
-            spyOn(pgUtils, 'query').and.returnValue(q({ rows: [{ spend: -567.789 }] }));
+            spyOn(pgUtils, 'query').and.returnValue(q({ rows: [{ spend: 567.789 }] }));
         });
 
         it('should sum the org\'s campaign budgets and campaign spend and return the difference', function(done) {
             statsModule.getCampSpend('o-1', ['cam-1', 'cam-2'], req).then(function(resp) {
-                expect(resp).toEqual({ spend: -567.789 });
+                expect(resp).toEqual({ spend: 567.789 });
                 expect(pgUtils.query).toHaveBeenCalledWith(jasmine.any(String), ['o-1', ['cam-1', 'cam-2'] ]);
-                expect(pgUtils.query.calls.argsFor(0)[0]).toMatch(/SELECT sum\(amount \* sign\) as spend from fct.billing_transactions/);
+                expect(pgUtils.query.calls.argsFor(0)[0]).toMatch(/SELECT sum\(amount\) as spend from fct.billing_transactions/);
                 expect(pgUtils.query.calls.argsFor(0)[0]).toMatch(/where org_id = \$1/);
                 expect(pgUtils.query.calls.argsFor(0)[0]).toMatch(/and campaign_id = ANY\(\$2::text\[\]\)/);
                 expect(pgUtils.query.calls.argsFor(0)[0]).toMatch(/and sign = -1/);
@@ -514,7 +514,7 @@ describe('statsModule-stats (UT)', function() {
                 campaigns: [{ id: 'cam-1' }, { id: 'cam-2' }, { id: 'cam-3' }]
             };
             spyOn(statsModule, 'getTotalBudget').and.callFake(function() { return q(budgetResp); });
-            spyOn(statsModule, 'getCampSpend').and.returnValue(q({ spend: -567.789 }));
+            spyOn(statsModule, 'getCampSpend').and.returnValue(q({ spend: 567.789 }));
         });
 
         it('should sum the org\'s campaign budgets and campaign spend and return the difference', function(done) {
@@ -706,6 +706,20 @@ describe('statsModule-stats (UT)', function() {
                 });
                 expect(mockLog.info).toHaveBeenCalled();
                 expect(mockLog.info.calls.mostRecent().args).toContain(134.5);
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should return a minimum of $1 for the depositAmount', function(done) {
+            req.body.newBudget = 1066.00;
+            statsModule.creditCheck(svc, req).then(function(resp) {
+                expect(resp).toEqual({
+                    code: 402,
+                    body: { message: 'Insufficient funds for changes to campaign', depositAmount: 1 }
+                });
+                expect(mockLog.info).toHaveBeenCalled();
+                expect(mockLog.info.calls.mostRecent().args).toContain(0.07);
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
             }).done(done);

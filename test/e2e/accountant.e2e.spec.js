@@ -766,7 +766,20 @@ describe('accountant (E2E):', function() {
                 expect(resp.response.statusCode).toBe(402);
                 expect(resp.body).toEqual({
                     message: 'Insufficient funds for changes to campaign',
-                    depositAmount: 2196.12
+                    depositAmount: 550.12
+                });
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should return a minimum depositAmount of 1.00', function(done) {
+            options.json.newBudget = 4450.66;
+            requestUtils.qRequest('post', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(402);
+                expect(resp.body).toEqual({
+                    message: 'Insufficient funds for changes to campaign',
+                    depositAmount: 1
                 });
             }).catch(function(error) {
                 expect(util.inspect(error)).not.toBeDefined();
@@ -791,7 +804,7 @@ describe('accountant (E2E):', function() {
                 expect(resp.response.statusCode).toBe(402);
                 expect(resp.body).toEqual({
                     message: 'Insufficient funds for changes to campaign',
-                    depositAmount: 8195
+                    depositAmount: 6549
                 });
             }).catch(function(error) {
                 expect(util.inspect(error)).not.toBeDefined();
