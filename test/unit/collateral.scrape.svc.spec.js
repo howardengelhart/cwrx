@@ -1626,7 +1626,7 @@ describe('collateralScrape-scraper (UT)', function() {
                                 name: listing.title,
                                 description: entities.decode(listing.description),
                                 uri: listing.url,
-                                category: listing.category_path[0],
+                                categories: listing.category_path,
                                 price: getSymbolFromCurrency(listing.currency_code) + listing.price,
                                 extID: listing.listing_id,
                                 images: jasmine.any(Array)
@@ -1826,7 +1826,7 @@ describe('collateralScrape-scraper (UT)', function() {
                         name: response.results[0].trackCensoredName,
                         description: response.results[0].description,
                         uri: response.results[0].trackViewUrl,
-                        category: response.results[0].primaryGenreName,
+                        categories: response.results[0].genres,
                         price: response.results[0].formattedPrice,
                         extID: response.results[0].trackId,
                         images: [].concat(

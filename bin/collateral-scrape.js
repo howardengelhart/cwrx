@@ -162,7 +162,7 @@
                         name: listing.title,
                         description: html.decode(listing.description),
                         uri: listing.url,
-                        category: listing.category_path[0],
+                        categories: listing.category_path,
                         price: getSymbolFromCurrency(listing.currency_code) + listing.price,
                         extID: listing.listing_id,
                         images: listing.Images.map(function(image) {
@@ -206,7 +206,7 @@
                 name: app.trackCensoredName,
                 description: app.description,
                 uri: app.trackViewUrl,
-                category: app.primaryGenreName,
+                categories: app.genres,
                 price: app.formattedPrice,
                 extID: app.trackId,
                 images: [].concat(
