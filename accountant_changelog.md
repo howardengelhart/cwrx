@@ -1,5 +1,7 @@
 # Accountant Service Changelog
 
+* [FEATURE]: Add `POST /api/accounting/credit-check` endpoint: [#872](https://github.com/cinema6/cwrx/issues/872)
+
 ### 1.1.0: Mon Apr 18 17:05:16 EDT 2016
 * [FEATURE]: Add `GET /api/transactions` endpoint: [#833](https://github.com/cinema6/cwrx/issues/833)
 * [FEATURE]: Return `totalSpend` in body of `GET /api/accounting/balance` request: [#867](https://github.com/cinema6/cwrx/issues/867)

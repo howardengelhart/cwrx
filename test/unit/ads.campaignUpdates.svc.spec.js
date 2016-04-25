@@ -51,9 +51,9 @@ describe('ads-campaignUpdates (UT)', function() {
                 baseUrl: 'https://test.com/api/campaigns/',
                 endpoint: '/api/campaigns/'
             },
-            balance: {
-                baseUrl: 'https://test.com/api/accounting/balance/',
-                endpoint: '/api/accounting/balance/'
+            creditCheck: {
+                baseUrl: 'https://test.com/api/accounting/credit-check/',
+                endpoint: '/api/accounting/credit-check/'
             },
             zipcodes: {
                 baseUrl: 'https://test.com/api/geo/zipcodes/',
@@ -981,32 +981,24 @@ describe('ads-campaignUpdates (UT)', function() {
     });
 
     describe('checkAvailableFunds', function() {
-        var balanceResp;
+        var checkResp;
         beforeEach(function() {
             req.body = {
                 id: 'ur-1',
+                campaign: 'cam-1',
                 data: {
-                    pricing: {
-                        budget: 400
-                    }
+                    pricing: { budget: 400 }
                 }
             };
             req.campaign = {
+                id: 'cam-1',
                 status: Status.Draft,
                 org: 'o-1',
-                pricing: {
-                    budget: 100
-                }
+                pricing: { budget: 100 }
             };
 
-            balanceResp = {
-                response: { statusCode: 200 },
-                body: {
-                    balance: 1000,
-                    outstandingBudget: 700
-                }
-            };
-            spyOn(requestUtils, 'proxyRequest').and.callFake(function() { return q(balanceResp); });
+            checkResp = { response: { statusCode: 204 }, body: '' };
+            spyOn(requestUtils, 'proxyRequest').and.callFake(function() { return q(checkResp); });
         });
         
         it('should check and call next if the account has enough budget for the campaign', function(done) {
@@ -1014,20 +1006,21 @@ describe('ads-campaignUpdates (UT)', function() {
                 expect(nextSpy).toHaveBeenCalled();
                 expect(doneSpy).not.toHaveBeenCalled();
                 expect(errorSpy).not.toHaveBeenCalled();
-                expect(requestUtils.proxyRequest).toHaveBeenCalledWith(req, 'get', {
-                    url: 'https://test.com/api/accounting/balance/',
-                    qs: { org: 'o-1' }
+                expect(requestUtils.proxyRequest).toHaveBeenCalledWith(req, 'post', {
+                    url: 'https://test.com/api/accounting/credit-check/',
+                    json: { org: 'o-1', campaign: 'cam-1', newBudget: 400 }
                 });
                 expect(mockLog.error).not.toHaveBeenCalled();
                 done();
             });
         });
 
-        it('should call done if the org budget increase is too high', function(done) {
-            req.campaign.pricing.budget = 50;
+        it('should call done if the credit check returns a 402', function(done) {
+            checkResp.response.statusCode = 402;
+            checkResp.body = { message: 'Insufficient funds', depositAmount: 500 };
             updateModule.checkAvailableFunds(req, nextSpy, doneSpy).catch(errorSpy).finally(function() {
                 expect(nextSpy).not.toHaveBeenCalled();
-                expect(doneSpy).toHaveBeenCalledWith({ code: 400, body: 'Insufficient funds to cover new budget' });
+                expect(doneSpy).toHaveBeenCalledWith({ code: 402, body: { message: 'Insufficient funds', depositAmount: 500 } });
                 expect(errorSpy).not.toHaveBeenCalled();
                 expect(requestUtils.proxyRequest).toHaveBeenCalled();
                 expect(mockLog.error).not.toHaveBeenCalled();
@@ -1035,8 +1028,8 @@ describe('ads-campaignUpdates (UT)', function() {
             });
         });
         
-        it('should skip if the budget is not increasing', function(done) {
-            req.body.data.pricing.budget = 50;
+        it('should skip if the budget is not changing', function(done) {
+            req.body.data.pricing.budget = 100;
             updateModule.checkAvailableFunds(req, nextSpy, doneSpy).catch(errorSpy).finally(function() {
                 expect(nextSpy).toHaveBeenCalled();
                 expect(doneSpy).not.toHaveBeenCalled();
@@ -1060,41 +1053,64 @@ describe('ads-campaignUpdates (UT)', function() {
         });
         
         describe('if the update request is an initial campaign submission', function() {
-            it('should check the whole budget, not just the increase', function(done) {
-                req.body.data.status = Status.Active;
+            beforeEach(function() {
+                delete req.body.data.pricing;
+            });
+
+            it('should always perform the check', function(done) {
+                // Test that "initial submit" recognized thru statuses + initialSubmit prop
+                var req1 = JSON.parse(JSON.stringify(req)), req2 = JSON.parse(JSON.stringify(req));
+                req1.body.data.status = Status.Active;
+                req2.body.initialSubmit = true;
                 
-                updateModule.checkAvailableFunds(req, nextSpy, doneSpy).catch(errorSpy).finally(function() {
-                    expect(nextSpy).not.toHaveBeenCalled();
-                    expect(doneSpy).toHaveBeenCalledWith({ code: 400, body: 'Insufficient funds to cover new budget' });
-                    
-                    req.body.data.pricing.budget = 300;
-                    nextSpy.calls.reset();
-                    doneSpy.calls.reset();
-                    return updateModule.checkAvailableFunds(req, nextSpy, doneSpy).catch(errorSpy);
-                }).finally(function() {
-                    expect(nextSpy).toHaveBeenCalled();
+                q.all([
+                    updateModule.checkAvailableFunds(req1, nextSpy, doneSpy).catch(errorSpy),
+                    updateModule.checkAvailableFunds(req2, nextSpy, doneSpy).catch(errorSpy)
+                ]).then(function(results) {
+                    expect(nextSpy.calls.count()).toBe(2);
                     expect(doneSpy).not.toHaveBeenCalled();
                     expect(errorSpy).not.toHaveBeenCalled();
+                    expect(requestUtils.proxyRequest.calls.count()).toBe(2);
+                    requestUtils.proxyRequest.calls.all().forEach(function(call) {
+                        expect(call.args).toEqual([jasmine.any(Object), 'post', {
+                            url: 'https://test.com/api/accounting/credit-check/',
+                            json: { org: 'o-1', campaign: 'cam-1', newBudget: null }
+                        }]);
+                    });
                     expect(mockLog.error).not.toHaveBeenCalled();
                     done();
                 });
             });
-            
-            it('should also be able to use the initialSubmit property', function(done) {
-                req.body.initialSubmit = true;
-                updateModule.checkAvailableFunds(req, nextSpy, doneSpy).catch(errorSpy).finally(function() {
-                    expect(nextSpy).not.toHaveBeenCalled();
-                    expect(doneSpy).toHaveBeenCalledWith({ code: 400, body: 'Insufficient funds to cover new budget' });
-                    
-                    delete req.body.initialSubmit;
-                    req.origObj = { initialSubmit: true, data: {} };
-                    nextSpy.calls.reset();
-                    doneSpy.calls.reset();
-                    return updateModule.checkAvailableFunds(req, nextSpy, doneSpy).catch(errorSpy);
-                }).finally(function() {
-                    expect(nextSpy).not.toHaveBeenCalled();
-                    expect(doneSpy).toHaveBeenCalledWith({ code: 400, body: 'Insufficient funds to cover new budget' });
+        });
+
+        describe('if the update request is a renewal', function() {
+            beforeEach(function() {
+                delete req.body.data.pricing;
+                req.body.data.status = Status.Active;
+            });
+
+            it('should always perform the check', function(done) {
+                // Test that "renewal" recognized thru statuses + renewal prop
+                var reqs = [req, req, req, req].map(function(obj) { return JSON.parse(JSON.stringify(obj)); });
+                reqs[0].campaign.status = Status.Expired;
+                reqs[1].campaign.status = Status.Canceled;
+                reqs[2].campaign.status = Status.OutOfBudget;
+                reqs[0].body.renewal = true;
+                delete reqs[0].body.data.status;
+                
+                q.all(reqs.map(function(reqCopy) {
+                    return updateModule.checkAvailableFunds(reqCopy, nextSpy, doneSpy).catch(errorSpy);
+                })).then(function(results) {
+                    expect(nextSpy.calls.count()).toBe(4);
+                    expect(doneSpy).not.toHaveBeenCalled();
                     expect(errorSpy).not.toHaveBeenCalled();
+                    expect(requestUtils.proxyRequest.calls.count()).toBe(4);
+                    requestUtils.proxyRequest.calls.all().forEach(function(call) {
+                        expect(call.args).toEqual([jasmine.any(Object), 'post', {
+                            url: 'https://test.com/api/accounting/credit-check/',
+                            json: { org: 'o-1', campaign: 'cam-1', newBudget: null }
+                        }]);
+                    });
                     expect(mockLog.error).not.toHaveBeenCalled();
                     done();
                 });
@@ -1106,33 +1122,39 @@ describe('ads-campaignUpdates (UT)', function() {
                 req.origObj = { data: { pricing: { budget: 9000 } } };
             });
             
-            it('should ignore the origObj for purposes of comparison', function(done) {
+            it('should ignore the origObj if a budget is defined on the body', function(done) {
                 updateModule.checkAvailableFunds(req, nextSpy, doneSpy).catch(errorSpy).finally(function() {
                     expect(nextSpy).toHaveBeenCalled();
                     expect(doneSpy).not.toHaveBeenCalled();
                     expect(errorSpy).not.toHaveBeenCalled();
-                    expect(requestUtils.proxyRequest).toHaveBeenCalled();
+                    expect(requestUtils.proxyRequest).toHaveBeenCalledWith(req, 'post', {
+                        url: 'https://test.com/api/accounting/credit-check/',
+                        json: { org: 'o-1', campaign: 'cam-1', newBudget: 400 }
+                    });
                     expect(mockLog.error).not.toHaveBeenCalled();
                     done();
                 });
             });
             
-            it('should skip if the budget is unchanged from the existing update request', function(done) {
-                req.origObj.data.pricing.budget = 400;
+            it('should use the origObj if the budget is not defined on the body', function(done) {
+                delete req.body.data.pricing.budget;
                 updateModule.checkAvailableFunds(req, nextSpy, doneSpy).catch(errorSpy).finally(function() {
                     expect(nextSpy).toHaveBeenCalled();
                     expect(doneSpy).not.toHaveBeenCalled();
                     expect(errorSpy).not.toHaveBeenCalled();
-                    expect(requestUtils.proxyRequest).not.toHaveBeenCalled();
+                    expect(requestUtils.proxyRequest).toHaveBeenCalledWith(req, 'post', {
+                        url: 'https://test.com/api/accounting/credit-check/',
+                        json: { org: 'o-1', campaign: 'cam-1', newBudget: 9000 }
+                    });
                     expect(mockLog.error).not.toHaveBeenCalled();
                     done();
                 });
             });
         });
         
-        it('should return a 4xx if the balance request returns a 4xx', function(done) {
-            balanceResp.response.statusCode = 400;
-            balanceResp.body = 'No way, buddy';
+        it('should return a 4xx if the credit check returns a 400', function(done) {
+            checkResp.response.statusCode = 400;
+            checkResp.body = 'No way, buddy';
             updateModule.checkAvailableFunds(req, nextSpy, doneSpy).catch(errorSpy).finally(function() {
                 expect(nextSpy).not.toHaveBeenCalled();
                 expect(doneSpy).toHaveBeenCalledWith({ code: 400, body: 'No way, buddy' });
@@ -1142,12 +1164,12 @@ describe('ads-campaignUpdates (UT)', function() {
             });
         });
         
-        it('should reject if the balance request fails', function(done) {
-            balanceResp = q.reject('I GOT A PROBLEM');
+        it('should reject if the credit check request fails', function(done) {
+            checkResp = q.reject('I GOT A PROBLEM');
             updateModule.checkAvailableFunds(req, nextSpy, doneSpy).catch(errorSpy).finally(function() {
                 expect(nextSpy).not.toHaveBeenCalled();
                 expect(doneSpy).not.toHaveBeenCalled();
-                expect(errorSpy).toHaveBeenCalledWith('Failed fetching account balance for org');
+                expect(errorSpy).toHaveBeenCalledWith('Failed making credit check');
                 expect(mockLog.error).toHaveBeenCalled();
                 expect(mockLog.error.calls.mostRecent().args).toContain('\'I GOT A PROBLEM\'');
                 done();

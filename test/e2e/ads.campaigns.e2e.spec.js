@@ -22,7 +22,7 @@ describe('ads campaigns endpoints (E2E):', function() {
     var selfieJar, adminJar, mockOrgs, mockCards, mockExps, mockApp, appCreds, mockman;
 
     beforeEach(function(done) {
-        jasmine.DEFAULT_TIMEOUT_INTERVAL = 10000;
+        jasmine.DEFAULT_TIMEOUT_INTERVAL = 60000;
 
         if (selfieJar && adminJar) {
             return done();
@@ -2029,7 +2029,7 @@ describe('ads campaigns endpoints (E2E):', function() {
                 expect(resp.response.statusCode).toBe(204);
                 expect(resp.body).toBe('');
                 
-                return testUtils.mongoFind('audit', {}, {$natural: -1}, 1, 0, {db: 'c6Journal'});
+                return testUtils.mongoFind('audit', { service: 'ads' }, {$natural: -1}, 1, 0, {db: 'c6Journal'});
             }).then(function(results) {
                 expect(results[0].user).toBe('admin-e2e-user');
                 expect(results[0].created).toEqual(jasmine.any(Date));

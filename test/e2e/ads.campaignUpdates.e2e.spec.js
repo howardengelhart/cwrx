@@ -756,7 +756,7 @@ describe('ads campaignUpdates endpoints (E2E):', function() {
                     org: 'o-selfie'
                 },
                 { id: 'cam-active', advertiserId: 'e2e-a-keepme', status: 'active', user: 'e2e-user', org: 'o-selfie' },
-                { id: 'cam-expired', name: 'expired camp', advertiserId: 'e2e-a-keepme', status: 'expired', user: 'e2e-user', org: 'o-selfie' },
+                { id: 'cam-expired', name: 'expired camp', pricing: { budget: 200 }, advertiserId: 'e2e-a-keepme', status: 'expired', user: 'e2e-user', org: 'o-selfie' },
                 { id: 'cam-other-org', status: 'draft', user: 'not-e2e-user', org: 'o-admin' },
                 { id: 'cam-other-budget', status: 'active', user: 'e2e-user', org: 'o-selfie', pricing: { budget: 400 } },
                 { id: 'cam-deleted', status: 'deleted', user: 'e2e-user', org: 'o-selfie' },
@@ -927,14 +927,19 @@ describe('ads campaignUpdates endpoints (E2E):', function() {
                 });
             });
             
-            it('should 400 if the campaign\'s budget would be too high for the account to afford', function(done) {
-                options.json.data.pricing = { budget: 1200 };
+            it('should 400 if the campaign\'s current budget is too high for the account to afford', function(done) {
                 mailman.once(msgSubject, function(msg) {
                     expect(util.inspect(msg).substring(0, 200)).not.toBeDefined();
                 });
-                requestUtils.qRequest('post', options).then(function(resp) {
-                    expect(resp.response.statusCode).toBe(400);
-                    expect(resp.body).toBe('Insufficient funds to cover new budget');
+                
+                testUtils.mongoUpsert('campaigns', { id: 'cam-1' }, { $set: { 'pricing.budget': 2000 } }).then(function() {
+                    return requestUtils.qRequest('post', options);
+                }).then(function(resp) {
+                    expect(resp.response.statusCode).toBe(402);
+                    expect(resp.body).toEqual({
+                        message: 'Insufficient funds for changes to campaign',
+                        depositAmount: 900
+                    });
                     
                     // test campaign not locked
                     return requestUtils.qRequest('get', {
@@ -944,6 +949,7 @@ describe('ads campaignUpdates endpoints (E2E):', function() {
                 }).then(function(resp) {
                     expect(resp.response.statusCode).toBe(200);
                     expect(resp.body.status).toBe('draft');
+                    expect(resp.body.pricing.budget).toBe(2000);
                     expect(resp.body.updateRequest).not.toBeDefined();
                 }).catch(function(error) {
                     expect(util.inspect(error)).not.toBeDefined();
@@ -992,6 +998,35 @@ describe('ads campaignUpdates endpoints (E2E):', function() {
                         expect(util.inspect(error)).not.toBeDefined();
                     }).done(done);
                 });
+            });
+
+            it('should 400 if the campaign\'s current budget is too high for the account to afford', function(done) {
+                mailman.once(msgSubject, function(msg) {
+                    expect(util.inspect(msg).substring(0, 200)).not.toBeDefined();
+                });
+                
+                testUtils.mongoUpsert('campaigns', { id: 'cam-expired' }, { $set: { 'pricing.budget': 2000 } }).then(function() {
+                    return requestUtils.qRequest('post', options);
+                }).then(function(resp) {
+                    expect(resp.response.statusCode).toBe(402);
+                    expect(resp.body).toEqual({
+                        message: 'Insufficient funds for changes to campaign',
+                        depositAmount: 900
+                    });
+                    
+                    // test campaign not locked
+                    return requestUtils.qRequest('get', {
+                        url: config.adsUrl + '/campaigns/cam-expired',
+                        jar: selfieJar
+                    });
+                }).then(function(resp) {
+                    expect(resp.response.statusCode).toBe(200);
+                    expect(resp.body.status).toBe('expired');
+                    expect(resp.body.pricing.budget).toBe(2000);
+                    expect(resp.body.updateRequest).not.toBeDefined();
+                }).catch(function(error) {
+                    expect(util.inspect(error)).not.toBeDefined();
+                }).done(done);
             });
         });
         
@@ -1148,14 +1183,17 @@ describe('ads campaignUpdates endpoints (E2E):', function() {
             }).done(done);
         });
         
-        it('should return a 400 if the org cannot afford the budget increase', function(done) {
-            options.json.data.pricing.budget = mockCamps[0].pricing.budget + 1200;
+        it('should return a 400 if the org cannot afford the new budget', function(done) {
+            options.json.data.pricing.budget = 2000;
             mailman.once(msgSubject, function(msg) {
                 expect(util.inspect(msg).substring(0, 200)).not.toBeDefined();
             });
             requestUtils.qRequest('post', options).then(function(resp) {
-                expect(resp.response.statusCode).toBe(400);
-                expect(resp.body).toMatch('Insufficient funds to cover new budget');
+                expect(resp.response.statusCode).toBe(402);
+                expect(resp.body).toEqual({
+                    message: 'Insufficient funds for changes to campaign',
+                    depositAmount: 900
+                });
                 
                 // test campaign not locked
                 return requestUtils.qRequest('get', {
@@ -1497,7 +1535,7 @@ describe('ads campaignUpdates endpoints (E2E):', function() {
                     expect(record.data.campaign).toEqual(jasmine.objectContaining({
                         id: 'cam-1',
                         name: 'e2e test 1',
-                        status: 'draft',
+                        status: 'active',
                         user: 'e2e-user'
                     }));
                     expect(record.data.updateRequest).toEqual(resp.body);
@@ -1518,7 +1556,7 @@ describe('ads campaignUpdates endpoints (E2E):', function() {
                     expect(record.data.campaign).toEqual(jasmine.objectContaining({
                         id: 'cam-1',
                         name: 'e2e test 1',
-                        status: 'draft',
+                        status: 'active',
                         user: 'e2e-user'
                     }));
                     expect(record.data.updateRequest).toEqual(resp.body);
@@ -1802,10 +1840,13 @@ describe('ads campaignUpdates endpoints (E2E):', function() {
         });
         
         it('should return a 400 if the org cannot afford the budget increase', function(done) {
-            options.json.data.pricing.budget = 1200;
+            options.json.data.pricing.budget = 4000;
             requestUtils.qRequest('put', options).then(function(resp) {
-                expect(resp.response.statusCode).toBe(400);
-                expect(resp.body).toMatch('Insufficient funds to cover new budget');
+                expect(resp.response.statusCode).toBe(402);
+                expect(resp.body).toEqual({
+                    message: 'Insufficient funds for changes to campaign',
+                    depositAmount: 2900
+                });
             }).catch(function(error) {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);

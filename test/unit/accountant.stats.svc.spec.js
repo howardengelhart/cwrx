@@ -1,24 +1,19 @@
 var flush = true;
 describe('statsModule-stats (UT)', function() {
-    var mockLog, Model, MiddleManager, logger, q, statsModule, express, expressUtils, journal, authUtils, uuid,
-        requestUtils, pgUtils, req, res, nextSpy, doneSpy, errorSpy, mockDb, Status, Scope;
+    var mockLog, Model, MiddleManager, logger, q, statsModule, authUtils,
+        requestUtils, pgUtils, req, nextSpy, doneSpy, errorSpy, mockDb, Status;
 
     beforeEach(function() {
         if (flush) { for (var m in require.cache){ delete require.cache[m]; } flush = false; }
         q               = require('q');
-        express         = require('express');
         statsModule     = require('../../bin/accountant-stats');
         logger          = require('../../lib/logger');
         Model           = require('../../lib/model');
         MiddleManager   = require('../../lib/middleManager');
-        uuid            = require('rc-uuid');
-        expressUtils    = require('../../lib/expressUtils');
         requestUtils    = require('../../lib/requestUtils');
         authUtils       = require('../../lib/authUtils');
         pgUtils         = require('../../lib/pgUtils');
-        journal         = require('../../lib/journal');
         Status          = require('../../lib/enums').Status;
-        Scope           = require('../../lib/enums').Scope;
         
         statsModule.config = { api: {
             root: 'http://test.com',
@@ -50,10 +45,6 @@ describe('statsModule-stats (UT)', function() {
         };
         
         req = { uuid: '1234', requester: { id: 'u-1' } };
-        res = {
-            header: jasmine.createSpy('res.header()'),
-            send: jasmine.createSpy('res.send()')
-        };
         nextSpy = jasmine.createSpy('next');
         doneSpy = jasmine.createSpy('done');
         errorSpy = jasmine.createSpy('error');
@@ -343,7 +334,7 @@ describe('statsModule-stats (UT)', function() {
     });
     
     describe('getTotalBudget', function() {
-        var mockCamps, mockUpdates, colls, mockDb;
+        var mockCamps, mockUpdates, colls, cursors, mockDb;
         beforeEach(function() {
             mockCamps = [
                 { id: 'cam-1', pricing: { budget: 1000 } },
@@ -671,7 +662,7 @@ describe('statsModule-stats (UT)', function() {
             };
             
             Object.keys(resps).forEach(function(method) {
-                spyOn(statsModule, method).and.callFake(function() { return q(resps[method]); })
+                spyOn(statsModule, method).and.callFake(function() { return q(resps[method]); });
             });
             svc = {
                 runAction: jasmine.createSpy('runAction').and.callFake(function(req, action, cb) { return cb(); }),

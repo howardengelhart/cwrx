@@ -1,23 +1,19 @@
 var flush = true;
 describe('accountant-transactions (UT)', function() {
-    var mockLog, Model, MiddleManager, logger, q, transModule, express, expressUtils, journal, authUtils, uuid,
-        requestUtils, pgUtils, req, res, nextSpy, doneSpy, Status, Scope;
+    var mockLog, Model, MiddleManager, logger, q, transModule, express, authUtils, uuid,
+        pgUtils, req, nextSpy, doneSpy, Scope;
 
     beforeEach(function() {
         if (flush) { for (var m in require.cache){ delete require.cache[m]; } flush = false; }
         q               = require('q');
         express         = require('express');
+        uuid            = require('rc-uuid');
         transModule     = require('../../bin/accountant-transactions');
         logger          = require('../../lib/logger');
         Model           = require('../../lib/model');
         MiddleManager   = require('../../lib/middleManager');
-        uuid            = require('rc-uuid');
-        expressUtils    = require('../../lib/expressUtils');
-        requestUtils    = require('../../lib/requestUtils');
         authUtils       = require('../../lib/authUtils');
         pgUtils         = require('../../lib/pgUtils');
-        journal         = require('../../lib/journal');
-        Status          = require('../../lib/enums').Status;
         Scope           = require('../../lib/enums').Scope;
 
         mockLog = {
@@ -32,10 +28,6 @@ describe('accountant-transactions (UT)', function() {
         spyOn(logger, 'getLog').and.returnValue(mockLog);
         
         req = { uuid: '1234', requester: { id: 'u-1' }, user: { id: 'u-1', org: 'o-1' }, query: {} };
-        res = {
-            header: jasmine.createSpy('res.header()'),
-            send: jasmine.createSpy('res.send()')
-        };
         nextSpy = jasmine.createSpy('next');
         doneSpy = jasmine.createSpy('done');
     });
@@ -663,7 +655,8 @@ describe('accountant-transactions (UT)', function() {
     describe('setupEndpoints', function() {
         var app, svc, sessions, audit, mockRouter, expressRoutes, authMidware, res;
         beforeEach(function() {
-            mockRouter = {}, expressRoutes = {};
+            mockRouter = {};
+            expressRoutes = {};
             ['get', 'post'].forEach(function(verb) {
                 expressRoutes[verb] = {};
                 mockRouter[verb] = jasmine.createSpy('router.' + verb).and.callFake(function(route/*, middleware...*/) {

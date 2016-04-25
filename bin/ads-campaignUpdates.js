@@ -4,6 +4,7 @@
     var q               = require('q'),
         urlUtils        = require('url'),
         util            = require('util'),
+        ld              = require('lodash'),
         express         = require('express'),
         Status          = require('../lib/enums').Status,
         campaignUtils   = require('../lib/campaignUtils'),
@@ -438,55 +439,45 @@
     // If update req is changing balance (or is init submit), check that org has enough funds for it
     updateModule.checkAvailableFunds = function(req, next, done) {
         var log = logger.getLog(),
-            org = req.body.data.org || req.campaign.org,
-            newBudget = req.body.data.pricing && req.body.data.pricing.budget || null,
-            prevBudgetChange = req.origObj && req.origObj.data.pricing &&
-                                              req.origObj.data.pricing.budget || null;
+            orgId = req.body.data.org || req.campaign.org,
+            prevBudgetChange = ld.get(req.origObj, 'data.pricing.budget', null),
+            newBudget = ld.get(req.body.data, 'pricing.budget', prevBudgetChange),
+            oldBudget = ld.get(req.campaign, 'pricing.budget', 0);
         
-        // For comparison, "previous budget" is 0 if update is initial submit; else existing budget
-        var oldBudget = isInitSubmit(req) ? 0 : (req.campaign.pricing &&
-                                                 req.campaign.pricing.budget || 0);
-        
-        // Skip if budget not increasing, or if budget unchanged in PUT to update request
-        if (!newBudget || (newBudget <= oldBudget) || (newBudget === prevBudgetChange)) {
+        // Skip if budget not changing, and this is not an initial submit or renewal
+        if (!isInitSubmit(req) && !isRenewal(req) && (!newBudget || newBudget === oldBudget)) {
             return q(next());
         }
         
-        var budgetDiff = newBudget - oldBudget;
-        
-        log.info('[%1] Budget increase of %2 for org %3 from campaign %4, checking available funds',
-                 req.uuid, budgetDiff, org, req.campaign.id);
-        
-        return requestUtils.proxyRequest(req, 'get', {
-            url: updateModule.config.api.balance.baseUrl,
-            qs: { org: org }
+        return requestUtils.proxyRequest(req, 'post', {
+            url: updateModule.config.api.creditCheck.baseUrl,
+            json: {
+                campaign: req.campaign.id,
+                org: orgId,
+                newBudget: newBudget
+            }
         })
         .then(function(resp) {
-            if (resp.response.statusCode !== 200) {
-                log.info('[%1] Requester %2 could not fetch balance stats for %3: %4, %5',
-                         req.uuid, req.requester.id, org, resp.response.statusCode, resp.body);
+            if (resp.response.statusCode === 204) {
+                log.info('[%1] Org %2 has enough balance to cover changes to %3',
+                         req.uuid, orgId, req.campaign.id);
+                return next();
+            }
+            else if (resp.response.statusCode === 402) {
+                log.info('[%1] Update to %2 would incur deficit of %3 for %4',
+                         req.uuid, req.campaign.id, orgId, resp.body.depositAmount);
                 return done({ code: resp.response.statusCode, body: resp.body });
             }
-            
-            if (budgetDiff + resp.body.outstandingBudget > resp.body.balance) {
-                log.info('[%1] Org %2 has balance %3, cannot cover outstanding %4 plus incr of %5',
-                         req.uuid, org, resp.body.balance, resp.body.outstandingBudget, budgetDiff);
-                
-                return done({
-                    code: 400,
-                    body: 'Insufficient funds to cover new budget'
-                });
+            else {
+                log.info('[%1] Requester %2 could not make credit check for %3: %4, %5',
+                         req.uuid, req.requester.id, orgId, resp.response.statusCode, resp.body);
+                return done({ code: resp.response.statusCode, body: resp.body });
             }
-            
-            log.info('[%1] Org %2 has enough balance to cover budget increase of %3',
-                     req.uuid, org, budgetDiff);
-            
-            return next();
         })
         .catch(function(error) {
-            log.error('[%1] Requester %2 failed fetching balance for %3: %4',
-                      req.uuid, req.requester.id, org, util.inspect(error));
-            return q.reject('Failed fetching account balance for org');
+            log.error('[%1] Requester %2 failed making credit check for %3: %4',
+                      req.uuid, req.requester.id, req.campaign.id, util.inspect(error));
+            return q.reject('Failed making credit check');
         });
     };
     
