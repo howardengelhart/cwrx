@@ -59,7 +59,7 @@ describe('statsModule-stats (UT)', function() {
         errorSpy = jasmine.createSpy('error');
     });
     
-    fdescribe('setupSvc', function() {
+    describe('setupSvc', function() {
         var svc, config;
         beforeEach(function() {
             config = { api: {
@@ -113,7 +113,7 @@ describe('statsModule-stats (UT)', function() {
         });
     });
     
-    fdescribe('credit check validation', function() {
+    describe('credit check validation', function() {
         var model, newObj, origObj, requester;
         beforeEach(function() {
             model = new Model('creditCheck', statsModule.creditCheckSchema);
@@ -161,7 +161,7 @@ describe('statsModule-stats (UT)', function() {
         });
     });
     
-    fdescribe('fetchOrg', function() {
+    describe('fetchOrg', function() {
         var orgResp;
         beforeEach(function() {
             req.query = { org: 'o-1' };
@@ -226,7 +226,7 @@ describe('statsModule-stats (UT)', function() {
         });
     });
     
-    fdescribe('fetchCampaign', function() {
+    describe('fetchCampaign', function() {
         var campResp;
         beforeEach(function() {
             req.body = { org: 'o-1', campaign: 'cam-1' };
@@ -287,21 +287,8 @@ describe('statsModule-stats (UT)', function() {
     
     
     describe('getAccountBalance', function() {
-        var config, pgResp;
+        var pgResp;
         beforeEach(function() {
-            config = { api: {
-                root: 'http://c6.com',
-                orgs: { endpoint: '/api/account/orgs/' }
-            } };
-
-            req.requester.permissions = { orgs: { read: Scope.Own } };
-            req.user = { id: 'u-1', org: 'o-2' };
-            req.query = { org: 'o-1' };
-
-            spyOn(requestUtils, 'proxyRequest').and.returnValue(q({
-                response: { statusCode: 200 },
-                body: { id: 'o-1' }
-            }));
             pgResp = { rows: [
                 { sign: 1, total: '1112.34' },
                 { sign: -1, total: '666.7891' }
@@ -310,51 +297,13 @@ describe('statsModule-stats (UT)', function() {
         });
 
         it('should fetch and return the org\'s balance and total spend', function(done) {
-            statsModule.getAccountBalance(req, config).then(function(resp) {
-                expect(resp).toEqual({
-                    code: 200,
-                    body: { balance: 445.55, totalSpend: 666.79 }
-                });
-                expect(requestUtils.proxyRequest).toHaveBeenCalledWith(req, 'get', {
-                    url: 'http://c6.com/api/account/orgs/o-1',
-                    qs: { fields: 'id' }
-                });
+            statsModule.getAccountBalance('o-1', req).then(function(resp) {
+                expect(resp).toEqual({ balance: 445.55, totalSpend: 666.79 });
                 expect(pgUtils.query).toHaveBeenCalledWith(jasmine.any(String), ['o-1']);
                 expect(pgUtils.query.calls.argsFor(0)[0]).toMatch(/SELECT sign,sum\(amount\) as total FROM fct.billing_transactions/);
                 expect(pgUtils.query.calls.argsFor(0)[0]).toMatch(/WHERE org_id = \$1/);
                 expect(pgUtils.query.calls.argsFor(0)[0]).toMatch(/GROUP BY sign/);
                 expect(mockLog.error).not.toHaveBeenCalled();
-            }).catch(function(error) {
-                expect(error.toString()).not.toBeDefined();
-            }).done(done);
-        });
-        
-        it('should default to the requester\'s org', function(done) {
-            delete req.query.org;
-            statsModule.getAccountBalance(req, config).then(function(resp) {
-                expect(resp).toEqual({
-                    code: 200,
-                    body: { balance: 445.55, totalSpend: 666.79 }
-                });
-                expect(requestUtils.proxyRequest).toHaveBeenCalledWith(req, 'get', {
-                    url: 'http://c6.com/api/account/orgs/o-2',
-                    qs: { fields: 'id' }
-                });
-                expect(pgUtils.query).toHaveBeenCalledWith(jasmine.any(String), ['o-2']);
-            }).catch(function(error) {
-                expect(error.toString()).not.toBeDefined();
-            }).done(done);
-        });
-        
-        it('should still fetch the org if the requester has read all priviledges', function(done) {
-            req.requester.permissions.orgs.read = Scope.All;
-            statsModule.getAccountBalance(req, config).then(function(resp) {
-                expect(resp).toEqual({
-                    code: 200,
-                    body: { balance: 445.55, totalSpend: 666.79 }
-                });
-                expect(requestUtils.proxyRequest).toHaveBeenCalled();
-                expect(pgUtils.query).toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
             }).done(done);
@@ -372,51 +321,20 @@ describe('statsModule-stats (UT)', function() {
             });
             
             q.all(data.map(function() {
-                return statsModule.getAccountBalance(req, config);
+                return statsModule.getAccountBalance('o-1', req);
             })).then(function(results) {
-                expect(results[0]).toEqual({ code: 200, body: { balance: 123.45, totalSpend: 0 } });
-                expect(results[1]).toEqual({ code: 200, body: { balance: -456.78, totalSpend: 456.78 } });
-                expect(results[2]).toEqual({ code: 200, body: { balance: 123.45, totalSpend: 0 } });
-                expect(results[3]).toEqual({ code: 200, body: { balance: 0, totalSpend: 0 } });
+                expect(results[0]).toEqual({ balance: 123.45, totalSpend: 0 });
+                expect(results[1]).toEqual({ balance: -456.78, totalSpend: 456.78 });
+                expect(results[2]).toEqual({ balance: 123.45, totalSpend: 0 });
+                expect(results[3]).toEqual({ balance: 0, totalSpend: 0 });
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
-            }).done(done);
-        });
-        
-        it('should return a 400 if the org is invalid', function(done) {
-            req.query.org = { hax: true };
-            statsModule.getAccountBalance(req, config).then(function(resp) {
-                expect(resp).toEqual({ code: 400, body: 'Must provide an org id' });
-                expect(requestUtils.proxyRequest).not.toHaveBeenCalled();
-                expect(pgUtils.query).not.toHaveBeenCalled();
-            }).catch(function(error) {
-                expect(error.toString()).not.toBeDefined();
-            }).done(done);
-        });
-        
-        it('should return a 400 if the requester\'s org cannot be fetched', function(done) {
-            requestUtils.proxyRequest.and.returnValue(q({ response: { statusCode: 400 }, body: 'NOPE' }));
-            statsModule.getAccountBalance(req, config).then(function(resp) {
-                expect(resp).toEqual({ code: 400, body: 'Cannot fetch balance for this org' });
-                expect(pgUtils.query).not.toHaveBeenCalled();
-            }).catch(function(error) {
-                expect(error.toString()).not.toBeDefined();
-            }).done(done);
-        });
-        
-        it('should reject if the org request fails', function(done) {
-            requestUtils.proxyRequest.and.returnValue(q.reject('I GOT A PROBLEM'));
-            statsModule.getAccountBalance(req, config).then(function(resp) {
-                expect(resp).not.toBeDefined();
-            }).catch(function(error) {
-                expect(error).toBe('Error fetching org');
-                expect(mockLog.error).toHaveBeenCalled();
             }).done(done);
         });
         
         it('should reject if the query fails', function(done) {
             pgUtils.query.and.returnValue(q.reject('I GOT A PROBLEM'));
-            statsModule.getAccountBalance(req, config).then(function(resp) {
+            statsModule.getAccountBalance('o-1', req).then(function(resp) {
                 expect(resp).not.toBeDefined();
             }).catch(function(error) {
                 expect(error).toBe('I GOT A PROBLEM');
@@ -425,27 +343,11 @@ describe('statsModule-stats (UT)', function() {
     });
     
     describe('getTotalBudget', function() {
-    
-    });
-
-    describe('getCampSpend', function() {
-    
-    });
-    
-    describe('getOutstandingBudget', function() {
-        var config, mockCamps, mockUpdates, colls, mockDb;
+        var mockCamps, mockUpdates, colls, mockDb;
         beforeEach(function() {
-            config = { api: {
-                root: 'http://c6.com',
-                campaigns: { endpoint: '/api/campaigns/' }
-            } };
-
-            req.user = { id: 'u-1', org: 'o-2' };
-            req.query = { org: 'o-1' };
-            
             mockCamps = [
                 { id: 'cam-1', pricing: { budget: 1000 } },
-                { id: 'cam-2', pricing: { budget: 200 } },
+                { id: 'cam-2', pricing: { budget: 200.654 } },
                 { id: 'cam-3', pricing: {} },
                 { id: 'cam-4' }
             ];
@@ -465,39 +367,35 @@ describe('statsModule-stats (UT)', function() {
             mockDb = {
                 collection: jasmine.createSpy('db.collection()').and.callFake(function(collName) { return colls[collName]; })
             };
-
-            spyOn(pgUtils, 'query').and.returnValue(q({ rows: [{ spend: -567.789 }] }));
         });
 
-        it('should sum the org\'s campaign budgets and campaign spend and return the difference', function(done) {
-            statsModule.getOutstandingBudget(req, config, mockDb).then(function(resp) {
-                expect(resp).toEqual({ code: 200, body: { outstandingBudget: 632.21 } });
+        it('should sum the org\'s campaign budgets and return the total', function(done) {
+            statsModule.getTotalBudget('o-1', mockDb, req).then(function(resp) {
+                expect(resp.totalBudget).toEqual(1200.65);
+                expect(resp.campaigns).toBe(mockCamps);
                 expect(colls.campaigns.find).toHaveBeenCalledWith(
-                    { org: 'o-1', status: { $in: [ Status.Active, Status.Paused, Status.Pending ] } },
+                    { org: 'o-1', status: { $in: [ Status.Active, Status.Paused, Status.Pending ] }, id: { $nin: [] } },
                     { fields: { id: 1, pricing: 1, updateRequest: 1 } }
                 );
                 expect(colls.campaignUpdates.find).not.toHaveBeenCalled();
-                expect(pgUtils.query).toHaveBeenCalledWith(jasmine.any(String), ['o-1', ['cam-1', 'cam-2', 'cam-3', 'cam-4'] ]);
-                expect(pgUtils.query.calls.argsFor(0)[0]).toMatch(/SELECT sum\(amount \* sign\) as spend from fct.billing_transactions/);
-                expect(pgUtils.query.calls.argsFor(0)[0]).toMatch(/where org_id = \$1/);
-                expect(pgUtils.query.calls.argsFor(0)[0]).toMatch(/and campaign_id = ANY\(\$2::text\[\]\)/);
-                expect(pgUtils.query.calls.argsFor(0)[0]).toMatch(/and sign = -1/);
                 expect(mockLog.error).not.toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
             }).done(done);
         });
         
-        it('should default to the requester\'s org', function(done) {
-            delete req.query.org;
-            statsModule.getOutstandingBudget(req, config, mockDb).then(function(resp) {
-                expect(resp).toEqual({ code: 200, body: { outstandingBudget: 632.21 } });
+        it('should be able to exclude certain campaigns', function(done) {
+            var opts = { excludeCamps: ['cam-1'] };
+            mockCamps.shift();
+            statsModule.getTotalBudget('o-1', mockDb, req, opts).then(function(resp) {
+                expect(resp.totalBudget).toEqual(200.65);
+                expect(resp.campaigns).toBe(mockCamps);
                 expect(colls.campaigns.find).toHaveBeenCalledWith(
-                    { org: 'o-2', status: { $in: [ Status.Active, Status.Paused, Status.Pending ] } },
+                    { org: 'o-1', status: { $in: [ Status.Active, Status.Paused, Status.Pending ] }, id: { $nin: ['cam-1'] } },
                     { fields: { id: 1, pricing: 1, updateRequest: 1 } }
                 );
                 expect(colls.campaignUpdates.find).not.toHaveBeenCalled();
-                expect(pgUtils.query).toHaveBeenCalledWith(jasmine.any(String), ['o-2', ['cam-1', 'cam-2', 'cam-3', 'cam-4'] ]);
+                expect(mockLog.error).not.toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
             }).done(done);
@@ -511,17 +409,17 @@ describe('statsModule-stats (UT)', function() {
             });
 
             it('should use the max of the campaigns\' and update requests\' budgets', function(done) {
-                statsModule.getOutstandingBudget(req, config, mockDb).then(function(resp) {
-                    expect(resp).toEqual({ code: 200, body: { outstandingBudget: 1132.31 } });
+                statsModule.getTotalBudget('o-1', mockDb, req).then(function(resp) {
+                expect(resp.totalBudget).toEqual(1700.75);
+                expect(resp.campaigns).toBe(mockCamps);
                     expect(colls.campaigns.find).toHaveBeenCalledWith(
-                        { org: 'o-1', status: { $in: [ Status.Active, Status.Paused, Status.Pending ] } },
+                        { org: 'o-1', status: { $in: [ Status.Active, Status.Paused, Status.Pending ] }, id: { $nin: [] } },
                         { fields: { id: 1, pricing: 1, updateRequest: 1 } }
                     );
                     expect(colls.campaignUpdates.find).toHaveBeenCalledWith(
                         { id: { $in: ['ur-1', 'ur-2', 'ur-3'] } },
                         { fields: { id: 1, 'data.pricing': 1, campaign: 1 } }
                     );
-                    expect(pgUtils.query).toHaveBeenCalledWith(jasmine.any(String), ['o-1', ['cam-1', 'cam-2', 'cam-3', 'cam-4'] ]);
                     expect(mockLog.error).not.toHaveBeenCalled();
                 }).catch(function(error) {
                     expect(error.toString()).not.toBeDefined();
@@ -530,11 +428,11 @@ describe('statsModule-stats (UT)', function() {
             
             it('should effectively ignore updates that do not change the budget', function(done) {
                 mockUpdates[0].data = { name: 'foo', pricing: { dailyLimit: 100 } };
-                statsModule.getOutstandingBudget(req, config, mockDb).then(function(resp) {
-                    expect(resp).toEqual({ code: 200, body: { outstandingBudget: 732.31 } });
+                statsModule.getTotalBudget('o-1', mockDb, req).then(function(resp) {
+                    expect(resp.totalBudget).toEqual(1300.75);
+                    expect(resp.campaigns).toBe(mockCamps);
                     expect(colls.campaigns.find).toHaveBeenCalled();
                     expect(colls.campaignUpdates.find).toHaveBeenCalled();
-                    expect(pgUtils.query).toHaveBeenCalledWith(jasmine.any(String), ['o-1', ['cam-1', 'cam-2', 'cam-3', 'cam-4'] ]);
                     expect(mockLog.error).not.toHaveBeenCalled();
                 }).catch(function(error) {
                     expect(error.toString()).not.toBeDefined();
@@ -543,59 +441,23 @@ describe('statsModule-stats (UT)', function() {
             
             it('should reject if querying for campaignUpdates fails', function(done) {
                 cursors.campaignUpdates.toArray.and.returnValue(q.reject('I GOT A PROBLEM'));
-                statsModule.getOutstandingBudget(req, config, mockDb).then(function(resp) {
+                statsModule.getTotalBudget('o-1', mockDb, req).then(function(resp) {
                     expect(resp).not.toBeDefined();
                 }).catch(function(error) {
-                    expect(error).toBe('Error computing outstanding budget');
-                    expect(pgUtils.query).not.toHaveBeenCalled();
+                    expect(error).toBe('Failed fetching campaigns');
                     expect(mockLog.error).toHaveBeenCalled();
                     expect(mockLog.error.calls.mostRecent().args).toContain('\'I GOT A PROBLEM\'');
                 }).done(done);
             });
         });
         
-        it('should handle postgres returning partial data', function(done) {
-            pgUtils.query.and.returnValue(q({ rows: [] }));
-            statsModule.getOutstandingBudget(req, config, mockDb).then(function(resp) {
-                expect(resp).toEqual({ code: 200, body: { outstandingBudget: 1200 } });
-                expect(pgUtils.query).toHaveBeenCalled();
-                expect(mockLog.error).not.toHaveBeenCalled();
-            }).catch(function(error) {
-                expect(error.toString()).not.toBeDefined();
-            }).done(done);
-        });
-
-        it('should not query postgres if no campaigns have a budget', function(done) {
-            mockCamps = [{ id: 'cam-1', pricing: {} }];
-            statsModule.getOutstandingBudget(req, config, mockDb).then(function(resp) {
-                expect(resp).toEqual({ code: 200, body: { outstandingBudget: 0 } });
-                expect(colls.campaigns.find).toHaveBeenCalled();
-                expect(colls.campaignUpdates.find).not.toHaveBeenCalled();
-                expect(pgUtils.query).not.toHaveBeenCalled();
-            }).catch(function(error) {
-                expect(error.toString()).not.toBeDefined();
-            }).done(done);
-        });
-        
-        it('should return a 400 if the org is invalid', function(done) {
-            req.query.org = { hax: true };
-            statsModule.getOutstandingBudget(req, config, mockDb).then(function(resp) {
-                expect(resp).toEqual({ code: 400, body: 'Must provide an org id' });
-                expect(colls.campaigns.find).not.toHaveBeenCalled();
-                expect(colls.campaignUpdates.find).not.toHaveBeenCalled();
-                expect(pgUtils.query).not.toHaveBeenCalled();
-            }).catch(function(error) {
-                expect(error.toString()).not.toBeDefined();
-            }).done(done);
-        });
-        
         it('should handle the case where no campaigns are returned', function(done) {
             mockCamps = [];
-            statsModule.getOutstandingBudget(req, config, mockDb).then(function(resp) {
-                expect(resp).toEqual({ code: 200, body: { outstandingBudget: 0 } });
+            statsModule.getTotalBudget('o-1', mockDb, req).then(function(resp) {
+                expect(resp.totalBudget).toEqual(0);
+                expect(resp.campaigns).toEqual([]);
                 expect(colls.campaigns.find).toHaveBeenCalled();
                 expect(colls.campaignUpdates.find).not.toHaveBeenCalled();
-                expect(pgUtils.query).not.toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
             }).done(done);
@@ -603,329 +465,360 @@ describe('statsModule-stats (UT)', function() {
         
         it('should reject if querying for campaigns fails', function(done) {
             cursors.campaigns.toArray.and.returnValue(q.reject('I GOT A PROBLEM'));
-            statsModule.getOutstandingBudget(req, config, mockDb).then(function(resp) {
+            statsModule.getTotalBudget('o-1', mockDb, req).then(function(resp) {
                 expect(resp).not.toBeDefined();
             }).catch(function(error) {
-                expect(error).toBe('Error computing outstanding budget');
+                expect(error).toBe('Failed fetching campaigns');
                 expect(colls.campaignUpdates.find).not.toHaveBeenCalled();
-                expect(pgUtils.query).not.toHaveBeenCalled();
-                expect(mockLog.error).toHaveBeenCalled();
-                expect(mockLog.error.calls.mostRecent().args).toContain('\'I GOT A PROBLEM\'');
-            }).done(done);
-        });
-        
-        it('should reject if the query fails', function(done) {
-            pgUtils.query.and.returnValue(q.reject('I GOT A PROBLEM'));
-            statsModule.getOutstandingBudget(req, config, mockDb).then(function(resp) {
-                expect(resp).not.toBeDefined();
-            }).catch(function(error) {
-                expect(error).toBe('Error computing outstanding budget');
                 expect(mockLog.error).toHaveBeenCalled();
                 expect(mockLog.error.calls.mostRecent().args).toContain('\'I GOT A PROBLEM\'');
             }).done(done);
         });
     });
-    
-    describe('getBalanceStats', function() {
-        var config;
+
+    describe('getCampSpend', function() {
         beforeEach(function() {
-            spyOn(statsModule, 'getAccountBalance').and.returnValue(q({ code: 200, body: { balance: 789.01, totalSpend: 456.1 } }));
-            spyOn(statsModule, 'getOutstandingBudget').and.returnValue(q({ code: 200, body: { outstandingBudget: 123.2 } }));
-            config = { config: 'yes' };
+            spyOn(pgUtils, 'query').and.returnValue(q({ rows: [{ spend: -567.789 }] }));
         });
-        
-        it('should get the account balance + outstanding budget, and respond with both', function(done) {
-            statsModule.getBalanceStats(req, config, 'c6Db').then(function(resp) {
-                expect(resp).toEqual({
-                    code: 200,
-                    body: { balance: 789.01, totalSpend: 456.1, outstandingBudget: 123.2 }
-                });
-                expect(statsModule.getAccountBalance).toHaveBeenCalledWith(req, config);
-                expect(statsModule.getOutstandingBudget).toHaveBeenCalledWith(req, config, 'c6Db');
+
+        it('should sum the org\'s campaign budgets and campaign spend and return the difference', function(done) {
+            statsModule.getCampSpend('o-1', ['cam-1', 'cam-2'], req).then(function(resp) {
+                expect(resp).toEqual({ spend: -567.789 });
+                expect(pgUtils.query).toHaveBeenCalledWith(jasmine.any(String), ['o-1', ['cam-1', 'cam-2'] ]);
+                expect(pgUtils.query.calls.argsFor(0)[0]).toMatch(/SELECT sum\(amount \* sign\) as spend from fct.billing_transactions/);
+                expect(pgUtils.query.calls.argsFor(0)[0]).toMatch(/where org_id = \$1/);
+                expect(pgUtils.query.calls.argsFor(0)[0]).toMatch(/and campaign_id = ANY\(\$2::text\[\]\)/);
+                expect(pgUtils.query.calls.argsFor(0)[0]).toMatch(/and sign = -1/);
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
+        });
+
+        it('should handle postgres returning partial data', function(done) {
+            pgUtils.query.and.returnValue(q({ rows: [] }));
+            statsModule.getCampSpend('o-1', ['cam-1', 'cam-2'], req).then(function(resp) {
+                expect(resp).toEqual({ spend: 0 });
+                expect(pgUtils.query).toHaveBeenCalled();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
+        });
+
+        it('should reject if the query fails', function(done) {
+            pgUtils.query.and.returnValue(q.reject('I GOT A PROBLEM'));
+            statsModule.getCampSpend('o-1', ['cam-1', 'cam-2'], req).then(function(resp) {
+                expect(resp).not.toBeDefined();
+            }).catch(function(error) {
+                expect(error).toBe('I GOT A PROBLEM');
+            }).done(done);
+        });
+    });
+    
+    describe('getOutstandingBudget', function() {
+        var budgetResp, mockDb;
+        beforeEach(function() {
+            mockDb = 'c6Db';
+            budgetResp = {
+                totalBudget: 1200,
+                campaigns: [{ id: 'cam-1' }, { id: 'cam-2' }, { id: 'cam-3' }]
+            };
+            spyOn(statsModule, 'getTotalBudget').and.callFake(function() { return q(budgetResp); });
+            spyOn(statsModule, 'getCampSpend').and.returnValue(q({ spend: -567.789 }));
+        });
+
+        it('should sum the org\'s campaign budgets and campaign spend and return the difference', function(done) {
+            statsModule.getOutstandingBudget('o-1', mockDb, req).then(function(resp) {
+                expect(resp).toEqual({ outstandingBudget: 632.21 });
+                expect(statsModule.getTotalBudget).toHaveBeenCalledWith('o-1', mockDb, req);
+                expect(statsModule.getCampSpend).toHaveBeenCalledWith('o-1', ['cam-1', 'cam-2', 'cam-3'], req);
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
+        });
+
+        it('should not query postgres if no campaigns have a budget', function(done) {
+            budgetResp = { totalBudget: 0, campaigns: [] };
+            statsModule.getOutstandingBudget('o-1', mockDb, req).then(function(resp) {
+                expect(resp).toEqual({ outstandingBudget: 0 });
+                expect(statsModule.getTotalBudget).toHaveBeenCalled();
+                expect(statsModule.getCampSpend).not.toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
             }).done(done);
         });
         
-        ['getAccountBalance', 'getOutstandingBudget'].forEach(function(method) {
-            describe('if ' + method + ' returns a non-2xx response', function() {
-                it('should return the non-2xx response', function(done) {
-                    statsModule[method].and.returnValue(q({ code: 400, body: 'I got a problem with YOU' }));
-
-                    statsModule.getBalanceStats(req, config).then(function(resp) {
-                        expect(resp).toEqual({ code: 400, body: 'I got a problem with YOU' });
-                    }).catch(function(error) {
-                        expect(error.toString()).not.toBeDefined();
-                    }).done(done);
+        it('should reject if getTotalBudget fails', function(done) {
+            budgetResp = q.reject('I GOT A PROBLEM');
+            statsModule.getOutstandingBudget('o-1', mockDb, req).then(function(resp) {
+                expect(resp).not.toBeDefined();
+            }).catch(function(error) {
+                expect(error).toBe('I GOT A PROBLEM');
+                expect(statsModule.getTotalBudget).toHaveBeenCalled();
+                expect(statsModule.getCampSpend).not.toHaveBeenCalled();
+            }).done(done);
+        });
+        
+        it('should reject if getCampSpend fails', function(done) {
+            statsModule.getCampSpend.and.returnValue(q.reject('I GOT A PROBLEM'));
+            statsModule.getOutstandingBudget('o-1', mockDb, req).then(function(resp) {
+                expect(resp).not.toBeDefined();
+            }).catch(function(error) {
+                expect(error).toBe('I GOT A PROBLEM');
+            }).done(done);
+        });
+    });
+    
+    describe('getBalanceStats', function() {
+        var svc;
+        beforeEach(function() {
+            req.query = { org: 'o-1' };
+            req.user = { id: 'u-1', org: 'o-2' };
+            spyOn(statsModule, 'getAccountBalance').and.returnValue(q({ balance: 789.01, totalSpend: 456.1 }));
+            spyOn(statsModule, 'getOutstandingBudget').and.returnValue(q({ outstandingBudget: 123.2 }));
+            svc = {
+                runAction: jasmine.createSpy('runAction').and.callFake(function(req, action, cb) { return cb(); }),
+                _db: 'c6Db'
+            };
+        });
+        
+        it('should get the account balance + outstanding budget, and respond with both', function(done) {
+            statsModule.getBalanceStats(svc, req).then(function(resp) {
+                expect(resp).toEqual({
+                    code: 200,
+                    body: { balance: 789.01, totalSpend: 456.1, outstandingBudget: 123.2 }
                 });
-            });
-
-            describe('if ' + method + ' rejects', function() {
-                it('should reject', function(done) {
-                    statsModule[method].and.returnValue(q.reject('I got a problem!'));
-
-                    statsModule.getBalanceStats(req, config).then(function(resp) {
-                        expect(resp).not.toBeDefined();
-                    }).catch(function(error) {
-                        expect(error).toBe('I got a problem!');
-                    }).done(done);
+                expect(statsModule.getAccountBalance).toHaveBeenCalledWith('o-1', req);
+                expect(statsModule.getOutstandingBudget).toHaveBeenCalledWith('o-1', 'c6Db', req);
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should default to the requester\'s org', function(done) {
+            delete req.query.org;
+            statsModule.getBalanceStats(svc, req).then(function(resp) {
+                expect(resp).toEqual({
+                    code: 200,
+                    body: { balance: 789.01, totalSpend: 456.1, outstandingBudget: 123.2 }
                 });
-            });
+                expect(statsModule.getAccountBalance).toHaveBeenCalledWith('o-2', req);
+                expect(statsModule.getOutstandingBudget).toHaveBeenCalledWith('o-2', 'c6Db', req);
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should return a 400 if the org param is invalid or cannot be defaulted', function(done) {
+            var req1 = JSON.parse(JSON.stringify(req)), req2 = JSON.parse(JSON.stringify(req));
+            req1.query.org = { $gt: '' };
+            delete req2.query.org;
+            delete req2.user;
+            
+            q.all([
+                statsModule.getBalanceStats(svc, req1),
+                statsModule.getBalanceStats(svc, req2)
+            ]).then(function(results) {
+                expect(results[0]).toEqual({ code: 400, body: 'Must provide an org id' });
+                expect(results[1]).toEqual({ code: 400, body: 'Must provide an org id' });
+                expect(statsModule.getAccountBalance).not.toHaveBeenCalled();
+                expect(statsModule.getOutstandingBudget).not.toHaveBeenCalled();
+            }).catch(function(error) {
+                expect(error).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should return early if runAction returns a 4xx response', function(done) {
+            svc.runAction.and.returnValue(q({ code: 400, body: 'not today, buddy' }));
+            statsModule.getBalanceStats(svc, req).then(function(resp) {
+                expect(resp).toEqual({ code: 400, body: 'not today, buddy' });
+                expect(statsModule.getAccountBalance).not.toHaveBeenCalled();
+                expect(statsModule.getOutstandingBudget).not.toHaveBeenCalled();
+            }).catch(function(error) {
+                expect(error).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should reject if getAccountBalance rejects', function(done) {
+            statsModule.getAccountBalance.and.returnValue(q.reject('I got a problem!'));
+            statsModule.getBalanceStats(svc, req).then(function(resp) {
+                expect(resp).not.toBeDefined();
+            }).catch(function(error) {
+                expect(error).toBe('I got a problem!');
+            }).done(done);
+        });
+        
+        it('should reject if getOutstandingBudget rejects', function(done) {
+            statsModule.getOutstandingBudget.and.returnValue(q.reject('I got a problem!'));
+            statsModule.getBalanceStats(svc, req).then(function(resp) {
+                expect(resp).not.toBeDefined();
+            }).catch(function(error) {
+                expect(error).toBe('I got a problem!');
+            }).done(done);
         });
     });
     
     describe('creditCheck', function() {
-    
+        var svc, resps;
+        beforeEach(function() {
+            req.body = { org: 'o-1', campaign: 'cam-req', newBudget: 800.765 };
+            req.org = { id: 'o-1', name: 'org 1' };
+            req.campaign = { id: 'cam-req', org: 'o-1', pricing: { budget: 400.432 } };
+            
+            resps = {
+                getAccountBalance: { balance: 789.01, totalSpend: 456.1 },
+                getTotalBudget: { totalBudget: 123.2, campaigns: [{ id: 'cam-1' }, { id: 'cam-2' }] },
+                getCampSpend: { spend: 400.12 },
+            };
+            
+            Object.keys(resps).forEach(function(method) {
+                spyOn(statsModule, method).and.callFake(function() { return q(resps[method]); })
+            });
+            svc = {
+                runAction: jasmine.createSpy('runAction').and.callFake(function(req, action, cb) { return cb(); }),
+                _db: 'c6Db'
+            };
+        });
+        
+        it('should return a 204 if the check passes', function(done) {
+            statsModule.creditCheck(svc, req).then(function(resp) {
+                expect(resp).toEqual({ code: 204 });
+                expect(statsModule.getAccountBalance).toHaveBeenCalledWith('o-1', req);
+                expect(statsModule.getTotalBudget).toHaveBeenCalledWith('o-1', 'c6Db', req, { excludeCamps: ['cam-req'] });
+                expect(statsModule.getCampSpend).toHaveBeenCalledWith('o-1', ['cam-1', 'cam-2', 'cam-req'], req);
+                expect(mockLog.info).toHaveBeenCalled();
+                expect(mockLog.info.calls.mostRecent().args).toContain(265.16);
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should use the campaign\'s current budget if no newBudget is defined', function(done) {
+            delete req.body.newBudget;
+            statsModule.creditCheck(svc, req).then(function(resp) {
+                expect(resp).toEqual({ code: 204 });
+                expect(statsModule.getAccountBalance).toHaveBeenCalledWith('o-1', req);
+                expect(statsModule.getTotalBudget).toHaveBeenCalledWith('o-1', 'c6Db', req, { excludeCamps: ['cam-req'] });
+                expect(statsModule.getCampSpend).toHaveBeenCalledWith('o-1', ['cam-1', 'cam-2', 'cam-req'], req);
+                expect(mockLog.info).toHaveBeenCalled();
+                expect(mockLog.info.calls.mostRecent().args).toContain(665.5);
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
+        });
+
+        it('should return a 402 with the deficit if the check fails', function(done) {
+            req.body.newBudget = 1200.432;
+            statsModule.creditCheck(svc, req).then(function(resp) {
+                expect(resp).toEqual({
+                    code: 402,
+                    body: { message: 'Insufficient funds for changes to campaign', depositAmount: 134.5 }
+                });
+                expect(mockLog.info).toHaveBeenCalled();
+                expect(mockLog.info.calls.mostRecent().args).toContain(134.5);
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should handle getTotalBudget returning no budget or campaigns', function(done) {
+            resps.getTotalBudget = { totalBudget: 0, campaigns: [] };
+            statsModule.creditCheck(svc, req).then(function(resp) {
+                expect(resp).toEqual({ code: 204 });
+                expect(statsModule.getAccountBalance).toHaveBeenCalledWith('o-1', req);
+                expect(statsModule.getTotalBudget).toHaveBeenCalledWith('o-1', 'c6Db', req, { excludeCamps: ['cam-req'] });
+                expect(statsModule.getCampSpend).toHaveBeenCalledWith('o-1', ['cam-req'], req);
+                expect(mockLog.info).toHaveBeenCalled();
+                expect(mockLog.info.calls.mostRecent().args).toContain(388.36);
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should handle a campaign that has no budget at all', function(done) {
+            delete req.body.newBudget;
+            delete req.campaign.pricing;
+            statsModule.creditCheck(svc, req).then(function(resp) {
+                expect(resp).toEqual({ code: 204 });
+                expect(statsModule.getAccountBalance).toHaveBeenCalledWith('o-1', req);
+                expect(statsModule.getTotalBudget).toHaveBeenCalledWith('o-1', 'c6Db', req, { excludeCamps: ['cam-req'] });
+                expect(statsModule.getCampSpend).toHaveBeenCalledWith('o-1', ['cam-1', 'cam-2', 'cam-req'], req);
+                expect(mockLog.info).toHaveBeenCalled();
+                expect(mockLog.info.calls.mostRecent().args).toContain(1065.93);
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should return early if runAction returns a 4xx response', function(done) {
+            svc.runAction.and.returnValue(q({ code: 400, body: 'not today, buddy' }));
+            statsModule.creditCheck(svc, req).then(function(resp) {
+                expect(resp).toEqual({ code: 400, body: 'not today, buddy' });
+                expect(statsModule.getAccountBalance).not.toHaveBeenCalled();
+                expect(statsModule.getTotalBudget).not.toHaveBeenCalled();
+                expect(statsModule.getCampSpend).not.toHaveBeenCalled();
+            }).catch(function(error) {
+                expect(error).not.toBeDefined();
+            }).done(done);
+        });
+
+        ['getAccountBalance', 'getTotalBudget', 'getCampSpend'].forEach(function(method) {
+            it('should reject if ' + method + ' rejects', function(done) {
+                resps[method] = q.reject('HALP I CANT DO IT');
+                statsModule.creditCheck(svc, req).then(function(resp) {
+                    expect(resp).not.toBeDefined();
+                }).catch(function(error) {
+                    expect(error).toBe('HALP I CANT DO IT');
+                    expect(statsModule.getAccountBalance).toHaveBeenCalled();
+                    expect(statsModule.getTotalBudget).toHaveBeenCalled();
+                    if (method !== 'getCampSpend') {
+                        expect(statsModule.getCampSpend).not.toHaveBeenCalled();
+                    }
+                }).done(done);
+            });
+        });
     });
     
     describe('setupEndpoints', function() {
-    
-    });
-    
-
-
-    describe('main', function() {
-        var state, mockExpress, expressApp, expressRoutes, mockSvc, basicMidware, errorHandler, fakeJournal;
+        var app, svc, sessions, audit, expressRoutes, res;
         beforeEach(function() {
-            function getCollSpy() {
-                return jasmine.createSpy('db.collection()').and.callFake(function(collName) {
-                    return { db: this, collectionName: collName };
-                });
-            }
-            state = {
-                clusterMaster: false,
-                dbs: {
-                    c6Db: { collection: getCollSpy() },
-                    c6Journal: { collection: getCollSpy() }
-                },
-                sessions: jasmine.createSpy('sessions()'),
-                config: {
-                    appName: 'statsModule',
-                    appVersion: 'statsModule-1.2.3'
-                },
-                cmdl: {
-                    port: 6666
-                }
-            };
-            expressRoutes = {
-                get: {},
-                post: {}
-            };
-            mockExpress = require.cache[require.resolve('express')].exports = jasmine.createSpy('express()').and.callFake(function() {
-                expressApp = express.apply(null, arguments);
-
-                spyOn(expressApp, 'listen');
-                spyOn(expressApp, 'use');
-                spyOn(expressApp, 'get').and.callFake(function(route/*, middleware*/) {
+            expressRoutes = {};
+            app = {};
+            ['get', 'post'].forEach(function(verb) {
+                expressRoutes[verb] = {};
+                app[verb] = jasmine.createSpy('app.' + verb).and.callFake(function(route/*, middleware...*/) {
                     var middleware = Array.prototype.slice.call(arguments, 1);
 
-                    expressRoutes.get[route] = (expressRoutes.get[route] || []).concat(middleware);
+                    expressRoutes[verb][route] = (expressRoutes[verb][route] || []).concat(middleware);
                 });
-                spyOn(expressApp, 'post').and.callFake(function(route/*, middleware*/) {
-                    var middleware = Array.prototype.slice.call(arguments, 1);
-
-                    expressRoutes.post[route] = (expressRoutes.post[route] || []).concat(middleware);
-                });
-                spyOn(expressApp, 'set');
-
-                return expressApp;
             });
-            basicMidware = jasmine.createSpy('basicMidware()');
-            errorHandler = jasmine.createSpy('errorHandler()');
-            spyOn(expressUtils, 'basicMiddleware').and.returnValue(basicMidware);
-            spyOn(expressUtils, 'errorHandler').and.returnValue(errorHandler);
-
-            fakeJournal = {
-                _midware: jasmine.createSpy('journal.middleware'),
-                middleware: {
-                    bind: jasmine.createSpy('bind()').and.callFake(function() { return fakeJournal._midware; })
-                }
-            };
-            spyOn(journal, 'AuditJournal').and.returnValue(fakeJournal);
             
             spyOn(authUtils, 'middlewarify').and.callFake(function(opts) {
                 return { opts: opts };
             });
-            
-            delete require.cache[require.resolve('../../bin/statsModule')];
-            statsModule = require('../../bin/statsModule');
-        });
 
-        afterEach(function() {
-            delete require.cache[require.resolve('express')];
-            delete authUtils._db;
+            svc = statsModule.setupSvc(mockDb, statsModule.config);
+            sessions = 'sessionsMidware';
+            audit = 'auditMidware';
+
+            res = {
+                send: jasmine.createSpy('res.send()'),
+                header: jasmine.createSpy('res.header()')
+            };
+            
+            statsModule.setupEndpoints(app, svc, sessions, audit);
         });
         
-        describe('if the process is the clusterMaster', function() {
-            beforeEach(function() {
-                state.clusterMaster = true;
-            });
-
-            it('should return without setting up express', function() {
-                var resp = statsModule.main(state);
-                expect(resp).toBe(state);
-                expect(mockExpress).not.toHaveBeenCalled();
-                expect(expressApp).not.toBeDefined();
-            });
-        });
-        
-        it('should setup the express app', function() {
-            var resp = statsModule.main(state);
-            expect(mockExpress).toHaveBeenCalled();
-            expect(expressApp.set).toHaveBeenCalledWith('json spaces', 2);
-            expect(expressApp.set).toHaveBeenCalledWith('trust proxy', 1);
-            expect(expressApp.use).toHaveBeenCalledWith(basicMidware);
-            expect(expressApp.use).toHaveBeenCalledWith(errorHandler);
-            expect(expressApp.listen).toHaveBeenCalledWith(6666);
-        });
-        
-        it('should initialize the journal', function() {
-            var resp = statsModule.main(state);
-            expect(journal.AuditJournal).toHaveBeenCalledWith({ db: state.dbs.c6Journal, collectionName: 'audit' }, 'statsModule-1.2.3', 'statsModule');
-        });
-        
-        it('should set the authUtils._db', function() {
-            var resp = statsModule.main(state);
-            expect(authUtils._db).toBe(state.dbs.c6Db);
-        });
-        
-        describe('creates a handler for GET /api/accounting/meta that', function() {
-            beforeEach(function() {
-                jasmine.clock().install();
-                jasmine.clock().mockDate(new Date('2016-02-10T17:25:38.555Z'));
-                statsModule.main(state);
-            });
-            
-            afterEach(function() {
-                jasmine.clock().uninstall();
-            });
-
-            it('should exist and include no middleware', function() {
-                expect(expressApp.get).toHaveBeenCalledWith('/api/accounting/meta', jasmine.any(Function));
-            });
-            
-            it('should return some service metadata when called', function() {
-                var handler = expressRoutes.get['/api/accounting/meta'][0];
-                handler(req, res, next);
-                expect(res.send).toHaveBeenCalledWith(200, {
-                    version: 'statsModule-1.2.3',
-                    status: 'OK',
-                    started: '2016-02-10T17:25:38.555Z'
-                });
-                expect(next).not.toHaveBeenCalled();
-            });
-        });
-
-        describe('creates a handler for GET /api/accounting/version that', function() {
-            beforeEach(function() {
-                statsModule.main(state);
-            });
-            
-            it('should exist and include no middleware', function() {
-                expect(expressApp.get).toHaveBeenCalledWith('/api/accounting/version', jasmine.any(Function));
-            });
-            
-            it('should return the service version when called', function() {
-                var handler = expressRoutes.get['/api/accounting/version'][0];
-                handler(req, res, next);
-                expect(res.send).toHaveBeenCalledWith(200, 'statsModule-1.2.3');
-            });
-        });
-
-        describe('creates a handler for GET /api/transactions that', function() {
-            beforeEach(function() {
-                statsModule.main(state);
-            });
-            
-            it('should exist and include necessary middleware', function() {
-                expect(expressApp.get).toHaveBeenCalledWith('/api/transactions?', state.sessions, { opts: {
-                    allowApps: true,
-                    permissions: { transactions: 'read' }
-                } }, fakeJournal._midware, jasmine.any(Function));
-            });
-            
-            describe('when called', function() {
-                var handler;
-                beforeEach(function() {
-                    handler = expressRoutes.get['/api/transactions?'][expressRoutes.get['/api/transactions?'].length - 1];
-                    spyOn(statsModule, 'getTransactions').and.returnValue(q({ code: 400, body: 'i got a problem with YOU' }));
-                });
-                
-                it('should call statsModule.getTransactions and return the response', function(done) {
-                    q(handler(req, res, next)).finally(function() {
-                        expect(res.send).toHaveBeenCalledWith(400, 'i got a problem with YOU');
-                        expect(res.header).not.toHaveBeenCalled();
-                        expect(next).not.toHaveBeenCalled();
-                        expect(statsModule.getTransactions).toHaveBeenCalledWith(req);
-                    }).done(done);
-                });
-                
-                it('should return a 500 if statsModule.getTransactions rejects', function(done) {
-                    statsModule.getTransactions.and.returnValue(q.reject('I GOT A PROBLEM'));
-                    q(handler(req, res, next)).finally(function() {
-                        expect(res.send).toHaveBeenCalledWith(500, { error: 'Error fetching transactions', detail: 'I GOT A PROBLEM' });
-                        expect(next).not.toHaveBeenCalled();
-                        expect(statsModule.getTransactions).toHaveBeenCalledWith(req);
-                    }).done(done);
-                });
-            });
-        });
-
-        describe('creates a handler for POST /api/transactions that', function() {
-            beforeEach(function() {
-                statsModule.main(state);
-            });
-            
-            it('should exist and include necessary middleware', function() {
-                expect(expressApp.post).toHaveBeenCalledWith('/api/transactions?', { opts: {
-                    allowApps: true,
-                    permissions: { transactions: 'create' }
-                } }, fakeJournal._midware, jasmine.any(Function));
-            });
-            
-            describe('when called', function() {
-                var handler;
-                beforeEach(function() {
-                    handler = expressRoutes.post['/api/transactions?'][expressRoutes.post['/api/transactions?'].length - 1];
-                    spyOn(statsModule, 'createTransaction').and.returnValue(q({ code: 400, body: 'i got a problem with YOU' }));
-                });
-                
-                it('should call statsModule.createTransaction and return the response', function(done) {
-                    q(handler(req, res, next)).finally(function() {
-                        expect(res.send).toHaveBeenCalledWith(400, 'i got a problem with YOU');
-                        expect(res.header).not.toHaveBeenCalled();
-                        expect(next).not.toHaveBeenCalled();
-                        expect(statsModule.createTransaction).toHaveBeenCalledWith(req);
-                    }).done(done);
-                });
-                
-                it('should return a 500 if statsModule.createTransaction rejects', function(done) {
-                    statsModule.createTransaction.and.returnValue(q.reject('I GOT A PROBLEM'));
-                    q(handler(req, res, next)).finally(function() {
-                        expect(res.send).toHaveBeenCalledWith(500, { error: 'Error creating transaction', detail: 'I GOT A PROBLEM' });
-                        expect(next).not.toHaveBeenCalled();
-                        expect(statsModule.createTransaction).toHaveBeenCalledWith(req);
-                    }).done(done);
-                });
-            });
-        });
-
         describe('creates a handler for GET /api/accounting/balance that', function() {
-            beforeEach(function() {
-                statsModule.main(state);
-            });
-            
             it('should exist and include necessary middleware', function() {
-                expect(expressApp.get).toHaveBeenCalledWith('/api/accounting/balance', state.sessions, { opts: {
+                expect(app.get).toHaveBeenCalledWith('/api/accounting/balance', 'sessionsMidware', { opts: {
                     allowApps: true,
                     permissions: { orgs: 'read' }
-                } }, fakeJournal._midware, jasmine.any(Function));
+                } }, 'auditMidware', jasmine.any(Function));
             });
             
             describe('when called', function() {
                 var handler;
                 beforeEach(function() {
-                    req.query = {};
                     handler = expressRoutes.get['/api/accounting/balance'][expressRoutes.get['/api/accounting/balance'].length - 1];
                     spyOn(statsModule, 'getBalanceStats').and.returnValue(q({
                         code: 200,
@@ -933,21 +826,54 @@ describe('statsModule-stats (UT)', function() {
                     }));
                 });
                 
-                it('should call statsModule.getBalanceStats and return the response', function(done) {
-                    q(handler(req, res, next)).finally(function() {
+                it('should call getBalanceStats and return the response', function(done) {
+                    q(handler(req, res, nextSpy)).finally(function() {
                         expect(res.send).toHaveBeenCalledWith(200, { balance: 100, outstandingBudget: 20 });
-                        expect(next).not.toHaveBeenCalled();
-                        expect(statsModule.getBalanceStats).toHaveBeenCalledWith(req, state.config, state.dbs.c6Db);
+                        expect(res.header).not.toHaveBeenCalled();
+                        expect(nextSpy).not.toHaveBeenCalled();
+                        expect(statsModule.getBalanceStats).toHaveBeenCalledWith(svc, req);
                     }).done(done);
                 });
                 
-                it('should return a 500 if statsModule.getBalanceStats rejects', function(done) {
+                it('should handle errors from getBalanceStats', function(done) {
                     statsModule.getBalanceStats.and.returnValue(q.reject('I GOT A PROBLEM'));
-                    q(handler(req, res, next)).finally(function() {
+                    q(handler(req, res, nextSpy)).finally(function() {
                         expect(res.send).toHaveBeenCalledWith(500, { error: 'Error retrieving balance', detail: 'I GOT A PROBLEM' });
                         expect(res.header).not.toHaveBeenCalled();
-                        expect(next).not.toHaveBeenCalled();
-                        expect(statsModule.getBalanceStats).toHaveBeenCalledWith(req, state.config, state.dbs.c6Db);
+                        expect(nextSpy).not.toHaveBeenCalled();
+                    }).done(done);
+                });
+            });
+        });
+
+        describe('creates a handler for POST /api/accounting/credit-check that', function() {
+            it('should exist and include necessary middleware', function() {
+                expect(app.post).toHaveBeenCalledWith('/api/accounting/credit-check', 'sessionsMidware', { opts: {
+                    allowApps: true,
+                    permissions: { orgs: 'read', campaigns: 'read' }
+                } }, 'auditMidware', jasmine.any(Function));
+            });
+            
+            describe('when called', function() {
+                var handler;
+                beforeEach(function() {
+                    handler = expressRoutes.post['/api/accounting/credit-check'][expressRoutes.post['/api/accounting/credit-check'].length - 1];
+                    spyOn(statsModule, 'creditCheck').and.returnValue(q({ code: 400, body: 'i got a problem with YOU' }));
+                });
+                
+                it('should call creditCheck and return the response', function(done) {
+                    q(handler(req, res, nextSpy)).finally(function() {
+                        expect(res.send).toHaveBeenCalledWith(400, 'i got a problem with YOU');
+                        expect(nextSpy).not.toHaveBeenCalled();
+                        expect(statsModule.creditCheck).toHaveBeenCalledWith(svc, req);
+                    }).done(done);
+                });
+                
+                it('should handle errors from creditCheck', function(done) {
+                    statsModule.creditCheck.and.returnValue(q.reject('I GOT A PROBLEM'));
+                    q(handler(req, res, nextSpy)).finally(function() {
+                    expect(res.send).toHaveBeenCalledWith(500, { error: 'Error checking credit', detail: 'I GOT A PROBLEM' });
+                        expect(nextSpy).not.toHaveBeenCalled();
                     }).done(done);
                 });
             });

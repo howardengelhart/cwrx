@@ -34,9 +34,6 @@
         }
     };
 
-    //TODO: rename module?
-
-
     statsModule.setupSvc = function(db, config) {
         statsModule.config.api = config.api;
         Object.keys(statsModule.config.api)
@@ -169,24 +166,20 @@
         });
     };
     
+    // Get total budget of org's running campaigns, using budget from update requests if possible
     statsModule.getTotalBudget = function(orgId, c6Db, req, opts) {
         opts = opts || {};
-        opts.includeCamps = opts.includeCamps || [];
         opts.excludeCamps = opts.excludeCamps || [];
         
         var log = logger.getLog(),
             statuses = [Status.Active, Status.Paused, Status.Pending],
             campaigns, updates;
         
-        // Find campaigns in org w/ right status, including and/or excluding certain campaigns
+        // Find campaigns in org w/ right status excluding certain campaigns
         var query = {
-            $or: [
-                { org: orgId, status: { $in: statuses } },
-                { id: { $in: opts.includeCamps } }
-            ],
-            id: {
-                $nin: opts.excludeCamps
-            }
+            org     : orgId,
+            status  : { $in: statuses },
+            id      : { $nin: opts.excludeCamps }
         };
         
         return q(c6Db.collection('campaigns').find(
@@ -236,6 +229,7 @@
         });
     };
 
+    // Get total spend for list of campaigns
     statsModule.getCampSpend = function(orgId, campIds, req) {
         var log = logger.getLog();
 
@@ -254,15 +248,8 @@
             log.trace('[%1] Got campaign spend of %2 for %3', req.uuid, spend, orgId);
             
             return q({ spend: spend });
-        })
-        .catch(function(error) {
-            log.error('[%1] Failed computing campaign spend for %2: %3',
-                      req.uuid, orgId, util.inspect(error));
-            return q.reject('Error computing campaign spend');
         });
     };
-    
-
 
     // Fetch the org's outstanding budget, checking campaign budgets vs. campaign spend.
     statsModule.getOutstandingBudget = function(orgId, c6Db, req) {
@@ -289,7 +276,8 @@
             return q({ outstandingBudget: outstandingBudget });
         });
     };
-        
+    
+    // Get account balance + outstanding budget, for /api/accounting/balance endpoint
     statsModule.getBalanceStats = function(svc, req) {
         req.query.org = req.query.org || (req.user && req.user.org);
         if (!req.query.org || typeof req.query.org !== 'string') {
@@ -314,7 +302,7 @@
         });
     };
 
-
+    // Check if an org has sufficient funds to make a campaign change
     statsModule.creditCheck = function(svc, req) {
         var log = logger.getLog();
         
@@ -341,10 +329,9 @@
             .then(function(spendResp) {
                 var spend = spendResp.spend;
                 var campBudget = req.body.newBudget || ld.get(req.campaign, 'pricing.budget', 0);
-                campBudget = Math.round(campBudget * 100) / 100;
                     
                 var outstandingBudget = totalBudget + campBudget - spend;
-                var deficit = outstandingBudget - balance;
+                var deficit = Math.round((outstandingBudget - balance) * 100) / 100;
                 
                 if (deficit > 0) {
                     log.info('[%1] Changes to %2 incur deficit of %3 for %4',
@@ -358,7 +345,7 @@
                     });
                 }
                 
-                log.trace('[%1] Org %2 has account surplus %3', req.uuid, orgId, Math.abs(deficit));
+                log.info('[%1] Org %2 has account surplus %3', req.uuid, orgId, Math.abs(deficit));
                 
                 return q({ code: 204 });
             });
@@ -366,8 +353,6 @@
     };
     
     statsModule.setupEndpoints = function(app, svc, sessions, audit) {
-        //TODO: use router here??
-
         var authGetBal = authUtils.middlewarify({
             allowApps: true,
             permissions: { orgs: 'read' }
@@ -397,7 +382,7 @@
                 expressUtils.sendResponse(res, {
                     code: 500,
                     body: {
-                        error: 'Error retrieving balance',
+                        error: 'Error checking credit',
                         detail: error
                     }
                 });

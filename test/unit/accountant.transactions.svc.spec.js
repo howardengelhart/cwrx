@@ -704,32 +704,38 @@ describe('accountant-transactions (UT)', function() {
         });
 
         describe('creates a handler for GET /api/transactions/ that', function() {
-            var handler;
-            beforeEach(function() {
-                handler = expressRoutes.get['/'][expressRoutes.get['/'].length - 1];
-                spyOn(transModule, 'getTransactions').and.returnValue(q({
-                    code: 200,
-                    body: [{ id: 'pro-1' }],
-                    headers: { 'content-range': 'items 2-3/5' }
-                }));
+            it('should exist and include necessary middleware', function() {
+                expect(mockRouter.get).toHaveBeenCalledWith('/', 'sessionsMidware', 'fakeReadMidware', audit, jasmine.any(Function));
             });
             
-            it('should call getTransactions and return the response', function(done) {
-                q(handler(req, res, nextSpy)).finally(function() {
-                    expect(res.send).toHaveBeenCalledWith(200, [{ id: 'pro-1' }]);
-                    expect(res.header).toHaveBeenCalledWith('content-range', 'items 2-3/5');
-                    expect(nextSpy).not.toHaveBeenCalled();
-                    expect(transModule.getTransactions).toHaveBeenCalledWith(svc, req);
-                }).done(done);
-            });
-            
-            it('should handle errors from getTransactions', function(done) {
-                transModule.getTransactions.and.returnValue(q.reject('I GOT A PROBLEM'));
-                q(handler(req, res, nextSpy)).finally(function() {
-                    expect(res.send).toHaveBeenCalledWith(500, { error: 'Error fetching transactions', detail: 'I GOT A PROBLEM' });
-                    expect(res.header).not.toHaveBeenCalled();
-                    expect(nextSpy).not.toHaveBeenCalled();
-                }).done(done);
+            describe('when called', function() {
+                var handler;
+                beforeEach(function() {
+                    handler = expressRoutes.get['/'][expressRoutes.get['/'].length - 1];
+                    spyOn(transModule, 'getTransactions').and.returnValue(q({
+                        code: 200,
+                        body: [{ id: 'pro-1' }],
+                        headers: { 'content-range': 'items 2-3/5' }
+                    }));
+                });
+                
+                it('should call getTransactions and return the response', function(done) {
+                    q(handler(req, res, nextSpy)).finally(function() {
+                        expect(res.send).toHaveBeenCalledWith(200, [{ id: 'pro-1' }]);
+                        expect(res.header).toHaveBeenCalledWith('content-range', 'items 2-3/5');
+                        expect(nextSpy).not.toHaveBeenCalled();
+                        expect(transModule.getTransactions).toHaveBeenCalledWith(svc, req);
+                    }).done(done);
+                });
+                
+                it('should handle errors from getTransactions', function(done) {
+                    transModule.getTransactions.and.returnValue(q.reject('I GOT A PROBLEM'));
+                    q(handler(req, res, nextSpy)).finally(function() {
+                        expect(res.send).toHaveBeenCalledWith(500, { error: 'Error fetching transactions', detail: 'I GOT A PROBLEM' });
+                        expect(res.header).not.toHaveBeenCalled();
+                        expect(nextSpy).not.toHaveBeenCalled();
+                    }).done(done);
+                });
             });
         });
 
