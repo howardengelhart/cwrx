@@ -4,6 +4,7 @@
     var q               = require('q'),
         urlUtils        = require('url'),
         util            = require('util'),
+        ld              = require('lodash'),
         express         = require('express'),
         Status          = require('../lib/enums').Status,
         campaignUtils   = require('../lib/campaignUtils'),
@@ -130,6 +131,7 @@
         svc.use('create', extraValidation);
         svc.use('create', updateModule.validateCards);
         svc.use('create', updateModule.validateZipcodes);
+        svc.use('create', updateModule.checkAvailableFunds);
         svc.use('create', handleInitialSubmit);
         svc.use('create', handleRenewal);
         if(emailingEnabled) {
@@ -144,6 +146,7 @@
         svc.use('edit', extraValidation);
         svc.use('edit', updateModule.validateCards);
         svc.use('edit', updateModule.validateZipcodes);
+        svc.use('edit', updateModule.checkAvailableFunds);
         svc.use('edit', unlockCampaign);
         svc.use('edit', applyUpdate);
         if(emailingEnabled) {
@@ -155,6 +158,7 @@
         svc.use('autoApprove', fetchCamp);
         svc.use('autoApprove', updateModule.enforceLock);
         svc.use('autoApprove', updateModule.validateZipcodes);
+        svc.use('autoApprove', updateModule.checkAvailableFunds);
         svc.use('autoApprove', historian.middlewarify('status', 'statusHistory'));
         svc.use('autoApprove', applyUpdate);
         
@@ -369,7 +373,7 @@
             }
         });
     };
-    
+
     // Immediately edit campaign + set status to pending; used for renewal or init submit
     updateModule.setPending = function(svc, req) {
         var log = logger.getLog(),
@@ -429,6 +433,51 @@
         return updateModule.setPending(svc, req)
         .then(function() {
             next();
+        });
+    };
+
+    // If update req is changing balance (or is init submit), check that org has enough funds for it
+    updateModule.checkAvailableFunds = function(req, next, done) {
+        var log = logger.getLog(),
+            orgId = req.body.data.org || req.campaign.org,
+            prevBudgetChange = ld.get(req.origObj, 'data.pricing.budget', null),
+            newBudget = ld.get(req.body.data, 'pricing.budget', prevBudgetChange),
+            oldBudget = ld.get(req.campaign, 'pricing.budget', 0);
+        
+        // Skip if budget not changing, and this is not an initial submit or renewal
+        if (!isInitSubmit(req) && !isRenewal(req) && (!newBudget || newBudget === oldBudget)) {
+            return q(next());
+        }
+        
+        return requestUtils.proxyRequest(req, 'post', {
+            url: updateModule.config.api.creditCheck.baseUrl,
+            json: {
+                campaign: req.campaign.id,
+                org: orgId,
+                newBudget: newBudget
+            }
+        })
+        .then(function(resp) {
+            if (resp.response.statusCode === 204) {
+                log.info('[%1] Org %2 has enough balance to cover changes to %3',
+                         req.uuid, orgId, req.campaign.id);
+                return next();
+            }
+            else if (resp.response.statusCode === 402) {
+                log.info('[%1] Update to %2 would incur deficit of %3 for %4',
+                         req.uuid, req.campaign.id, orgId, resp.body.depositAmount);
+                return done({ code: resp.response.statusCode, body: resp.body });
+            }
+            else {
+                log.info('[%1] Requester %2 could not make credit check for %3: %4, %5',
+                         req.uuid, req.requester.id, orgId, resp.response.statusCode, resp.body);
+                return done({ code: resp.response.statusCode, body: resp.body });
+            }
+        })
+        .catch(function(error) {
+            log.error('[%1] Requester %2 failed making credit check for %3: %4',
+                      req.uuid, req.requester.id, req.campaign.id, util.inspect(error));
+            return q.reject('Failed making credit check');
         });
     };
     

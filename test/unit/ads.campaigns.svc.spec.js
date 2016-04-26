@@ -270,13 +270,13 @@ describe('ads-campaigns (UT)', function() {
             };
             MockCursor = function(ids) {
                 this.ids = ids;
-            }
+            };
             MockCursor.prototype.toArray = function() {
                 var cards = this.ids.map(function(id) { return c6Cards[id]; })
                                                .filter(function(card) { return !!card; });
 
                 return q(cards);
-            }
+            };
 
             svc = { _db: mockDb };
             mockDb.collection.and.returnValue(mockColl);

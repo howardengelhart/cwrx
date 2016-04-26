@@ -124,6 +124,7 @@ Vagrant.configure("2") do |config|
     chosen.each do |svc|
         if svc === "player"
             chef.run_list.push("recipe[player::mock_player]")
+            chef.json[svc][:front_end][:kept_releases] = 1
         end
 
         chef.run_list.push("recipe[#{svc}]")

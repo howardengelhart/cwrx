@@ -56,8 +56,8 @@
             campaigns: {
                 endpoint: '/api/campaigns/'
             },
-            paymentMethods: {
-                endpoint: '/api/payments/methods/'
+            creditCheck: {
+                endpoint: '/api/accounting/credit-check/'
             },
             zipcodes: {
                 endpoint: '/api/geo/zipcodes'

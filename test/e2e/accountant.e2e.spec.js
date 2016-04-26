@@ -2,6 +2,7 @@ var q               = require('q'),
     util            = require('util'),
     testUtils       = require('./testUtils'),
     requestUtils    = require('../../lib/requestUtils'),
+    objUtils        = require('../../lib/objUtils'),
     host            = process.env.host || 'localhost',
     config = {
         accountantUrl   : 'http://' + (host === 'localhost' ? host + ':4300' : host) + '/api',
@@ -206,7 +207,7 @@ describe('accountant (E2E):', function() {
                 expect(results[0].sessionID).toEqual(jasmine.any(String));
                 expect(results[0].service).toBe('accountant');
                 expect(results[0].version).toEqual(jasmine.any(String));
-                expect(results[0].data).toEqual({route: 'GET /api/transactions?',
+                expect(results[0].data).toEqual({route: 'GET /api/transactions/',
                                                  params: {}, query: { sort: 'amount,-1' } });
             }).catch(function(error) {
                 expect(util.inspect(error)).not.toBeDefined();
@@ -384,7 +385,7 @@ describe('accountant (E2E):', function() {
                 expect(results[0].uuid).toEqual(jasmine.any(String));
                 expect(results[0].service).toBe('accountant');
                 expect(results[0].version).toEqual(jasmine.any(String));
-                expect(results[0].data).toEqual({route: 'POST /api/transactions?',
+                expect(results[0].data).toEqual({route: 'POST /api/transactions/',
                                                  params: {}, query: {} });
             }).catch(function(error) {
                 expect(util.inspect(error)).not.toBeDefined();
@@ -622,7 +623,7 @@ describe('accountant (E2E):', function() {
                 return requestUtils.qRequest('get', options);
             })).then(function(results) {
                 expect(results[0].response.statusCode).toBe(400);
-                expect(results[0].body).toEqual('Cannot fetch balance for this org');
+                expect(results[0].body).toEqual('Cannot fetch this org');
                 expect(results[1].response.statusCode).toBe(200);
                 expect(results[1].body).toEqual({
                     balance: 6316,
@@ -672,7 +673,7 @@ describe('accountant (E2E):', function() {
 
             requestUtils.qRequest('get', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(400);
-                expect(resp.body).toEqual('Cannot fetch balance for this org');
+                expect(resp.body).toEqual('Cannot fetch this org');
             }).catch(function(error) {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
@@ -700,6 +701,186 @@ describe('accountant (E2E):', function() {
                     outstandingBudget: 727,
                     totalSpend: 823
                 });
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
+    });
+    
+    describe('POST /api/accounting/credit-check', function() {
+        var options;
+        beforeEach(function() {
+            options = {
+                url: config.accountantUrl + '/accounting/credit-check',
+                json: {
+                    org: 'o-1234',
+                    campaign: 'cam-o1-active',
+                    newBudget: 1500
+                },
+                jar: cookieJar
+            };
+        });
+        
+        it('should return a 204 if the credit check succeeds', function(done) {
+            requestUtils.qRequest('post', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(204);
+                expect(resp.body).toEqual('');
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should write an entry to the audit collection', function(done) {
+            requestUtils.qRequest('post', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(204);
+                return testUtils.mongoFind('audit', { service: 'accountant' }, {$natural: -1}, 1, 0, {db: 'c6Journal'});
+            }).then(function(results) {
+                expect(results[0].user).toBe('e2e-user');
+                expect(results[0].created).toEqual(jasmine.any(Date));
+                expect(results[0].host).toEqual(jasmine.any(String));
+                expect(results[0].pid).toEqual(jasmine.any(Number));
+                expect(results[0].uuid).toEqual(jasmine.any(String));
+                expect(results[0].sessionID).toEqual(jasmine.any(String));
+                expect(results[0].service).toBe('accountant');
+                expect(results[0].version).toEqual(jasmine.any(String));
+                expect(results[0].data).toEqual({route: 'POST /api/accounting/credit-check',
+                                                 params: {}, query: {} });
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should still succeed if no newBudget is passed', function(done) {
+            delete options.json.newBudget;
+            requestUtils.qRequest('post', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(204);
+                expect(resp.body).toEqual('');
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should return a 402 if the org cannot afford the campaign changes', function(done) {
+            options.json.newBudget = 5000.123;
+            requestUtils.qRequest('post', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(402);
+                expect(resp.body).toEqual({
+                    message: 'Insufficient funds for changes to campaign',
+                    depositAmount: 550.12
+                });
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should return a minimum depositAmount of 1.00', function(done) {
+            options.json.newBudget = 4450.66;
+            requestUtils.qRequest('post', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(402);
+                expect(resp.body).toEqual({
+                    message: 'Insufficient funds for changes to campaign',
+                    depositAmount: 1
+                });
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should exclude expired campaigns from calculations except for the request campaign', function(done) {
+            delete options.json.newBudget;
+
+            var newCamp = { id: 'cam-o1-bigbudget', status: 'expired', org: 'o-1234', pricing: { budget: 9999 } };
+            testUtils.mongoUpsert('campaigns', { id: newCamp.id }, newCamp).then(function() {
+                return requestUtils.qRequest('post', options);
+            }).then(function(resp) {
+                // credit check succeeds with other campaign, since new camp is ignored
+                expect(resp.response.statusCode).toBe(204);
+                expect(resp.body).toEqual('');
+                
+                options.json.campaign = 'cam-o1-bigbudget';
+                return requestUtils.qRequest('post', options);
+            }).then(function(resp) {
+                // credit check fails with this campaign, as it assumes campaign is renewing
+                expect(resp.response.statusCode).toBe(402);
+                expect(resp.body).toEqual({
+                    message: 'Insufficient funds for changes to campaign',
+                    depositAmount: 6549
+                });
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should return a 400 if required parameters are not passed', function(done) {
+            q.all([{ org: 'o-1234' }, { campaign: 'cam-o1-active' }].map(function(body) {
+                options.json = body;
+                return requestUtils.qRequest('post', options);
+            })).then(function(results) {
+                expect(results[0].response.statusCode).toBe(400);
+                expect(results[0].body).toBe('Missing required field: campaign');
+                expect(results[1].response.statusCode).toBe(400);
+                expect(results[1].body).toBe('Missing required field: org');
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should return a 400 if the org or campaign are not found', function(done) {
+            q.all([
+                { org: 'o-faaaaaaake', campaign: 'cam-o1-active' },
+                { org: 'o-1234', campaign: 'cam-faaaaaaake' }
+            ].map(function(body) {
+                objUtils.extend(body, options.json);
+                options.json = body;
+                return requestUtils.qRequest('post', options);
+            })).then(function(results) {
+                expect(results[0].response.statusCode).toBe(400);
+                expect(results[0].body).toBe('Cannot fetch this org');
+                expect(results[1].response.statusCode).toBe(400);
+                expect(results[1].body).toBe('Cannot fetch this campaign');
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should return a 400 if the campaign + org do not match', function(done) {
+            options.json.org = 'o-5678';
+            options.jar = adminJar;
+            requestUtils.qRequest('post', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(400);
+                expect(resp.body).toEqual('Campaign cam-o1-active does not belong to o-5678');
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
+        
+        
+        it('should return a 400 if the requester does not have permission to fetch the org or campaign', function(done) {
+            options.json.org = 'o-5678';
+            options.json.campaign = 'cam-o2-active';
+            requestUtils.qRequest('post', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(400);
+                expect(resp.body).toEqual('Cannot fetch this org');
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should return a 401 if no requester is authenticated', function(done) {
+            delete options.jar;
+            requestUtils.qRequest('post', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(401);
+                expect(resp.body).toEqual('Unauthorized');
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('allow an app to make a credit check', function(done) {
+            delete options.jar;
+            requestUtils.makeSignedRequest(appCreds, 'post', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(204);
+                expect(resp.body).toEqual('');
             }).catch(function(error) {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
