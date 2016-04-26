@@ -63,34 +63,6 @@
             __required: true
         }
     };
-    
-    // Helper to return true if changes in body translates to update being approved
-    function approvingUpdate(req) {
-        return req.origObj && req.origObj.status === Status.Pending &&
-               req.body && req.body.status === Status.Approved;
-    }
-    
-    // Helper to return true if changes in body translates to update being rejected
-    function rejectingUpdate(req) {
-        return req.origObj && req.origObj.status === Status.Pending &&
-               req.body && req.body.status === Status.Rejected;
-    }
-
-    // Helper to return true if update request is an initial campaign submit
-    function isInitSubmit(req) {
-        return req.body.initialSubmit || (req.origObj && req.origObj.initialSubmit) ||
-               (req.campaign.status === Status.Draft && req.body.data.status === Status.Active);
-    }
-
-    // Helper to return true if update request is a campaign renewal
-    function isRenewal(req) {
-        var finishedStatuses = [Status.Expired, Status.OutOfBudget, Status.Canceled],
-            oldStatus = req.campaign.status,
-            newStatus = req.body.data.status;
-
-        return req.body.renewal || (req.origObj && req.origObj.renewal) ||
-               (finishedStatuses.indexOf(oldStatus) !== -1 && newStatus === Status.Active);
-    }
 
     updateModule.setupSvc = function(db, campSvc, config, appCreds) {
         updateModule.config.emails = config.emails;
@@ -163,6 +135,38 @@
         svc.use('autoApprove', applyUpdate);
         
         return svc;
+    };
+    
+    // Helper to return true if changes in body translates to update being approved
+    updateModule.approvingUpdate = function(req) {
+        return !!req.origObj && req.origObj.status === Status.Pending &&
+               !!req.body && req.body.status === Status.Approved;
+    };
+    
+    // Helper to return true if changes in body translates to update being rejected
+    updateModule.rejectingUpdate = function(req) {
+        return !!req.origObj && req.origObj.status === Status.Pending &&
+               !!req.body && req.body.status === Status.Rejected;
+    };
+
+    // Helper to return true if update request is an initial campaign submit
+    updateModule.isInitSubmit = function(req) {
+        //TODO: update to stop handling draft --> active once frontend updated
+        return !!req.body.initialSubmit || (req.origObj && req.origObj.initialSubmit) ||
+               (req.campaign.status === Status.Draft && (req.body.data.status === Status.Pending ||
+                                                         req.body.data.status === Status.Active));
+    };
+
+    // Helper to return true if update request is a campaign renewal
+    updateModule.isRenewal = function(req) {
+        //TODO: update to stop handling <finished> --> active once frontend updated
+        var finishedStatuses = [Status.Expired, Status.OutOfBudget, Status.Canceled],
+            oldStatus = req.campaign.status,
+            newStatus = req.body.data.status;
+
+        return !!req.body.renewal || (req.origObj && req.origObj.renewal) ||
+               (finishedStatuses.indexOf(oldStatus) !== -1 && (newStatus === Status.Pending ||
+                                                               newStatus === Status.Active));
     };
     
     // Creates a modified campaign model that allows users to set status
@@ -393,7 +397,7 @@
     updateModule.handleInitialSubmit = function(svc, req, next, done) {
         var log = logger.getLog();
 
-        if (!isInitSubmit(req)) {
+        if (!updateModule.isInitSubmit(req)) {
             return q(next());
         }
 
@@ -422,7 +426,7 @@
     updateModule.handleRenewal = function(svc, req, next/*, done*/) {
         var log = logger.getLog();
 
-        if (!isRenewal(req)) {
+        if (!updateModule.isRenewal(req)) {
             return q(next());
         }
 
@@ -445,7 +449,8 @@
             oldBudget = ld.get(req.campaign, 'pricing.budget', 0);
         
         // Skip if budget not changing, and this is not an initial submit or renewal
-        if (!isInitSubmit(req) && !isRenewal(req) && (!newBudget || newBudget === oldBudget)) {
+        if (!updateModule.isInitSubmit(req) && !updateModule.isRenewal(req) &&
+            (!newBudget || newBudget === oldBudget)) {
             return q(next());
         }
         
@@ -539,7 +544,7 @@
     updateModule.requireReason = function(req, next, done) {
         var log = logger.getLog();
         
-        if (rejectingUpdate(req) && !req.body.rejectionReason) {
+        if (updateModule.rejectingUpdate(req) && !req.body.rejectionReason) {
             log.info('[%1] Requester %2 trying to reject %3 without a reason',
                      req.uuid, req.requester.id, req.origObj.id);
             return done({ code: 400, body: 'Cannot reject update without a reason' });
@@ -553,7 +558,7 @@
     updateModule.unlockCampaign = function(svc, req, next/*, done*/) {
         var log = logger.getLog();
 
-        if (!approvingUpdate(req) && !rejectingUpdate(req)) {
+        if (!updateModule.approvingUpdate(req) && !updateModule.rejectingUpdate(req)) {
             return q(next());
         }
         
@@ -566,12 +571,14 @@
                 $unset: { updateRequest: 1 }
             };
             
-        if (rejectingUpdate(req)) {
+        if (updateModule.rejectingUpdate(req)) {
             updateObj.$set.rejectionReason = req.body.rejectionReason;
             
             if (req.campaign.status === Status.Pending && req.body.data.status === Status.Active) {
                 log.info('[%1] Update %2 was initial approval request, switching %3 back to draft',
                          req.uuid, req.origObj.id, req.campaign.id);
+
+                // TODO: handle reverting status for renewal requests
 
                 updateObj.$set.status = Status.Draft;
                 
@@ -600,7 +607,7 @@
             updateId = req.origObj && req.origObj.id || req.body.id,
             campId = req.campaign.id;
             
-        if (!approvingUpdate(req) && !req.body.autoApproved) {
+        if (!updateModule.approvingUpdate(req) && !req.body.autoApproved) {
             return q(next());
         }
         
@@ -649,7 +656,7 @@
         var log = logger.getLog(),
             userColl = svc._db.collection('users');
         
-        if (!approvingUpdate(req) && !rejectingUpdate(req)) {
+        if (!updateModule.approvingUpdate(req) && !updateModule.rejectingUpdate(req)) {
             return q(next());
         }
 
@@ -666,7 +673,7 @@
             
             var emailPromise, action;
             
-            if (approvingUpdate(req)) {
+            if (updateModule.approvingUpdate(req)) {
                 emailPromise = email.updateApproved(
                     updateModule.config.emails.sender,
                     user.email,
@@ -749,8 +756,8 @@
             return q(resp);
         }
         
-        var campaignApproved = approvingUpdate(req);
-        var campaignRejected = rejectingUpdate(req);
+        var campaignApproved = updateModule.approvingUpdate(req);
+        var campaignRejected = updateModule.rejectingUpdate(req);
         
         if(campaignApproved || campaignRejected) {
             var eventName = campaignApproved ?

@@ -767,6 +767,8 @@ describe('ads campaignUpdates endpoints (E2E):', function() {
                 testUtils.resetCollection('campaignUpdates'),
             ]).done(function() { done(); });
         });
+
+// TODO: ensure all tests that should produce a mockman event are waiting for the mockman event
         
         it('should create an update and email support', function(done) {
             var createdUpdate;
@@ -888,7 +890,7 @@ describe('ads campaignUpdates endpoints (E2E):', function() {
 
         describe('if sending an initial submit request', function() {
             beforeEach(function() {
-                options.json.data = { status: 'active' };
+                options.json.data = { status: 'pending' };
             });
 
             it('should set the status of the campaign to pending', function(done) {
@@ -903,7 +905,8 @@ describe('ads campaignUpdates endpoints (E2E):', function() {
                     expect(resp.body.status).toBe('pending');
                     expect(resp.body.campaign).toBe('cam-1');
                     expect(resp.body.autoApproved).toBe(false);
-                    expect(resp.body.data.status).toBe('active');
+                    expect(resp.body.initialSubmit).toBe(true);
+                    expect(resp.body.data.status).toBe('pending');
                     createdUpdate = resp.body;
                 }).catch(function(error) {
                     expect(util.inspect(error)).not.toBeDefined();
@@ -959,7 +962,7 @@ describe('ads campaignUpdates endpoints (E2E):', function() {
 
         describe('if renewing a previously ended campaign', function() {
             beforeEach(function() {
-                options.json.data = { status: 'active' };
+                options.json.data = { status: 'pending' };
                 options.url = config.adsUrl + '/campaigns/cam-expired/updates/';
                 msgSubject = 'New update request from Heinz for campaign "expired camp"';
             });
@@ -976,7 +979,8 @@ describe('ads campaignUpdates endpoints (E2E):', function() {
                     expect(resp.body.status).toBe('pending');
                     expect(resp.body.campaign).toBe('cam-expired');
                     expect(resp.body.autoApproved).toBe(false);
-                    expect(resp.body.data.status).toBe('active');
+                    expect(resp.body.renewal).toBe(true);
+                    expect(resp.body.data.status).toBe('pending');
                     createdUpdate = resp.body;
                 }).catch(function(error) {
                     expect(util.inspect(error)).not.toBeDefined();
@@ -1588,7 +1592,7 @@ describe('ads campaignUpdates endpoints (E2E):', function() {
                     org: 'o-selfie',
                     campaign: 'cam-1',
                     initialSubmit: true,
-                    data: { status: 'active' }
+                    data: { status: 'pending' }
                 };
                 mockCamps[0].status = 'pending';
                 options.json = {};
@@ -1598,7 +1602,7 @@ describe('ads campaignUpdates endpoints (E2E):', function() {
                 ]).done(function() { done(); });
             });
             
-            it('should switch the campaign to active if approving the update', function(done) {
+            it('should send a different email when approving the update', function(done) {
                 options.json.status = 'approved';
                 mailman.once(rejectSubject, function(msg) { expect(util.inspect(msg).substring(0, 200)).not.toBeDefined(); });
 
@@ -1607,7 +1611,7 @@ describe('ads campaignUpdates endpoints (E2E):', function() {
                     expect(resp.body.id).toEqual('ur-1');
                     expect(resp.body.status).toBe('approved');
                     expect(resp.body.campaign).toBe('cam-1');
-                    expect(resp.body.data.status).toBe('active');
+                    expect(resp.body.data.status).toBe('pending');
                 }).catch(function(error) {
                     expect(util.inspect(error)).not.toBeDefined();
                     done();
@@ -1624,7 +1628,7 @@ describe('ads campaignUpdates endpoints (E2E):', function() {
                         expect(resp.response.statusCode).toBe(200);
                         expect(resp.body.updateRequest).not.toBeDefined();
                         expect(resp.body.name).toBe(mockCamps[0].name);
-                        expect(resp.body.status).toBe('active');
+                        expect(resp.body.status).toBe('pending');
                         expect(resp.body.pricing).toEqual(mockCamps[0].pricing);
                     }).catch(function(error) {
                         expect(util.inspect(error)).not.toBeDefined();
@@ -1642,7 +1646,7 @@ describe('ads campaignUpdates endpoints (E2E):', function() {
                     expect(resp.body.id).toEqual('ur-1');
                     expect(resp.body.status).toBe('rejected');
                     expect(resp.body.campaign).toBe('cam-1');
-                    expect(resp.body.data.status).toBe('active');
+                    expect(resp.body.data.status).toBe('pending');
                 }).catch(function(error) {
                     expect(util.inspect(error)).not.toBeDefined();
                     done();

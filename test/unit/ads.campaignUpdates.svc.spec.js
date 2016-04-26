@@ -322,6 +322,138 @@ describe('ads-campaignUpdates (UT)', function() {
         });
     });
     
+    describe('approvingUpdate', function() {
+        beforeEach(function() {
+            req.body = { id: 'ur-1', status: Status.Approved, data: {} };
+            req.origObj = { id: 'ur-1', status: Status.Pending, data: {} };
+        });
+
+        it('should return true if the status of the update request is changing pending --> approved', function() {
+            expect(updateModule.approvingUpdate(req)).toBe(true);
+        });
+        
+        it('should return false for other status transitions', function() {
+            [{ newStatus: Status.Pending }, { oldStatus: Status.Approved },
+             { newStatus: Status.Rejected }, { oldStatus: Status.Rejected }].forEach(function(obj) {
+                var reqCopy = JSON.parse(JSON.stringify(req));
+                reqCopy.body.status = obj.newStatus || reqCopy.body.status;
+                reqCopy.origObj.status = obj.oldStatus || reqCopy.origObj.status;
+                expect(updateModule.approvingUpdate(reqCopy)).toBe(false);
+            });
+        });
+        
+        it('should return false if there is no origObj', function() {
+            delete req.origObj;
+            expect(updateModule.approvingUpdate(req)).toBe(false);
+        });
+    });
+    
+    describe('rejectingUpdate', function() {
+        beforeEach(function() {
+            req.body = { id: 'ur-1', status: Status.Rejected, data: {} };
+            req.origObj = { id: 'ur-1', status: Status.Pending, data: {} };
+        });
+
+        it('should return true if the status of the update request is changing pending --> rejected', function() {
+            expect(updateModule.rejectingUpdate(req)).toBe(true);
+        });
+        
+        it('should return false for other status transitions', function() {
+            [{ newStatus: Status.Pending }, { oldStatus: Status.Approved },
+             { oldStatus: Status.Rejected }, { newStatus: Status.Approved }].forEach(function(obj) {
+                var reqCopy = JSON.parse(JSON.stringify(req));
+                reqCopy.body.status = obj.newStatus || reqCopy.body.status;
+                reqCopy.origObj.status = obj.oldStatus || reqCopy.origObj.status;
+                expect(updateModule.rejectingUpdate(reqCopy)).toBe(false);
+            });
+        });
+        
+        it('should return false if there is no origObj', function() {
+            delete req.origObj;
+            expect(updateModule.rejectingUpdate(req)).toBe(false);
+        });
+    });
+    
+    describe('isInitSubmit', function() {
+        beforeEach(function() {
+            req.body = { id: 'ur-1', status: Status.Pending, data: {} };
+            req.origObj = { id: 'ur-1', status: Status.Pending, data: {} };
+            req.campaign = { id: 'cam-1', status: Status.Active };
+        });
+
+        it('should return true if the body has initialSubmit === true', function() {
+            req.body.initialSubmit = true;
+            expect(updateModule.isInitSubmit(req)).toBe(true);
+            req.body.initialSubmit = false;
+            expect(updateModule.isInitSubmit(req)).toBe(false);
+        });
+
+        it('should return true if the origObj has initialSubmit === true', function() {
+            req.origObj.initialSubmit = true;
+            expect(updateModule.isInitSubmit(req)).toBe(true);
+            req.origObj.initialSubmit = false;
+            expect(updateModule.isInitSubmit(req)).toBe(false);
+        });
+
+        it('should return true if the data contains the right status change', function() {
+            req.body.data.status = Status.Pending;
+            req.campaign.status = Status.Draft;
+            expect(updateModule.isInitSubmit(req)).toBe(true);
+            // this should still work, for now
+            req.body.data.status = Status.Active;
+            expect(updateModule.isInitSubmit(req)).toBe(true);
+        });
+        
+        it('should return false otherwise', function() {
+            expect(updateModule.isInitSubmit(req)).toBe(false);
+            req.campaign.status = Status.Draft;
+            expect(updateModule.isInitSubmit(req)).toBe(false);
+            req.body.data.status = Status.Draft;
+            expect(updateModule.isInitSubmit(req)).toBe(false);
+        });
+    });
+    
+    describe('isRenewal', function() {
+        beforeEach(function() {
+            req.body = { id: 'ur-1', status: Status.Pending, data: {} };
+            req.origObj = { id: 'ur-1', status: Status.Pending, data: {} };
+            req.campaign = { id: 'cam-1', status: Status.Active };
+        });
+
+        it('should return true if the body has renewal === true', function() {
+            req.body.renewal = true;
+            expect(updateModule.isRenewal(req)).toBe(true);
+            req.body.renewal = false;
+            expect(updateModule.isRenewal(req)).toBe(false);
+        });
+
+        it('should return true if the origObj has renewal === true', function() {
+            req.origObj.renewal = true;
+            expect(updateModule.isRenewal(req)).toBe(true);
+            req.origObj.renewal = false;
+            expect(updateModule.isRenewal(req)).toBe(false);
+        });
+
+        it('should return true if the data contains the right status change', function() {
+            [Status.Expired, Status.OutOfBudget, Status.Canceled].forEach(function(campStatus) {
+                req.campaign.status = campStatus;
+                req.body.data.status = Status.Pending;
+                expect(updateModule.isRenewal(req)).toBe(true);
+                // this should still work, for now
+                req.body.data.status = Status.Active;
+                expect(updateModule.isRenewal(req)).toBe(true);
+            });
+        });
+        
+        it('should return false otherwise', function() {
+            expect(updateModule.isRenewal(req)).toBe(false);
+            req.body.data.status = Status.Pending;
+            expect(updateModule.isRenewal(req)).toBe(false);
+            req.campaign.status = Status.Draft;
+            expect(updateModule.isRenewal(req)).toBe(false);
+        });
+    });
+    
     describe('createCampModel', function() {
         it('should return a new model with an altered campaign schema', function() {
             var campSvc = { model: new Model('campaigns', campModule.campSchema) };
