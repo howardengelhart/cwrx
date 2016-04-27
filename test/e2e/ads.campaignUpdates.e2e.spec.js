@@ -768,8 +768,6 @@ describe('ads campaignUpdates endpoints (E2E):', function() {
             ]).done(function() { done(); });
         });
 
-// TODO: ensure all tests that should produce a mockman event are waiting for the mockman event
-        
         it('should create an update and email support', function(done) {
             var mockmanDef = q.defer(), mailmanDef = q.defer(), createdUpdate;
             requestUtils.qRequest('post', options).then(function(resp) {
