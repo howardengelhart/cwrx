@@ -574,17 +574,24 @@
         if (updateModule.rejectingUpdate(req)) {
             updateObj.$set.rejectionReason = req.body.rejectionReason;
             
-            if (req.campaign.status === Status.Pending && req.body.data.status === Status.Active) {
-                log.info('[%1] Update %2 was initial approval request, switching %3 back to draft',
-                         req.uuid, req.origObj.id, req.campaign.id);
+            var updateType = (updateModule.isInitSubmit(req) && 'initial submit' ) ||
+                             (updateModule.isRenewal(req) && 'renewal' ) ||
+                             null;
+            
+            if (updateType !== null) {
+                var prevStatus = ld.get(req.campaign, 'statusHistory[1].status', null);
 
-                // TODO: handle reverting status for renewal requests
+                if (!prevStatus) {
+                    log.warn('[%1] Update %2 was %3, but no previous status for %4 to revert to',
+                             req.uuid, req.origObj.id, updateType, req.campaign.id);
+                } else {
+                    log.info('[%1] Update %2 was %3 request, switching %4 back to %5',
+                             req.uuid, req.origObj.id, updateType, req.campaign.id, prevStatus);
 
-                updateObj.$set.status = Status.Draft;
-                
-                historian.historify('status', 'statusHistory', updateObj.$set, req.campaign, req);
-                
-                req.body.data.statusHistory = updateObj.$set.statusHistory;
+                    updateObj.$set.status = prevStatus;
+                    historian.historify('status', 'statusHistory', updateObj.$set,req.campaign,req);
+                    req.body.data.statusHistory = updateObj.$set.statusHistory;
+                }
             }
         }
 
@@ -677,7 +684,7 @@
                 emailPromise = email.updateApproved(
                     updateModule.config.emails.sender,
                     user.email,
-                    !!req.origObj.initialSubmit,
+                    !!updateModule.isInitSubmit(req),
                     req.campaign.name,
                     updateModule.config.emails.dashboardLink
                 );
@@ -686,7 +693,7 @@
                 emailPromise = email.updateRejected(
                     updateModule.config.emails.sender,
                     user.email,
-                    !!req.origObj.initialSubmit,
+                    !!updateModule.isInitSubmit(req),
                     req.campaign.name,
                     updateModule.config.emails.dashboardLink,
                     req.body.rejectionReason
@@ -761,8 +768,8 @@
         
         if(campaignApproved || campaignRejected) {
             var eventName = campaignApproved ?
-                (req.origObj.initialSubmit ? 'campaignApproved' : 'campaignUpdateApproved') :
-                (req.origObj.initialSubmit ? 'campaignRejected' : 'campaignUpdateRejected');
+                (!!updateModule.isInitSubmit(req) ? 'campaignApproved' : 'campaignUpdateApproved') :
+                (!!updateModule.isInitSubmit(req) ? 'campaignRejected' : 'campaignUpdateRejected');
             return streamUtils.produceEvent(eventName, {
                 campaign: req.campaign,
                 updateRequest: resp.body

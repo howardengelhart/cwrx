@@ -771,7 +771,7 @@ describe('ads campaignUpdates endpoints (E2E):', function() {
 // TODO: ensure all tests that should produce a mockman event are waiting for the mockman event
         
         it('should create an update and email support', function(done) {
-            var createdUpdate;
+            var mockmanDef = q.defer(), mailmanDef = q.defer(), createdUpdate;
             requestUtils.qRequest('post', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(201);
                 if (resp.response.statusCode !== 201) {
@@ -803,6 +803,16 @@ describe('ads campaignUpdates endpoints (E2E):', function() {
                     org: 'o-selfie'
                 });
                 createdUpdate = resp.body;
+
+                // test that updateRequest is set successfully on campaign
+                return requestUtils.qRequest('get', {
+                    url: config.adsUrl + '/campaigns/cam-1',
+                    jar: selfieJar
+                });
+            }).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.body.status).toBe('draft');
+                expect(resp.body.updateRequest).toBe(createdUpdate.id);
             }).catch(function(error) {
                 expect(util.inspect(error)).not.toBeDefined();
                 done();
@@ -810,19 +820,26 @@ describe('ads campaignUpdates endpoints (E2E):', function() {
             
             mailman.once(msgSubject, function(msg) {
                 testNewUpdateMsg(msg, mockCamps[0]);
-                
-                // test that updateRequest is set successfully on campaign
-                requestUtils.qRequest('get', {
-                    url: config.adsUrl + '/campaigns/cam-1',
-                    jar: selfieJar
-                }).then(function(resp) {
-                    expect(resp.response.statusCode).toBe(200);
-                    expect(resp.body.status).toBe('draft');
-                    expect(resp.body.updateRequest).toBe(createdUpdate.id);
-                }).catch(function(error) {
-                    expect(util.inspect(error)).not.toBeDefined();
-                }).done(done);
+                mailmanDef.resolve();
             });
+            mockman.on('newUpdateRequest', function(record) {
+                expect(new Date(record.data.date)).not.toBe(NaN);
+                expect(record.data.campaign).toEqual(jasmine.objectContaining({
+                    id: 'cam-1',
+                    name: 'e2e test 1',
+                    status: 'draft',
+                    user: 'e2e-user'
+                }));
+                expect(record.data.updateRequest).toEqual(createdUpdate);
+                expect(record.data.user).toEqual(jasmine.objectContaining({
+                    id: 'e2e-user',
+                    status: 'active',
+                    email: 'c6e2etester@gmail.com',
+                    org: 'o-selfie'
+                }));
+                mockmanDef.resolve();
+            });
+            q.all([mockmanDef.promise, mailmanDef.promise]).thenResolve().then(done);
         });
         
         it('should immediately apply if the requester has the autoApproveUpdates entitlement', function(done) {
@@ -862,39 +879,13 @@ describe('ads campaignUpdates endpoints (E2E):', function() {
             }).done(done);
         });
 
-        it('should produce a newUpdateRequest event', function(done) {
-            var mockmanDef = q.defer(), mailmanDef = q.defer();
-            q.all([mockmanDef.promise, mailmanDef.promise]).thenResolve().then(done);
-            mailman.once(msgSubject, mailmanDef.resolve);
-
-            requestUtils.qRequest('post', options).then(function(resp) {
-                mockman.on('newUpdateRequest', function(record) {
-                    expect(new Date(record.data.date)).not.toBe(NaN);
-                    expect(record.data.campaign).toEqual(jasmine.objectContaining({
-                        id: 'cam-1',
-                        name: 'e2e test 1',
-                        status: 'draft',
-                        user: 'e2e-user'
-                    }));
-                    expect(record.data.updateRequest).toEqual(resp.body);
-                    expect(record.data.user).toEqual(jasmine.objectContaining({
-                        id: 'e2e-user',
-                        status: 'active',
-                        email: 'c6e2etester@gmail.com',
-                        org: 'o-selfie'
-                    }));
-                    mockmanDef.resolve();
-                });
-            }).catch(done.fail);
-        });
-
         describe('if sending an initial submit request', function() {
             beforeEach(function() {
                 options.json.data = { status: 'pending' };
             });
 
             it('should set the status of the campaign to pending', function(done) {
-                var createdUpdate;
+                var mockmanDef = q.defer(), mailmanDef = q.defer(), createdUpdate;
                 requestUtils.qRequest('post', options).then(function(resp) {
                     expect(resp.response.statusCode).toBe(201);
                     if (resp.response.statusCode !== 201) {
@@ -908,6 +899,16 @@ describe('ads campaignUpdates endpoints (E2E):', function() {
                     expect(resp.body.initialSubmit).toBe(true);
                     expect(resp.body.data.status).toBe('pending');
                     createdUpdate = resp.body;
+
+                    // test campaign updated successfully
+                    return requestUtils.qRequest('get', {
+                        url: config.adsUrl + '/campaigns/cam-1',
+                        jar: selfieJar
+                    });
+                }).then(function(resp) {
+                    expect(resp.response.statusCode).toBe(200);
+                    expect(resp.body.status).toBe('pending');
+                    expect(resp.body.updateRequest).toBe(createdUpdate.id);
                 }).catch(function(error) {
                     expect(util.inspect(error)).not.toBeDefined();
                     done();
@@ -915,19 +916,16 @@ describe('ads campaignUpdates endpoints (E2E):', function() {
                 
                 mailman.once(msgSubject, function(msg) {
                     testNewUpdateMsg(msg, mockCamps[0]);
-                    
-                    // test campaign updated successfully
-                    requestUtils.qRequest('get', {
-                        url: config.adsUrl + '/campaigns/cam-1',
-                        jar: selfieJar
-                    }).then(function(resp) {
-                        expect(resp.response.statusCode).toBe(200);
-                        expect(resp.body.status).toBe('pending');
-                        expect(resp.body.updateRequest).toBe(createdUpdate.id);
-                    }).catch(function(error) {
-                        expect(util.inspect(error)).not.toBeDefined();
-                    }).done(done);
+                    mailmanDef.resolve();
                 });
+                mockman.on('newUpdateRequest', function(record) {
+                    expect(new Date(record.data.date)).not.toBe(NaN);
+                    expect(record.data.campaign).toBeDefined();
+                    expect(record.data.updateRequest).toBeDefined();
+                    expect(record.data.user).toBeDefined();
+                    mockmanDef.resolve();
+                });
+                q.all([mockmanDef.promise, mailmanDef.promise]).thenResolve().then(done);
             });
             
             it('should 400 if the campaign\'s current budget is too high for the account to afford', function(done) {
@@ -968,7 +966,7 @@ describe('ads campaignUpdates endpoints (E2E):', function() {
             });
 
             it('should set the status of the campaign to pending', function(done) {
-                var createdUpdate;
+                var mockmanDef = q.defer(), mailmanDef = q.defer(), createdUpdate;
                 requestUtils.qRequest('post', options).then(function(resp) {
                     expect(resp.response.statusCode).toBe(201);
                     if (resp.response.statusCode !== 201) {
@@ -982,6 +980,16 @@ describe('ads campaignUpdates endpoints (E2E):', function() {
                     expect(resp.body.renewal).toBe(true);
                     expect(resp.body.data.status).toBe('pending');
                     createdUpdate = resp.body;
+
+                    // test campaign updated successfully
+                    return requestUtils.qRequest('get', {
+                        url: config.adsUrl + '/campaigns/cam-expired',
+                        jar: selfieJar
+                    });
+                }).then(function(resp) {
+                    expect(resp.response.statusCode).toBe(200);
+                    expect(resp.body.status).toBe('pending');
+                    expect(resp.body.updateRequest).toBe(createdUpdate.id);
                 }).catch(function(error) {
                     expect(util.inspect(error)).not.toBeDefined();
                     done();
@@ -989,19 +997,16 @@ describe('ads campaignUpdates endpoints (E2E):', function() {
                 
                 mailman.once(msgSubject, function(msg) {
                     testNewUpdateMsg(msg, mockCamps[2]);
-                    
-                    // test campaign updated successfully
-                    requestUtils.qRequest('get', {
-                        url: config.adsUrl + '/campaigns/cam-expired',
-                        jar: selfieJar
-                    }).then(function(resp) {
-                        expect(resp.response.statusCode).toBe(200);
-                        expect(resp.body.status).toBe('pending');
-                        expect(resp.body.updateRequest).toBe(createdUpdate.id);
-                    }).catch(function(error) {
-                        expect(util.inspect(error)).not.toBeDefined();
-                    }).done(done);
+                    mailmanDef.resolve();
                 });
+                mockman.on('newUpdateRequest', function(record) {
+                    expect(new Date(record.data.date)).not.toBe(NaN);
+                    expect(record.data.campaign).toBeDefined();
+                    expect(record.data.updateRequest).toBeDefined();
+                    expect(record.data.user).toBeDefined();
+                    mockmanDef.resolve();
+                });
+                q.all([mockmanDef.promise, mailmanDef.promise]).thenResolve().then(done);
             });
 
             it('should 400 if the campaign\'s current budget is too high for the account to afford', function(done) {
@@ -1051,7 +1056,7 @@ describe('ads campaignUpdates endpoints (E2E):', function() {
             });
             
             it('should allow editing card attributes', function(done) {
-                var createdUpdate;
+                var mockmanDef = q.defer(), mailmanDef = q.defer(), createdUpdate;
                 requestUtils.qRequest('post', options).then(function(resp) {
                     expect(resp.response.statusCode).toBe(201);
                     if (resp.response.statusCode !== 201) {
@@ -1074,6 +1079,16 @@ describe('ads campaignUpdates endpoints (E2E):', function() {
                         }]
                     }));
                     createdUpdate = resp.body;
+                    
+                    // test that updateRequest is set successfully on campaign
+                    return requestUtils.qRequest('get', {
+                        url: config.adsUrl + '/campaigns/' + createdCamp.id,
+                        jar: selfieJar
+                    });
+                }).then(function(resp) {
+                    expect(resp.response.statusCode).toBe(200);
+                    expect(resp.body.status).toBe('draft');
+                    expect(resp.body.updateRequest).toBe(createdUpdate.id);
                 }).catch(function(error) {
                     expect(util.inspect(error)).not.toBeDefined();
                     done();
@@ -1081,22 +1096,20 @@ describe('ads campaignUpdates endpoints (E2E):', function() {
                 
                 mailman.once(msgSubject, function(msg) {
                     testNewUpdateMsg(msg, createdCampDecorated);
-                    
-                    // test that updateRequest is set successfully on campaign
-                    requestUtils.qRequest('get', {
-                        url: config.adsUrl + '/campaigns/' + createdCamp.id,
-                        jar: selfieJar
-                    }).then(function(resp) {
-                        expect(resp.response.statusCode).toBe(200);
-                        expect(resp.body.status).toBe('draft');
-                        expect(resp.body.updateRequest).toBe(createdUpdate.id);
-                    }).catch(function(error) {
-                        expect(util.inspect(error)).not.toBeDefined();
-                    }).done(done);
+                    mailmanDef.resolve();
                 });
+                mockman.on('newUpdateRequest', function(record) {
+                    expect(new Date(record.data.date)).not.toBe(NaN);
+                    expect(record.data.campaign).toBeDefined();
+                    expect(record.data.updateRequest).toBeDefined();
+                    expect(record.data.user).toBeDefined();
+                    mockmanDef.resolve();
+                });
+                q.all([mockmanDef.promise, mailmanDef.promise]).thenResolve().then(done);
             });
             
             it('should trim forbidden card fields', function(done) {
+                var mockmanDef = q.defer(), mailmanDef = q.defer(), createdUpdate;
                 options.json.data.cards[0].data = {
                     skip: true,
                     controls: false,
@@ -1136,8 +1149,12 @@ describe('ads campaignUpdates endpoints (E2E):', function() {
                 });
                 
                 mailman.once(msgSubject, function(msg) {
-                    done();
+                    mailmanDef.resolve();
                 });
+                mockman.on('newUpdateRequest', function(record) {
+                    mockmanDef.resolve();
+                });
+                q.all([mockmanDef.promise, mailmanDef.promise]).thenResolve().then(done);
             });
 
             it('should prevent selfie users from adding a second card', function(done) {
@@ -1240,7 +1257,7 @@ describe('ads campaignUpdates endpoints (E2E):', function() {
         });
         
         it('should trim off forbidden fields from the data', function(done) {
-            var createdUpdate;
+            var mockmanDef = q.defer(), mailmanDef = q.defer(), createdUpdate;
             options.json.data = {
                 name: 'updated name',
                 miniReels: [{ id: 'e-1' }],
@@ -1261,6 +1278,16 @@ describe('ads campaignUpdates endpoints (E2E):', function() {
                 expect(resp.body.data.staticCardMap).not.toBeDefined();
                 expect(resp.body.data.rejectionReason).not.toBeDefined();
                 createdUpdate = resp.body;
+                
+                // test that updateRequest is set successfully on campaign
+                return requestUtils.qRequest('get', {
+                    url: config.adsUrl + '/campaigns/cam-1',
+                    jar: selfieJar
+                });
+            }).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.body.status).toBe('draft');
+                expect(resp.body.updateRequest).toBe(createdUpdate.id);
             }).catch(function(error) {
                 expect(util.inspect(error)).not.toBeDefined();
                 done();
@@ -1268,19 +1295,12 @@ describe('ads campaignUpdates endpoints (E2E):', function() {
             
             mailman.once(msgSubject, function(msg) {
                 testNewUpdateMsg(msg, mockCamps[0]);
-                
-                // test that updateRequest is set successfully on campaign
-                requestUtils.qRequest('get', {
-                    url: config.adsUrl + '/campaigns/cam-1',
-                    jar: selfieJar
-                }).then(function(resp) {
-                    expect(resp.response.statusCode).toBe(200);
-                    expect(resp.body.status).toBe('draft');
-                    expect(resp.body.updateRequest).toBe(createdUpdate.id);
-                }).catch(function(error) {
-                    expect(util.inspect(error)).not.toBeDefined();
-                }).done(done);
+                mailmanDef.resolve();
             });
+            mockman.on('newUpdateRequest', function(record) {
+                mockmanDef.resolve();
+            });
+            q.all([mockmanDef.promise, mailmanDef.promise]).thenResolve().then(done);
         });
         
         it('should prevent creating updates for a campaign the user cannot see', function(done) {
@@ -1435,6 +1455,7 @@ describe('ads campaignUpdates endpoints (E2E):', function() {
         });
         
         it('should be able to approve an update and notify the campaign owner', function(done) {
+            var mockmanDef = q.defer(), mailmanDef = q.defer(), returnedBody;
             options.json.status = 'approved';
             mailman.once(rejectSubject, function(msg) { expect(util.inspect(msg).substring(0, 200)).not.toBeDefined(); });
 
@@ -1461,6 +1482,26 @@ describe('ads campaignUpdates endpoints (E2E):', function() {
                     user: 'e2e-user',
                     org: 'o-selfie'
                 });
+                returnedBody = resp.body;
+                
+                // test that campaign successfully edited
+                return requestUtils.qRequest('get', {
+                    url: config.adsUrl + '/campaigns/cam-1',
+                    jar: selfieJar
+                });
+            }).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.body.updateRequest).not.toBeDefined();
+                expect(resp.body.name).toBe('fernando');
+                expect(resp.body.pricing).toEqual({ budget: 500, dailyLimit: 100, cost: 0.08, model: 'cpv' });
+                expect(resp.body.targeting).toEqual({
+                    geo: {
+                        states: ['new jersey'],
+                        dmas: ['new york city', 'newark']
+                    },
+                    demographics: { gender: ['male'] },
+                    interests: ['cat-3']
+                });
             }).catch(function(error) {
                 expect(util.inspect(error)).not.toBeDefined();
                 done();
@@ -1468,31 +1509,24 @@ describe('ads campaignUpdates endpoints (E2E):', function() {
 
             mailman.once(approveSubject, function(msg) {
                 testApprovalMsg(msg, mockCamps[0], false);
-                
-                // test that campaign successfully edited
-                requestUtils.qRequest('get', {
-                    url: config.adsUrl + '/campaigns/cam-1',
-                    jar: selfieJar
-                }).then(function(resp) {
-                    expect(resp.response.statusCode).toBe(200);
-                    expect(resp.body.updateRequest).not.toBeDefined();
-                    expect(resp.body.name).toBe('fernando');
-                    expect(resp.body.pricing).toEqual({ budget: 500, dailyLimit: 100, cost: 0.08, model: 'cpv' });
-                    expect(resp.body.targeting).toEqual({
-                        geo: {
-                            states: ['new jersey'],
-                            dmas: ['new york city', 'newark']
-                        },
-                        demographics: { gender: ['male'] },
-                        interests: ['cat-3']
-                    });
-                }).catch(function(error) {
-                    expect(util.inspect(error)).not.toBeDefined();
-                }).done(done);
+                mailmanDef.resolve();
             });
+            mockman.on('campaignUpdateApproved', function(record) {
+                expect(new Date(record.data.date)).not.toBe(NaN);
+                expect(record.data.campaign).toEqual(jasmine.objectContaining({
+                    id: 'cam-1',
+                    name: 'e2e test 1',
+                    status: 'active',
+                    user: 'e2e-user'
+                }));
+                expect(record.data.updateRequest).toEqual(returnedBody);
+                mockmanDef.resolve();
+            });
+            q.all([mockmanDef.promise, mailmanDef.promise]).thenResolve().then(done);
         });
 
         it('should be able to reject an update and notify the campaign owner', function(done) {
+            var mockmanDef = q.defer(), mailmanDef = q.defer(), returnedBody;
             options.json = { status: 'rejected', rejectionReason: 'yo campaign stinks' };
             mailman.once(approveSubject, function(msg) { expect(util.inspect(msg).substring(0, 200)).not.toBeDefined(); });
 
@@ -1502,6 +1536,20 @@ describe('ads campaignUpdates endpoints (E2E):', function() {
                 expect(resp.body.status).toBe('rejected');
                 expect(resp.body.rejectionReason).toBe('yo campaign stinks');
                 expect(resp.body.campaign).toBe('cam-1');
+                returnedBody = resp.body;
+                
+                // test that campaign successfully unlocked
+                return requestUtils.qRequest('get', {
+                    url: config.adsUrl + '/campaigns/cam-1',
+                    jar: selfieJar
+                });
+            }).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.body.updateRequest).not.toBeDefined();
+                expect(resp.body.rejectionReason).toBe('yo campaign stinks');
+                expect(resp.body.name).toBe(mockCamps[0].name);
+                expect(resp.body.pricing).toEqual(mockCamps[0].pricing);
+                expect(resp.body.targeting).toEqual(mockCamps[0].targeting);
             }).catch(function(error) {
                 expect(util.inspect(error)).not.toBeDefined();
                 done();
@@ -1509,64 +1557,20 @@ describe('ads campaignUpdates endpoints (E2E):', function() {
 
             mailman.once(rejectSubject, function(msg) {
                 testRejectMsg(msg, mockCamps[0], 'yo campaign stinks', false);
-                
-                // test that campaign successfully unlocked
-                requestUtils.qRequest('get', {
-                    url: config.adsUrl + '/campaigns/cam-1',
-                    jar: selfieJar
-                }).then(function(resp) {
-                    expect(resp.response.statusCode).toBe(200);
-                    expect(resp.body.updateRequest).not.toBeDefined();
-                    expect(resp.body.rejectionReason).toBe('yo campaign stinks');
-                    expect(resp.body.name).toBe(mockCamps[0].name);
-                    expect(resp.body.pricing).toEqual(mockCamps[0].pricing);
-                    expect(resp.body.targeting).toEqual(mockCamps[0].targeting);
-                }).catch(function(error) {
-                    expect(util.inspect(error)).not.toBeDefined();
-                }).done(done);
+                mailmanDef.resolve();
             });
-        });
-        
-        it('should be able to produce a campaignUpdateApproved event', function(done) {
-            var mockmanDef = q.defer(), mailmanDef = q.defer();
+            mockman.on('campaignUpdateRejected', function(record) {
+                expect(new Date(record.data.date)).not.toBe(NaN);
+                expect(record.data.campaign).toEqual(jasmine.objectContaining({
+                    id: 'cam-1',
+                    name: 'e2e test 1',
+                    status: 'active',
+                    user: 'e2e-user'
+                }));
+                expect(record.data.updateRequest).toEqual(returnedBody);
+                mockmanDef.resolve();
+            });
             q.all([mockmanDef.promise, mailmanDef.promise]).thenResolve().then(done);
-            mailman.once(approveSubject, mailmanDef.resolve);
-
-            options.json.status = 'approved';
-            requestUtils.qRequest('put', options).then(function(resp) {
-                mockman.on('campaignUpdateApproved', function(record) {
-                    expect(new Date(record.data.date)).not.toBe(NaN);
-                    expect(record.data.campaign).toEqual(jasmine.objectContaining({
-                        id: 'cam-1',
-                        name: 'e2e test 1',
-                        status: 'active',
-                        user: 'e2e-user'
-                    }));
-                    expect(record.data.updateRequest).toEqual(resp.body);
-                    mockmanDef.resolve();
-                });
-            }).catch(done.fail);
-        });
-        
-        it('should be able to produce a campaignUpdateRejected event', function(done) {
-            var mockmanDef = q.defer(), mailmanDef = q.defer();
-            q.all([mockmanDef.promise, mailmanDef.promise]).thenResolve().then(done);
-            mailman.once(rejectSubject, mailmanDef.resolve);
-
-            options.json = { status: 'rejected', rejectionReason: 'yo campaign stinks' };
-            requestUtils.qRequest('put', options).then(function(resp) {
-                mockman.on('campaignUpdateRejected', function(record) {
-                    expect(new Date(record.data.date)).not.toBe(NaN);
-                    expect(record.data.campaign).toEqual(jasmine.objectContaining({
-                        id: 'cam-1',
-                        name: 'e2e test 1',
-                        status: 'active',
-                        user: 'e2e-user'
-                    }));
-                    expect(record.data.updateRequest).toEqual(resp.body);
-                    mockmanDef.resolve();
-                });
-            }).catch(done.fail);
         });
         
         it('should return a 400 if attempting to reject an update without a reason', function(done) {
@@ -1582,137 +1586,295 @@ describe('ads campaignUpdates endpoints (E2E):', function() {
         });
         
         describe('if an update is an inital request for approval', function() {
+            var pendingCamp, pendingUpdate;
             beforeEach(function(done) {
                 approveSubject = 'Reelcontent Campaign Approved';
                 rejectSubject = 'Reelcontent Campaign Rejected';
-                var mockUpdate = {
-                    id: 'ur-1',
+                pendingCamp = {
+                    id: 'cam-pending-approval',
+                    name: 'my first campaign',
                     status: 'pending',
                     user: 'e2e-user',
                     org: 'o-selfie',
-                    campaign: 'cam-1',
-                    initialSubmit: true,
-                    data: { status: 'pending' }
+                    advertiserId: 'e2e-a-keepme',
+                    updateRequest: 'ur-pending-approval',
+                    statusHistory: [
+                        { date: new Date('2016-04-26T20:43:14.321Z'), userId: 'e2e-user', user: 'c6e2etester@gmail.com', status: 'pending' },
+                        { date: new Date('2016-04-25T20:43:14.321Z'), userId: 'e2e-user', user: 'c6e2etester@gmail.com', status: 'draft' }
+                    ]
                 };
-                mockCamps[0].status = 'pending';
+                pendingUpdate = {
+                    id: 'ur-pending-approval',
+                    status: 'pending',
+                    user: 'e2e-user',
+                    org: 'o-selfie',
+                    campaign: 'cam-pending-approval',
+                    initialSubmit: true,
+                    data: {
+                        status: 'pending',
+                        statusHistory: [
+                            { date: new Date('2016-04-26T20:43:14.321Z'), userId: 'e2e-user', user: 'c6e2etester@gmail.com', status: 'pending' },
+                            { date: new Date('2016-04-25T20:43:14.321Z'), userId: 'e2e-user', user: 'c6e2etester@gmail.com', status: 'draft' }
+                        ]
+                    }
+                };
+                
+                options.url = config.adsUrl + '/campaigns/' + pendingCamp.id + '/updates/' + pendingUpdate.id;
                 options.json = {};
+
                 q.all([
-                    testUtils.resetCollection('campaignUpdates', mockUpdate),
-                    testUtils.resetCollection('campaigns', mockCamps),
+                    testUtils.mongoUpsert('campaignUpdates', { id: pendingUpdate.id }, pendingUpdate),
+                    testUtils.mongoUpsert('campaigns', { id: pendingCamp.id }, pendingCamp)
                 ]).done(function() { done(); });
             });
             
-            it('should send a different email when approving the update', function(done) {
+            it('should send a different email and a campaignApproved event when approving the update', function(done) {
                 options.json.status = 'approved';
-                mailman.once(rejectSubject, function(msg) { expect(util.inspect(msg).substring(0, 200)).not.toBeDefined(); });
+
+                var mockmanDef = q.defer(), mailmanDef = q.defer(), returnedBody;
 
                 requestUtils.qRequest('put', options).then(function(resp) {
                     expect(resp.response.statusCode).toBe(200);
-                    expect(resp.body.id).toEqual('ur-1');
+                    expect(resp.body.id).toEqual(pendingUpdate.id);
                     expect(resp.body.status).toBe('approved');
-                    expect(resp.body.campaign).toBe('cam-1');
+                    expect(resp.body.campaign).toBe(pendingCamp.id);
                     expect(resp.body.data.status).toBe('pending');
+                    returnedBody = resp.body;
+                    
+                    // test that campaign successfully edited
+                    return requestUtils.qRequest('get', {
+                        url: config.adsUrl + '/campaigns/' + pendingCamp.id,
+                        jar: selfieJar
+                    });
+                }).then(function(resp) {
+                    expect(resp.response.statusCode).toBe(200);
+                    expect(resp.body.updateRequest).not.toBeDefined();
+                    expect(resp.body.name).toBe(pendingCamp.name);
+                    expect(resp.body.status).toBe('pending');
+                    expect(JSON.stringify(resp.body.statusHistory)).toEqual(JSON.stringify(pendingCamp.statusHistory));
+                    expect(resp.body.pricing).toEqual(pendingCamp.pricing);
                 }).catch(function(error) {
                     expect(util.inspect(error)).not.toBeDefined();
                     done();
                 });
 
                 mailman.once(approveSubject, function(msg) {
-                    testApprovalMsg(msg, mockCamps[0], true);
-                    
-                    // test that campaign successfully edited
-                    requestUtils.qRequest('get', {
-                        url: config.adsUrl + '/campaigns/cam-1',
-                        jar: selfieJar
-                    }).then(function(resp) {
-                        expect(resp.response.statusCode).toBe(200);
-                        expect(resp.body.updateRequest).not.toBeDefined();
-                        expect(resp.body.name).toBe(mockCamps[0].name);
-                        expect(resp.body.status).toBe('pending');
-                        expect(resp.body.pricing).toEqual(mockCamps[0].pricing);
-                    }).catch(function(error) {
-                        expect(util.inspect(error)).not.toBeDefined();
-                    }).done(done);
+                    testApprovalMsg(msg, pendingCamp, true);
+                    mailmanDef.resolve();
                 });
+                mockman.on('campaignApproved', function(record) {
+                    expect(record.type).toBe('campaignApproved');
+                    expect(new Date(record.data.date)).not.toBe(NaN);
+                    expect(record.data.campaign).toEqual(jasmine.objectContaining({
+                        id: pendingCamp.id,
+                        name: pendingCamp.name,
+                        status: 'pending',
+                        user: 'e2e-user'
+                    }));
+                    expect(record.data.updateRequest).toEqual(returnedBody);
+                    mockmanDef.resolve();
+                });
+                q.all([mockmanDef.promise, mailmanDef.promise]).thenResolve().then(done);
             });
 
             it('should switch the campaign back to draft if rejecting the update', function(done) {
                 options.json.status = 'rejected';
                 options.json.rejectionReason = 'I got a problem with YOU';
-                mailman.once(approveSubject, function(msg) { expect(util.inspect(msg).substring(0, 200)).not.toBeDefined(); });
+
+                var mockmanDef = q.defer(), mailmanDef = q.defer(), returnedBody;
 
                 requestUtils.qRequest('put', options).then(function(resp) {
                     expect(resp.response.statusCode).toBe(200);
-                    expect(resp.body.id).toEqual('ur-1');
+                    expect(resp.body.id).toEqual(pendingUpdate.id);
                     expect(resp.body.status).toBe('rejected');
-                    expect(resp.body.campaign).toBe('cam-1');
+                    expect(resp.body.campaign).toBe(pendingCamp.id);
                     expect(resp.body.data.status).toBe('pending');
+                    returnedBody = resp.body;
+                    
+                    // test that campaign successfully edited
+                    return requestUtils.qRequest('get', {
+                        url: config.adsUrl + '/campaigns/' + pendingCamp.id,
+                        jar: selfieJar
+                    });
+                }).then(function(resp) {
+                    expect(resp.response.statusCode).toBe(200);
+                    expect(resp.body.updateRequest).not.toBeDefined();
+                    expect(resp.body.name).toBe(pendingCamp.name);
+                    expect(resp.body.status).toBe('draft');
+                    expect(resp.body.statusHistory).toEqual([
+                        { date: jasmine.anything(), userId: 'admin-e2e-user', user: 'adminuser', status: 'draft' },
+                        { date: '2016-04-26T20:43:14.321Z', userId: 'e2e-user', user: 'c6e2etester@gmail.com', status: 'pending' },
+                        { date: '2016-04-25T20:43:14.321Z', userId: 'e2e-user', user: 'c6e2etester@gmail.com', status: 'draft' }
+                    ]);
+                    expect(resp.body.rejectionReason).toBe('I got a problem with YOU');
                 }).catch(function(error) {
                     expect(util.inspect(error)).not.toBeDefined();
                     done();
                 });
 
                 mailman.once(rejectSubject, function(msg) {
-                    testRejectMsg(msg, mockCamps[0], 'I got a problem with YOU', true);
-                    
-                    // test that campaign successfully edited
-                    requestUtils.qRequest('get', {
-                        url: config.adsUrl + '/campaigns/cam-1',
-                        jar: selfieJar
-                    }).then(function(resp) {
-                        expect(resp.response.statusCode).toBe(200);
-                        expect(resp.body.updateRequest).not.toBeDefined();
-                        expect(resp.body.name).toBe(mockCamps[0].name);
-                        expect(resp.body.status).toBe('draft');
-                        expect(resp.body.rejectionReason).toBe('I got a problem with YOU');
-                    }).catch(function(error) {
-                        expect(util.inspect(error)).not.toBeDefined();
-                    }).done(done);
+                    testRejectMsg(msg, pendingCamp, 'I got a problem with YOU', true);
+                    mailmanDef.resolve();
                 });
-            });
-
-            it('should be able to produce a campaignApproved event', function(done) {
-                var mockmanDef = q.defer(), mailmanDef = q.defer();
+                mockman.on('campaignRejected', function(record) {
+                    expect(record.type).toBe('campaignRejected');
+                    expect(new Date(record.data.date)).not.toBe(NaN);
+                    expect(record.data.campaign).toEqual(jasmine.objectContaining({
+                        id: pendingCamp.id,
+                        name: pendingCamp.name,
+                        status: 'pending',
+                        user: 'e2e-user'
+                    }));
+                    expect(record.data.updateRequest).toEqual(returnedBody);
+                    mockmanDef.resolve();
+                });
                 q.all([mockmanDef.promise, mailmanDef.promise]).thenResolve().then(done);
-                mailman.once(approveSubject, mailmanDef.resolve);
+            });
+        });
+        
+        describe('if an update was a renewal', function() {
+            var pendingCamp, pendingUpdate;
+            beforeEach(function(done) {
+                pendingCamp = {
+                    id: 'cam-pending-renewal',
+                    name: 'my first campaign',
+                    status: 'pending',
+                    user: 'e2e-user',
+                    org: 'o-selfie',
+                    advertiserId: 'e2e-a-keepme',
+                    updateRequest: 'ur-pending-renewal',
+                    statusHistory: [
+                        { date: new Date('2016-04-26T20:43:14.321Z'), userId: 'e2e-user', user: 'c6e2etester@gmail.com', status: 'pending' },
+                        { date: new Date('2016-04-25T20:43:14.321Z'), userId: 'e2e-user', user: 'c6e2etester@gmail.com', status: 'expired' },
+                        { date: new Date('2016-04-24T20:43:14.321Z'), userId: 'e2e-user', user: 'c6e2etester@gmail.com', status: 'active' }
+                    ]
+                };
+                pendingUpdate = {
+                    id: 'ur-pending-renewal',
+                    status: 'pending',
+                    user: 'e2e-user',
+                    org: 'o-selfie',
+                    campaign: 'cam-pending-renewal',
+                    renewal: true,
+                    data: {
+                        status: 'pending',
+                        statusHistory: [
+                            { date: new Date('2016-04-26T20:43:14.321Z'), userId: 'e2e-user', user: 'c6e2etester@gmail.com', status: 'pending' },
+                            { date: new Date('2016-04-25T20:43:14.321Z'), userId: 'e2e-user', user: 'c6e2etester@gmail.com', status: 'expired' },
+                            { date: new Date('2016-04-24T20:43:14.321Z'), userId: 'e2e-user', user: 'c6e2etester@gmail.com', status: 'active' }
+                        ]
+                    }
+                };
+                
+                options.url = config.adsUrl + '/campaigns/' + pendingCamp.id + '/updates/' + pendingUpdate.id;
+                options.json = {};
 
-                options.json.status = 'approved';
-                requestUtils.qRequest('put', options).then(function(resp) {
-                    mockman.on('campaignApproved', function(record) {
-                        expect(record.type).toBe('campaignApproved');
-                        expect(new Date(record.data.date)).not.toBe(NaN);
-                        expect(record.data.campaign).toEqual(jasmine.objectContaining({
-                            id: 'cam-1',
-                            name: 'e2e test 1',
-                            status: 'pending',
-                            user: 'e2e-user'
-                        }));
-                        expect(record.data.updateRequest).toEqual(resp.body);
-                        mockmanDef.resolve();
-                    });
-                }).catch(done.fail);
+                q.all([
+                    testUtils.mongoUpsert('campaignUpdates', { id: pendingUpdate.id }, pendingUpdate),
+                    testUtils.mongoUpsert('campaigns', { id: pendingCamp.id }, pendingCamp)
+                ]).done(function() { done(); });
             });
             
-            it('should be able to produce a campaignRejected event', function(done) {
-                var mockmanDef = q.defer(), mailmanDef = q.defer();
-                q.all([mockmanDef.promise, mailmanDef.promise]).thenResolve().then(done);
-                mailman.once(rejectSubject, mailmanDef.resolve);
+            it('should send an email and a campaignUpdateApproved event when approving the update', function(done) {
+                options.json.status = 'approved';
 
-                options.json = { status: 'rejected', rejectionReason: 'yo campaign stinks' };
+                var mockmanDef = q.defer(), mailmanDef = q.defer(), returnedBody;
                 requestUtils.qRequest('put', options).then(function(resp) {
-                    mockman.on('campaignRejected', function(record) {
-                        expect(record.type).toBe('campaignRejected');
-                        expect(new Date(record.data.date)).not.toBe(NaN);
-                        expect(record.data.campaign).toEqual(jasmine.objectContaining({
-                            id: 'cam-1',
-                            name: 'e2e test 1',
-                            status: 'pending',
-                            user: 'e2e-user'
-                        }));
-                        expect(record.data.updateRequest).toEqual(resp.body);
-                        mockmanDef.resolve();
+                    expect(resp.response.statusCode).toBe(200);
+                    expect(resp.body.id).toEqual(pendingUpdate.id);
+                    expect(resp.body.status).toBe('approved');
+                    expect(resp.body.campaign).toBe(pendingCamp.id);
+                    expect(resp.body.data.status).toBe('pending');
+                    returnedBody = resp.body;
+                    
+                    // test that campaign successfully edited
+                    return requestUtils.qRequest('get', {
+                        url: config.adsUrl + '/campaigns/' + pendingCamp.id,
+                        jar: selfieJar
                     });
-                }).catch(done.fail);
+                }).then(function(resp) {
+                    expect(resp.response.statusCode).toBe(200);
+                    expect(resp.body.updateRequest).not.toBeDefined();
+                    expect(resp.body.name).toBe(pendingCamp.name);
+                    expect(resp.body.status).toBe('pending');
+                    expect(JSON.stringify(resp.body.statusHistory)).toEqual(JSON.stringify(pendingCamp.statusHistory));
+                    expect(resp.body.pricing).toEqual(pendingCamp.pricing);
+                }).catch(function(error) {
+                    expect(util.inspect(error)).not.toBeDefined();
+                    done();
+                });
+
+                mailman.once(approveSubject, function(msg) {
+                    testApprovalMsg(msg, pendingCamp, false);
+                    mailmanDef.resolve();
+                });
+                mockman.on('campaignUpdateApproved', function(record) {
+                    expect(record.type).toBe('campaignUpdateApproved');
+                    expect(new Date(record.data.date)).not.toBe(NaN);
+                    expect(record.data.campaign).toEqual(jasmine.objectContaining({
+                        id: pendingCamp.id,
+                        name: pendingCamp.name,
+                        status: 'pending',
+                        user: 'e2e-user'
+                    }));
+                    expect(record.data.updateRequest).toEqual(returnedBody);
+                    mockmanDef.resolve();
+                });
+                q.all([mockmanDef.promise, mailmanDef.promise]).thenResolve().then(done);
+            });
+
+            it('should switch the campaign back to its previous status if rejecting the update', function(done) {
+                options.json.status = 'rejected';
+                options.json.rejectionReason = 'I got a problem with YOU';
+
+                var mockmanDef = q.defer(), mailmanDef = q.defer(), returnedBody;
+                requestUtils.qRequest('put', options).then(function(resp) {
+                    expect(resp.response.statusCode).toBe(200);
+                    expect(resp.body.id).toEqual(pendingUpdate.id);
+                    expect(resp.body.status).toBe('rejected');
+                    expect(resp.body.campaign).toBe(pendingCamp.id);
+                    expect(resp.body.data.status).toBe('pending');
+                    returnedBody = resp.body;
+                    
+                    // test that campaign successfully edited
+                    return requestUtils.qRequest('get', {
+                        url: config.adsUrl + '/campaigns/' + pendingCamp.id,
+                        jar: selfieJar
+                    });
+                }).then(function(resp) {
+                    expect(resp.response.statusCode).toBe(200);
+                    expect(resp.body.updateRequest).not.toBeDefined();
+                    expect(resp.body.name).toBe(pendingCamp.name);
+                    expect(resp.body.status).toBe('expired');
+                    expect(resp.body.statusHistory).toEqual([
+                        { date: jasmine.anything(), userId: 'admin-e2e-user', user: 'adminuser', status: 'expired' },
+                        { date: '2016-04-26T20:43:14.321Z', userId: 'e2e-user', user: 'c6e2etester@gmail.com', status: 'pending' },
+                        { date: '2016-04-25T20:43:14.321Z', userId: 'e2e-user', user: 'c6e2etester@gmail.com', status: 'expired' },
+                        { date: '2016-04-24T20:43:14.321Z', userId: 'e2e-user', user: 'c6e2etester@gmail.com', status: 'active' }
+                    ]);
+                    expect(resp.body.rejectionReason).toBe('I got a problem with YOU');
+                }).catch(function(error) {
+                    expect(util.inspect(error)).not.toBeDefined();
+                    done();
+                });
+
+                mailman.once(rejectSubject, function(msg) {
+                    testRejectMsg(msg, pendingCamp, 'I got a problem with YOU', false);
+                    mailmanDef.resolve();
+                });
+                mockman.on('campaignUpdateRejected', function(record) {
+                    expect(record.type).toBe('campaignUpdateRejected');
+                    expect(new Date(record.data.date)).not.toBe(NaN);
+                    expect(record.data.campaign).toEqual(jasmine.objectContaining({
+                        id: pendingCamp.id,
+                        name: pendingCamp.name,
+                        status: 'pending',
+                        user: 'e2e-user'
+                    }));
+                    expect(record.data.updateRequest).toEqual(returnedBody);
+                    mockmanDef.resolve();
+                });
+                q.all([mockmanDef.promise, mailmanDef.promise]).thenResolve().then(done);
             });
         });
         
@@ -1743,6 +1905,7 @@ describe('ads campaignUpdates endpoints (E2E):', function() {
             });
 
             it('should apply edits to the cards as well', function(done) {
+                var mockmanDef = q.defer(), mailmanDef = q.defer();
                 mailman.once(rejectSubject, function(msg) { expect(util.inspect(msg).substring(0, 200)).not.toBeDefined(); });
 
                 options = {
@@ -1760,6 +1923,28 @@ describe('ads campaignUpdates endpoints (E2E):', function() {
                     expect(resp.body.id).toEqual('ur-cards');
                     expect(resp.body.status).toBe('approved');
                     expect(resp.body.campaign).toBe(createdCampDecorated.id);
+                    
+                    // test that campaign successfully edited
+                    return requestUtils.qRequest('get', {
+                        url: config.adsUrl + '/campaigns/' + createdCampDecorated.id,
+                        jar: selfieJar
+                    });
+                }).then(function(resp) {
+                    expect(resp.response.statusCode).toBe(200);
+                    expect(resp.body.updateRequest).not.toBeDefined();
+                    expect(resp.body.cards[0].title).toBe('test card 2.0');
+                    expect(resp.body.cards[0].campaign).toEqual(createdCampDecorated.cards[0].campaign);
+                    expect(resp.body.cards[0].data).toEqual({
+                        skip: 5,
+                        controls: true,
+                        autoplay: true,
+                        autoadvance: false,
+                        moat: createdCampDecorated.cards[0].data.moat,
+                        videoid: 'v123'
+                    });
+                    
+                    createdCampDecorated = resp.body;
+                    return testUtils.checkCardEntities(createdCampDecorated, adminJar, config.contentUrl);
                 }).catch(function(error) {
                     expect(util.inspect(error)).not.toBeDefined();
                     done();
@@ -1767,31 +1952,13 @@ describe('ads campaignUpdates endpoints (E2E):', function() {
 
                 mailman.once(approveSubject, function(msg) {
                     testApprovalMsg(msg, createdCampDecorated, false);
-                    
-                    // test that campaign successfully edited
-                    requestUtils.qRequest('get', {
-                        url: config.adsUrl + '/campaigns/' + createdCampDecorated.id,
-                        jar: selfieJar
-                    }).then(function(resp) {
-                        expect(resp.response.statusCode).toBe(200);
-                        expect(resp.body.updateRequest).not.toBeDefined();
-                        expect(resp.body.cards[0].title).toBe('test card 2.0');
-                        expect(resp.body.cards[0].campaign).toEqual(createdCampDecorated.cards[0].campaign);
-                        expect(resp.body.cards[0].data).toEqual({
-                            skip: 5,
-                            controls: true,
-                            autoplay: true,
-                            autoadvance: false,
-                            moat: createdCampDecorated.cards[0].data.moat,
-                            videoid: 'v123'
-                        });
-                        
-                        createdCampDecorated = resp.body;
-                        return testUtils.checkCardEntities(createdCampDecorated, adminJar, config.contentUrl);
-                    }).catch(function(error) {
-                        expect(util.inspect(error)).not.toBeDefined();
-                    }).done(done);
+
+                    mailmanDef.resolve();
                 });
+                mockman.on('campaignUpdateApproved', function(record) {
+                    mockmanDef.resolve();
+                });
+                q.all([mockmanDef.promise, mailmanDef.promise]).thenResolve().then(done);
             });
         });
         

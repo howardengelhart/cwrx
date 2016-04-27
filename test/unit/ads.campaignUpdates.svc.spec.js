@@ -1443,8 +1443,14 @@ describe('ads-campaignUpdates (UT)', function() {
             req.body = { id: 'ur-1', campaign: 'cam-1', data: {}, status: Status.Approved };
             req.origObj = { id: 'ur-1', campaign: 'cam-1', data: {}, status: Status.Pending };
             req.campaign = {
-                id: 'cam-1', name: 'camp 1', updateRequest: 'u-1', status: Status.Active,
-                statusHistory: [{ userId: 'u-2', user: 'me@c6.com', status: Status.Active, date: new Date() }]
+                id: 'cam-1',
+                name: 'camp 1',
+                updateRequest: 'u-1',
+                status: Status.Active,
+                statusHistory: [
+                    { userId: 'u-2', user: 'me@c6.com', status: Status.Active, date: new Date('2016-04-26T20:43:14.321Z') },
+                    { userId: 'u-2', user: 'me@c6.com', status: Status.Draft, date: new Date('2016-04-25T20:43:14.321Z') }
+                ]
             };
             spyOn(historian, 'historify').and.callThrough();
             svc = { _db: mockDb };
@@ -1465,6 +1471,7 @@ describe('ads-campaignUpdates (UT)', function() {
                     { w: 1, j: true, returnOriginal: false, sort: { id: 1 } }
                 );
                 expect(mockLog.error).not.toHaveBeenCalled();
+                expect(mockLog.warn).not.toHaveBeenCalled();
                 done();
             });
         });
@@ -1489,13 +1496,15 @@ describe('ads-campaignUpdates (UT)', function() {
                         },
                         { w: 1, j: true, returnOriginal: false, sort: { id: 1 } }
                     );
+                    expect(mockLog.warn).not.toHaveBeenCalled();
                 }).done(done);
             });
             
-            it('should switch the status back to draft if the update was an initial approval request', function(done) {
+            it('should revert the status if the update was an initial approval request', function(done) {
                 req.campaign.status = Status.Pending;
                 req.campaign.statusHistory[0].status = Status.Pending;
-                req.body.data.status = Status.Active;
+                req.body.data.status = Status.Pending;
+                req.body.initialSubmit = true;
                 updateModule.unlockCampaign(svc, req, nextSpy, doneSpy).catch(errorSpy).finally(function() {
                     expect(nextSpy).toHaveBeenCalled();
                     expect(doneSpy).not.toHaveBeenCalled();
@@ -1504,20 +1513,78 @@ describe('ads-campaignUpdates (UT)', function() {
                     expect(historian.historify).toHaveBeenCalledWith('status', 'statusHistory', jasmine.any(Object), req.campaign, req);
                     expect(mockColl.findOneAndUpdate).toHaveBeenCalledWith(
                         { id: 'cam-1' },
+                        { $set: jasmine.any(Object), $unset: { updateRequest: 1 } },
+                        { w: 1, j: true, returnOriginal: false, sort: { id: 1 } }
+                    );
+                    var setObj = mockColl.findOneAndUpdate.calls.argsFor(0)[1].$set;
+                    expect(setObj.lastUpdated).toEqual(jasmine.any(Date));
+                    expect(setObj.rejectionReason).toEqual('worst campaign ever');
+                    expect(setObj.status).toEqual(Status.Draft);
+                    expect(setObj.statusHistory).toEqual([
+                        { userId: 'u-1', user: 'selfie@c6.com', status: Status.Draft, date: jasmine.any(Date) },
+                        { userId: 'u-2', user: 'me@c6.com', status: Status.Pending, date: new Date('2016-04-26T20:43:14.321Z') },
+                        { userId: 'u-2', user: 'me@c6.com', status: Status.Draft, date: new Date('2016-04-25T20:43:14.321Z') }
+                    ]);
+                    expect(mockLog.warn).not.toHaveBeenCalled();
+                }).done(done);
+            });
+
+            it('should revert the status if the update was a renewal request', function(done) {
+                req.campaign.status = Status.Pending;
+                req.campaign.statusHistory = [
+                    { userId: 'u-2', user: 'me@c6.com', status: Status.Pending, date: new Date('2016-04-26T20:43:14.321Z') },
+                    { userId: 'u-2', user: 'me@c6.com', status: Status.OutOfBudget, date: new Date('2016-04-25T20:43:14.321Z') },
+                    { userId: 'u-2', user: 'me@c6.com', status: Status.Draft, date: new Date('2016-04-24T20:43:14.321Z') }
+                ];
+                req.body.data.status = Status.Pending;
+                req.body.renewal = true;
+                updateModule.unlockCampaign(svc, req, nextSpy, doneSpy).catch(errorSpy).finally(function() {
+                    expect(nextSpy).toHaveBeenCalled();
+                    expect(doneSpy).not.toHaveBeenCalled();
+                    expect(errorSpy).not.toHaveBeenCalled();
+                    expect(mockDb.collection).toHaveBeenCalledWith('campaigns');
+                    expect(historian.historify).toHaveBeenCalledWith('status', 'statusHistory', jasmine.any(Object), req.campaign, req);
+                    expect(mockColl.findOneAndUpdate).toHaveBeenCalledWith(
+                        { id: 'cam-1' },
+                        { $set: jasmine.any(Object), $unset: { updateRequest: 1 } },
+                        { w: 1, j: true, returnOriginal: false, sort: { id: 1 } }
+                    );
+                    var setObj = mockColl.findOneAndUpdate.calls.argsFor(0)[1].$set;
+                    expect(setObj.lastUpdated).toEqual(jasmine.any(Date));
+                    expect(setObj.rejectionReason).toEqual('worst campaign ever');
+                    expect(setObj.status).toEqual(Status.OutOfBudget);
+                    expect(setObj.statusHistory).toEqual([
+                        { userId: 'u-1', user: 'selfie@c6.com', status: Status.OutOfBudget, date: jasmine.any(Date) },
+                        { userId: 'u-2', user: 'me@c6.com', status: Status.Pending, date: new Date('2016-04-26T20:43:14.321Z') },
+                        { userId: 'u-2', user: 'me@c6.com', status: Status.OutOfBudget, date: new Date('2016-04-25T20:43:14.321Z') },
+                        { userId: 'u-2', user: 'me@c6.com', status: Status.Draft, date: new Date('2016-04-24T20:43:14.321Z') }
+                    ]);
+                    expect(mockLog.warn).not.toHaveBeenCalled();
+                }).done(done);
+            });
+            
+            it('should warn and not revert the status if a previous status cannot be found', function(done) {
+                req.campaign.status = Status.Pending;
+                req.campaign.statusHistory = [
+                    { userId: 'u-2', user: 'me@c6.com', status: Status.Pending, date: new Date('2016-04-26T20:43:14.321Z') },
+                ];
+                req.body.data.status = Status.Pending;
+                req.body.initialSubmit = true;
+                updateModule.unlockCampaign(svc, req, nextSpy, doneSpy).catch(errorSpy).finally(function() {
+                    expect(nextSpy).toHaveBeenCalled();
+                    expect(doneSpy).not.toHaveBeenCalled();
+                    expect(errorSpy).not.toHaveBeenCalled();
+                    expect(mockDb.collection).toHaveBeenCalledWith('campaigns');
+                    expect(historian.historify).not.toHaveBeenCalled();
+                    expect(mockColl.findOneAndUpdate).toHaveBeenCalledWith(
+                        { id: 'cam-1' },
                         {
-                            $set: {
-                                lastUpdated: jasmine.any(Date),
-                                rejectionReason: 'worst campaign ever',
-                                status: Status.Draft,
-                                statusHistory: [
-                                    { userId: 'u-1', user: 'selfie@c6.com', status: Status.Draft, date: jasmine.any(Date) },
-                                    { userId: 'u-2', user: 'me@c6.com', status: Status.Pending, date: jasmine.any(Date) }
-                                ]
-                            },
+                            $set: { lastUpdated: jasmine.any(Date), rejectionReason: 'worst campaign ever' },
                             $unset: { updateRequest: 1 },
                         },
                         { w: 1, j: true, returnOriginal: false, sort: { id: 1 } }
                     );
+                    expect(mockLog.warn).toHaveBeenCalled();
                 }).done(done);
             });
         });
