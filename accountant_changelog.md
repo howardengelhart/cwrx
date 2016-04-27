@@ -1,6 +1,8 @@
 # Accountant Service Changelog
 
+### 1.2.0: Wed Apr 27 14:01:19 EDT 2016
 * [FEATURE]: Add `POST /api/accounting/credit-check` endpoint: [#872](https://github.com/cinema6/cwrx/issues/872)
+* Extra deployment steps: None
 
 ### 1.1.0: Mon Apr 18 17:05:16 EDT 2016
 * [FEATURE]: Add `GET /api/transactions` endpoint: [#833](https://github.com/cinema6/cwrx/issues/833)
