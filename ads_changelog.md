@@ -1,10 +1,12 @@
 # Ads Service Changelog
 
+### 4.7.0: Wed Apr 27 14:01:19 EDT 2016
 * Initial submit + renewal requests are now triggered by transition to pending status: [#881](https://github.com/cinema6/cwrx/issues/881)
 * [FIX]: Properly revert status when rejecting an inital submit or renewal update: [#881](https://github.com/cinema6/cwrx/issues/881)
 * Check org's available budget before allowing campaign update request: [#815](https://github.com/cinema6/cwrx/issues/815)
 * Set campaigns to `pending` when update request is created that renews the campaign: [#855](https://github.com/cinema6/cwrx/issues/855)
 * Produce a record to Kinesis when a campaign is created: [#876](https://github.com/cinema6/cwrx/pull/876)
+* Extra deployment steps: None
 
 ### 4.6.0: Mon Apr 11 12:31:33 EDT 2016
 * Produce certain campaign events to a Kinesis stream
