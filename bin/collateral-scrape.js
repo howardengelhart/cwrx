@@ -333,6 +333,38 @@
                 });
             }
         );
+
+        // public endpoints
+
+        app.get('/api/public/collateral/website-data', function(req, res) {
+            var promise = q.when(scraper.getWebsiteData(req, state.config));
+
+            promise.finally(function() {
+                res.header('cache-control', 'max-age=300');
+                return jobManager.endJob(req, res, promise.inspect())
+                    .catch(function(error) {
+                        res.send(500, {
+                            error: 'Error getting website data',
+                            detail: error
+                        });
+                    });
+            });
+        });
+
+        app.get('/api/public/collateral/product-data', function(req, res) {
+            var promise = q.when(scraper.getProductData(req, state.config, state.secrets));
+
+            promise.finally(function() {
+                res.header('cache-control', 'max-age=300');
+                return jobManager.endJob(req, res, promise.inspect())
+                    .catch(function(error) {
+                        res.send(500, {
+                            error: 'Error getting product data',
+                            detail: error
+                        });
+                    });
+            });
+        });
     };
 
     module.exports = scraper;
