@@ -79,7 +79,7 @@ describe('collateral (E2E):', function() {
     ].forEach(function(blockConfig) {
         describe(blockConfig.desc, function() {
             var files, rmList, options, samples;
-            
+
             beforeEach(function(done) {
                 options = { url: config.collateralUrl + blockConfig.endpoint, jar: cookieJar };
                 rmList = [];
@@ -95,7 +95,7 @@ describe('collateral (E2E):', function() {
                         etag: 'f538387c355263cb915d6a3cc4b42592'
                     }
                 ];
-                
+
                 q.all(samples.map(function(img) {
                     var deferred = q.defer();
                     if (fs.existsSync(img.path)) {
@@ -114,7 +114,7 @@ describe('collateral (E2E):', function() {
                     return;
                 }).done(done);
             });
-            
+
             afterEach(function(done) {
                 return q.all(rmList.map(function(key) {
                     return testUtils.removeS3File(bucket, key);
@@ -174,7 +174,7 @@ describe('collateral (E2E):', function() {
                     done();
                 });
             });
-            
+
             it('should be able to upload multiple files', function(done) {
                 files.newFile = samples[1].path;
                 requestUtils.qRequest('post', options, files).then(function(resp) {
@@ -235,7 +235,7 @@ describe('collateral (E2E):', function() {
                     done();
                 });
             });
-            
+
             it('should throw a 400 if no files are provided', function(done) {
                 files = {};
                 requestUtils.qRequest('post', options, files).then(function(resp) {
@@ -270,7 +270,7 @@ describe('collateral (E2E):', function() {
                     expect(util.inspect(error)).not.toBeDefined();
                 }).done(done);
             });
-            
+
             it('should fail if an app uses the wrong secret to make a request', function(done) {
                 var badCreds = { key: mockApp.key, secret: 'WRONG' };
                 requestUtils.makeSignedRequest(badCreds, 'post', options, files).then(function(resp) {
@@ -280,7 +280,7 @@ describe('collateral (E2E):', function() {
                     expect(util.inspect(error)).not.toBeDefined();
                 }).done(done);
             });
-            
+
             afterAll(function(done) {
                 q.all(samples.map(function(img) {
                     return q.npost(fs, 'remove', [img.path]);
@@ -507,359 +507,389 @@ describe('collateral (E2E):', function() {
         });
     });
 
-    describe('GET /api/collateral/website-data', function() {
-        var options;
-        var success, failure;
-        var apiResponse;
+    [
+        {
+            desc: 'GET /api/collateral/website-data',
+            endpoint: '/collateral/website-data',
+            isPublic: false
+        },
+        {
+            desc: 'GET /api/public/collateral/website-data',
+            endpoint: '/public/collateral/website-data',
+            isPublic: true
+        }
+    ].forEach(function(blockConfig) {
+        describe(blockConfig.desc, function() {
+            var options;
+            var success, failure;
+            var apiResponse;
 
-        beforeEach(function() {
-            options = {
-                url: config.collateralUrl + '/collateral/website-data',
-                qs: {},
-                json: true,
-                jar: cookieJar
-            };
+            beforeEach(function() {
+                options = {
+                    url: config.collateralUrl + blockConfig.endpoint,
+                    qs: {},
+                    json: true,
+                    jar: blockConfig.isPublic ? false : cookieJar
+                };
 
-            success = jasmine.createSpy('success()').and.callFake(function(response) {
-                apiResponse = response;
-            });
-            failure = jasmine.createSpy('failure()').and.callFake(function(error) {
-                console.error(error);
-            });
-
-            apiResponse = null;
-        });
-
-        describe('if called with a valid website URI', function() {
-            beforeEach(function(done) {
-                options.qs.uri = 'https://s3.amazonaws.com/c6.dev/e2e/samplePages/toyota.html';
-
-                requestUtils.qRequest('get', options).then(success, failure).finally(done);
-            });
-
-            it('should [200]', function() {
-                expect(apiResponse.response.statusCode).toBe(200);
-                expect(apiResponse.body).toEqual({
-                    links: {
-                        website: 'https://s3.amazonaws.com/c6.dev/e2e/samplePages/toyota.html',
-                        facebook: 'http://www.facebook.com/toyota',
-                        twitter: 'http://twitter.com/toyota',
-                        instagram: 'http://instagram.com/toyotausa/',
-                        youtube: 'http://www.youtube.com/user/ToyotaUSA',
-                        pinterest: null,
-                        google: 'https://plus.google.com/+toyotausa/',
-                        tumblr: null
-                    },
-                    images: {
-                        profile: jasmine.any(String)
-                    }
+                success = jasmine.createSpy('success()').and.callFake(function(response) {
+                    apiResponse = response;
                 });
-                // Asserting that the profile image is a valid URL without making any assumptions
-                // about what it is.
-                expect(parseURL(apiResponse.body.images.profile)).toEqual(jasmine.objectContaining({
-                    protocol: jasmine.any(String),
-                    host: jasmine.any(String),
-                    pathname: jasmine.any(String)
-                }));
-            });
-        });
-
-        describe('if called with no URI', function() {
-            beforeEach(function(done) {
-                delete options.qs.uri;
-
-                requestUtils.qRequest('get', options).then(success, failure).finally(done);
-            });
-
-            it('should [400]', function() {
-                expect(apiResponse.response.statusCode).toBe(400);
-                expect(apiResponse.body).toBe('Must specify a URI.');
-            });
-        });
-
-        describe('if the upstream server responds with a failing status code', function() {
-            beforeEach(function(done) {
-                options.qs.uri = 'https://s3.amazonaws.com/c6.dev/e2e/samplePages/I_DONT_EXIST_UGHHHHHH.html';
-
-                requestUtils.qRequest('get', options).then(success, failure).finally(done);
-            });
-
-            it('should [400]', function() {
-                expect(apiResponse.response.statusCode).toBe(400);
-                expect(apiResponse.body).toBe('Upstream server responded with status code [404].');
-            });
-        });
-
-        describe('if called with something that is not actually a URI', function() {
-            beforeEach(function(done) {
-                options.qs.uri = '97erfg738trh784';
-
-                requestUtils.qRequest('get', options).then(success, failure).finally(done);
-            });
-
-            it('should [400]', function() {
-                expect(apiResponse.response.statusCode).toBe(400);
-                expect(apiResponse.body).toBe('URI [' + options.qs.uri + '] is not valid.');
-            });
-        });
-
-        describe('if called with a non-existant address', function() {
-            beforeEach(function(done) {
-                options.qs.uri = 'http://evansux.reelcontent.com/';
-
-                requestUtils.qRequest('get', options).then(success, failure).finally(done);
-            });
-
-            it('should [400]', function() {
-                expect(apiResponse.response.statusCode).toBe(400);
-                expect(apiResponse.body).toBe('Upstream server not found.');
-            });
-        });
-
-        describe('if the user is not logged in', function() {
-            beforeEach(function(done) {
-                delete options.jar;
-
-                requestUtils.qRequest('get', options).then(success, failure).then(done, done);
-            });
-
-            it('should [401]', function() {
-                expect(apiResponse.response.statusCode).toBe(401);
-                expect(apiResponse.body).toBe('Unauthorized');
-            });
-        });
-
-        it('should allow an app to get website data for a valid uri', function(done) {
-            delete options.jar;
-            options.qs.uri = 'https://s3.amazonaws.com/c6.dev/e2e/samplePages/toyota.html';
-            requestUtils.makeSignedRequest(appCreds, 'get', options).then(function(resp) {
-                expect(resp.response.statusCode).toBe(200);
-                expect(resp.body).toEqual({
-                    links: {
-                        website: 'https://s3.amazonaws.com/c6.dev/e2e/samplePages/toyota.html',
-                        facebook: 'http://www.facebook.com/toyota',
-                        twitter: 'http://twitter.com/toyota',
-                        instagram: 'http://instagram.com/toyotausa/',
-                        youtube: 'http://www.youtube.com/user/ToyotaUSA',
-                        pinterest: null,
-                        google: 'https://plus.google.com/+toyotausa/',
-                        tumblr: null
-                    },
-                    images: {
-                        profile: jasmine.any(String)
-                    }
+                failure = jasmine.createSpy('failure()').and.callFake(function(error) {
+                    console.error(error);
                 });
-            }).catch(function(error) {
-                expect(util.inspect(error)).not.toBeDefined();
-            }).done(done);
+
+                apiResponse = null;
+            });
+
+            describe('if called with a valid website URI', function() {
+                beforeEach(function(done) {
+                    options.qs.uri = 'https://s3.amazonaws.com/c6.dev/e2e/samplePages/toyota.html';
+
+                    requestUtils.qRequest('get', options).then(success, failure).finally(done);
+                });
+
+                it('should [200]', function() {
+                    expect(apiResponse.response.statusCode).toBe(200);
+                    expect(apiResponse.body).toEqual({
+                        links: {
+                            website: 'https://s3.amazonaws.com/c6.dev/e2e/samplePages/toyota.html',
+                            facebook: 'http://www.facebook.com/toyota',
+                            twitter: 'http://twitter.com/toyota',
+                            instagram: 'http://instagram.com/toyotausa/',
+                            youtube: 'http://www.youtube.com/user/ToyotaUSA',
+                            pinterest: null,
+                            google: 'https://plus.google.com/+toyotausa/',
+                            tumblr: null
+                        },
+                        images: {
+                            profile: jasmine.any(String)
+                        }
+                    });
+                    // Asserting that the profile image is a valid URL without making any assumptions
+                    // about what it is.
+                    expect(parseURL(apiResponse.body.images.profile)).toEqual(jasmine.objectContaining({
+                        protocol: jasmine.any(String),
+                        host: jasmine.any(String),
+                        pathname: jasmine.any(String)
+                    }));
+                });
+            });
+
+            describe('if called with no URI', function() {
+                beforeEach(function(done) {
+                    delete options.qs.uri;
+
+                    requestUtils.qRequest('get', options).then(success, failure).finally(done);
+                });
+
+                it('should [400]', function() {
+                    expect(apiResponse.response.statusCode).toBe(400);
+                    expect(apiResponse.body).toBe('Must specify a URI.');
+                });
+            });
+
+            describe('if the upstream server responds with a failing status code', function() {
+                beforeEach(function(done) {
+                    options.qs.uri = 'https://s3.amazonaws.com/c6.dev/e2e/samplePages/I_DONT_EXIST_UGHHHHHH.html';
+
+                    requestUtils.qRequest('get', options).then(success, failure).finally(done);
+                });
+
+                it('should [400]', function() {
+                    expect(apiResponse.response.statusCode).toBe(400);
+                    expect(apiResponse.body).toBe('Upstream server responded with status code [404].');
+                });
+            });
+
+            describe('if called with something that is not actually a URI', function() {
+                beforeEach(function(done) {
+                    options.qs.uri = '97erfg738trh784';
+
+                    requestUtils.qRequest('get', options).then(success, failure).finally(done);
+                });
+
+                it('should [400]', function() {
+                    expect(apiResponse.response.statusCode).toBe(400);
+                    expect(apiResponse.body).toBe('URI [' + options.qs.uri + '] is not valid.');
+                });
+            });
+
+            describe('if called with a non-existant address', function() {
+                beforeEach(function(done) {
+                    options.qs.uri = 'http://evansux.reelcontent.com/';
+
+                    requestUtils.qRequest('get', options).then(success, failure).finally(done);
+                });
+
+                it('should [400]', function() {
+                    expect(apiResponse.response.statusCode).toBe(400);
+                    expect(apiResponse.body).toBe('Upstream server not found.');
+                });
+            });
+
+            if(!blockConfig.isPublic) {
+                describe('if the user is not logged in', function() {
+                    beforeEach(function(done) {
+                        delete options.jar;
+
+                        requestUtils.qRequest('get', options).then(success, failure).then(done, done);
+                    });
+
+                    it('should [401]', function() {
+                        expect(apiResponse.response.statusCode).toBe(401);
+                        expect(apiResponse.body).toBe('Unauthorized');
+                    });
+                });
+
+                it('should allow an app to get website data for a valid uri', function(done) {
+                    delete options.jar;
+                    options.qs.uri = 'https://s3.amazonaws.com/c6.dev/e2e/samplePages/toyota.html';
+                    requestUtils.makeSignedRequest(appCreds, 'get', options).then(function(resp) {
+                        expect(resp.response.statusCode).toBe(200);
+                        expect(resp.body).toEqual({
+                            links: {
+                                website: 'https://s3.amazonaws.com/c6.dev/e2e/samplePages/toyota.html',
+                                facebook: 'http://www.facebook.com/toyota',
+                                twitter: 'http://twitter.com/toyota',
+                                instagram: 'http://instagram.com/toyotausa/',
+                                youtube: 'http://www.youtube.com/user/ToyotaUSA',
+                                pinterest: null,
+                                google: 'https://plus.google.com/+toyotausa/',
+                                tumblr: null
+                            },
+                            images: {
+                                profile: jasmine.any(String)
+                            }
+                        });
+                    }).catch(function(error) {
+                        expect(util.inspect(error)).not.toBeDefined();
+                    }).done(done);
+                });
+            }
         });
     });
 
-    describe('GET /api/collateral/product-data', function() {
-        var options;
-        var success, failure;
-        var apiResponse;
+    [
+        {
+            desc: 'GET /api/collateral/product-data',
+            endpoint: '/collateral/product-data',
+            isPublic: false
+        },
+        {
+            desc: 'GET /api/public/collateral/product-data',
+            endpoint: '/public/collateral/product-data',
+            isPublic: true
+        }
+    ].forEach(function(blockConfig) {
+        describe(blockConfig.desc, function() {
+            var options;
+            var success, failure;
+            var apiResponse;
 
-        beforeEach(function() {
-            options = {
-                url: config.collateralUrl + '/collateral/product-data',
-                qs: {},
-                json: true,
-                jar: cookieJar
-            };
+            beforeEach(function() {
+                options = {
+                    url: config.collateralUrl + blockConfig.endpoint,
+                    qs: {},
+                    json: true,
+                    jar: blockConfig.isPublic ? false : cookieJar
+                };
 
-            success = jasmine.createSpy('success()').and.callFake(function(response) {
-                apiResponse = response;
-            });
-            failure = jasmine.createSpy('failure()').and.callFake(function(error) {
-                console.error(error);
-            });
-
-            apiResponse = null;
-        });
-
-        describe('unauthenticated', function() {
-            beforeEach(function(done) {
-                options.jar = false;
-
-                requestUtils.qRequest('get', options).then(success, failure).finally(done);
-            });
-
-            it('should [401]', function() {
-                expect(apiResponse.response.statusCode).toBe(401);
-                expect(apiResponse.body).toBe('Unauthorized');
-            });
-        });
-
-        describe('with no URI', function() {
-            beforeEach(function(done) {
-                delete options.qs.uri;
-
-                requestUtils.qRequest('get', options).then(success, failure).finally(done);
-            });
-
-            it('should [400]', function() {
-                expect(apiResponse.response.statusCode).toBe(400);
-                expect(apiResponse.body).toBe('URI is required.');
-            });
-        });
-
-        describe('with a non-URI', function() {
-            beforeEach(function(done) {
-                options.qs.uri = 'this is not a URI.';
-
-                requestUtils.qRequest('get', options).then(success, failure).finally(done);
-            });
-
-            it('should [400]', function() {
-                expect(apiResponse.response.statusCode).toBe(400);
-                expect(apiResponse.body).toBe('URI is invalid.');
-            });
-        });
-
-        describe('with an id-less App Store URI', function() {
-            beforeEach(function(done) {
-                options.qs.uri = 'https://itunes.apple.com/us/app/super-arc-light';
-
-                requestUtils.qRequest('get', options).then(success, failure).finally(done);
-            });
-
-            it('should [400]', function() {
-                expect(apiResponse.response.statusCode).toBe(400);
-                expect(apiResponse.body).toBe('URI has no ID.');
-            });
-        });
-
-        describe('with an id-less Etsy URI', function() {
-            beforeEach(function(done) {
-                options.qs.uri = 'https://www.etsy.com/listing/277003994/huge-grab-bag-assorted-supplies-over-100?ref=featured_listings_row';
-
-                requestUtils.qRequest('get', options).then(success, failure).finally(done);
-            });
-
-            it('should [400]', function() {
-                expect(apiResponse.response.statusCode).toBe(400);
-                expect(apiResponse.body).toBe('URI is not for a shop.');
-            });
-        });
-
-        describe('with a non-app App Store URI', function() {
-            beforeEach(function(done) {
-                options.qs.uri = 'https://itunes.apple.com/us/album/babel/id547449573';
-
-                requestUtils.qRequest('get', options).then(success, failure).finally(done);
-            });
-
-            it('should [400]', function() {
-                expect(apiResponse.response.statusCode).toBe(400);
-                expect(apiResponse.body).toBe('URI is not for an app.');
-            });
-        });
-
-        describe('with a non-existent App', function() {
-            beforeEach(function(done) {
-                options.qs.uri = 'https://itunes.apple.com/us/app/facebook/id28488221584637?mt=8';
-
-                requestUtils.qRequest('get', options).then(success, failure).finally(done);
-            });
-
-            it('should [404]', function() {
-                expect(apiResponse.response.statusCode).toBe(404);
-                expect(apiResponse.body).toBe('No app found with that ID.');
-            });
-        });
-
-        describe('with a non-existent Etsy store', function() {
-            beforeEach(function(done) {
-                options.qs.uri = 'https://www.etsy.com/shop/jewf8934yhr8934hr49';
-
-                requestUtils.qRequest('get', options).then(success, failure).finally(done);
-            });
-
-            it('should [404]', function() {
-                expect(apiResponse.response.statusCode).toBe(404);
-                expect(apiResponse.body).toBe('No store found with that name.');
-            });
-        });
-
-        describe('with a URI from an unsupported platform', function() {
-            beforeEach(function(done) {
-                options.qs.uri = 'https://platform.reelcontent.com/api/public/players/solo?card=rc-411c18b3042409&preview=true';
-
-                requestUtils.qRequest('get', options).then(success, failure).finally(done);
-            });
-
-            it('should [400]', function() {
-                expect(apiResponse.response.statusCode).toBe(400);
-                expect(apiResponse.body).toBe('URI is not from a valid platform.');
-            });
-        });
-
-        describe('with an App Store app URI', function() {
-            beforeEach(function(done) {
-                options.qs.uri = 'https://itunes.apple.com/us/app/facebook/id284882215?mt=8';
-
-                requestUtils.qRequest('get', options).then(success, failure).finally(done);
-            });
-
-            it('should [200]', function() {
-                expect(apiResponse.response.statusCode).toBe(200);
-                expect(apiResponse.body).toEqual({
-                    type: 'app',
-                    platform: 'iOS',
-                    name: 'Facebook',
-                    description: jasmine.any(String),
-                    uri: 'https://itunes.apple.com/us/app/facebook/id284882215?mt=8&uo=4',
-                    categories: ['Social Networking'],
-                    price: 'Free',
-                    extID: 284882215,
-                    images: jasmine.any(Array)
+                success = jasmine.createSpy('success()').and.callFake(function(response) {
+                    apiResponse = response;
                 });
-                expect(apiResponse.body.images.length).toBeGreaterThan(0, 'App has no images.');
-                apiResponse.body.images.forEach(function(image) {
-                    expect(image.uri).toEqual(jasmine.any(String));
-                    expect(image.type).toMatch(/^(screenshot|thumbnail)$/, 'Image is not a screenshot or thumbnail.');
-                    expect(image.device).toMatch(/^(phone|tablet|undefined)$/, 'Image device is not "phone," "tablet" or undefined.');
+                failure = jasmine.createSpy('failure()').and.callFake(function(error) {
+                    console.error(error);
+                });
+
+                apiResponse = null;
+            });
+
+            if(!blockConfig.isPublic) {
+                describe('unauthenticated', function() {
+                    beforeEach(function(done) {
+                        options.jar = false;
+
+                        requestUtils.qRequest('get', options).then(success, failure).finally(done);
+                    });
+
+                    it('should [401]', function() {
+                        expect(apiResponse.response.statusCode).toBe(401);
+                        expect(apiResponse.body).toBe('Unauthorized');
+                    });
+                });
+            }
+
+            describe('with no URI', function() {
+                beforeEach(function(done) {
+                    delete options.qs.uri;
+
+                    requestUtils.qRequest('get', options).then(success, failure).finally(done);
+                });
+
+                it('should [400]', function() {
+                    expect(apiResponse.response.statusCode).toBe(400);
+                    expect(apiResponse.body).toBe('URI is required.');
                 });
             });
-        });
 
-        describe('with an Etsy shop URI', function() {
-            beforeEach(function(done) {
-                options.qs.uri = 'https://www.etsy.com/shop/BohemianFindings';
+            describe('with a non-URI', function() {
+                beforeEach(function(done) {
+                    options.qs.uri = 'this is not a URI.';
 
-                requestUtils.qRequest('get', options).then(success, failure).finally(done);
+                    requestUtils.qRequest('get', options).then(success, failure).finally(done);
+                });
+
+                it('should [400]', function() {
+                    expect(apiResponse.response.statusCode).toBe(400);
+                    expect(apiResponse.body).toBe('URI is invalid.');
+                });
             });
 
-            it('should [200]', function() {
-                expect(apiResponse.response.statusCode).toBe(200);
-                expect(apiResponse.body).toEqual({
-                    type: 'ecommerce',
-                    platform: 'etsy',
-                    name: 'BohemianFindings',
-                    description: jasmine.any(String),
-                    uri: 'https://www.etsy.com/shop/BohemianFindings?utm_source=cinema6&utm_medium=api&utm_campaign=api',
-                    extID: 6004422,
-                    products: jasmine.any(Array)
+            describe('with an id-less App Store URI', function() {
+                beforeEach(function(done) {
+                    options.qs.uri = 'https://itunes.apple.com/us/app/super-arc-light';
+
+                    requestUtils.qRequest('get', options).then(success, failure).finally(done);
                 });
-                expect(apiResponse.body.products.length).toBeGreaterThan(0, 'The store has no featured products!');
-                apiResponse.body.products.forEach(function(product, index) {
-                    expect(product).toEqual({
-                        name: jasmine.any(String),
+
+                it('should [400]', function() {
+                    expect(apiResponse.response.statusCode).toBe(400);
+                    expect(apiResponse.body).toBe('URI has no ID.');
+                });
+            });
+
+            describe('with an id-less Etsy URI', function() {
+                beforeEach(function(done) {
+                    options.qs.uri = 'https://www.etsy.com/listing/277003994/huge-grab-bag-assorted-supplies-over-100?ref=featured_listings_row';
+
+                    requestUtils.qRequest('get', options).then(success, failure).finally(done);
+                });
+
+                it('should [400]', function() {
+                    expect(apiResponse.response.statusCode).toBe(400);
+                    expect(apiResponse.body).toBe('URI is not for a shop.');
+                });
+            });
+
+            describe('with a non-app App Store URI', function() {
+                beforeEach(function(done) {
+                    options.qs.uri = 'https://itunes.apple.com/us/album/babel/id547449573';
+
+                    requestUtils.qRequest('get', options).then(success, failure).finally(done);
+                });
+
+                it('should [400]', function() {
+                    expect(apiResponse.response.statusCode).toBe(400);
+                    expect(apiResponse.body).toBe('URI is not for an app.');
+                });
+            });
+
+            describe('with a non-existent App', function() {
+                beforeEach(function(done) {
+                    options.qs.uri = 'https://itunes.apple.com/us/app/facebook/id28488221584637?mt=8';
+
+                    requestUtils.qRequest('get', options).then(success, failure).finally(done);
+                });
+
+                it('should [404]', function() {
+                    expect(apiResponse.response.statusCode).toBe(404);
+                    expect(apiResponse.body).toBe('No app found with that ID.');
+                });
+            });
+
+            describe('with a non-existent Etsy store', function() {
+                beforeEach(function(done) {
+                    options.qs.uri = 'https://www.etsy.com/shop/jewf8934yhr8934hr49';
+
+                    requestUtils.qRequest('get', options).then(success, failure).finally(done);
+                });
+
+                it('should [404]', function() {
+                    expect(apiResponse.response.statusCode).toBe(404);
+                    expect(apiResponse.body).toBe('No store found with that name.');
+                });
+            });
+
+            describe('with a URI from an unsupported platform', function() {
+                beforeEach(function(done) {
+                    options.qs.uri = 'https://platform.reelcontent.com/api/public/players/solo?card=rc-411c18b3042409&preview=true';
+
+                    requestUtils.qRequest('get', options).then(success, failure).finally(done);
+                });
+
+                it('should [400]', function() {
+                    expect(apiResponse.response.statusCode).toBe(400);
+                    expect(apiResponse.body).toBe('URI is not from a valid platform.');
+                });
+            });
+
+            describe('with an App Store app URI', function() {
+                beforeEach(function(done) {
+                    options.qs.uri = 'https://itunes.apple.com/us/app/facebook/id284882215?mt=8';
+
+                    requestUtils.qRequest('get', options).then(success, failure).finally(done);
+                });
+
+                it('should [200]', function() {
+                    expect(apiResponse.response.statusCode).toBe(200);
+                    expect(apiResponse.body).toEqual({
+                        type: 'app',
+                        platform: 'iOS',
+                        name: 'Facebook',
                         description: jasmine.any(String),
-                        uri: jasmine.stringMatching(/^https:\/\/www\.etsy\.com\/listing\//),
-                        categories: jasmine.arrayContaining([jasmine.any(String)]),
-                        price: jasmine.stringMatching(/^\$\d*\.?\d*/),
-                        extID: jasmine.any(Number),
+                        uri: 'https://itunes.apple.com/us/app/facebook/id284882215?mt=8&uo=4',
+                        categories: ['Social Networking'],
+                        price: 'Free',
+                        extID: 284882215,
                         images: jasmine.any(Array)
-                    }, 'Failed for products[' + index + ']');
+                    });
+                    expect(apiResponse.body.images.length).toBeGreaterThan(0, 'App has no images.');
+                    apiResponse.body.images.forEach(function(image) {
+                        expect(image.uri).toEqual(jasmine.any(String));
+                        expect(image.type).toMatch(/^(screenshot|thumbnail)$/, 'Image is not a screenshot or thumbnail.');
+                        expect(image.device).toMatch(/^(phone|tablet|undefined)$/, 'Image device is not "phone," "tablet" or undefined.');
+                    });
+                });
+            });
 
-                    expect(product.images.length).toBeGreaterThan(0, 'products[' + index + '] has no images!');
-                    product.images.forEach(function(image, imageIndex) {
-                        expect(image).toEqual({
-                            uri: jasmine.stringMatching(/^https:\/\/img\d\.etsystatic\.com\//),
-                            averageColor: jasmine.stringMatching(/^[0-9A-Z]{6}$/)
-                        }, 'Failed for products[' + index + '].images[' + imageIndex + ']');
+            describe('with an Etsy shop URI', function() {
+                beforeEach(function(done) {
+                    options.qs.uri = 'https://www.etsy.com/shop/BohemianFindings';
+
+                    requestUtils.qRequest('get', options).then(success, failure).finally(done);
+                });
+
+                it('should [200]', function() {
+                    expect(apiResponse.response.statusCode).toBe(200);
+                    expect(apiResponse.body).toEqual({
+                        type: 'ecommerce',
+                        platform: 'etsy',
+                        name: 'BohemianFindings',
+                        description: jasmine.any(String),
+                        uri: 'https://www.etsy.com/shop/BohemianFindings?utm_source=cinema6&utm_medium=api&utm_campaign=api',
+                        extID: 6004422,
+                        products: jasmine.any(Array)
+                    });
+                    expect(apiResponse.body.products.length).toBeGreaterThan(0, 'The store has no featured products!');
+                    apiResponse.body.products.forEach(function(product, index) {
+                        expect(product).toEqual({
+                            name: jasmine.any(String),
+                            description: jasmine.any(String),
+                            uri: jasmine.stringMatching(/^https:\/\/www\.etsy\.com\/listing\//),
+                            categories: jasmine.arrayContaining([jasmine.any(String)]),
+                            price: jasmine.stringMatching(/^\$\d*\.?\d*/),
+                            extID: jasmine.any(Number),
+                            images: jasmine.any(Array)
+                        }, 'Failed for products[' + index + ']');
+
+                        expect(product.images.length).toBeGreaterThan(0, 'products[' + index + '] has no images!');
+                        product.images.forEach(function(image, imageIndex) {
+                            expect(image).toEqual({
+                                uri: jasmine.stringMatching(/^https:\/\/img\d\.etsystatic\.com\//),
+                                averageColor: jasmine.stringMatching(/^[0-9A-Z]{6}$/)
+                            }, 'Failed for products[' + index + '].images[' + imageIndex + ']');
+                        });
                     });
                 });
             });
@@ -880,7 +910,7 @@ describe('collateral (E2E):', function() {
     ].forEach(function(blockConfig) {
         describe(blockConfig.desc, function() {
             var rmList, options, samples, reqBody;
-            
+
             beforeEach(function() {
                 samples = [
                     'https://s3.amazonaws.com/c6.dev/e2e/sampleThumbs/sample1.jpg',
@@ -894,13 +924,13 @@ describe('collateral (E2E):', function() {
                 options = {url:config.collateralUrl+blockConfig.endpoint,json:reqBody,jar:cookieJar};
                 rmList = [];
             });
-            
+
             afterEach(function(done) {
                 return q.all(rmList.map(function(key) {
                     return testUtils.removeS3File(bucket, key);
                 })).thenResolve().done(done);
             });
-            
+
             it('should throw a 400 if the request is incomplete', function(done) {
                 var bodies = [
                     { thumbs: [samples[0]] },
@@ -924,7 +954,7 @@ describe('collateral (E2E):', function() {
                     done();
                 });
             });
-            
+
             it('should throw a 400 if the ratio name is invalid', function(done) {
                 options.json.imageSpecs[0].ratio = 'foo';
                 requestUtils.qRequest('post', options).then(function(resp) {
@@ -1040,7 +1070,7 @@ describe('collateral (E2E):', function() {
                     done();
                 });
             });
-            
+
             it('should be able to generate splash images with multiple thumbs', function(done) {
                 options.url += '?versionate=true';
                 var etags = [
@@ -1119,12 +1149,12 @@ describe('collateral (E2E):', function() {
             fs.writeFileSync(path.join(__dirname, 'test.txt'), 'This is a test');
             testUtils.putS3File(params, path.join(__dirname, 'test.txt')).thenResolve().done(done);
         });
-        
+
         afterEach(function(done) {
             fs.removeSync(path.join(__dirname, 'test.txt'));
             testUtils.removeS3File(bucket, 'collateral/e-1234/test.txt').thenResolve().done(done);
         });
-        
+
         it('should set the CacheControl header to a custom value', function(done) {
             requestUtils.qRequest('post', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
@@ -1160,7 +1190,7 @@ describe('collateral (E2E):', function() {
                 expect(error.toString()).not.toBeDefined();
             }).done(done);
         });
-        
+
         it('should use a default CacheControl if not provided', function(done) {
             delete options.json['max-age'];
             requestUtils.qRequest('post', options).then(function(resp) {
@@ -1177,7 +1207,7 @@ describe('collateral (E2E):', function() {
                 done();
             });
         });
-        
+
         it('should throw a 404 if the file is not found', function(done) {
             options.json.path = 'collateral/e-1234/fake.txt';
             requestUtils.qRequest('post', options).then(function(resp) {
@@ -1193,7 +1223,7 @@ describe('collateral (E2E):', function() {
                 done();
             });
         });
-        
+
         it('should throw a 401 if the user is not logged in', function(done) {
             delete options.jar;
             requestUtils.qRequest('post', options).then(function(resp) {
