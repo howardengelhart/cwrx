@@ -628,7 +628,14 @@ describe('collateral (E2E):', function() {
                 });
             });
 
-            if(!blockConfig.isPublic) {
+            if(blockConfig.isPublic) {
+                it('should set a cache control header on the response', function(done) {
+                    options.qs.uri = 'https://s3.amazonaws.com/c6.dev/e2e/samplePages/toyota.html';
+                    requestUtils.qRequest('get', options).then(function(apiResponse) {
+                        expect(apiResponse.response.headers['cache-control']).toBe('max-age=300');
+                    }).then(done, done.fail);
+                });
+            } else {
                 describe('if the user is not logged in', function() {
                     beforeEach(function(done) {
                         delete options.jar;
@@ -705,7 +712,14 @@ describe('collateral (E2E):', function() {
                 apiResponse = null;
             });
 
-            if(!blockConfig.isPublic) {
+            if(blockConfig.isPublic) {
+                it('should set a cache control header on the response', function(done) {
+                    options.qs.uri = 'https://itunes.apple.com/us/app/facebook/id284882215?mt=8';
+                    requestUtils.qRequest('get', options).then(function(apiResponse) {
+                        expect(apiResponse.response.headers['cache-control']).toBe('max-age=300');
+                    }).then(done, done.fail);
+                });
+            } else {
                 describe('unauthenticated', function() {
                     beforeEach(function(done) {
                         options.jar = false;
