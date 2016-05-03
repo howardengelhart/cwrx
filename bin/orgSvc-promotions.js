@@ -1,12 +1,17 @@
 (function(){
     'use strict';
 
-    var express         = require('express'),
-        CrudSvc         = require('../lib/crudSvc'),
+    var q               = require('q'),
+        util            = require('util'),
+        express         = require('express'),
         Model           = require('../lib/model'),
+        logger          = require('../lib/logger'),
+        CrudSvc         = require('../lib/crudSvc'),
         authUtils       = require('../lib/authUtils'),
+        QueryCache      = require('../lib/queryCache'),
+        Status          = require('../lib/enums').Status,
         
-        promModule = { schemas: {} };
+        promModule = { config: {}, schemas: {} };
         
     promModule.schemas.promotions = { // schema for all promotion objects
         name: {
@@ -37,7 +42,9 @@
     };
     
 
-    promModule.setupSvc = function(db) {
+    promModule.setupSvc = function(db, config) {
+        promModule.config.cacheTTLs = config.cacheTTLs;
+
         var opts = { userProp: false, orgProp: false },
             schema = promModule.schemas.promotions,
             svc = new CrudSvc(db.collection('promotions'), 'pro', opts, schema);
@@ -45,6 +52,13 @@
         svc.use('create', promModule.validateData);
 
         svc.use('edit', promModule.validateData);
+
+        var cache = new QueryCache(
+            config.cacheTTLs.promotions.freshTTL,
+            config.cacheTTLs.promotions.maxTTL,
+            db.collection('promotions')
+        );
+        svc.getPublicPromotion = promModule.getPublicPromotion.bind(promModule, svc, cache);
             
         return svc;
     };
@@ -65,8 +79,66 @@
         }
     };
 
+    promModule.getPublicPromotion = function(svc, cache, id, req) {
+        var log = logger.getLog();
+
+        log.info('[%1] Guest user trying to get promotion %2', req.uuid, id);
+
+        return cache.getPromise({ id: id })
+        .spread(function(promotion) {
+            // only show active promotions
+            if (!promotion || promotion.status !== Status.Active) {
+                return q();
+            }
+            
+            log.info('[%1] Retrieved promotion %2', req.uuid, id);
+            
+            promotion = svc.formatOutput(promotion);
+            
+            return promotion;
+        })
+        .catch(function(error) {
+            log.error('[%1] Error getting promotion %2: %3', req.uuid, id, util.inspect(error));
+            return q.reject('Mongo error');
+        });
+    };
+    
+    promModule.handlePublicGet = function(req, res, svc) {
+        var cacheControl = promModule.config.cacheTTLs.cloudFront * 60;
+
+        return svc.getPublicPromotion(req.params.id, req)
+        .then(function(promotion) {
+            // don't cache requests in preview mode
+            if (!req.query.preview) {
+                res.header('cache-control', 'max-age=' + cacheControl);
+            }
+            
+            if (!promotion) {
+                return q({ code: 404, body: 'Promotion not found' });
+            }
+            
+            // if ext === 'js', return promotion as a CommonJS module; otherwise return JSON
+            if (req.params.ext === 'js') {
+                res.header('content-type', 'application/javascript');
+                return q({ code: 200, body: 'module.exports = ' + JSON.stringify(promotion) + ';'});
+            } else {
+                return q({ code: 200, body: promotion });
+            }
+        })
+        .catch(function(error) {
+            res.header('cache-control', 'max-age=60');
+            return q({code: 500, body: { error: 'Error retrieving promotion', detail: error }});
+        });
+    };
+
     
     promModule.setupEndpoints = function(app, svc, sessions, audit, jobManager) {
+        app.get('/api/public/promotions?/:id([^.]+).?:ext?', function(req, res) {
+            promModule.handlePublicGet(req, res, svc).then(function(resp) {
+                res.send(resp.code, resp.body);
+            });
+        });
+
         var router      = express.Router(),
             mountPath   = '/api/promotions?'; // prefix to all endpoints declared here
             

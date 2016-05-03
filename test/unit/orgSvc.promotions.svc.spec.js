@@ -1,6 +1,7 @@
 var flush = true;
 describe('orgSvc-orgs (UT)', function() {
-    var promModule, express, JobManager, q, mockLog, logger, CrudSvc, Model, mockDb, req, nextSpy, doneSpy, errorSpy;
+    var promModule, express, QueryCache, JobManager, q, mockLog, logger, CrudSvc, Model, Status,
+        mockDb, req, nextSpy, doneSpy, errorSpy;
 
     beforeEach(function() {
         if (flush) { for (var m in require.cache){ delete require.cache[m]; } flush = false; }
@@ -10,8 +11,10 @@ describe('orgSvc-orgs (UT)', function() {
         promModule      = require('../../bin/orgSvc-promotions');
         CrudSvc         = require('../../lib/crudSvc');
         Model           = require('../../lib/model');
+        QueryCache      = require('../../lib/queryCache');
         JobManager      = require('../../lib/jobManager');
         authUtils       = require('../../lib/authUtils');
+        Status          = require('../../lib/enums').Status;
         
         mockLog = {
             trace : jasmine.createSpy('log_trace'),
@@ -23,6 +26,14 @@ describe('orgSvc-orgs (UT)', function() {
         };
         spyOn(logger, 'createLog').and.returnValue(mockLog);
         spyOn(logger, 'getLog').and.returnValue(mockLog);
+
+        promModule.config.cacheTTLs = {
+            promotions: {
+                freshTTL: 1,
+                maxTTL: 4
+            },
+            cloudFront: 5
+        };
 
         req = {
             uuid: '1234',
@@ -41,9 +52,14 @@ describe('orgSvc-orgs (UT)', function() {
     });
     
     describe('setupSvc', function() {
-        var svc;
+        var svc, config;
         beforeEach(function() {
-            svc = promModule.setupSvc(mockDb);
+            config = { cacheTTLs: {
+                promotions: { freshTTL: 10, maxTTL: 40 },
+                cloudFront: 50
+            } };
+            spyOn(promModule.getPublicPromotion, 'bind').and.returnValue(promModule.getPublicPromotion);
+            svc = promModule.setupSvc(mockDb, config);
         });
         
         it('should return a CrudSvc', function() {
@@ -56,6 +72,20 @@ describe('orgSvc-orgs (UT)', function() {
             expect(svc.model).toEqual(jasmine.any(Model));
             expect(svc.model.schema).toBe(promModule.schemas.promotions);
         });
+
+        it('should save some config variables locally', function() {
+            expect(promModule.config.cacheTTLs).toEqual({ promotions: { freshTTL: 10, maxTTL: 40 }, cloudFront: 50 });
+        });
+
+        it('should save some bound methods on the service', function() {
+            expect(svc.getPublicPromotion).toEqual(promModule.getPublicPromotion);
+            expect(promModule.getPublicPromotion.bind).toHaveBeenCalledWith(promModule, svc, jasmine.any(QueryCache));
+
+            var cache = promModule.getPublicPromotion.bind.calls.argsFor(0)[2];
+            expect(cache.freshTTL).toBe(10*60*1000);
+            expect(cache.maxTTL).toBe(40*60*1000);
+            expect(cache._coll).toEqual({ collectionName: 'promotions' });
+        });
         
         it('should validate the data on create and edit', function() {
             expect(svc._middleware.create).toContain(promModule.validateData);
@@ -66,7 +96,7 @@ describe('orgSvc-orgs (UT)', function() {
     describe('promotion validation', function() {
         var svc, newObj, origObj, requester;
         beforeEach(function() {
-            svc = promModule.setupSvc(mockDb);
+            svc = promModule.setupSvc(mockDb, promModule.config);
             newObj = { type: 'signupReward' };
             origObj = {};
             requester = { fieldValidation: { referralCodes: {} } };
@@ -197,20 +227,189 @@ describe('orgSvc-orgs (UT)', function() {
             });
         });
     });
+
+    describe('getPublicPromotion', function() {
+        var svc, cache, mockPromotion;
+        beforeEach(function() {
+            mockPromotion = {
+                _id             : 'mongo123',
+                id              : 'pro-1',
+                status          : Status.Active,
+                name            : 'test prom',
+                type            : 'signupReward',
+                data            : { rewardAmount: 50 }
+            };
+            cache = {
+                getPromise: jasmine.createSpy('cache.getPromise').and.callFake(function() { return q([mockPromotion]); })
+            };
+            svc = {
+                formatOutput: spyOn(CrudSvc.prototype, 'formatOutput').and.callThrough()
+            };
+        });
+        
+        it('should retrieve and format a promotion from the cache', function(done) {
+            promModule.getPublicPromotion(svc, cache, 'pro-1', req).then(function(resp) {
+                expect(resp).toEqual({
+                    id              : 'pro-1',
+                    status          : Status.Active,
+                    name            : 'test prom',
+                    type            : 'signupReward',
+                    data            : { rewardAmount: 50 }
+                });
+                expect(cache.getPromise).toHaveBeenCalledWith({ id: 'pro-1' });
+                expect(svc.formatOutput).toHaveBeenCalledWith(mockPromotion);
+                expect(mockLog.error).not.toHaveBeenCalled();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should return nothing if the promotion is not found', function(done) {
+            mockPromotion = undefined;
+            promModule.getPublicPromotion(svc, cache, 'pro-1', req).then(function(resp) {
+                expect(resp).not.toBeDefined();
+                expect(cache.getPromise).toHaveBeenCalledWith({ id: 'pro-1' });
+                expect(svc.formatOutput).not.toHaveBeenCalled();
+                expect(mockLog.error).not.toHaveBeenCalled();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should return nothing if the found promotion is not active', function(done) {
+            mockPromotion.status = Status.Inactive;
+            promModule.getPublicPromotion(svc, cache, 'pro-1', req).then(function(resp) {
+                expect(resp).not.toBeDefined();
+                expect(cache.getPromise).toHaveBeenCalledWith({ id: 'pro-1' });
+                expect(svc.formatOutput).not.toHaveBeenCalled();
+                expect(mockLog.error).not.toHaveBeenCalled();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should reject if the cache returns an error', function(done) {
+            cache.getPromise.and.returnValue(q.reject('I GOT A PROBLEM'));
+            promModule.getPublicPromotion(svc, cache, 'pro-1', req).then(function(resp) {
+                expect(resp).not.toBeDefined();
+            }).catch(function(error) {
+                expect(error).toBe('Mongo error');
+                expect(cache.getPromise).toHaveBeenCalledWith({ id: 'pro-1' });
+                expect(svc.formatOutput).not.toHaveBeenCalled();
+                expect(mockLog.error).toHaveBeenCalled();
+            }).done(done);
+        });
+    });
+    
+    describe('handlePublicGet', function() {
+        var svc, res;
+        beforeEach(function() {
+            svc = {
+                getPublicPromotion: jasmine.createSpy('svc.getPublicPromotion()').and.returnValue(q({ id: 'pro-1', tagParams: { foo: 'bar' } }))
+            };
+            res = {
+                header: jasmine.createSpy('res.header()')
+            };
+            req.params = {
+                id: 'pro-1'
+            };
+            req.query = {};
+        });
+        
+        it('should set the cache-control and return a 200 if the promotion is found', function(done) {
+            promModule.handlePublicGet(req, res, svc).then(function(resp) {
+                expect(resp).toEqual({ code: 200, body: { id: 'pro-1', tagParams: { foo: 'bar' } } });
+                expect(svc.getPublicPromotion).toHaveBeenCalledWith('pro-1', req);
+                expect(res.header).toHaveBeenCalledWith('cache-control', 'max-age=300');
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
+        });
+
+        it('should set the cache-control and return a 404 if the promotion is not found', function(done) {
+            svc.getPublicPromotion.and.returnValue(q());
+            promModule.handlePublicGet(req, res, svc).then(function(resp) {
+                expect(resp).toEqual({ code: 404, body: 'Promotion not found' });
+                expect(svc.getPublicPromotion).toHaveBeenCalledWith('pro-1', req);
+                expect(res.header).toHaveBeenCalledWith('cache-control', 'max-age=300');
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
+        });
+
+        describe('if the request extension is js', function() {
+            beforeEach(function() {
+                req.params.ext = 'js';
+            });
+
+            it('should return the promotion as a CommonJS module', function(done) {
+                promModule.handlePublicGet(req, res, svc).then(function(resp) {
+                    expect(resp).toEqual({ code: 200, body: 'module.exports = {"id":"pro-1","tagParams":{"foo":"bar"}};' });
+                    expect(svc.getPublicPromotion).toHaveBeenCalledWith('pro-1', req);
+                    expect(res.header).toHaveBeenCalledWith('cache-control', 'max-age=300');
+                }).catch(function(error) {
+                    expect(error.toString()).not.toBeDefined();
+                }).done(done);
+            });
+            
+            it('should not alter non-200 responses', function(done) {
+                svc.getPublicPromotion.and.returnValue(q());
+                promModule.handlePublicGet(req, res, svc).then(function(resp) {
+                    expect(resp).toEqual({ code: 404, body: 'Promotion not found' });
+                    expect(svc.getPublicPromotion).toHaveBeenCalledWith('pro-1', req);
+                    expect(res.header).toHaveBeenCalledWith('cache-control', 'max-age=300');
+                }).catch(function(error) {
+                    expect(error.toString()).not.toBeDefined();
+                }).done(done);
+            });
+        });
+        
+        describe('if the request is in preview mode', function() {
+            beforeEach(function() {
+                req.query.preview = true;
+            });
+
+            it('should not set the cache-control header', function(done) {
+                promModule.handlePublicGet(req, res, svc).then(function(resp) {
+                    expect(resp).toEqual({ code: 200, body: { id: 'pro-1', tagParams: { foo: 'bar' } } });
+                    expect(svc.getPublicPromotion).toHaveBeenCalledWith('pro-1', req);
+                    expect(res.header).not.toHaveBeenCalled();
+                }).catch(function(error) {
+                    expect(error.toString()).not.toBeDefined();
+                }).done(done);
+            });
+        });
+        
+        it('should set the cache-control and return a 500 if an error is returned', function(done) {
+            svc.getPublicPromotion.and.returnValue(q.reject('I GOT A PROBLEM'));
+            promModule.handlePublicGet(req, res, svc).then(function(resp) {
+                expect(resp).toEqual({ code: 500, body: { error: 'Error retrieving promotion', detail: 'I GOT A PROBLEM' } });
+                expect(svc.getPublicPromotion).toHaveBeenCalledWith('pro-1', req);
+                expect(res.header).toHaveBeenCalledWith('cache-control', 'max-age=60');
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
+        });
+    });
     
     describe('setupEndpoints', function() {
         var app, svc, sessions, audit, jobManager, mockRouter, expressRoutes, authMidware, res;
         beforeEach(function() {
-            mockRouter = {}, expressRoutes = {};
+            mockRouter = {}, app = {}, expressRoutes = {};
+            
             ['get', 'post', 'put', 'delete'].forEach(function(verb) {
-                expressRoutes[verb] = {};
-                mockRouter[verb] = jasmine.createSpy('router.' + verb).and.callFake(function(route/*, middleware...*/) {
+                function routeSpyFunc(route/*, middleware...*/) {
                     var middleware = Array.prototype.slice.call(arguments, 1);
 
                     expressRoutes[verb][route] = (expressRoutes[verb][route] || []).concat(middleware);
-                });
+                }
+
+                expressRoutes[verb] = {};
+                mockRouter[verb] = jasmine.createSpy('router.' + verb).and.callFake(routeSpyFunc);
+                app[verb] = jasmine.createSpy('app.' + verb).and.callFake(routeSpyFunc);
             });
             mockRouter.use = jasmine.createSpy('router.use()');
+            app.use = jasmine.createSpy('app.use()');
             spyOn(express, 'Router').and.returnValue(mockRouter);
             
             var authMidware = {
@@ -221,7 +420,6 @@ describe('orgSvc-orgs (UT)', function() {
             };
             spyOn(authUtils, 'crudMidware').and.returnValue(authMidware);
 
-            app = { use: jasmine.createSpy('app.use()') };
             svc = {
                 getObjs: jasmine.createSpy('svc.getObjs()').and.returnValue(q('yay')),
                 createObj: jasmine.createSpy('svc.createObj()').and.returnValue(q('yay')),
@@ -248,6 +446,29 @@ describe('orgSvc-orgs (UT)', function() {
 
         it('should call authUtils.crudMidware to get a set of auth middleware', function() {
             expect(authUtils.crudMidware).toHaveBeenCalledWith('promotions', { allowApps: true });
+        });
+        
+        describe('creates a handler for GET /api/public/promotions/:id that', function() {
+            it('should exist and include necessary middleware', function() {
+                expect(app.get).toHaveBeenCalledWith('/api/public/promotions?/:id([^.]+).?:ext?', jasmine.any(Function));
+            });
+            
+            describe('when called', function() {
+                var handler, routeStr;
+                beforeEach(function() {
+                    routeStr = '/api/public/promotions?/:id([^.]+).?:ext?';
+                    handler = expressRoutes.get[routeStr][expressRoutes.get[routeStr].length - 1];
+                    spyOn(promModule, 'handlePublicGet').and.returnValue(q({ code: 200, body: { id: 'pro-1' } }));
+                });
+                
+                it('should call promModule.handlePublicGet and return the response', function(done) {
+                    q(handler(req, res, nextSpy)).finally(function() {
+                        expect(res.send).toHaveBeenCalledWith(200, { id: 'pro-1' });
+                        expect(nextSpy).not.toHaveBeenCalled();
+                        expect(promModule.handlePublicGet).toHaveBeenCalledWith(req, res, svc);
+                    }).done(done);
+                });
+            });
         });
         
         describe('creates a handler for GET /api/promotions/:id that', function() {

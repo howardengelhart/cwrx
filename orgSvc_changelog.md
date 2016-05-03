@@ -1,7 +1,10 @@
 # Org Service Changelog
 
+### 1.10.0: Tue May  3 17:51:52 EDT 2016
+* [FEATURE]: Add `GET /api/public/promotions/:id` endpoint: [#886](https://github.com/cinema6/cwrx/pull/886)
 * Make `paymentPlanId` and `paymentPlanStart` forbidden fields: [#877](https://github.com/cinema6/cwrx/pull/877)
 * **Extra Deployment Steps:**
+  * Deploy version 1.3.0 of orgSvc cookbook
   * Give the `cwrx-app` the ability to mutate an org's `paymentPlanId`
 
 ### 1.9.0: Tue Apr 19 17:17:50 EDT 2016
