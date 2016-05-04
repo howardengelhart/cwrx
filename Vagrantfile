@@ -122,11 +122,6 @@ Vagrant.configure("2") do |config|
     end
     
     chosen.each do |svc|
-        if svc === "player"
-            chef.run_list.push("recipe[player::mock_player]")
-            chef.json[svc][:front_end][:kept_releases] = 1
-        end
-
         chef.run_list.push("recipe[#{svc}]")
         chef.json[svc] = {
             :deploy => {
@@ -145,6 +140,11 @@ Vagrant.configure("2") do |config|
                 :sessions => { :mongo => { :host => "127.0.0.1" } }
             }
         }
+
+        if svc === "player"
+            chef.run_list.push("recipe[player::mock_player]")
+            chef.json[svc][:front_end] = { :kept_releases => 1 }
+        end
 
         if svc == 'vote'
             chef.json[svc][:mongo][:voteDb] = { :host => "127.0.0.1" }

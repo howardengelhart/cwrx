@@ -9,7 +9,7 @@ module.exports = function(grunt) {
         geo         : 'auth,monitor',
         content     : 'auth,monitor',
         orgSvc      : 'auth,monitor,accountant,ads,userSvc',
-        player      : 'content,auth,monitor',
+        player      : 'content,auth,monitor,ads',
         search      : 'auth,monitor',
         userSvc     : 'auth,monitor',
         querybot    : 'ads,auth,content,monitor,c6postgres,c6postgres::admin,querybot::initcamp',
