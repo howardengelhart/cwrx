@@ -144,9 +144,9 @@ describe('ads campaignUpdates endpoints (E2E):', function() {
                 requestUtils.qRequest('post', loginOpts),
                 requestUtils.qRequest('post', adminLoginOpts)
             ]);
-        }).done(function(resp) {
+        }).then(function(resp) {
             done();
-        });
+        }).catch(done.fail);
     });
     
     // Setup a card to test with
@@ -172,10 +172,14 @@ describe('ads campaignUpdates endpoints (E2E):', function() {
         }).then(function(results) {
             // As long as createdCamp is used in resetCollection, changes to this campaign will not persist
             createdCamp = results[0];
-        }).then(function() {
-            mockman = new testUtils.Mockman();
-            return mockman.start();
-        }).done(done, done.fail);
+            done();
+        }).catch(done.fail);
+    });
+    
+    // Setup mockman for receiving kinesis events
+    beforeAll(function(done) {
+        mockman = new testUtils.Mockman();
+        mockman.start().done(done, done.fail);
     });
     
     // Setup mailman for receiving email messages
@@ -188,7 +192,7 @@ describe('ads campaignUpdates endpoints (E2E):', function() {
         mailman = new testUtils.Mailman();
         return mailman.start().then(function() {
             mailman.on('error', function(error) { throw new Error(error); });
-        }).done(done);
+        }).then(done, done.fail);
     });
     
     // Setup mock credit transactions and mock orgs
@@ -201,8 +205,7 @@ describe('ads campaignUpdates endpoints (E2E):', function() {
                 { id: 'o-selfie', status: 'active', name: 'selfie org' },
                 { id: 'o-admin', status: 'active', name: 'admin org' }
             ]);
-        })
-        .done(done);
+        }).then(done, done.fail);
     });
 
     afterEach(function() {
@@ -1566,6 +1569,45 @@ describe('ads campaignUpdates endpoints (E2E):', function() {
                     user: 'e2e-user'
                 }));
                 expect(record.data.updateRequest).toEqual(returnedBody);
+                mockmanDef.resolve();
+            });
+            q.all([mockmanDef.promise, mailmanDef.promise]).thenResolve().then(done);
+        });
+
+        it('should allow an app to reject an update', function(done) {
+            var mockmanDef = q.defer(), mailmanDef = q.defer(), returnedBody;
+            options.json = { status: 'rejected', rejectionReason: 'your campaign is over' };
+            mailman.once(approveSubject, function(msg) { expect(util.inspect(msg).substring(0, 200)).not.toBeDefined(); });
+
+            requestUtils.makeSignedRequest(appCreds, 'put', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.body.id).toEqual('ur-1');
+                expect(resp.body.status).toBe('rejected');
+                expect(resp.body.rejectionReason).toBe('your campaign is over');
+                returnedBody = resp.body;
+                
+                // test that campaign successfully unlocked
+                return requestUtils.qRequest('get', {
+                    url: config.adsUrl + '/campaigns/cam-1',
+                    jar: selfieJar
+                });
+            }).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.body.updateRequest).not.toBeDefined();
+                expect(resp.body.rejectionReason).toBe('your campaign is over');
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+                done();
+            });
+
+            mailman.once(rejectSubject, function(msg) {
+                testRejectMsg(msg, mockCamps[0], 'your campaign is over', false);
+                mailmanDef.resolve();
+            });
+            mockman.on('campaignUpdateRejected', function(record) {
+                expect(new Date(record.data.date)).not.toBe(NaN);
+                expect(record.data.campaign).toBeDefined();
+                expect(record.data.updateRequest).toBeDefined();
                 mockmanDef.resolve();
             });
             q.all([mockmanDef.promise, mailmanDef.promise]).thenResolve().then(done);
