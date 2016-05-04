@@ -27,6 +27,13 @@
         caches : {
             run     : path.normalize('/usr/local/share/cwrx/orgSvc/caches/run/'),
         },
+        cacheTTLs: {  // units here are minutes
+            promotions: {
+                freshTTL: 1,
+                maxTTL: 4
+            },
+            cloudFront: 5
+        },
         api: {
             root: 'http://localhost',   // for proxying requests
             balance: {
@@ -106,7 +113,7 @@
         var app          = express(),
             orgSvc       = orgModule.setupSvc(state.dbs.c6Db, gateway),
             refSvc       = refModule.setupSvc(state.dbs.c6Db),
-            promSvc       = promModule.setupSvc(state.dbs.c6Db),
+            promSvc       = promModule.setupSvc(state.dbs.c6Db, state.config),
             jobManager   = new JobManager(state.cache, state.config.jobTimeouts),
             auditJournal = new journal.AuditJournal(state.dbs.c6Journal.collection('audit'),
                                                     state.config.appVersion, state.config.appName);
