@@ -866,7 +866,10 @@
             });
         });
 
-        var authEditUpd = authUtils.middlewarify({ permissions: { campaignUpdates: 'edit' } });
+        var authEditUpd = authUtils.middlewarify({
+            permissions: { campaignUpdates: 'edit' },
+            allowApps: true
+        });
         router.put('/:campId/updates?/:id', sessions, authEditUpd, audit, function(req, res) {
             var promise = svc.editObj(req).then(function(resp) {
                 return updateModule.produceEditUpdateRequest(req, resp);

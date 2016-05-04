@@ -1,5 +1,9 @@
 # Ads Service Changelog
 
+* Allow apps to edit campaign update requests: [#891](https://github.com/cinema6/cwrx/pull/891)
+* Extra deployment steps:
+    * Update watchman app with `permissions.campaignUpdates` and `fieldValidation.campaignUpdates`
+
 ### 4.7.0: Wed Apr 27 14:01:19 EDT 2016
 * Initial submit + renewal requests are now triggered by transition to pending status: [#881](https://github.com/cinema6/cwrx/issues/881)
 * [FIX]: Properly revert status when rejecting an inital submit or renewal update: [#881](https://github.com/cinema6/cwrx/issues/881)
