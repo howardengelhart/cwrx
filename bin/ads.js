@@ -19,6 +19,7 @@
         conModule       = require('./ads-containers'),
         placeModule     = require('./ads-placements'),
         siteModule      = require('./ads-sites'),
+        beesAdverts     = require('./ads-beeswax/advertisers'),
         
         state   = {},
         ads = {}; // for exporting functions to unit tests
@@ -53,6 +54,9 @@
             cards: {
                 endpoint: '/api/content/cards/'
             },
+            advertisers: {
+                endpoint: '/api/account/advertisers/'
+            },
             campaigns: {
                 endpoint: '/api/campaigns/'
             },
@@ -62,6 +66,9 @@
             zipcodes: {
                 endpoint: '/api/geo/zipcodes'
             }
+        },
+        beeswax: {
+            apiRoot: 'https://stingersbx.api.beeswax.com'
         },
         sessions: {
             key: 'c6Auth',
@@ -131,6 +138,9 @@
             auditJournal = new journal.AuditJournal(state.dbs.c6Journal.collection('audit'),
                                                     state.config.appVersion, state.config.appName);
         authUtils._db = state.dbs.c6Db;
+        
+        //TODO: load beeswax secrets in cookbook
+        var beesAdvertSvc = beesAdverts.setupSvc(state.dbs.c6Db,state.config,state.secrets.beeswax);
 
         // Nodemailer will automatically get SES creds, but need to set region here
         aws.config.region = state.config.emails.awsRegion;
@@ -161,6 +171,9 @@
         app.get('/api/ads/version',function(req, res) {
             res.send(200, state.config.appVersion);
         });
+        
+        // Beeswax modules MUST come first!
+        beesAdverts.setupEndpoints(app, beesAdvertSvc, state.sessions, audit, jobManager);
         
         advertModule.setupEndpoints(app, advertSvc, state.sessions, audit, jobManager);
         
