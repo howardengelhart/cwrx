@@ -5,9 +5,11 @@
         express         = require('express'),
         uuid            = require('rc-uuid'),
         Model           = require('../lib/model'),
+        inspect         = require('util').inspect,
         logger          = require('../lib/logger'),
         pgUtils         = require('../lib/pgUtils'),
         authUtils       = require('../lib/authUtils'),
+        streamUtils     = require('../lib/streamUtils'),
         Scope           = require('../lib/enums').Scope,
         expressUtils    = require('../lib/expressUtils'),
         MiddleManager   = require('../lib/middleManager'),
@@ -279,10 +281,26 @@
                 var formatted = transModule.formatTransOutput(result.rows[0]);
                 log.info('[%1] Created transaction %2', req.uuid, formatted.id);
                 
-                //TODO: add watchman publishing
-                
                 return q({ code: 201, body: formatted });
             });
+        });
+    };
+
+    transModule.produceCreation = function(req, result) {
+        return q().then(function() {
+            var log = logger.getLog();
+            var uuid = req.uuid;
+            var transaction = result.body;
+
+            if (result.code !== 201) {
+                return result;
+            }
+
+            return streamUtils.produceEvent('transactionCreated', {
+                transaction: transaction
+            }).catch(function(reason) {
+                log.error('[%1] Failed to produce "transactionCreated": %2', uuid, inspect(reason));
+            }).thenResolve(result);
         });
     };
 
@@ -310,6 +328,8 @@
         // No sessions middleware here so users cannot create transactions
         router.post('/', authMidware.create, audit, function(req, res) {
             return transModule.createTransaction(svc, req).then(function(resp) {
+                return transModule.produceCreation(req, resp);
+            }).then(function(resp) {
                 expressUtils.sendResponse(res, resp);
             }).catch(function(error) {
                 expressUtils.sendResponse(res, {

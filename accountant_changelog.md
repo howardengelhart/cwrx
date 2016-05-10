@@ -1,5 +1,7 @@
 # Accountant Service Changelog
 
+* Publish a record to kinesis when a transaction is created: [#892](https://github.com/cinema6/cwrx/pull/892)
+
 ### 1.2.0: Wed Apr 27 14:01:19 EDT 2016
 * [FEATURE]: Add `POST /api/accounting/credit-check` endpoint: [#872](https://github.com/cinema6/cwrx/issues/872)
 * Extra deployment steps: None
