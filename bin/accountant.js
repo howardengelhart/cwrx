@@ -15,6 +15,7 @@
         expressUtils    = require('../lib/expressUtils'),
         statsModule     = require('./accountant-stats'),
         transModule     = require('./accountant-transactions'),
+        streamUtils     = require('../lib/streamUtils'),
         
         state = {},
         accountant = {}; // for exporting functions to unit tests
@@ -62,6 +63,10 @@
                 poolSize        : 20,
                 poolIdleTimeout : 900000
             }
+        },
+        kinesis: {
+            streamName: 'devCwrxStream',
+            region: 'us-east-1'
         }
     };
 
@@ -83,6 +88,8 @@
                 state.config.appName
             );
         authUtils._db = state.dbs.c6Db;
+
+        streamUtils.createProducer(state.config.kinesis);
 
         app.set('trust proxy', 1);
         app.set('json spaces', 2);
