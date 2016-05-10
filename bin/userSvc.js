@@ -26,7 +26,7 @@
         caches : {
             run     : path.normalize('/usr/local/share/cwrx/userSvc/caches/run/'),
         },
-        emails: {
+        emails: { //TODO: remove?
             awsRegion: 'us-east-1',
             sender: 'no-reply@cinema6.com',
             activationTarget: 'http://localhost:9000/#/confirm?selfie=selfie',
@@ -97,8 +97,22 @@
             ]
         },
         activationTokenTTL: 1*60*60*1000, // 60 minutes; unit here is milliseconds
+        validTargets: [
+            'selfie',
+            'portal',
+            'showcase'
+        ],
         newUserPermissions: {
-            roles: ['newUserRole'],
+            selfie: {
+                roles: ['newUserRole'], //TODO: are these defaults needed?
+                policies: ['newUserPolicy']
+            },
+            showcase: {
+                roles: ['newUserRole'],
+                policies: ['newUserPolicy']
+            },
+            //TODO: portal?
+            roles: ['newUserRole'], //TODO: remove these
             policies: ['newUserPolicy']
         },
         api: {

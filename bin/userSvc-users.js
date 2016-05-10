@@ -14,14 +14,13 @@
         authUtils       = require('../lib/authUtils'),
         CrudSvc         = require('../lib/crudSvc.js'),
         Model           = require('../lib/model.js'),
-        email           = require('../lib/email'),
         enums           = require('../lib/enums'),
         CacheMutex      = require('../lib/cacheMutex.js'),
         streamUtils     = require('../lib/streamUtils'),
         Status          = enums.Status,
         Scope           = enums.Scope,
 
-        userModule  = { _nonces: {} };
+        userModule  = { config: {} };
 
     userModule.userSchema = {
         company: {
@@ -106,13 +105,27 @@
     }
 
     userModule.setupSvc = function setupSvc(db, config, cache, appCreds) {
+        ['kinesis', 'api', 'sessions', 'validTargets', 'newUserPermissions', 'activationTokenTTL']
+        .forEach(function(key) {
+            userModule.config[key] = config[key];
+        });
+        Object.keys(userModule.config.api)
+        .filter(function(key) { return key !== 'root'; })
+        .forEach(function(key) {
+            userModule.config.api[key].baseUrl = urlUtils.resolve(
+                userModule.config.api.root,
+                userModule.config.api[key].endpoint
+            );
+        });
+    
+    
         var opts = { userProp: false },
             userSvc = new CrudSvc(db.collection('users'), 'u', opts, userModule.userSchema);
 
         userSvc._db = db;
 
-        streamUtils.createProducer(config.kinesis);
-
+        streamUtils.createProducer(userModule.config.kinesis);
+        
         var hashPassword = userModule.hashProp.bind(userModule, 'password');
         var hashNewPassword = userModule.hashProp.bind(userModule, 'newPassword');
         var validateUniqueEmail = userSvc.validateUniqueProp.bind(userSvc, 'email', null);
@@ -121,19 +134,10 @@
         var checkExistingWithNewEmail = userModule.checkExistingWithNewEmail.bind(
             userModule, userSvc
         );
-        var giveActivationToken = userModule.giveActivationToken.bind(userModule,
-            config.activationTokenTTL);
-        var sendActivationEmail = userModule.sendActivationEmail.bind(userModule,
-            config.emails.sender, config.emails.activationTarget);
-        var setupSignupUser = userModule.setupSignupUser.bind(userModule, userSvc,
-            config.newUserPermissions.roles, config.newUserPermissions.policies);
+        var setupSignupUser = userModule.setupSignupUser.bind(userModule, userSvc);
         var checkValidToken = userModule.checkValidToken.bind(userModule, userSvc);
-        var createLinkedEntities = userModule.createLinkedEntities.bind(userModule, config,
+        var createLinkedEntities = userModule.createLinkedEntities.bind(userModule,
             cache, userSvc, appCreds);
-        var sendConfirmationEmail = userModule.sendConfirmationEmail.bind(userModule,
-            config.emails.sender, config.emails.dashboardLink);
-
-        var emailingEnabled = config.emails.enabled;
 
         // override some default CrudSvc methods with custom versions for users
         userSvc.transformMongoDoc = mongoUtils.safeUser;
@@ -153,32 +157,28 @@
 
         userSvc.use('delete', userModule.preventSelfDeletion);
 
+        userSvc.use('changePassword', userModule.validateTarget);
         userSvc.use('changePassword', hashNewPassword);
 
+        userSvc.use('changeEmail', userModule.validateTarget);
         userSvc.use('changeEmail', checkExistingWithNewEmail);
 
         userSvc.use('forceLogout', userModule.authorizeForceLogout);
 
+        userSvc.use('signupUser', userModule.validateTarget);
         userSvc.use('signupUser', setupSignupUser);
         userSvc.use('signupUser', userModule.validatePassword);
         userSvc.use('signupUser', hashPassword);
         userSvc.use('signupUser', userModule.setupUser);
         userSvc.use('signupUser', validateUniqueEmail);
-        userSvc.use('signupUser', giveActivationToken);
-        if(emailingEnabled) {
-            userSvc.use('signupUser', sendActivationEmail);
-        }
+        userSvc.use('signupUser', userModule.giveActivationToken);
 
+        userSvc.use('confirmUser', userModule.validateTarget);
         userSvc.use('confirmUser', checkValidToken);
         userSvc.use('confirmUser', createLinkedEntities);
-        if(emailingEnabled) {
-            userSvc.use('confirmUser', sendConfirmationEmail);
-        }
 
-        userSvc.use('resendActivation', giveActivationToken);
-        if(emailingEnabled) {
-            userSvc.use('resendActivation', sendActivationEmail);
-        }
+        userSvc.use('resendActivation', userModule.validateTarget);
+        userSvc.use('resendActivation', userModule.giveActivationToken);
 
         return userSvc;
     };
@@ -191,6 +191,20 @@
         signupSchema.promotion.__allowed = true;
 
         return new Model('users', signupSchema);
+    };
+    
+    // Validate (or default) req.query.target param
+    userModule.validateTarget = function(req, next, done) {
+        var log = logger.getLog();
+        req.query.target = req.query.target || 'selfie';
+
+        if (userModule.config.validTargets.indexOf(req.query.target) === -1) {
+            log.info('[%1] Target %2 not supported, only support [%3]',
+                     req.uuid, req.query.target, userModule.config.validTargets.join(','));
+            return done({ code: 400, body: 'Invalid Target' });
+        }
+        
+        return next();
     };
 
     userModule.checkValidToken = function(svc, req, next, done) {
@@ -226,7 +240,7 @@
             });
     };
 
-    userModule.createLinkedEntities = function(config, cache, svc, appCreds, req, next, done) {
+    userModule.createLinkedEntities = function(cache, svc, appCreds, req, next, done) {
         var log = logger.getLog(),
             company = req.user.company || null,
             id = req.user.id,
@@ -270,14 +284,14 @@
             }
             
             return (!!req.user.org ? q(req.user.org) : postEntity('org', {
-                url: urlUtils.resolve(config.api.root, config.api.orgs.endpoint),
+                url: userModule.config.api.orgs.baseUrl,
                 json: orgBody
             }))
             .then(function(orgId) {
                 req.user.org = orgId;
                 
                 return postEntity('advertiser', {
-                    url: urlUtils.resolve(config.api.root, config.api.advertisers.endpoint),
+                    url: userModule.config.api.advertisers.baseUrl,
                     json: {
                         name: (company ? company : 'newAdvertiser'),
                         org: orgId
@@ -308,12 +322,15 @@
         });
     };
 
-    userModule.setupSignupUser = function setupSignupUser(svc, roles, policies, req, next, done) {
+    userModule.setupSignupUser = function setupSignupUser(svc, req, next, done) {
         svc.setupObj(req, function() {
             req.body.status = Status.New;
-            req.body.roles = roles;
-            req.body.policies = policies;
             req.body.external = true;
+
+            var newUserCfg = userModule.config.newUserPermissions[req.query.target] || {};
+
+            req.body.roles = newUserCfg.roles || [];
+            req.body.policies = newUserCfg.policies || [];
 
             next();
         }, done);
@@ -418,9 +435,10 @@
 
     // Give the user an activation token.
     // This is used as middleware when signing up a new user.
-    userModule.giveActivationToken = function giveActivationToken(tokenTTL, req, next) {
+    userModule.giveActivationToken = function giveActivationToken(req, next) {
         var newUser = req.body,
             now = new Date(),
+            tokenTTL = userModule.config.activationTokenTTL,
             log = logger.getLog();
 
         return q.npost(crypto, 'randomBytes', [24])
@@ -440,38 +458,6 @@
             log.error('[%1] Error generating reset token for %2: %3',
                 req.uuid, req.body.email, error);
             return q.reject(error);
-        });
-    };
-
-    userModule.sendActivationEmail = function(sender, target, req, next, done) {
-        var token = req.tempToken,
-            id = req.body.id,
-            reqEmail = req.body.email,
-            log = logger.getLog();
-
-        // Add query params to target url, handling possibility url already has query params
-        var link = target + ((target.indexOf('?') === -1) ? '?' : '&') +
-            'id=' + id + '&token=' + token;
-
-        return email.activateAccount(sender, reqEmail, link)
-            .then(function() {
-                return next();
-            })
-            .catch(function(error) {
-                if(error.name === 'InvalidParameterValue') {
-                    log.info('[%1] Problem sending msg to %2: %3', req.uuid, reqEmail, error);
-                    return done({code: 400, body: 'Invalid email address'});
-                } else {
-                    log.error('[%1] Error sending msg to %2: %3', req.uuid, reqEmail, error);
-                    return q.reject(error);
-                }
-            });
-    };
-
-    userModule.sendConfirmationEmail = function(sender, dashboardLink, req, next) {
-        var recipient = req.user.email;
-        return email.accountWasActivated(sender, recipient, dashboardLink).then(function() {
-            return next();
         });
     };
 
@@ -554,47 +540,6 @@
         return next();
     };
 
-    // Custom method used to change the user's password.
-    userModule.changePassword = function changePassword(svc, req, emailSender, supportContact,
-            emailingEnabled) {
-        var log = logger.getLog();
-
-        return svc.customMethod(req, 'changePassword', function doChange() {
-            var newPassword = req.body.newPassword;
-            var notifyEmail = req.body.email;
-            var user = req.user;
-
-            return mongoUtils.editObject(svc._coll, { password: newPassword }, user.id)
-                .then(function sendEmail() {
-                    log.info('[%1] User %2 successfully changed their password', req.uuid, user.id);
-
-                    if(emailingEnabled) {
-                        email.passwordChanged(emailSender, notifyEmail, supportContact)
-                            .then(function logSuccess() {
-                                log.info('[%1] Notified user of change at %2', req.uuid,
-                                    notifyEmail);
-                            })
-                            .catch(function logError(error) {
-                                log.error(
-                                    '[%1] Error sending email to %2: %3',
-                                    req.uuid, notifyEmail, inspect(error)
-                                );
-                            });
-                    }
-
-                    return { code: 200, body: 'Successfully changed password' };
-                })
-                .catch(function logError(reason) {
-                    log.error(
-                        '[%1] Error changing password for user %2: %3',
-                        req.uuid, user.id, inspect(reason)
-                    );
-
-                    throw reason;
-                });
-        });
-    };
-
     // Ensures that the user is not trying to change their email to the email address of
     // another user. It is used as middleware when changing the user's email.
     userModule.checkExistingWithNewEmail = function checkExistingWithNewEmail(sv, req, next, done) {
@@ -615,48 +560,6 @@
         return sv.validateUniqueProp('email', null, mockReq, next, done);
     };
 
-    // Custom method to change the user's email.
-    userModule.changeEmail = function changeEmail(svc, req, emailSender, supportContact,
-            emailingEnabled) {
-        var log = logger.getLog();
-
-        function notifyEmailChange(recipient, oldEmail, newEmail) {
-            return email.emailChanged(emailSender, recipient, oldEmail, newEmail, supportContact)
-            .then(function logSuccess() {
-                log.info('[%1] Notified user of change at %2', req.uuid, recipient);
-            })
-            .catch(function logError(error) {
-                log.error('[%1] Error sending email to %2: %3',req.uuid, recipient, inspect(error));
-            });
-        }
-
-        return svc.customMethod(req, 'changeEmail', function doChange() {
-            var user = req.user;
-            var newEmail = req.body.newEmail;
-            var oldEmail = req.body.email;
-
-            return mongoUtils.editObject(svc._coll, { email: newEmail }, user.id)
-                .then(function succeed() {
-                    log.info('[%1] User %2 successfully changed their email', req.uuid, user.id);
-
-                    if(emailingEnabled) {
-                        notifyEmailChange(oldEmail, oldEmail, newEmail);
-                        notifyEmailChange(newEmail, oldEmail, newEmail);
-                    }
-                    
-                    return { code: 200, body: 'Successfully changed email' };
-                })
-                .catch(function logError(reason) {
-                    log.error(
-                        '[%1] Error changing email for user %2: %3',
-                        req.uuid, user.id, inspect(reason)
-                    );
-
-                    throw reason;
-                });
-        });
-    };
-
     // Make sure the requester is an administrator of users. Used as middleware for
     // forceLogout.
     userModule.authorizeForceLogout = function authorizeForceLogout(req, next, done) {
@@ -671,6 +574,55 @@
         }
 
         return next();
+    };
+
+
+    // Custom method used to change the user's password.
+    userModule.changePassword = function changePassword(svc, req) {
+        var log = logger.getLog();
+
+        return svc.customMethod(req, 'changePassword', function doChange() {
+            var newPassword = req.body.newPassword;
+            var user = req.user;
+
+            return mongoUtils.editObject(svc._coll, { password: newPassword }, user.id)
+                .then(function logSuccess() {
+                    log.info('[%1] User %2 successfully changed their password', req.uuid, user.id);
+                    return { code: 200, body: 'Successfully changed password' };
+                })
+                .catch(function logError(reason) {
+                    log.error(
+                        '[%1] Error changing password for user %2: %3',
+                        req.uuid, user.id, inspect(reason)
+                    );
+
+                    throw reason;
+                });
+        });
+    };
+
+    // Custom method to change the user's email.
+    userModule.changeEmail = function changeEmail(svc, req) {
+        var log = logger.getLog();
+
+        return svc.customMethod(req, 'changeEmail', function doChange() {
+            var user = req.user;
+            var newEmail = req.body.newEmail;
+
+            return mongoUtils.editObject(svc._coll, { email: newEmail }, user.id)
+                .then(function succeed() {
+                    log.info('[%1] User %2 successfully changed their email', req.uuid, user.id);
+                    return { code: 200, body: 'Successfully changed email' };
+                })
+                .catch(function logError(reason) {
+                    log.error(
+                        '[%1] Error changing email for user %2: %3',
+                        req.uuid, user.id, inspect(reason)
+                    );
+
+                    throw reason;
+                });
+        });
     };
 
     // Custom method that removes all of a user's sessions from the sessions collection.
@@ -712,7 +664,7 @@
         var log = logger.getLog(),
             model = userModule.createSignupModel(svc);
 
-        var validity = model.validate('create', req.body, {}, {});
+        var validity = model.validate('create', req.body, {}, {}); //TODO: move to middleware?
         if(!validity.isValid) {
             return q({ code: 400, body: validity.reason});
         }
@@ -723,12 +675,31 @@
             return mongoUtils.createObject(svc._coll, req.body)
             .then(svc.transformMongoDoc)
             .then(function(obj) {
-                return { code: 201, body: svc.formatOutput(obj) };
+                var formatted = svc.formatOutput(obj);
+                
+                return streamUtils.produceEvent('accountCreated', {
+                    target: req.query.target,
+                    token: req.tempToken,
+                    user: formatted
+                })
+                .then(function() {
+                    log.info('[%1] Produced accountCreated event for user %2',
+                             req.uuid, formatted.id);
+                    return { code: 201, body: formatted };
+                })
+                .catch(function(error) {
+                    log.error('[%1] Failed producing accountCreated event: %2',
+                              req.uuid, inspect(error));
+                    return q.reject('Failed producing accountCreated event');
+                });
+            })
+            .finally(function() {
+                delete req.tempToken;
             });
         });
     };
     
-    userModule.confirmUser = function(svc, req, journal, maxAge) {
+    userModule.confirmUser = function(svc, req, journal) {
         var log = logger.getLog();
         if(!req.body.token) {
             log.info('[%1] User did not provide a token', req.uuid);
@@ -758,9 +729,8 @@
                 var decorated = results[1];
                 journal.writeAuditEntry(req, decorated.id);
                 req.session.user = decorated.id;
-                req.session.cookie.maxAge = maxAge;
-                log.info('[%1] User %2 has been successfully confirmed', req.uuid,
-                    decorated.id);
+                req.session.cookie.maxAge = userModule.config.sessions.maxAge;
+                log.info('[%1] User %2 has been successfully confirmed', req.uuid, decorated.id);
                 return { code: 200, body: decorated };
             })
             .catch(function(error) {
@@ -775,33 +745,50 @@
             id = req.session.user;
 
         return mongoUtils.findObject(svc._coll, { id: id })
-            .then(function(user) {
-                if(!user || !user.activationToken) {
-                    log.warn('[%1] There is no activation token to resend on user %2', req.uuid,
-                        id);
-                    return { code: 403, body: 'No activation token to resend' };
-                }
-                req.body.id = id;
-                req.body.email = user.email;
-                return svc.customMethod(req, 'resendActivation', function() {
-                    var updates = {
-                        lastUpdated: new Date(),
-                        activationToken: req.body.activationToken
-                    };
-                    return mongoUtils.editObject(svc._coll, updates, id)
-                        .then(function() {
-                            return { code: 204 };
-                        });
+        .then(function(user) {
+            if(!user || !user.activationToken) {
+                log.warn('[%1] There is no activation token to resend on user %2', req.uuid, id);
+                return { code: 403, body: 'No activation token to resend' };
+            }
+            req.body.id = id;
+            req.body.email = user.email;
+            return svc.customMethod(req, 'resendActivation', function() {
+                var updates = {
+                    lastUpdated: new Date(),
+                    activationToken: req.body.activationToken
+                };
+                return mongoUtils.editObject(svc._coll, updates, id)
+                .then(function(updated) {
+                    return streamUtils.produceEvent('resendActivation', {
+                        target: req.query.target,
+                        token: req.tempToken,
+                        user: updated
+                    })
+                    .catch(function(error) { //TODO: need to hand test this
+                        log.error('[%1] Failed producing resendActivation event: %2',
+                                  req.uuid, inspect(error));
+                        return q.reject('Failed producing resendActivation event');
+                    });
+                })
+                .then(function() {
+                    log.info('[%1] Produced resendActivation event for user %2',
+                             req.uuid, req.user.id);
+                    return { code: 204 };
                 });
+            })
+            .finally(function() {
+                delete req.tempToken;
             });
+        });
     };
+
 
     userModule.produceAccountActivated = function(req, resp) {
         var log = logger.getLog();
         
         if(resp.code === 200 && typeof resp.body === 'object') {
             return streamUtils.produceEvent('accountActivated', {
-                target: 'selfie',
+                target: req.query.target,
                 user: resp.body
             }).then(function() {
                 log.info('[%1] Produced accountActivated event for user %2', req.uuid,
@@ -815,32 +802,12 @@
         }
     };
     
-    userModule.produceAccountCreated = function(req, resp) {
-        var log = logger.getLog();
-        
-        if(resp.code === 201 && typeof resp.body === 'object') {
-            return streamUtils.produceEvent('accountCreated', {
-                target: 'selfie',
-                token: req.tempToken,
-                user: resp.body
-            }).then(function() {
-                log.info('[%1] Produced accountCreated event for user %2', req.uuid,
-                    resp.body.id);
-                return resp;
-            }).finally(function() {
-                delete req.tempToken;
-            });
-        } else {
-            delete req.tempToken;
-            return q(resp);
-        }
-    };
-    
     userModule.producePasswordChanged = function(req, resp) {
         var log = logger.getLog();
         
         if(resp.code === 200) {
             return streamUtils.produceEvent('passwordChanged', {
+                target: req.query.target,
                 user: req.user
             }).then(function() {
                 log.info('[%1] Produced passwordChanged event for user %2', req.uuid,
@@ -865,6 +832,7 @@
 
             return q.allSettled([oldUser, newUser].map(function(user) {
                 return streamUtils.produceEvent('emailChanged', {
+                    target: req.query.target,
                     oldEmail: oldEmail,
                     newEmail: newEmail,
                     user: user
@@ -885,27 +853,6 @@
             return q(resp);
         }
     };
-    
-    userModule.produceResendActivation = function(req, resp) {
-        var log = logger.getLog();
-        
-        if(resp.code === 204) {
-            return streamUtils.produceEvent('resendActivation', {
-                target: 'selfie',
-                token: req.tempToken,
-                user: req.user
-            }).then(function() {
-                log.info('[%1] Produced resendActivation event for user %2', req.uuid,
-                    req.user.id);
-                return resp;
-            }).finally(function() {
-                delete req.tempToken;
-            });
-        } else {
-            delete req.tempToken;
-            return q(resp);
-        }
-    };
 
     userModule.setupEndpoints = function(app, svc, sessions, audit, sessionStore, config,
                                                                     journal, jobManager) {
@@ -918,9 +865,7 @@
         
         var credsChecker = authUtils.userPassChecker();
         router.post('/email', credsChecker, audit, function(req, res) {
-            var promise = userModule.changeEmail(svc, req, config.emails.sender,
-                                                           config.emails.supportAddress,
-                                                           config.emails.enabled)
+            var promise = userModule.changeEmail(svc, req)
             .then(function(resp) {
                 return userModule.produceEmailChanged(req, resp);
             });
@@ -933,9 +878,7 @@
         });
 
         router.post('/password', credsChecker, audit, function(req, res) {
-            var promise = userModule.changePassword(svc, req, config.emails.sender,
-                                                              config.emails.supportAddress,
-                                                              config.emails.enabled)
+            var promise = userModule.changePassword(svc, req)
             .then(function(resp) {
                 return userModule.producePasswordChanged(req, resp);
             });
@@ -948,9 +891,7 @@
         });
 
         router.post('/signup', function(req, res) {
-            var promise = userModule.signupUser(svc, req).then(function(resp) {
-                return userModule.produceAccountCreated(req, resp);
-            });
+            var promise = userModule.signupUser(svc, req);
             promise.finally(function() {
                 jobManager.endJob(req, res, promise.inspect())
                 .catch(function(error) {
@@ -960,7 +901,7 @@
         });
 
         router.post('/confirm/:id', sessions, function(req, res) {
-            var promise = userModule.confirmUser(svc, req, journal, config.sessions.maxAge)
+            var promise = userModule.confirmUser(svc, req, journal)
             .then(function(resp) {
                 return userModule.produceAccountActivated(req, resp);
             });
@@ -974,9 +915,7 @@
 
         var authNewUser = authUtils.middlewarify({ userStatuses: [Status.New] });
         router.post('/resendActivation', sessions, authNewUser, function(req, res) {
-            var promise = userModule.resendActivation(svc, req).then(function(resp) {
-                return userModule.produceResendActivation(req, resp);
-            });
+            var promise = userModule.resendActivation(svc, req);
             promise.finally(function() {
                 jobManager.endJob(req, res, promise.inspect())
                 .catch(function(error) {

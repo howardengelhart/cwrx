@@ -167,6 +167,7 @@
                                             'reset after %3 failed login attempts',
                                             req.uuid, req.body.email, numAttempts);
                                             
+                                        //TODO: Relying on user.external may be bad for bob...
                                         var target = targets[(userAccount.external) ?
                                             'selfie' : 'portal'];
                                         return email.failedLogins(
