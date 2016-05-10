@@ -10,7 +10,7 @@ var q               = require('q'),
     };
 
 describe('accountant (E2E):', function() {
-    var cookieJar, adminJar, mockRequester, mockAdmin, testPolicies, mockApp, appCreds;
+    var cookieJar, adminJar, mockRequester, mockAdmin, testPolicies, mockApp, appCreds, mockman;
 
     beforeEach(function(done) {
         jasmine.DEFAULT_TIMEOUT_INTERVAL = 10000;
@@ -91,6 +91,12 @@ describe('accountant (E2E):', function() {
             done();
         });
     });
+
+    beforeAll(function(done) {
+        mockman = new testUtils.Mockman();
+
+        mockman.start().then(done, done.fail);
+    });
     
     // setup mock data for all tests
     beforeEach(function(done) {
@@ -168,6 +174,10 @@ describe('accountant (E2E):', function() {
         ]).done(function(results) {
             done();
         });
+    });
+
+    afterEach(function() {
+        mockman.removeAllListeners();
     });
     
     describe('GET /api/transactions', function() {
@@ -371,6 +381,32 @@ describe('accountant (E2E):', function() {
             }).catch(function(error) {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
+        });
+
+        it('should produce a transactionCreated event', function(done) {
+            var transaction;
+
+            mockman.on('transactionCreated', function(record) {
+                if (record.data.transaction.id !== transaction.id) { return; }
+
+                expect(record).toEqual({
+                    type: 'transactionCreated',
+                    data: {
+                        transaction: transaction,
+                        date: jasmine.any(String)
+                    }
+                });
+
+                return done();
+            });
+
+            requestUtils.makeSignedRequest(appCreds, 'post', options).then(function(resp) {
+                if (resp.response.statusCode !== 201) {
+                    done.fail(resp.body);
+                } else {
+                    transaction = resp.body;
+                }
+            });
         });
         
         it('should write an entry to the audit collection', function(done) {
@@ -888,6 +924,7 @@ describe('accountant (E2E):', function() {
     });
     
     afterAll(function(done) {
+        mockman.stop();
         testUtils.closeDbs().done(done);
     });
 });

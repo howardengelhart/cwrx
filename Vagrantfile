@@ -163,7 +163,7 @@ Vagrant.configure("2") do |config|
         if svc == 'ads'
             chef.json[svc][:kinesis] = { :streamName => 'devCwrxStream-' + ENV['USER'] }
         end
-        
+
         if svc == 'geo'
             chef.json[svc][:config] = {
                 "sessions" => {
@@ -187,6 +187,7 @@ Vagrant.configure("2") do |config|
         
         if svc == 'accountant'
             chef.json[svc][:config] = {
+                "kinesis" => { :streamName => 'devCwrxStream-' + ENV['USER'] },
                 "sessions" => {
                     "mongo" => {
                         "host" => "127.0.0.1"
