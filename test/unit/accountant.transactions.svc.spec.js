@@ -1,7 +1,7 @@
 var flush = true;
 describe('accountant-transactions (UT)', function() {
     var mockLog, Model, MiddleManager, logger, q, transModule, express, authUtils, uuid,
-        pgUtils, req, nextSpy, doneSpy, Scope;
+        streamUtils, pgUtils, req, nextSpy, doneSpy, Scope;
 
     beforeEach(function() {
         if (flush) { for (var m in require.cache){ delete require.cache[m]; } flush = false; }
@@ -13,6 +13,7 @@ describe('accountant-transactions (UT)', function() {
         Model           = require('../../lib/model');
         MiddleManager   = require('../../lib/middleManager');
         authUtils       = require('../../lib/authUtils');
+        streamUtils     = require('../../lib/streamUtils');
         pgUtils         = require('../../lib/pgUtils');
         Scope           = require('../../lib/enums').Scope;
 
@@ -651,6 +652,95 @@ describe('accountant-transactions (UT)', function() {
             }).done(done);
         });
     });
+
+    describe('produceCreation(req, result)', function() {
+        var req, result;
+        var success, failure;
+        var produceDeferred;
+
+        beforeEach(function(done) {
+            req = {};
+            result = {
+                code: 201,
+                body: {
+                    id: 'transaction_id',
+                    created: 'rec_ts',
+                    transactionTS: 'transaction_ts',
+                    amount: 'amount',
+                    sign: 'sign',
+                    units: 'units',
+                    org: 'org_id',
+                    campaign: 'campaign_id',
+                    braintreeId: 'braintree_id',
+                    promotion: 'promotion_id',
+                }
+            };
+
+            success = jasmine.createSpy('success()');
+            failure = jasmine.createSpy('failure()');
+
+            spyOn(streamUtils, 'produceEvent').and.returnValue((produceDeferred = q.defer()).promise);
+
+            transModule.produceCreation(req, result).then(success, failure);
+            process.nextTick(done);
+        });
+
+        it('should produce a record', function() {
+            expect(streamUtils.produceEvent).toHaveBeenCalledWith('transactionCreated', {
+                transaction: result.body
+            });
+        });
+
+        describe('if producing the event suceeds', function() {
+            beforeEach(function(done) {
+                produceDeferred.fulfill({ type: 'transactionCreated', data: {} });
+                process.nextTick(done);
+            });
+
+            it('should fulfill with the result', function() {
+                expect(success).toHaveBeenCalledWith(result);
+            });
+        });
+
+        describe('if producing the event fails', function() {
+            var reason;
+
+            beforeEach(function(done) {
+                reason = new Error('Something went wrong!');
+
+                produceDeferred.reject(reason);
+                process.nextTick(done);
+            });
+
+            it('should log an error', function() {
+                expect(mockLog.error).toHaveBeenCalled();
+            });
+
+            it('should fulfill the promise', function() {
+                expect(success).toHaveBeenCalledWith(result);
+            });
+        });
+
+        describe('if the request failed', function() {
+            beforeEach(function(done) {
+                success.calls.reset();
+                failure.calls.reset();
+                streamUtils.produceEvent.calls.reset();
+                result.code = 400;
+
+                transModule.produceCreation(req, result).then(success, failure);
+                process.nextTick(done);
+            });
+
+            it('should not produce a record', function() {
+                expect(streamUtils.produceEvent).not.toHaveBeenCalled();
+            });
+
+            it('should fulfill with the result', function() {
+                expect(success).toHaveBeenCalledWith(result);
+            });
+        });
+    });
     
     describe('setupEndpoints', function() {
         var app, svc, sessions, audit, mockRouter, expressRoutes, authMidware, res;
@@ -742,6 +832,9 @@ describe('accountant-transactions (UT)', function() {
                 beforeEach(function() {
                     handler = expressRoutes.post['/'][expressRoutes.post['/'].length - 1];
                     spyOn(transModule, 'createTransaction').and.returnValue(q({ code: 400, body: 'i got a problem with YOU' }));
+                    spyOn(transModule, 'produceCreation').and.callFake(function(req, result) {
+                        return q(result);
+                    });
                 });
                 
                 it('should call createTransactions and return the response', function(done) {
@@ -749,6 +842,7 @@ describe('accountant-transactions (UT)', function() {
                         expect(res.send).toHaveBeenCalledWith(400, 'i got a problem with YOU');
                         expect(nextSpy).not.toHaveBeenCalled();
                         expect(transModule.createTransaction).toHaveBeenCalledWith(svc, req);
+                        expect(transModule.produceCreation).toHaveBeenCalledWith(req, transModule.createTransaction.calls.mostRecent().returnValue.inspect().value);
                     }).done(done);
                 });
                 
