@@ -664,7 +664,7 @@
         var log = logger.getLog(),
             model = userModule.createSignupModel(svc);
 
-        var validity = model.validate('create', req.body, {}, {}); //TODO: move to middleware?
+        var validity = model.validate('create', req.body, {}, {});
         if(!validity.isValid) {
             return q({ code: 400, body: validity.reason});
         }
@@ -758,13 +758,14 @@
                     activationToken: req.body.activationToken
                 };
                 return mongoUtils.editObject(svc._coll, updates, id)
+                .then(svc.transformMongoDoc)
                 .then(function(updated) {
                     return streamUtils.produceEvent('resendActivation', {
                         target: req.query.target,
                         token: req.tempToken,
-                        user: updated
+                        user: svc.formatOutput(updated)
                     })
-                    .catch(function(error) { //TODO: need to hand test this
+                    .catch(function(error) {
                         log.error('[%1] Failed producing resendActivation event: %2',
                                   req.uuid, inspect(error));
                         return q.reject('Failed producing resendActivation event');

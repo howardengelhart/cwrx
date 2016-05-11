@@ -1952,7 +1952,7 @@ describe('userSvc (UT)', function() {
         });
     });
 
-    xdescribe('signupUser', function() { //TODO
+    describe('signupUser', function() {
         var customMethodDeferred, mockModel;
         var svc, req;
         var result;
@@ -1976,7 +1976,11 @@ describe('userSvc (UT)', function() {
             req = {
                 body: {
                     foo: 'bar'
-                }
+                },
+                query: {
+                    target: 'selfie'
+                },
+                tempToken: 'unhashedToken'
             };
             result = userModule.signupUser(svc, req);
         });
@@ -2003,7 +2007,7 @@ describe('userSvc (UT)', function() {
                 var callback;
                 var success, failure;
 
-                beforeEach(function(done) {
+                beforeEach(function() {
                     callback = svc.customMethod.calls.mostRecent().args[2];
                     success = jasmine.createSpy('success()');
                     failure = jasmine.createSpy('failure()');
@@ -2011,21 +2015,83 @@ describe('userSvc (UT)', function() {
                     spyOn(mongoUtils, 'createObject').and.callFake(function(collection, document) {
                         return q(document);
                     });
-
-                    callback().then(success, failure).finally(done);
+                    spyOn(streamUtils, 'produceEvent').and.returnValue(q());
                 });
+                
+                describe('when everything succeeds', function() {
+                    beforeEach(function(done) {
+                        callback().then(success, failure).finally(done);
+                    });
 
-                it('should create an object in the mongo collection', function() {
-                    expect(mongoUtils.createObject).toHaveBeenCalledWith('users', { foo: 'bar' });
+                    it('should create an object in the mongo collection', function() {
+                        expect(mongoUtils.createObject).toHaveBeenCalledWith('users', { foo: 'bar' });
+                    });
+                    
+                    it('should transform the mongo doc', function() {
+                        expect(svc.transformMongoDoc).toHaveBeenCalledWith(req.body);
+                    });
+
+                    it('should produce an accountCreated event', function() {
+                        expect(streamUtils.produceEvent).toHaveBeenCalledWith('accountCreated', {
+                            target: 'selfie',
+                            token: 'unhashedToken',
+                            user: { foo: 'bar' }
+                        });
+                    });
+
+                    it('should fulfill with a 201', function() {
+                        expect(success).toHaveBeenCalledWith({ code: 201, body: { foo: 'bar' } });
+                        expect(failure).not.toHaveBeenCalled();
+                    });
+                    
+                    it('should not log an error', function() {
+                        expect(mockLog.error).not.toHaveBeenCalled();
+                    });
+                    
+                    it('should delete the tempToken', function() {
+                        expect(req.tempToken).not.toBeDefined();
+                    });
                 });
+                
+                describe('when mongo fails', function() {
+                    beforeEach(function(done) {
+                        mongoUtils.createObject.and.returnValue(q.reject('MONGO GOT A PROBLEM'));
+                        callback().then(success, failure).finally(done);
+                    });
 
-                it('should transform the mongo doc', function() {
-                    expect(svc.transformMongoDoc).toHaveBeenCalledWith(req.body);
+                    it('should not produce an accountCreated event', function() {
+                        expect(streamUtils.produceEvent).not.toHaveBeenCalled();
+                    });
+                    
+                    it('should return a rejected promise', function() {
+                        expect(success).not.toHaveBeenCalled();
+                        expect(failure).toHaveBeenCalledWith('MONGO GOT A PROBLEM');
+                    });
+                    
+                    it('should delete the temp token', function() {
+                        expect(req.tempToken).not.toBeDefined();
+                    });
                 });
+                
+                describe('when producing a kinesis event fails', function() {
+                    beforeEach(function(done) {
+                        streamUtils.produceEvent.and.returnValue(q.reject('KINESIS GOT A PROBLEM'));
+                        callback().then(success, failure).finally(done);
+                    });
 
-                it('should fulfill with a 201', function() {
-                    expect(success).toHaveBeenCalledWith({ code: 201, body: { foo: 'bar' } });
-                    expect(failure).not.toHaveBeenCalled();
+                    it('should return a rejected promise', function() {
+                        expect(success).not.toHaveBeenCalled();
+                        expect(failure).toHaveBeenCalledWith('Failed producing accountCreated event');
+                    });
+                    
+                    it('should log an error', function() {
+                        expect(mockLog.error).toHaveBeenCalled();
+                        expect(mockLog.error.calls.mostRecent().args).toContain(util.inspect('KINESIS GOT A PROBLEM'));
+                    });
+                    
+                    it('should delete the temp token', function() {
+                        expect(req.tempToken).not.toBeDefined();
+                    });
                 });
             });
         });
@@ -2170,7 +2236,7 @@ describe('userSvc (UT)', function() {
         });
     });
     
-    describe('resendActivation(svc, req)', function(done) { //TODO
+    describe('resendActivation(svc, req)', function(done) {
         var svc, req;
         var mockUser, result;
 
@@ -2186,6 +2252,12 @@ describe('userSvc (UT)', function() {
             spyOn(streamUtils, 'produceEvent').and.returnValue(q());
             svc = {
                 customMethod: jasmine.createSpy('svc.customMethod()').and.returnValue(q()),
+                transformMongoDoc: jasmine.createSpy('svc.transformMongoDoc()').and.callFake(function(value) {
+                    return value;
+                }),
+                formatOutput: jasmine.createSpy('svc.formatOutput()').and.callFake(function(value) {
+                    return value;
+                }),
                 _coll: 'fakeColl'
             };
             req = {
@@ -2300,6 +2372,11 @@ describe('userSvc (UT)', function() {
                         token: 'unhashedToken',
                         user: mockUser
                     });
+                });
+                
+                it('should format the output properly', function() {
+                    expect(svc.transformMongoDoc).toHaveBeenCalledWith(mockUser);
+                    expect(svc.formatOutput).toHaveBeenCalledWith(mockUser);
                 });
                 
                 it('should return with a 204', function() {
