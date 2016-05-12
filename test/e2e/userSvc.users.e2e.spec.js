@@ -1366,6 +1366,31 @@ describe('userSvc users (E2E):', function() {
                 done();
             });
         });
+
+        it('should use a different target for a different request host', function(done) {
+            options.headers = { host: 'apps.reelcontent.com' };
+
+            requestUtils.qRequest('post', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.body).toBe('Successfully changed email');
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+                done();
+            });
+
+            mockman.on('emailChanged', function(record) {
+                emailRecords[record.data.user.email] = record;
+                // wait for both events to be received
+                if (!emailRecords['c6e2etester@gmail.com'] || !emailRecords['c6e2etester2@gmail.com']) {
+                    return;
+                }
+                Object.keys(emailRecords).forEach(function(email) {
+                    var record = emailRecords[email];
+                    expect(record.data.target).toBe('showcase');
+                });
+                done();
+            });
+        });
     });
 
     describe('POST /api/account/users/password', function() {
@@ -1517,6 +1542,23 @@ describe('userSvc users (E2E):', function() {
                 done();
             });
         });
+
+        it('should use a different target for a different request host', function(done) {
+            options.headers = { host: 'apps.reelcontent.com' };
+
+            requestUtils.qRequest('post', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.body).toBe('Successfully changed password');
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+                done();
+            });
+
+            mockman.once('passwordChanged', function(record) {
+                expect(record.data.target).toBe('showcase');
+                done();
+            });
+        });
     });
 
     describe('POST /api/account/users/logout/:id', function() {
@@ -1648,8 +1690,8 @@ describe('userSvc users (E2E):', function() {
                     created: jasmine.any(String),
                     lastUpdated: jasmine.any(String),
                     email: 'c6e2etester@gmail.com',
-                    roles: ['newUserRole'],
-                    policies: ['newUserPolicy'],
+                    roles: ['selfieUserRole'],
+                    policies: ['selfieUserPolicy'],
                     external: true,
                     config: {}
                 });
@@ -1723,6 +1765,40 @@ describe('userSvc users (E2E):', function() {
                 if (record.data.user.id !== createdUser.id) {
                     return;
                 }
+                done();
+            });
+        });
+
+        it('should use a different target for a different request host', function(done) {
+            options.headers = { host: 'apps.reelcontent.com' };
+
+            var createdUser;
+            requestUtils.qRequest('post', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(201);
+                expect(resp.body).toEqual({
+                    id: jasmine.any(String),
+                    status: 'new',
+                    created: jasmine.any(String),
+                    lastUpdated: jasmine.any(String),
+                    email: 'c6e2etester@gmail.com',
+                    roles: ['showcaseUserRole'],
+                    policies: ['showcaseUserPolicy'],
+                    external: true,
+                    config: {}
+                });
+                createdUser = resp.body;
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+                done();
+            });
+
+            mockman.on('accountCreated', function(record) {
+                if (record.data.user.id !== createdUser.id) {
+                    return;
+                }
+                expect(record.data.target).toBe('showcase');
+                expect(record.data.user).toEqual(createdUser);
+
                 done();
             });
         });
@@ -2015,6 +2091,27 @@ describe('userSvc users (E2E):', function() {
                 });
             });
 
+            it('should use a different target for a different request host', function(done) {
+                options.headers = { host: 'apps.reelcontent.com' };
+
+                var returnedUser;
+                requestUtils.qRequest('post', options).then(function(resp) {
+                    expect(resp.response.statusCode).toBe(200);
+                    returnedUser = resp.body;
+                })
+                .catch(function(error) {
+                    expect(util.inspect(error)).not.toBeDefined();
+                    done();
+                });
+
+                mockman.once('accountActivated', function(record) {
+                    expect(record.data.target).toBe('showcase');
+                    expect(record.data.user).toEqual(returnedUser);
+
+                    done();
+                });
+            });
+
             describe('if some of the user\'s linked entities have been created', function() {
                 beforeEach(function(done) {
                     mockNewUser.org = 'o-existent';
@@ -2242,6 +2339,25 @@ describe('userSvc users (E2E):', function() {
                     status: 'new',
                     email: 'c6e2etester@gmail.com'
                 }));
+                done();
+            });
+        });
+
+        it('should use a different target for a different request host', function(done) {
+            resendOpts.headers = { host: 'apps.reelcontent.com' };
+
+            requestUtils.qRequest('post', resendOpts)
+                .then(function(resp) {
+                    expect(resp.response.statusCode).toBe(204);
+                    expect(resp.body).toEqual('');
+                })
+                .catch(function(error) {
+                    expect(util.inspect(error)).not.toBeDefined();
+                    done();
+                });
+
+            mockman.once('resendActivation', function(record) {
+                expect(record.data.target).toBe('showcase');
                 done();
             });
         });

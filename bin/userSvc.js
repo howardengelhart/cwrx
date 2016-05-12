@@ -97,23 +97,23 @@
             ]
         },
         activationTokenTTL: 1*60*60*1000, // 60 minutes; unit here is milliseconds
-        validTargets: [
-            'selfie',
-            'portal',
-            'showcase'
-        ],
+        targetMapping: { //TODO: rename??
+            hosts: {
+                'platform.reelcontent.com': 'selfie',
+                'apps.reelcontent.com': 'showcase',
+                'studio.reelcontent.com': 'portal'
+            },
+            default: 'selfie'
+        },
         newUserPermissions: {
             selfie: {
-                roles: ['newUserRole'], //TODO: are these defaults needed?
-                policies: ['newUserPolicy']
+                roles: ['selfieUserRole'],
+                policies: ['selfieUserPolicy']
             },
             showcase: {
-                roles: ['newUserRole'],
-                policies: ['newUserPolicy']
-            },
-            //TODO: portal?
-            roles: ['newUserRole'], //TODO: remove these
-            policies: ['newUserPolicy']
+                roles: ['showcaseUserRole'],
+                policies: ['showcaseUserPolicy']
+            }
         },
         api: {
             root: 'http://localhost/',
@@ -155,6 +155,7 @@
         var audit = auditJournal.middleware.bind(auditJournal);
 
         app.use(expressUtils.basicMiddleware());
+        app.use(expressUtils.setTargetApp(state.config.targetMapping));
         app.use(bodyParser.json());
 
         app.get('/api/account/users?/jobs?/:id', function(req, res) {

@@ -105,7 +105,7 @@
     }
 
     userModule.setupSvc = function setupSvc(db, config, cache, appCreds) {
-        ['kinesis', 'api', 'sessions', 'validTargets', 'newUserPermissions', 'activationTokenTTL']
+        ['kinesis', 'api', 'sessions', 'newUserPermissions', 'activationTokenTTL']
         .forEach(function(key) {
             userModule.config[key] = config[key];
         });
@@ -157,15 +157,12 @@
 
         userSvc.use('delete', userModule.preventSelfDeletion);
 
-        userSvc.use('changePassword', userModule.validateTarget);
         userSvc.use('changePassword', hashNewPassword);
 
-        userSvc.use('changeEmail', userModule.validateTarget);
         userSvc.use('changeEmail', checkExistingWithNewEmail);
 
         userSvc.use('forceLogout', userModule.authorizeForceLogout);
 
-        userSvc.use('signupUser', userModule.validateTarget);
         userSvc.use('signupUser', setupSignupUser);
         userSvc.use('signupUser', userModule.validatePassword);
         userSvc.use('signupUser', hashPassword);
@@ -173,11 +170,9 @@
         userSvc.use('signupUser', validateUniqueEmail);
         userSvc.use('signupUser', userModule.giveActivationToken);
 
-        userSvc.use('confirmUser', userModule.validateTarget);
         userSvc.use('confirmUser', checkValidToken);
         userSvc.use('confirmUser', createLinkedEntities);
 
-        userSvc.use('resendActivation', userModule.validateTarget);
         userSvc.use('resendActivation', userModule.giveActivationToken);
 
         return userSvc;
@@ -191,20 +186,6 @@
         signupSchema.promotion.__allowed = true;
 
         return new Model('users', signupSchema);
-    };
-    
-    // Validate (or default) req.query.target param
-    userModule.validateTarget = function(req, next, done) {
-        var log = logger.getLog();
-        req.query.target = req.query.target || 'selfie';
-
-        if (userModule.config.validTargets.indexOf(req.query.target) === -1) {
-            log.info('[%1] Target %2 not supported, only support [%3]',
-                     req.uuid, req.query.target, userModule.config.validTargets.join(','));
-            return done({ code: 400, body: 'Invalid Target' });
-        }
-        
-        return next();
     };
 
     userModule.checkValidToken = function(svc, req, next, done) {
@@ -327,7 +308,8 @@
             req.body.status = Status.New;
             req.body.external = true;
 
-            var newUserCfg = userModule.config.newUserPermissions[req.query.target] || {};
+            // req._target set by expressUtils.setTargetApp, should be included in userSvc.js
+            var newUserCfg = userModule.config.newUserPermissions[req._target] || {};
 
             req.body.roles = newUserCfg.roles || [];
             req.body.policies = newUserCfg.policies || [];
@@ -678,7 +660,7 @@
                 var formatted = svc.formatOutput(obj);
                 
                 return streamUtils.produceEvent('accountCreated', {
-                    target: req.query.target,
+                    target: req._target,
                     token: req.tempToken,
                     user: formatted
                 })
@@ -761,7 +743,7 @@
                 .then(svc.transformMongoDoc)
                 .then(function(updated) {
                     return streamUtils.produceEvent('resendActivation', {
-                        target: req.query.target,
+                        target: req._target,
                         token: req.tempToken,
                         user: svc.formatOutput(updated)
                     })
@@ -789,7 +771,7 @@
         
         if(resp.code === 200 && typeof resp.body === 'object') {
             return streamUtils.produceEvent('accountActivated', {
-                target: req.query.target,
+                target: req._target,
                 user: resp.body
             }).then(function() {
                 log.info('[%1] Produced accountActivated event for user %2', req.uuid,
@@ -808,7 +790,7 @@
         
         if(resp.code === 200) {
             return streamUtils.produceEvent('passwordChanged', {
-                target: req.query.target,
+                target: req._target,
                 user: req.user
             }).then(function() {
                 log.info('[%1] Produced passwordChanged event for user %2', req.uuid,
@@ -833,7 +815,7 @@
 
             return q.allSettled([oldUser, newUser].map(function(user) {
                 return streamUtils.produceEvent('emailChanged', {
-                    target: req.query.target,
+                    target: req._target,
                     oldEmail: oldEmail,
                     newEmail: newEmail,
                     user: user

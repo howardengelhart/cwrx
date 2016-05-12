@@ -584,4 +584,83 @@ describe('expressUtils', function() {
             expect(expressUtils.formatContentRange(100, 0, 10)).toBe('items 11-100/100');
         });
     });
+    
+    describe('setTargetApp', function() {
+        it('should return a function', function() {
+            expect(expressUtils.setTargetApp()).toEqual(jasmine.any(Function));
+        });
+        
+        describe('returns a function that', function() {
+            var cfg, req, res, err, midware;
+            beforeEach(function() {
+                cfg = {
+                    hosts: {
+                        'platform.rc.com': 'selfie',
+                        'apps.rc.com': 'showcase',
+                        'studio.rc.com': 'portal',
+                        'etsy.rc.com': 'showcase'
+                    },
+                    default: 'screenjack'
+                };
+                req = {
+                    uuid: '1234',
+                    headers: {  }
+                };
+                res = {
+                    send: jasmine.createSpy('res.send()')
+                };
+                midware = expressUtils.setTargetApp(cfg);
+            });
+            
+            it('should set req._target appropriately and call next', function() {
+                var reqs = ['platform.rc.com', 'apps.rc.com', 'studio.rc.com', 'etsy.rc.com'].map(function(host) {
+                    var reqCopy = JSON.parse(JSON.stringify(req));
+                    reqCopy.headers.host = host;
+                    return reqCopy;
+                });
+                reqs.forEach(function(reqCopy) { midware(reqCopy, res, next); });
+                expect(next.calls.count()).toBe(4);
+                expect(res.send).not.toHaveBeenCalled();
+                expect(reqs[0]._target).toBe('selfie');
+                expect(reqs[1]._target).toBe('showcase');
+                expect(reqs[2]._target).toBe('portal');
+                expect(reqs[3]._target).toBe('showcase');
+            });
+            
+            it('should fall back to a default if the host is unrecognized or undefined', function() {
+                var reqs = ['google.com', undefined].map(function(host) {
+                    var reqCopy = JSON.parse(JSON.stringify(req));
+                    reqCopy.headers.host = host;
+                    return reqCopy;
+                });
+                reqs.forEach(function(reqCopy) { midware(reqCopy, res, next); });
+                expect(next.calls.count()).toBe(2);
+                expect(res.send).not.toHaveBeenCalled();
+                expect(reqs[0]._target).toBe('screenjack');
+                expect(reqs[1]._target).toBe('screenjack');
+            });
+            
+            it('should properly handle sub-domains', function() {
+                var reqs = ['foo.platform.rc.com', 'foo.bar.apps.rc.com'].map(function(host) {
+                    var reqCopy = JSON.parse(JSON.stringify(req));
+                    reqCopy.headers.host = host;
+                    return reqCopy;
+                });
+                reqs.forEach(function(reqCopy) { midware(reqCopy, res, next); });
+                expect(next.calls.count()).toBe(2);
+                expect(res.send).not.toHaveBeenCalled();
+                expect(reqs[0]._target).toBe('selfie');
+                expect(reqs[1]._target).toBe('showcase');
+            });
+            
+            it('should handle the case where no config is passed in', function() {
+                midware = expressUtils.setTargetApp();
+                req.headers.host = 'studio.rc.com';
+                midware(req, res, next);
+                expect(next).toHaveBeenCalled();
+                expect(res.send).not.toHaveBeenCalled();
+                expect(req._target).toBe('selfie');
+            });
+        });
+    });
 });

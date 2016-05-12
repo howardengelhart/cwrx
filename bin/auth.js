@@ -49,6 +49,14 @@
             supportAddress: 'support@cinema6.com',
             enabled: true
         },
+        targetMapping: { //TODO: rename??
+            hosts: {
+                'platform.reelcontent.com': 'selfie',
+                'apps.reelcontent.com': 'showcase',
+                'studio.reelcontent.com': 'portal'
+            },
+            default: 'selfie'
+        },
         forgotTargets: {
             portal: 'http://localhost:9000/#/password/reset',
             selfie: 'http://localhost:9000/#/pass/reset?selfie=true'
@@ -449,6 +457,7 @@
         app.set('json spaces', 2);
 
         app.use(expressUtils.basicMiddleware());
+        app.use(expressUtils.setTargetApp(state.config.targetMapping));
         app.use(bodyParser.json());
 
         app.post('/api/auth/login', state.sessions, function(req, res) {

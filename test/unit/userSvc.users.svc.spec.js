@@ -54,7 +54,6 @@ describe('userSvc (UT)', function() {
         };
         userModule.config = {
             activationTokenTTL: 60000,
-            validTargets: ['selfie', 'showcase', 'portal'],
             newUserPermissions: {
                 selfie: {
                     roles: ['selfieRole1'],
@@ -231,14 +230,6 @@ describe('userSvc (UT)', function() {
         it('should check/query user scope via the user\'s ID property', function() {
             expect(result.checkScope).toBe(userModule.checkScope);
             expect(result.userPermQuery).toBe(userModule.userPermQuery);
-        });
-        
-        it('should validate the target on any action that publishes a watchman event', function() {
-            expect(result._middleware.changePassword).toContain(userModule.validateTarget);
-            expect(result._middleware.changeEmail).toContain(userModule.validateTarget);
-            expect(result._middleware.signupUser).toContain(userModule.validateTarget);
-            expect(result._middleware.confirmUser).toContain(userModule.validateTarget);
-            expect(result._middleware.resendActivation).toContain(userModule.validateTarget);
         });
 
         it('should setupSignupUser when signing up a user', function() {
@@ -504,38 +495,6 @@ describe('userSvc (UT)', function() {
             newModel.schema.paymentPlanId.__allowed = false;
             newModel.schema.promotion.__allowed = false;
             expect(newModel.schema).toEqual(svc.model.schema);
-        });
-    });
-    
-    describe('validateTarget', function() {
-        it('should call next if the target param is valid', function() {
-            ['selfie', 'showcase', 'portal'].forEach(function(val) {
-                req.query.target = val;
-                userModule.validateTarget(req, nextSpy, doneSpy);
-                expect(req.query.target).toBe(val);
-            });
-            expect(nextSpy.calls.count()).toBe(3);
-            expect(doneSpy).not.toHaveBeenCalled();
-        });
-        
-        it('should default the target param if not set', function() {
-            delete req.query.target;
-            userModule.validateTarget(req, nextSpy, doneSpy);
-            expect(req.query.target).toBe('selfie');
-            expect(nextSpy).toHaveBeenCalled();
-            expect(doneSpy).not.toHaveBeenCalled();
-        });
-        
-        it('should call done if the target param is not valid', function() {
-            ['selfieTime', 1234, { foo: 'bar' }].forEach(function(val) {
-                req.query.target = val;
-                userModule.validateTarget(req, nextSpy, doneSpy);
-            });
-            expect(nextSpy).not.toHaveBeenCalled();
-            expect(doneSpy.calls.count()).toBe(3);
-            doneSpy.calls.allArgs().forEach(function(args) {
-                expect(args).toEqual([{ code: 400, body: 'Invalid Target' }]);
-            });
         });
     });
 
@@ -920,7 +879,7 @@ describe('userSvc (UT)', function() {
             spyOn(uuid, 'createUuid').and.returnValue('1234567890abcdef');
             svc = userModule.setupSvc(mockDb, userModule.config, mockCache, appCreds);
             req.body = {};
-            req.query = { target: 'selfie' };
+            req._target = 'selfie';
         });
         
         it('should setup a new selfie user', function() {
@@ -937,7 +896,7 @@ describe('userSvc (UT)', function() {
         });
         
         it('should setup a new showcase user', function() {
-            req.query.target = 'showcase';
+            req._target = 'showcase';
             userModule.setupSignupUser(svc, req, nextSpy, doneSpy);
             expect(req.body.id).toBe('u-1234567890abcdef');
             expect(req.body.created).toEqual(jasmine.any(Date));
@@ -951,7 +910,7 @@ describe('userSvc (UT)', function() {
         });
 
         it('should setup a new user that doesn\'t have pre-configured roles + policies', function() {
-            req.query.target = 'someotherapp';
+            req._target = 'someotherapp';
             userModule.setupSignupUser(svc, req, nextSpy, doneSpy);
             expect(req.body.id).toBe('u-1234567890abcdef');
             expect(req.body.created).toEqual(jasmine.any(Date));
@@ -1977,9 +1936,7 @@ describe('userSvc (UT)', function() {
                 body: {
                     foo: 'bar'
                 },
-                query: {
-                    target: 'selfie'
-                },
+                _target: 'selfie',
                 tempToken: 'unhashedToken'
             };
             result = userModule.signupUser(svc, req);
@@ -2262,7 +2219,7 @@ describe('userSvc (UT)', function() {
             };
             req = {
                 body: { },
-                query: { target: 'showcase' },
+                _target: 'showcase',
                 session: {
                     user: 'u-12345'
                 }
@@ -2316,7 +2273,7 @@ describe('userSvc (UT)', function() {
                         id: 'u-12345',
                         email: 'some email'
                     },
-                    query: { target: 'showcase' },
+                    _target: 'showcase',
                     session: {
                         user: 'u-12345'
                     }
@@ -2433,7 +2390,7 @@ describe('userSvc (UT)', function() {
     describe('produceAccountActivated', function() {
         beforeEach(function() {
             spyOn(streamUtils, 'produceEvent');
-            req.query = { target: 'showcase' };
+            req._target = 'showcase';
         });
         
         it('should produce the accountActivated event', function(done) {
@@ -2485,7 +2442,7 @@ describe('userSvc (UT)', function() {
     describe('producePasswordChanged', function() {
         beforeEach(function() {
             spyOn(streamUtils, 'produceEvent');
-            req.query = { target: 'selfie' };
+            req._target = 'selfie';
             req.user = 'user';
         });
         
@@ -2541,7 +2498,7 @@ describe('userSvc (UT)', function() {
             req.user = {
                 email: 'oldEmail@gmail.com'
             };
-            req.query = { target: 'selfie' };
+            req._target = 'selfie';
         });
         
         it('should produce the emailChanged event twice', function(done) {
