@@ -4,7 +4,9 @@
 * Ensure `target` is set properly on all watchman notifications: [#887](https://github.com/cinema6/cwrx/issues/887)
 * Use `target` to give signup users correct roles/policies: [#887](https://github.com/cinema6/cwrx/issues/887)
 * Extra deployment steps:
-    * Deploy userSvc cookbook TODO
+    * Deploy userSvc cookbook 1.4.4
+    * Ensure Cloudfront is forwarding `host` header
+    * Create policies for new showcase users + update config for `newUserPermissions`
 
 ### 3.4.0: Mon Apr 11 12:31:33 EDT 2016
 * Produce certain user account events to a Kinesis stream

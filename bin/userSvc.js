@@ -4,7 +4,6 @@
     var __ut__      = (global.jasmine !== undefined) ? true : false;
 
     var path            = require('path'),
-        aws             = require('aws-sdk'),
         express         = require('express'),
         bodyParser      = require('body-parser'),
         expressUtils    = require('../lib/expressUtils'),
@@ -25,13 +24,6 @@
         appDir: __dirname,
         caches : {
             run     : path.normalize('/usr/local/share/cwrx/userSvc/caches/run/'),
-        },
-        emails: { //TODO: remove?
-            awsRegion: 'us-east-1',
-            sender: 'no-reply@cinema6.com',
-            activationTarget: 'http://localhost:9000/#/confirm?selfie=selfie',
-            dashboardLink: 'http://localhost:9000/#/apps/selfie/campaigns',
-            enabled: true
         },
         sessions: {
             key: 'c6Auth',
@@ -97,11 +89,11 @@
             ]
         },
         activationTokenTTL: 1*60*60*1000, // 60 minutes; unit here is milliseconds
-        targetMapping: { //TODO: rename??
+        targetMapping: {
             hosts: {
-                'platform.reelcontent.com': 'selfie',
-                'apps.reelcontent.com': 'showcase',
-                'studio.reelcontent.com': 'portal'
+                'platform': 'selfie',
+                'apps': 'showcase',
+                'studio': 'portal'
             },
             default: 'selfie'
         },
@@ -145,9 +137,6 @@
             auditJournal = new journal.AuditJournal(state.dbs.c6Journal.collection('audit'),
                                                     state.config.appVersion, state.config.appName);
         authUtils._db = state.dbs.c6Db;
-
-        // Nodemailer will automatically get SES creds, but need to set region here
-        aws.config.region = state.config.emails.region;
 
         app.set('trust proxy', 1);
         app.set('json spaces', 2);

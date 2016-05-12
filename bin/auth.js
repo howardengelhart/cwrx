@@ -41,11 +41,11 @@
                 retryConnect : true
             }
         },
-        targetMapping: { //TODO: rename??
+        targetMapping: {
             hosts: {
-                'platform.reelcontent.com': 'selfie',
-                'apps.reelcontent.com': 'showcase',
-                'studio.reelcontent.com': 'portal'
+                'platform': 'selfie',
+                'apps': 'showcase',
+                'studio': 'portal'
             },
             default: 'selfie'
         },

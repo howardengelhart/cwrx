@@ -130,8 +130,8 @@ testUtils.mongoUpsert = function(collName, query, obj, userCfg) {
     });
 };
 
-testUtils.resetCollection = function(collection, data,userCfg) {
-    var db, coll, sixxyUser;
+testUtils.resetCollection = function(collection, data, userCfg) {
+    var db, coll;
     
     return testUtils._getDb(userCfg).then(function(database) {
         db      = database;
