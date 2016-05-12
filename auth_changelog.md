@@ -1,5 +1,11 @@
 # Auth Service Changelog
 
+* [REMOVAL]: Endpoints will no longer send emails: [#887](https://github.com/cinema6/cwrx/issues/887)
+* Ensure `target` is set properly on all watchman notifications: [#887](https://github.com/cinema6/cwrx/issues/887)
+* Extra deployment steps:
+    * Deploy auth cookbook 1.3.10
+    * Ensure Cloudfront is forwarding `host` header
+
 ### 1.7.0: Mon Apr 11 12:31:33 EDT 2016
 * Produce certain auth events to a Kinesis stream
 * Extra deployment steps:

@@ -7,7 +7,6 @@
         q               = require('q'),
         bcrypt          = require('bcrypt'),
         crypto          = require('crypto'),
-        aws             = require('aws-sdk'),
         express         = require('express'),
         bodyParser      = require('body-parser'),
         util            = require('util'),
@@ -17,7 +16,6 @@
         journal         = require('../lib/journal'),
         authUtils       = require('../lib/authUtils'),
         service         = require('../lib/service'),
-        email           = require('../lib/email'),
         enums           = require('../lib/enums'),
         streamUtils     = require('../lib/streamUtils'),
         Status          = enums.Status,
@@ -43,19 +41,13 @@
                 retryConnect : true
             }
         },
-        emails: {
-            awsRegion: 'us-east-1',
-            sender: 'no-reply@cinema6.com',
-            supportAddress: 'support@cinema6.com',
-            enabled: true
-        },
-        forgotTargets: {
-            portal: 'http://localhost:9000/#/password/reset',
-            selfie: 'http://localhost:9000/#/pass/reset?selfie=true'
-        },
-        passwordResetPages: {
-            portal: 'http://localhost:9000/#/password/forgot',
-            selfie: 'http://localhost:9000/#/pass/forgot?selfie=true'
+        targetMapping: {
+            hosts: {
+                'platform': 'selfie',
+                'apps': 'showcase',
+                'studio': 'portal'
+            },
+            default: 'selfie'
         },
         mongo: {
             c6Db: {
@@ -95,7 +87,10 @@
     auth.produceFailedLogins = function(req, user) {
         var log = logger.getLog();
 
-        return streamUtils.produceEvent('failedLogins', { user: user }).then(function() {
+        return streamUtils.produceEvent('failedLogins', {
+            user: user,
+            target: req._target
+        }).then(function() {
             log.info('[%1] Produced failedLogins event for user %2', req.uuid, user.id);
         }).catch(function(error) {
             log.error('[%1] Error producing failedLogins event for user %2: %3', req.uuid,
@@ -103,11 +98,11 @@
         });
     };
     
-    auth.produceForgotPassword = function(req, user, target, token) {
+    auth.produceForgotPassword = function(req, user, token) {
         var log = logger.getLog();
         
         return streamUtils.produceEvent('forgotPassword', {
-            target: target,
+            target: req._target,
             user: user,
             token: token
         }).then(function() {
@@ -118,7 +113,10 @@
     auth.producePasswordChanged = function(req, user) {
         var log = logger.getLog();
         
-        return streamUtils.produceEvent('passwordChanged', { user: user }).then(function() {
+        return streamUtils.produceEvent('passwordChanged', {
+            user: user,
+            target: req._target
+        }).then(function() {
             log.info('[%1] Produced passwordChanged event for user %2', req.uuid, user.id);
         }).catch(function(error) {
             log.error('[%1] Error producing passwordChanged event for user %2: %3', req.uuid,
@@ -135,8 +133,7 @@
             log = logger.getLog(),
             userAccount,
             maxAge = config.sessions.maxAge,
-            loginAttempts = config.loginAttempts,
-            targets = config.passwordResetPages;
+            loginAttempts = config.loginAttempts;
             
         req.body.email = req.body.email.toLowerCase();
 
@@ -161,21 +158,7 @@
                                      req.uuid, numAttempts, req.body.email);
                             if (numAttempts === loginAttempts.threshold) {
                                 var safeUser = mongoUtils.safeUser(account);
-                                return auth.produceFailedLogins(req, safeUser).then(function() {
-                                    if(config.emails.enabled) {
-                                        log.info('[%1] Sending email to %2 suggesting password ' +
-                                            'reset after %3 failed login attempts',
-                                            req.uuid, req.body.email, numAttempts);
-                                            
-                                        var target = targets[(userAccount.external) ?
-                                            'selfie' : 'portal'];
-                                        return email.failedLogins(
-                                            config.emails.sender,
-                                            req.body.email,
-                                            target
-                                        );
-                                    }
-                                });
+                                return auth.produceFailedLogins(req, safeUser);
                             }
                         })
                         .catch(function(error) {
@@ -256,18 +239,11 @@
         var log = logger.getLog(),
             now = new Date(),
             reqEmail = req.body && req.body.email,
-            targetName = req.body && req.body.target || '',
-            target = config.forgotTargets[targetName] || '',
             token;
         
-        if (typeof reqEmail !== 'string' || !targetName) {
+        if (typeof reqEmail !== 'string') {
             log.info('[%1] Incomplete forgot password request', req.uuid);
-            return q({code: 400, body: 'Need to provide email and target in the request'});
-        }
-        if (!target) {
-            log.info('[%1] Invalid target %2, only accept %3',
-                     req.uuid, targetName, Object.keys(config.forgotTargets));
-            return q({code: 400, body: 'Invalid target'});
+            return q({code: 400, body: 'Need to provide email in the request'});
         }
         
         reqEmail = reqEmail.toLowerCase();
@@ -306,18 +282,10 @@
                 log.info('[%1] Saved reset token for %2 to database', req.uuid, reqEmail);
 
                 var safeUser = mongoUtils.safeUser(updatedObject);
-                return auth.produceForgotPassword(req, safeUser, targetName, token)
-                .then(function() {
-                    if(config.emails.enabled) {
-                        var url = target + ((target.indexOf('?') === -1) ? '?' : '&') +
-                                  'id=' + account.id + '&token=' + token;
-
-                        return email.resetPassword(config.emails.sender, reqEmail, url);
-                    }
-                });
+                return auth.produceForgotPassword(req, safeUser, token);
             })
             .then(function() {
-                log.info('[%1] Successfully sent reset email to %2', req.uuid, reqEmail);
+                log.info('[%1] Successfully generated reset token for %2', req.uuid, reqEmail);
                 return q({code: 200, body: 'Successfully generated reset token'});
             });
         })
@@ -387,21 +355,6 @@
                     
                     var safeUser = mongoUtils.safeUser(updatedAccount);
                     return auth.producePasswordChanged(req, safeUser).then(function() {
-                        if(config.emails.enabled) {
-                            email.passwordChanged(
-                                config.emails.sender,
-                                account.email,
-                                config.emails.supportAddress
-                            )
-                            .then(function() {
-                                log.info('[%1] Notified user of change at %2', req.uuid,
-                                    account.email);
-                            }).catch(function(error) {
-                                log.error('[%1] Error sending msg to %2: %3', req.uuid,
-                                    account.email, error);
-                            });
-                        }
-                    }).then(function() {
                         return q(sessions.deleteMany({ 'session.user': id }, { w: 1, j: true }));
                     });
                 })
@@ -442,12 +395,11 @@
         
         streamUtils.createProducer(state.config.kinesis);
         
-        aws.config.region = state.config.emails.region;
-
         app.set('trust proxy', 1);
         app.set('json spaces', 2);
 
         app.use(expressUtils.basicMiddleware());
+        app.use(expressUtils.setTargetApp(state.config.targetMapping));
         app.use(bodyParser.json());
 
         app.post('/api/auth/login', state.sessions, function(req, res) {

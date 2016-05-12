@@ -1,7 +1,7 @@
 var flush = true;
 describe('userSvc (UT)', function() {
-    var userModule, q, bcrypt, mockLog, uuid, logger, CrudSvc, Model, mongoUtils, email, crypto, authUtils,
-        CacheMutex, requestUtils, objUtils, req, userSvc, mockDb, mockConfig, nextSpy, doneSpy, errorSpy, mockCache, appCreds, streamUtils;
+    var userModule, q, bcrypt, mockLog, uuid, logger, CrudSvc, Model, mongoUtils, email, crypto, authUtils, util,
+        CacheMutex, requestUtils, objUtils, req, userSvc, mockDb, nextSpy, doneSpy, errorSpy, mockCache, appCreds, streamUtils;
 
     var enums = require('../../lib/enums'),
         Status = enums.Status,
@@ -11,6 +11,7 @@ describe('userSvc (UT)', function() {
         if (flush) { for (var m in require.cache){ delete require.cache[m]; } flush = false; }
         userModule      = require('../../bin/userSvc-users');
         q               = require('q');
+        util            = require('util');
         bcrypt          = require('bcrypt');
         crypto          = require('crypto');
         uuid            = require('rc-uuid');
@@ -41,7 +42,7 @@ describe('userSvc (UT)', function() {
         spyOn(email, 'accountWasActivated');
         spyOn(email, 'activateAccount');
         spyOn(email, 'emailChanged');
-        req = {uuid: '1234'};
+        req = { uuid: '1234', query: {}, requester: {} };
         nextSpy = jasmine.createSpy('next()');
         doneSpy = jasmine.createSpy('done()');
         errorSpy = jasmine.createSpy('caught error');
@@ -51,29 +52,31 @@ describe('userSvc (UT)', function() {
                 return { collectionName: objName };
             })
         };
-        mockConfig = {
-            emails: {
-                region: 'us-east-1',
-                sender: 'support@cinema6.com',
-                activationTarget: 'https://www.selfie.cinema6.com/activate',
-                dashboardLink: 'http://seflie.c6.com/review/campaigns',
-                enabled: true
-            },
-            port: 3500,
+        userModule.config = {
             activationTokenTTL: 60000,
             newUserPermissions: {
-                roles: ['newUserRole1'],
-                policies: ['newUserPol1'],
-                tempPolicy: 'tempPolicy'
+                selfie: {
+                    roles: ['selfieRole1'],
+                    policies: ['selfiePol1', 'selfiePol2']
+                },
+                showcase: {
+                    roles: ['showcaseRole1', 'showcaseRole2'],
+                    policies: ['showcasePol1']
+                },
             },
             api: {
                 root: 'http://localhost',
                 orgs: {
-                    endpoint: '/api/account/orgs'
+                    endpoint: '/api/account/orgs/',
+                    baseUrl: 'http://localhost/api/account/orgs/'
                 },
                 advertisers: {
-                    endpoint: '/api/account/advertisers'
+                    endpoint: '/api/account/advertisers/',
+                    baseUrl: 'http://localhost/api/account/advertisers/'
                 }
+            },
+            sessions: {
+                maxAge: 60*60*1000
             },
             kinesis: {
                 streamName: 'superStream',
@@ -87,7 +90,7 @@ describe('userSvc (UT)', function() {
     });
 
     describe('setupSvc', function() {
-        var result;
+        var result, mockConfig;
 
         var boundFns;
 
@@ -126,8 +129,7 @@ describe('userSvc (UT)', function() {
             boundFns = [];
             [CrudSvc.prototype.validateUniqueProp, userModule.checkExistingWithNewEmail,
              userModule.hashProp, userModule.validateRoles, userModule.validatePolicies, userModule.setupSignupUser,
-             userModule.giveActivationToken, userModule.sendActivationEmail, userModule.checkValidToken,
-             userModule.createLinkedEntities, userModule.sendConfirmationEmail].forEach(function(fn) {
+             userModule.giveActivationToken, userModule.checkValidToken, userModule.createLinkedEntities].forEach(function(fn) {
                 spyOn(fn, 'bind').and.callFake(function() {
                     var boundFn = bind.apply(fn, arguments);
 
@@ -143,9 +145,12 @@ describe('userSvc (UT)', function() {
 
             spyOn(streamUtils, 'createProducer');
 
-            mockCache = {
-                
-            };
+            mockCache = {};
+            mockConfig = JSON.parse(JSON.stringify(userModule.config));
+            Object.keys(mockConfig.api).forEach(function(key) {
+                delete mockConfig.api[key].baseUrl;
+            });
+            userModule.config = {};
 
             result = userModule.setupSvc(mockDb, mockConfig, mockCache, appCreds);
         });
@@ -160,8 +165,14 @@ describe('userSvc (UT)', function() {
             expect(result.model.schema).toBe(userModule.userSchema);
         });
         
+        it('should save some config locally', function() {
+            expect(userModule.config).toEqual(mockConfig);
+            expect(userModule.config.api.orgs.baseUrl).toBe('http://localhost/api/account/orgs/');
+            expect(userModule.config.api.advertisers.baseUrl).toBe('http://localhost/api/account/advertisers/');
+        });
+        
         it('should create a kinesis producer', function() {
-            expect(streamUtils.createProducer).toHaveBeenCalledWith(mockConfig.kinesis);
+            expect(streamUtils.createProducer).toHaveBeenCalledWith(userModule.config.kinesis);
         });
 
         it('should hash the user\'s passwords when creating', function() {
@@ -222,8 +233,8 @@ describe('userSvc (UT)', function() {
         });
 
         it('should setupSignupUser when signing up a user', function() {
-            expect(userModule.setupSignupUser.bind).toHaveBeenCalledWith(userModule, result, ['newUserRole1'], ['newUserPol1']);
-            expect(result._middleware.signupUser).toContain(getBoundFn(userModule.setupSignupUser, [userModule, result, ['newUserRole1'], ['newUserPol1']]));
+            expect(userModule.setupSignupUser.bind).toHaveBeenCalledWith(userModule, result);
+            expect(result._middleware.signupUser).toContain(getBoundFn(userModule.setupSignupUser, [userModule, result]));
         });
 
         it('should validate the password when signing up a user', function() {
@@ -244,17 +255,9 @@ describe('userSvc (UT)', function() {
             expect(result._middleware.signupUser).toContain(getBoundFn(result.validateUniqueProp, [result, 'email', null]));
         });
 
-        it('should give an activation token when signing up a user', function() {
-            expect(userModule.giveActivationToken.bind).toHaveBeenCalledWith(userModule, 60000);
-            expect(result._middleware.signupUser).toContain(getBoundFn(userModule.giveActivationToken, [userModule, 60000]));
-        });
-
-        it('should send an conditionally activation email when signing up a user', function() {
-            expect(userModule.sendActivationEmail.bind).toHaveBeenCalledWith(userModule, 'support@cinema6.com', 'https://www.selfie.cinema6.com/activate');
-            expect(result._middleware.signupUser).toContain(getBoundFn(userModule.sendActivationEmail, [userModule, 'support@cinema6.com', 'https://www.selfie.cinema6.com/activate']));
-            mockConfig.emails.enabled = false;
-            result = userModule.setupSvc(mockDb, mockConfig, mockCache, appCreds);
-            expect(result._middleware.signupUser).not.toContain(getBoundFn(userModule.sendActivationEmail, [userModule, 'support@cinema6.com', 'https://www.selfie.cinema6.com/activate']));
+        it('should give an activation token when signing up a user or resending activation', function() {
+            expect(result._middleware.signupUser).toContain(userModule.giveActivationToken);
+            expect(result._middleware.resendActivation).toContain(userModule.giveActivationToken);
         });
 
         it('should check validity of token on user confirm', function() {
@@ -263,36 +266,15 @@ describe('userSvc (UT)', function() {
         });
 
         it('should give linked entities on user confirm', function() {
-            expect(userModule.createLinkedEntities.bind).toHaveBeenCalledWith(userModule, mockConfig, mockCache, result, appCreds);
-            expect(result._middleware.confirmUser).toContain(getBoundFn(userModule.createLinkedEntities, [userModule, mockConfig, mockCache, result, appCreds]));
-        });
-
-        it('should conditionally send confirmation email on user confirm', function() {
-            expect(userModule.sendConfirmationEmail.bind).toHaveBeenCalledWith(userModule, 'support@cinema6.com', 'http://seflie.c6.com/review/campaigns');
-            expect(result._middleware.confirmUser).toContain(getBoundFn(userModule.sendConfirmationEmail, [userModule, 'support@cinema6.com', 'http://seflie.c6.com/review/campaigns']));
-            mockConfig.emails.enabled = false;
-            result = userModule.setupSvc(mockDb, mockConfig, mockCache, appCreds);
-            expect(result._middleware.confirmUser).not.toContain(getBoundFn(userModule.sendConfirmationEmail, [userModule, 'support@cinema6.com', 'http://seflie.c6.com/review/campaigns']));
-        });
-
-        it('should give an activation token on resendActivation', function() {
-            expect(userModule.giveActivationToken.bind).toHaveBeenCalledWith(userModule, 60000);
-            expect(result._middleware.resendActivation).toContain(getBoundFn(userModule.giveActivationToken, [userModule, 60000]));
-        });
-        
-        it('should send an activation email on resendActivation', function() {
-            expect(userModule.sendActivationEmail.bind).toHaveBeenCalledWith(userModule, 'support@cinema6.com', 'https://www.selfie.cinema6.com/activate');
-            expect(result._middleware.resendActivation).toContain(getBoundFn(userModule.sendActivationEmail, [userModule, 'support@cinema6.com', 'https://www.selfie.cinema6.com/activate']));
-            mockConfig.emails.enabled = false;
-            result = userModule.setupSvc(mockDb, mockConfig, mockCache, appCreds);
-            expect(result._middleware.resendActivation).not.toContain(getBoundFn(userModule.sendActivationEmail, [userModule, 'support@cinema6.com', 'https://www.selfie.cinema6.com/activate']));
+            expect(userModule.createLinkedEntities.bind).toHaveBeenCalledWith(userModule, mockCache, result, appCreds);
+            expect(result._middleware.confirmUser).toContain(getBoundFn(userModule.createLinkedEntities, [userModule, mockCache, result, appCreds]));
         });
     });
 
     describe('user validation', function() {
         var svc, newObj, origObj, requester;
         beforeEach(function() {
-            svc = userModule.setupSvc(mockDb, mockConfig, mockCache, appCreds);
+            svc = userModule.setupSvc(mockDb, userModule.config, mockCache, appCreds);
             newObj = { email: 'test@me.com', password: 'pass' };
             origObj = {};
             requester = { fieldValidation: { users: {} } };
@@ -492,7 +474,7 @@ describe('userSvc (UT)', function() {
     describe('createSignupModel', function() {
         var svc;
         beforeEach(function() {
-            svc = userModule.setupSvc(mockDb, mockConfig, mockCache, appCreds);
+            svc = userModule.setupSvc(mockDb, userModule.config, mockCache, appCreds);
         });
 
         it('should return a new model with an altered user schema', function() {
@@ -670,7 +652,7 @@ describe('userSvc (UT)', function() {
         });
         
         it('should create an advertiser and org', function(done) {
-            userModule.createLinkedEntities(mockConfig, mockCache, svc, appCreds, req, nextSpy, doneSpy).catch(errorSpy).finally(function() {
+            userModule.createLinkedEntities(mockCache, svc, appCreds, req, nextSpy, doneSpy).catch(errorSpy).finally(function() {
                 expect(nextSpy).toHaveBeenCalled();
                 expect(doneSpy).not.toHaveBeenCalled();
                 expect(errorSpy).not.toHaveBeenCalled();
@@ -681,11 +663,11 @@ describe('userSvc (UT)', function() {
 
                 expect(requestUtils.makeSignedRequest.calls.count()).toBe(2);
                 expect(requestUtils.makeSignedRequest).toHaveBeenCalledWith(appCreds, 'post', {
-                    url: 'http://localhost/api/account/orgs',
+                    url: 'http://localhost/api/account/orgs/',
                     json: { name: 'some company (u-12345)' }
                 });
                 expect(requestUtils.makeSignedRequest).toHaveBeenCalledWith(appCreds, 'post', {
-                    url: 'http://localhost/api/account/advertisers',
+                    url: 'http://localhost/api/account/advertisers/',
                     json: { name: 'some company', org: 'orgs-id-123' }
                 });
 
@@ -697,7 +679,7 @@ describe('userSvc (UT)', function() {
         
         it('should call done if it cannot acquire a mutex lock', function(done) {
             CacheMutex.prototype.acquire.and.returnValue(q(false));
-            userModule.createLinkedEntities(mockConfig, mockCache, svc, appCreds, req, nextSpy, doneSpy).catch(errorSpy).finally(function() {
+            userModule.createLinkedEntities(mockCache, svc, appCreds, req, nextSpy, doneSpy).catch(errorSpy).finally(function() {
                 expect(nextSpy).not.toHaveBeenCalled();
                 expect(doneSpy).toHaveBeenCalledWith({ code: 400, body: 'Another operation is already in progress' });
                 expect(errorSpy).not.toHaveBeenCalled();
@@ -714,7 +696,7 @@ describe('userSvc (UT)', function() {
             });
 
             it('should not attempt to create another org', function(done) {
-                userModule.createLinkedEntities(mockConfig, mockCache, svc, appCreds, req, nextSpy, doneSpy).catch(errorSpy)
+                userModule.createLinkedEntities(mockCache, svc, appCreds, req, nextSpy, doneSpy).catch(errorSpy)
                 .finally(function() {
                     expect(nextSpy).toHaveBeenCalled();
                     expect(doneSpy).not.toHaveBeenCalled();
@@ -723,10 +705,10 @@ describe('userSvc (UT)', function() {
 
                     expect(requestUtils.makeSignedRequest.calls.count()).toBe(1);
                     expect(requestUtils.makeSignedRequest).not.toHaveBeenCalledWith(appCreds, 'post', jasmine.objectContaining({
-                        url: 'http://localhost/api/account/orgs'
+                        url: 'http://localhost/api/account/orgs/'
                     }));
                     expect(requestUtils.makeSignedRequest).toHaveBeenCalledWith(appCreds, 'post', jasmine.objectContaining({
-                        url: 'http://localhost/api/account/advertisers'
+                        url: 'http://localhost/api/account/advertisers/'
                     }));
 
                     expect(mongoUtils.editObject).not.toHaveBeenCalled();
@@ -742,7 +724,7 @@ describe('userSvc (UT)', function() {
             });
 
             it('should save the code on the org', function(done) {
-                userModule.createLinkedEntities(mockConfig, mockCache, svc, appCreds, req, nextSpy, doneSpy).catch(errorSpy)
+                userModule.createLinkedEntities(mockCache, svc, appCreds, req, nextSpy, doneSpy).catch(errorSpy)
                 .finally(function() {
                     expect(nextSpy).toHaveBeenCalled();
                     expect(doneSpy).not.toHaveBeenCalled();
@@ -750,7 +732,7 @@ describe('userSvc (UT)', function() {
                     expect(req.user.org).toBe('orgs-id-123');
 
                     expect(requestUtils.makeSignedRequest).toHaveBeenCalledWith(appCreds, 'post', {
-                        url: 'http://localhost/api/account/orgs',
+                        url: 'http://localhost/api/account/orgs/',
                         json: {
                             name: 'some company (u-12345)',
                             referralCode: 'asdf123456'
@@ -770,7 +752,7 @@ describe('userSvc (UT)', function() {
             });
 
             it('should save the id on the org', function(done) {
-                userModule.createLinkedEntities(mockConfig, mockCache, svc, appCreds, req, nextSpy, doneSpy).catch(errorSpy)
+                userModule.createLinkedEntities(mockCache, svc, appCreds, req, nextSpy, doneSpy).catch(errorSpy)
                 .finally(function() {
                     expect(nextSpy).toHaveBeenCalled();
                     expect(doneSpy).not.toHaveBeenCalled();
@@ -778,7 +760,7 @@ describe('userSvc (UT)', function() {
                     expect(req.user.org).toBe('orgs-id-123');
 
                     expect(requestUtils.makeSignedRequest).toHaveBeenCalledWith(appCreds, 'post', {
-                        url: 'http://localhost/api/account/orgs',
+                        url: 'http://localhost/api/account/orgs/',
                         json: {
                             name: 'some company (u-12345)',
                             paymentPlanId: 'pp-0Ek1iM02uYGNaLIL'
@@ -820,7 +802,7 @@ describe('userSvc (UT)', function() {
                 });
                 
                 it('should reject without attempting to save the user', function(done) {
-                    userModule.createLinkedEntities(mockConfig, mockCache, svc, appCreds, req, nextSpy, doneSpy).catch(errorSpy)
+                    userModule.createLinkedEntities(mockCache, svc, appCreds, req, nextSpy, doneSpy).catch(errorSpy)
                     .finally(function() {
                         expect(nextSpy).not.toHaveBeenCalled();
                         expect(doneSpy).not.toHaveBeenCalled();
@@ -829,7 +811,7 @@ describe('userSvc (UT)', function() {
 
                         expect(requestUtils.makeSignedRequest.calls.count()).toBe(1);
                         expect(requestUtils.makeSignedRequest).toHaveBeenCalledWith(appCreds, 'post', jasmine.objectContaining({
-                            url: 'http://localhost/api/account/orgs'
+                            url: 'http://localhost/api/account/orgs/'
                         }));
                         expect(mongoUtils.editObject).not.toHaveBeenCalled();
                         
@@ -852,7 +834,7 @@ describe('userSvc (UT)', function() {
                 });
                 
                 it('should attempt to save the org id on the user', function(done) {
-                    userModule.createLinkedEntities(mockConfig, mockCache, svc, appCreds, req, nextSpy, doneSpy).catch(errorSpy)
+                    userModule.createLinkedEntities(mockCache, svc, appCreds, req, nextSpy, doneSpy).catch(errorSpy)
                     .finally(function() {
                         expect(nextSpy).not.toHaveBeenCalled();
                         expect(doneSpy).not.toHaveBeenCalled();
@@ -876,7 +858,7 @@ describe('userSvc (UT)', function() {
 
                 it('should reject with the same message if saving the user fails', function(done) {
                     mongoUtils.editObject.and.returnValue(q.reject('Honey you got a big storm coming'));
-                    userModule.createLinkedEntities(mockConfig, mockCache, svc, appCreds, req, nextSpy, doneSpy).catch(errorSpy)
+                    userModule.createLinkedEntities(mockCache, svc, appCreds, req, nextSpy, doneSpy).catch(errorSpy)
                     .finally(function() {
                         expect(nextSpy).not.toHaveBeenCalled();
                         expect(doneSpy).not.toHaveBeenCalled();
@@ -890,76 +872,55 @@ describe('userSvc (UT)', function() {
         });
     });
 
-    describe('sendConfirmationEmail', function() {
-        var nextSpy;
-
-        beforeEach(function(done) {
-            nextSpy = jasmine.createSpy('next()').and.returnValue(q());
-            email.accountWasActivated.and.returnValue(q());
-            userModule.sendConfirmationEmail('sender', 'http://dash.board', {user:{email:'some email'}}, nextSpy).done(done);
-        });
-
-        it('should notify account activation', function() {
-            expect(email.accountWasActivated).toHaveBeenCalledWith('sender', 'some email', 'http://dash.board');
-        });
-
-        it('should call next', function() {
-            expect(nextSpy).toHaveBeenCalled();
-        });
-    });
-
     describe('setupSignupUser', function() {
-        var svc, req, next, done;
+        var svc;
 
         beforeEach(function() {
             spyOn(uuid, 'createUuid').and.returnValue('1234567890abcdef');
-            var newUserRoles = ['newUserRole1', 'newUserRole2'];
-            var newUserPols = ['newUserPol1', 'newUserPol2'];
-            svc = userModule.setupSvc(mockDb, mockConfig, mockCache, appCreds);
-            req = {
-                body: { }
-            };
-            next = jasmine.createSpy('next()');
-            done = jasmine.createSpy('done()');
-            userModule.setupSignupUser(svc, newUserRoles, newUserPols, req, next, done);
+            svc = userModule.setupSvc(mockDb, userModule.config, mockCache, appCreds);
+            req.body = {};
+            req._target = 'selfie';
         });
-
-        it('should give the object an id', function() {
+        
+        it('should setup a new selfie user', function() {
+            userModule.setupSignupUser(svc, req, nextSpy, doneSpy);
             expect(req.body.id).toBe('u-1234567890abcdef');
-        });
-
-        it('should set the created date of the object', function() {
             expect(req.body.created).toEqual(jasmine.any(Date));
-            expect(req.body.created).toBe(req.body.lastUpdated);
-        });
-
-        it('should set the last updated date of the object', function() {
-            expect(req.body.lastUpdated).toEqual(jasmine.any(Date));
             expect(req.body.lastUpdated).toBe(req.body.created);
-        });
-
-        it('should set the status of the object to new', function() {
-            expect(req.body.status).toBe('new');
-        });
-
-        it('should set roles on the new object', function() {
-            expect(req.body.roles).toEqual(['newUserRole1', 'newUserRole2']);
-        });
-
-        it('should set policies on the new object', function() {
-            expect(req.body.policies).toEqual(['newUserPol1', 'newUserPol2']);
-        });
-
-        it('should set external on the new object to true', function() {
+            expect(req.body.status).toEqual(Status.New);
             expect(req.body.external).toBe(true);
+            expect(req.body.roles).toEqual(['selfieRole1']);
+            expect(req.body.policies).toEqual(['selfiePol1', 'selfiePol2']);
+            expect(nextSpy).toHaveBeenCalled();
+            expect(doneSpy).not.toHaveBeenCalled();
+        });
+        
+        it('should setup a new showcase user', function() {
+            req._target = 'showcase';
+            userModule.setupSignupUser(svc, req, nextSpy, doneSpy);
+            expect(req.body.id).toBe('u-1234567890abcdef');
+            expect(req.body.created).toEqual(jasmine.any(Date));
+            expect(req.body.lastUpdated).toBe(req.body.created);
+            expect(req.body.status).toEqual(Status.New);
+            expect(req.body.external).toBe(true);
+            expect(req.body.roles).toEqual(['showcaseRole1', 'showcaseRole2']);
+            expect(req.body.policies).toEqual(['showcasePol1']);
+            expect(nextSpy).toHaveBeenCalled();
+            expect(doneSpy).not.toHaveBeenCalled();
         });
 
-        it('should call next', function() {
-            expect(next).toHaveBeenCalled();
-        });
-
-        it('should not call done', function() {
-            expect(done).not.toHaveBeenCalled();
+        it('should setup a new user that doesn\'t have pre-configured roles + policies', function() {
+            req._target = 'someotherapp';
+            userModule.setupSignupUser(svc, req, nextSpy, doneSpy);
+            expect(req.body.id).toBe('u-1234567890abcdef');
+            expect(req.body.created).toEqual(jasmine.any(Date));
+            expect(req.body.lastUpdated).toBe(req.body.created);
+            expect(req.body.status).toEqual(Status.New);
+            expect(req.body.external).toBe(true);
+            expect(req.body.roles).toEqual([]);
+            expect(req.body.policies).toEqual([]);
+            expect(nextSpy).toHaveBeenCalled();
+            expect(doneSpy).not.toHaveBeenCalled();
         });
     });
 
@@ -982,7 +943,7 @@ describe('userSvc (UT)', function() {
         });
 
         it('should generate random bytes and convert to hex', function(done) {
-            userModule.giveActivationToken(60000, req, nextSpy)
+            userModule.giveActivationToken(req, nextSpy)
             .then(function() {
                 expect(crypto.randomBytes).toHaveBeenCalledWith(24, jasmine.any(Function));
             })
@@ -993,7 +954,7 @@ describe('userSvc (UT)', function() {
         });
 
         it('should temporarily store the unhashed token in hex on the request', function(done) {
-            userModule.giveActivationToken(60000, req, nextSpy)
+            userModule.giveActivationToken(req, nextSpy)
             .then(function() {
                 expect(req.tempToken).toBe('6162636465666768696a6b6c6d6e6f707172737475767778');
             })
@@ -1004,7 +965,7 @@ describe('userSvc (UT)', function() {
         });
 
         it('should hash the hex token', function(done) {
-            userModule.giveActivationToken(60000, req, nextSpy)
+            userModule.giveActivationToken(req, nextSpy)
             .then(function() {
                 expect(bcrypt.genSaltSync).toHaveBeenCalled();
                 expect(bcrypt.hash).toHaveBeenCalledWith('6162636465666768696a6b6c6d6e6f707172737475767778', 'salt', jasmine.any(Function));
@@ -1016,7 +977,7 @@ describe('userSvc (UT)', function() {
         });
 
         it('should set the hashed token on the user document', function(done) {
-            userModule.giveActivationToken(60000, req, nextSpy)
+            userModule.giveActivationToken(req, nextSpy)
             .then(function() {
                 expect(req.body.activationToken.token).toBe('hashed-activation-token');
                 expect(req.body.activationToken.expires).toEqual(jasmine.any(Date));
@@ -1028,7 +989,7 @@ describe('userSvc (UT)', function() {
         });
 
         it('should call next', function(done) {
-            userModule.giveActivationToken(60000, req, nextSpy)
+            userModule.giveActivationToken(req, nextSpy)
             .then(function() {
                 expect(nextSpy).toHaveBeenCalled();
             })
@@ -1041,87 +1002,7 @@ describe('userSvc (UT)', function() {
         it('should reject if something fails', function(done) {
             var errorSpy = jasmine.createSpy('errorSpy()');
             crypto.randomBytes.and.returnValue(q.reject('epic fail'));
-            userModule.giveActivationToken(60000, req, nextSpy)
-            .catch(errorSpy)
-            .done(function() {
-                expect(errorSpy).toHaveBeenCalled();
-                expect(nextSpy).not.toHaveBeenCalled();
-                expect(mockLog.error).toHaveBeenCalled();
-                done();
-            });
-        });
-    });
-
-    describe('sendActivationEmail', function() {
-        var req, nextSpy, doneSPy;
-
-        beforeEach(function() {
-            req = {
-                body: {
-                    id: 'u-abcdefghijklmn',
-                    email: 'email@email.com'
-                },
-                tempToken: '6162636465666768696a6b6c6d6e6f707172737475767778'
-            };
-            email.activateAccount.and.returnValue(q());
-            nextSpy = jasmine.createSpy('next()');
-            doneSpy = jasmine.createSpy('done()');
-        });
-
-        it('should send an activation email', function(done) {
-            userModule.sendActivationEmail('sender', 'target', req, nextSpy, doneSpy)
-            .then(function() {
-                expect(email.activateAccount).toHaveBeenCalledWith('sender', 'email@email.com', 'target?id=u-abcdefghijklmn&token=6162636465666768696a6b6c6d6e6f707172737475767778');
-            })
-            .catch(function(error) {
-                expect(error).not.toBeDefined();
-            })
-            .done(done);
-        });
-
-        it('should handle targets with existing query params', function(done) {
-            userModule.sendActivationEmail('sender', 'https://staging.cinema6.com/#/activate?selfie=selfie', req, nextSpy, doneSpy)
-            .then(function() {
-                expect(email.activateAccount).toHaveBeenCalledWith('sender', 'email@email.com', 'https://staging.cinema6.com/#/activate?selfie=selfie&id=u-abcdefghijklmn&token=6162636465666768696a6b6c6d6e6f707172737475767778');
-            })
-            .catch(function(error) {
-                expect(error).not.toBeDefined();
-            })
-            .done(done);
-        });
-
-        it('should call next', function(done) {
-            userModule.sendActivationEmail('sender', 'target', req, nextSpy, doneSpy)
-            .then(function() {
-                expect(nextSpy).toHaveBeenCalled();
-                expect(doneSpy).not.toHaveBeenCalled();
-            })
-            .catch(function(error) {
-                expect(error).not.toBeDefined();
-            })
-            .done(done);
-        });
-
-        it('should call done if failed due to a malformed email', function(done) {
-            email.activateAccount.and.returnValue(q.reject({name: 'InvalidParameterValue'}));
-            userModule.sendActivationEmail('sender', 'target', req, nextSpy, doneSpy)
-            .then(function() {
-                expect(nextSpy).not.toHaveBeenCalled();
-                expect(doneSpy).toHaveBeenCalledWith({
-                    code: 400,
-                    body: 'Invalid email address'
-                });
-            })
-            .catch(function(error) {
-                expect(error).not.toBeDefined();
-            })
-            .done(done);
-        });
-
-        it('should reject if something fails', function(done) {
-            var errorSpy = jasmine.createSpy('errorSpy()');
-            email.activateAccount.and.returnValue(q.reject({}));
-            userModule.sendActivationEmail('sender', 'target', req, nextSpy, doneSpy)
+            userModule.giveActivationToken(req, nextSpy)
             .catch(errorSpy)
             .done(function() {
                 expect(errorSpy).toHaveBeenCalled();
@@ -1483,7 +1364,7 @@ describe('userSvc (UT)', function() {
     describe('validateRoles(svc, req, next, done)', function() {
         var roleColl, roles, svc;
         beforeEach(function() {
-            svc = userModule.setupSvc(mockDb, mockConfig, mockCache, appCreds);
+            svc = userModule.setupSvc(mockDb, userModule.config, mockCache, appCreds);
             roles = [
                 { id: 'r-1', name: 'role1' },
                 { id: 'r-2', name: 'role2' },
@@ -1560,7 +1441,7 @@ describe('userSvc (UT)', function() {
     describe('validatePolicies(svc, req, next, done)', function() {
         var polColl, pols, svc;
         beforeEach(function() {
-            svc = userModule.setupSvc(mockDb, mockConfig, mockCache, appCreds);
+            svc = userModule.setupSvc(mockDb, userModule.config, mockCache, appCreds);
             pols = [
                 { id: 'p-1', name: 'pol1' },
                 { id: 'p-2', name: 'pol2' },
@@ -1691,311 +1572,6 @@ describe('userSvc (UT)', function() {
         });
     });
 
-    describe('changePassword(svc, req, emailSender, emailingEnabled)', function() {
-        var deferred;
-        var users;
-        var svc, req, emailSender;
-        var result;
-
-        beforeEach(function() {
-            deferred = q.defer();
-
-            users = {
-                update: jasmine.createSpy('users.update()')
-            };
-
-            svc = {
-                customMethod: jasmine.createSpy('svc.customMethod(req, actionName, cb)').and.returnValue(deferred.promise),
-                _coll: users
-            };
-            req = {
-                user: {
-                    id: 'u-7e4895c648c57d'
-                },
-                body: {
-                    newPassword: 'f081611cbba5acab5d3051b32698238a7c637419ff87a5fc6e66233b',
-                    email: 'someone@domain.com'
-                }
-            };
-            emailSender = 'johnnytestmonkey@cinema6.com';
-
-            result = userModule.changePassword(svc, req, emailSender, 'support@c6.com', true);
-        });
-
-        it('should call and return svc.customMethod()', function() {
-            expect(svc.customMethod).toHaveBeenCalledWith(req, 'changePassword', jasmine.any(Function));
-            expect(result).toBe(deferred.promise);
-        });
-
-        describe('the callback', function() {
-            var callback;
-            var success, failure;
-            var editObjectDeferred;
-
-            beforeEach(function(done) {
-                callback = svc.customMethod.calls.mostRecent().args[2];
-                success = jasmine.createSpy('success()');
-                failure = jasmine.createSpy('failure()');
-
-                editObjectDeferred = q.defer();
-                spyOn(mongoUtils, 'editObject').and.returnValue(editObjectDeferred.promise);
-
-                callback().then(success, failure);
-
-                q().then(done);
-            });
-
-            it('should update the user with the new password', function() {
-                expect(mongoUtils.editObject).toHaveBeenCalledWith(users, { password: req.body.newPassword }, req.user.id);
-            });
-
-            describe('if the update fails', function() {
-                var error;
-
-                beforeEach(function(done) {
-                    error = new Error('It didn\'t work.');
-
-                    editObjectDeferred.reject(error);
-                    editObjectDeferred.promise.finally(done);
-                });
-
-                it('should reject the promise', function() {
-                    expect(failure).toHaveBeenCalledWith(error);
-                });
-
-                it('should log an error', function() {
-                    expect(mockLog.error).toHaveBeenCalled();
-                });
-
-                it('should not send an email', function() {
-                    expect(email.passwordChanged).not.toHaveBeenCalled();
-                });
-            });
-
-            describe('if the update succeeds', function() {
-                var notifyDeffered;
-
-                beforeEach(function(done) {
-                    notifyDeffered = q.defer();
-                    email.passwordChanged.and.returnValue(notifyDeffered.promise);
-
-                    editObjectDeferred.resolve();
-                    editObjectDeferred.promise.finally(done);
-                });
-
-                it('should send an email notifying the user of the password change', function() {
-                    expect(email.passwordChanged).toHaveBeenCalledWith(emailSender, req.body.email, 'support@c6.com');
-                });
-
-                it('should not send an email if emailing is not enabled', function(done) {
-                    email.passwordChanged.calls.reset();
-                    result = userModule.changePassword(svc, req, emailSender, 'support@c6.com', false);
-                    callback = svc.customMethod.calls.mostRecent().args[2];
-                    callback().then(function() {
-                        expect(email.passwordChanged).not.toHaveBeenCalled();
-                    }).then(done, done.fail);
-                });
-
-                it('should not log an error', function() {
-                    expect(mockLog.error).not.toHaveBeenCalled();
-                });
-
-                it('should fulfill the promise', function() {
-                    expect(success).toHaveBeenCalledWith({
-                        code: 200,
-                        body: 'Successfully changed password'
-                    });
-                });
-
-                describe('if sending the email succeeds', function() {
-                    beforeEach(function(done) {
-                        notifyDeffered.resolve();
-                        notifyDeffered.promise.then(done);
-                    });
-
-                    it('should not log an error', function() {
-                        expect(mockLog.error).not.toHaveBeenCalled();
-                    });
-                });
-
-                describe('if sending the email fails', function() {
-                    var error;
-
-                    beforeEach(function(done) {
-                        error = new Error('USPS is defunct.');
-                        notifyDeffered.reject(error);
-
-                        notifyDeffered.promise.finally(done);
-                    });
-
-                    it('should log an error', function() {
-                        expect(mockLog.error).toHaveBeenCalled();
-                    });
-                });
-            });
-        });
-    });
-
-    describe('changeEmail(svc, req, emailSender, supportContact)', function() {
-        var deferred;
-        var users;
-        var svc, req, emailSender;
-        var result;
-
-        beforeEach(function() {
-            deferred = q.defer();
-
-            users = {
-                update: jasmine.createSpy('users.update()')
-            };
-
-            svc = {
-                customMethod: jasmine.createSpy('svc.customMethod(req, actionName, cb)').and.returnValue(deferred.promise),
-                _coll: users
-            };
-            req = {
-                user: {
-                    id: 'u-7e4895c648c57d'
-                },
-                body: {
-                    email: 'jminzner@cinema6.com',
-                    newEmail: 'josh@cinema6.com'
-                }
-            };
-            emailSender = 'johnnytestmonkey@cinema6.com';
-
-            result = userModule.changeEmail(svc, req, emailSender, 'support@c6.com', true);
-        });
-
-        it('should call and return svc.customMethod()', function() {
-            expect(svc.customMethod).toHaveBeenCalledWith(req, 'changeEmail', jasmine.any(Function));
-            expect(result).toBe(deferred.promise);
-        });
-
-        describe('the callback', function() {
-            var callback;
-            var success, failure;
-            var editObjectDeferred;
-
-            beforeEach(function(done) {
-                callback = svc.customMethod.calls.mostRecent().args[2];
-                success = jasmine.createSpy('success()');
-                failure = jasmine.createSpy('failure()');
-
-                editObjectDeferred = q.defer();
-                spyOn(mongoUtils, 'editObject').and.returnValue(editObjectDeferred.promise);
-
-                callback().then(success, failure);
-
-                q().then(done);
-            });
-
-            it('should update the email', function() {
-                expect(mongoUtils.editObject).toHaveBeenCalledWith(users, { email: req.body.newEmail }, req.user.id);
-            });
-
-            describe('if the update fails', function() {
-                var error;
-
-                beforeEach(function(done) {
-                    error = new Error('I GOT A PROBLEM');
-
-                    editObjectDeferred.reject(error);
-
-                    editObjectDeferred.promise.finally(done);
-                });
-
-                it('should log an error', function() {
-                    expect(mockLog.error).toHaveBeenCalled();
-                });
-
-                it('should reject the promise', function() {
-                    expect(failure).toHaveBeenCalledWith(error);
-                });
-
-                it('should not send an email', function() {
-                    expect(email.emailChanged).not.toHaveBeenCalled();
-                });
-            });
-
-            describe('if the update succeeds', function() {
-                var emailDeferred;
-
-                beforeEach(function(done) {
-                    emailDeferred = q.defer();
-                    email.emailChanged.and.returnValue(emailDeferred.promise);
-
-                    editObjectDeferred.resolve();
-                    editObjectDeferred.promise.finally(done);
-                });
-
-                it('should send the user an email at both addresses', function() {
-                    expect(email.emailChanged.calls.count()).toBe(2);
-                    expect(email.emailChanged).toHaveBeenCalledWith(
-                        emailSender,
-                        req.body.email,
-                        req.body.email,
-                        req.body.newEmail,
-                        'support@c6.com'
-                    );
-                    expect(email.emailChanged).toHaveBeenCalledWith(
-                        emailSender,
-                        req.body.newEmail,
-                        req.body.email,
-                        req.body.newEmail,
-                        'support@c6.com'
-                    );
-                });
-
-                it('should not send an email if emailing is not enabled', function(done) {
-                    email.emailChanged.calls.reset();
-                    result = userModule.changeEmail(svc, req, emailSender, 'support@c6.com', false);
-                    callback = svc.customMethod.calls.mostRecent().args[2];
-                    callback().then(function() {
-                        expect(email.emailChanged).not.toHaveBeenCalled();
-                    }).then(done, done.fail);
-                });
-
-                it('should not log an error', function() {
-                    expect(mockLog.error).not.toHaveBeenCalled();
-                });
-
-                it('should fulfill the promise', function() {
-                    expect(success).toHaveBeenCalledWith({
-                        code: 200,
-                        body: 'Successfully changed email'
-                    });
-                });
-
-                describe('if sending the email succeeds', function() {
-                    beforeEach(function(done) {
-                        emailDeferred.resolve();
-                        q().then(done);
-                    });
-
-                    it('should not log an error', function() {
-                        expect(mockLog.error).not.toHaveBeenCalled();
-                    });
-                });
-
-                describe('if sending the email fails', function() {
-                    var error;
-
-                    beforeEach(function(done) {
-                        error = new Error('You addressed your thing wrong.');
-                        emailDeferred.reject(error);
-
-                        emailDeferred.promise.finally(done);
-                    });
-
-                    it('should log an error', function() {
-                        expect(mockLog.error.calls.count()).toBe(2);
-                    });
-                });
-            });
-        });
-    });
-
     describe('checkExistingWithNewEmail(sv, req, next, done)', function() {
         var validateUniquePropDeferred;
         var svc, req, next, done;
@@ -2066,6 +1642,275 @@ describe('userSvc (UT)', function() {
         });
     });
 
+    describe('authorizeForceLogout(req, next, done)', function() {
+        var req, next, done;
+
+        function itShouldCallDone() {
+            it('should call done() with a 403', function() {
+                expect(done).toHaveBeenCalledWith({ code: 403, body: 'Not authorized to force logout users' });
+                expect(next).not.toHaveBeenCalled();
+            });
+        }
+
+        beforeEach(function() {
+            req = {
+                user: { id: 'u-1' },
+                requester: { id: 'u-1', permissions: {} }
+            };
+            next = jasmine.createSpy('next()');
+            done = jasmine.createSpy('done()');
+        });
+
+        describe('if the requester has no permissions', function() {
+            beforeEach(function() {
+                req.requester.permissions = null;
+                userModule.authorizeForceLogout(req, next, done);
+            });
+
+            itShouldCallDone();
+        });
+
+        describe('if the requester has no users permissions', function() {
+            beforeEach(function() {
+                req.requester.permissions = { experiences: {}, elections: {}, campaigns: {} };
+                userModule.authorizeForceLogout(req, next, done);
+            });
+
+            itShouldCallDone();
+        });
+
+        describe('if the requester has no edit permissions for users', function() {
+            beforeEach(function() {
+                req.requester.permissions = {
+                    users: { read: Scope.All, create: Scope.Org }
+                };
+                userModule.authorizeForceLogout(req, next, done);
+            });
+
+            itShouldCallDone();
+        });
+
+        [Scope.Own, Scope.Org].forEach(function(scope) {
+            describe('if the requester\'s users edit permissions are ' + scope, function() {
+                beforeEach(function() {
+                    req.requester.permissions = {
+                        users: { edit: scope }
+                    };
+                    userModule.authorizeForceLogout(req, next, done);
+                });
+
+                itShouldCallDone();
+            });
+        });
+
+        describe('if the requester\'s users edit permissions are ' + Scope.All, function() {
+            beforeEach(function() {
+                req.requester.permissions = {
+                    users: { edit: Scope.All }
+                };
+                userModule.authorizeForceLogout(req, next, done);
+            });
+
+            it('should call next()', function() {
+                expect(done).not.toHaveBeenCalled();
+                expect(next).toHaveBeenCalledWith();
+            });
+        });
+    });
+
+    describe('changePassword(svc, req)', function() {
+        var deferred;
+        var users;
+        var svc, req;
+        var result;
+
+        beforeEach(function() {
+            deferred = q.defer();
+
+            users = {
+                update: jasmine.createSpy('users.update()')
+            };
+
+            svc = {
+                customMethod: jasmine.createSpy('svc.customMethod(req, actionName, cb)').and.returnValue(deferred.promise),
+                _coll: users
+            };
+            req = {
+                user: {
+                    id: 'u-7e4895c648c57d'
+                },
+                body: {
+                    newPassword: 'f081611cbba5acab5d3051b32698238a7c637419ff87a5fc6e66233b',
+                    email: 'someone@domain.com'
+                }
+            };
+
+            result = userModule.changePassword(svc, req);
+        });
+
+        it('should call and return svc.customMethod()', function() {
+            expect(svc.customMethod).toHaveBeenCalledWith(req, 'changePassword', jasmine.any(Function));
+            expect(result).toBe(deferred.promise);
+        });
+
+        describe('the callback', function() {
+            var callback;
+            var success, failure;
+            var editObjectDeferred;
+
+            beforeEach(function(done) {
+                callback = svc.customMethod.calls.mostRecent().args[2];
+                success = jasmine.createSpy('success()');
+                failure = jasmine.createSpy('failure()');
+
+                editObjectDeferred = q.defer();
+                spyOn(mongoUtils, 'editObject').and.returnValue(editObjectDeferred.promise);
+
+                callback().then(success, failure);
+
+                q().then(done);
+            });
+
+            it('should update the user with the new password', function() {
+                expect(mongoUtils.editObject).toHaveBeenCalledWith(users, { password: req.body.newPassword }, req.user.id);
+            });
+
+            describe('if the update fails', function() {
+                var error;
+
+                beforeEach(function(done) {
+                    error = new Error('It didn\'t work.');
+
+                    editObjectDeferred.reject(error);
+                    editObjectDeferred.promise.finally(done);
+                });
+
+                it('should reject the promise', function() {
+                    expect(failure).toHaveBeenCalledWith(error);
+                });
+
+                it('should log an error', function() {
+                    expect(mockLog.error).toHaveBeenCalled();
+                });
+            });
+
+            describe('if the update succeeds', function() {
+                beforeEach(function(done) {
+                    editObjectDeferred.resolve();
+                    editObjectDeferred.promise.finally(done);
+                });
+
+                it('should not log an error', function() {
+                    expect(mockLog.error).not.toHaveBeenCalled();
+                });
+
+                it('should fulfill the promise', function() {
+                    expect(success).toHaveBeenCalledWith({
+                        code: 200,
+                        body: 'Successfully changed password'
+                    });
+                });
+            });
+        });
+    });
+
+    describe('changeEmail(svc, req)', function() {
+        var deferred;
+        var users;
+        var svc, req;
+        var result;
+
+        beforeEach(function() {
+            deferred = q.defer();
+
+            users = {
+                update: jasmine.createSpy('users.update()')
+            };
+
+            svc = {
+                customMethod: jasmine.createSpy('svc.customMethod(req, actionName, cb)').and.returnValue(deferred.promise),
+                _coll: users
+            };
+            req = {
+                user: {
+                    id: 'u-7e4895c648c57d'
+                },
+                body: {
+                    email: 'jminzner@cinema6.com',
+                    newEmail: 'josh@cinema6.com'
+                }
+            };
+
+            result = userModule.changeEmail(svc, req);
+        });
+
+        it('should call and return svc.customMethod()', function() {
+            expect(svc.customMethod).toHaveBeenCalledWith(req, 'changeEmail', jasmine.any(Function));
+            expect(result).toBe(deferred.promise);
+        });
+
+        describe('the callback', function() {
+            var callback;
+            var success, failure;
+            var editObjectDeferred;
+
+            beforeEach(function(done) {
+                callback = svc.customMethod.calls.mostRecent().args[2];
+                success = jasmine.createSpy('success()');
+                failure = jasmine.createSpy('failure()');
+
+                editObjectDeferred = q.defer();
+                spyOn(mongoUtils, 'editObject').and.returnValue(editObjectDeferred.promise);
+
+                callback().then(success, failure);
+
+                q().then(done);
+            });
+
+            it('should update the email', function() {
+                expect(mongoUtils.editObject).toHaveBeenCalledWith(users, { email: req.body.newEmail }, req.user.id);
+            });
+
+            describe('if the update fails', function() {
+                var error;
+
+                beforeEach(function(done) {
+                    error = new Error('I GOT A PROBLEM');
+
+                    editObjectDeferred.reject(error);
+
+                    editObjectDeferred.promise.finally(done);
+                });
+
+                it('should log an error', function() {
+                    expect(mockLog.error).toHaveBeenCalled();
+                });
+
+                it('should reject the promise', function() {
+                    expect(failure).toHaveBeenCalledWith(error);
+                });
+            });
+
+            describe('if the update succeeds', function() {
+                beforeEach(function(done) {
+                    editObjectDeferred.resolve();
+                    editObjectDeferred.promise.finally(done);
+                });
+
+                it('should not log an error', function() {
+                    expect(mockLog.error).not.toHaveBeenCalled();
+                });
+
+                it('should fulfill the promise', function() {
+                    expect(success).toHaveBeenCalledWith({
+                        code: 200,
+                        body: 'Successfully changed email'
+                    });
+                });
+            });
+        });
+    });
+
     describe('signupUser', function() {
         var customMethodDeferred, mockModel;
         var svc, req;
@@ -2090,7 +1935,9 @@ describe('userSvc (UT)', function() {
             req = {
                 body: {
                     foo: 'bar'
-                }
+                },
+                _target: 'selfie',
+                tempToken: 'unhashedToken'
             };
             result = userModule.signupUser(svc, req);
         });
@@ -2117,7 +1964,7 @@ describe('userSvc (UT)', function() {
                 var callback;
                 var success, failure;
 
-                beforeEach(function(done) {
+                beforeEach(function() {
                     callback = svc.customMethod.calls.mostRecent().args[2];
                     success = jasmine.createSpy('success()');
                     failure = jasmine.createSpy('failure()');
@@ -2125,21 +1972,83 @@ describe('userSvc (UT)', function() {
                     spyOn(mongoUtils, 'createObject').and.callFake(function(collection, document) {
                         return q(document);
                     });
-
-                    callback().then(success, failure).finally(done);
+                    spyOn(streamUtils, 'produceEvent').and.returnValue(q());
                 });
+                
+                describe('when everything succeeds', function() {
+                    beforeEach(function(done) {
+                        callback().then(success, failure).finally(done);
+                    });
 
-                it('should create an object in the mongo collection', function() {
-                    expect(mongoUtils.createObject).toHaveBeenCalledWith('users', { foo: 'bar' });
+                    it('should create an object in the mongo collection', function() {
+                        expect(mongoUtils.createObject).toHaveBeenCalledWith('users', { foo: 'bar' });
+                    });
+                    
+                    it('should transform the mongo doc', function() {
+                        expect(svc.transformMongoDoc).toHaveBeenCalledWith(req.body);
+                    });
+
+                    it('should produce an accountCreated event', function() {
+                        expect(streamUtils.produceEvent).toHaveBeenCalledWith('accountCreated', {
+                            target: 'selfie',
+                            token: 'unhashedToken',
+                            user: { foo: 'bar' }
+                        });
+                    });
+
+                    it('should fulfill with a 201', function() {
+                        expect(success).toHaveBeenCalledWith({ code: 201, body: { foo: 'bar' } });
+                        expect(failure).not.toHaveBeenCalled();
+                    });
+                    
+                    it('should not log an error', function() {
+                        expect(mockLog.error).not.toHaveBeenCalled();
+                    });
+                    
+                    it('should delete the tempToken', function() {
+                        expect(req.tempToken).not.toBeDefined();
+                    });
                 });
+                
+                describe('when mongo fails', function() {
+                    beforeEach(function(done) {
+                        mongoUtils.createObject.and.returnValue(q.reject('MONGO GOT A PROBLEM'));
+                        callback().then(success, failure).finally(done);
+                    });
 
-                it('should transform the mongo doc', function() {
-                    expect(svc.transformMongoDoc).toHaveBeenCalledWith(req.body);
+                    it('should not produce an accountCreated event', function() {
+                        expect(streamUtils.produceEvent).not.toHaveBeenCalled();
+                    });
+                    
+                    it('should return a rejected promise', function() {
+                        expect(success).not.toHaveBeenCalled();
+                        expect(failure).toHaveBeenCalledWith('MONGO GOT A PROBLEM');
+                    });
+                    
+                    it('should delete the temp token', function() {
+                        expect(req.tempToken).not.toBeDefined();
+                    });
                 });
+                
+                describe('when producing a kinesis event fails', function() {
+                    beforeEach(function(done) {
+                        streamUtils.produceEvent.and.returnValue(q.reject('KINESIS GOT A PROBLEM'));
+                        callback().then(success, failure).finally(done);
+                    });
 
-                it('should fulfill with a 201', function() {
-                    expect(success).toHaveBeenCalledWith({ code: 201, body: { foo: 'bar' } });
-                    expect(failure).not.toHaveBeenCalled();
+                    it('should return a rejected promise', function() {
+                        expect(success).not.toHaveBeenCalled();
+                        expect(failure).toHaveBeenCalledWith('Failed producing accountCreated event');
+                    });
+                    
+                    it('should log an error', function() {
+                        expect(mockLog.error).toHaveBeenCalled();
+                        expect(mockLog.error.calls.mostRecent().args).toContain(util.inspect('KINESIS GOT A PROBLEM'));
+                    });
+                    
+                    it('should delete the temp token', function() {
+                        expect(req.tempToken).not.toBeDefined();
+                    });
                 });
             });
         });
@@ -2165,7 +2074,7 @@ describe('userSvc (UT)', function() {
 
     describe('confirmUser', function() {
         var customMethodDeferred;
-        var svc, req, journal, maxAge;
+        var svc, req, journal;
         var result;
 
         beforeEach(function() {
@@ -2198,14 +2107,13 @@ describe('userSvc (UT)', function() {
             journal = {
                 writeAuditEntry: jasmine.createSpy('writeAuditEntry').and.returnValue(q())
             };
-            maxAge = 'max age';
             spyOn(authUtils, 'decorateUser').and.returnValue(q({id: 'u-12345'}));
-            result = userModule.confirmUser(svc, req, journal, maxAge);
+            result = userModule.confirmUser(svc, req, journal);
         });
 
         it('should return a 400 if a token is not present on the body of the request', function(done) {
             delete req.body.token;
-            userModule.confirmUser(svc, req, journal, maxAge).done(function(result) {
+            userModule.confirmUser(svc, req, journal).done(function(result) {
                 expect(result).toEqual({code:400,body:'Must provide a token'});
                 done();
             });
@@ -2275,7 +2183,7 @@ describe('userSvc (UT)', function() {
 
             it('should set the session on the request', function() {
                 expect(req.session.user).toBe('u-12345');
-                expect(req.session.cookie.maxAge).toBe('max age');
+                expect(req.session.cookie.maxAge).toBe(userModule.config.sessions.maxAge);
             });
 
             it('should retun with a 200', function() {
@@ -2296,14 +2204,22 @@ describe('userSvc (UT)', function() {
                 advertiser: 'a-12345',
                 email: 'some email'
             };
-            spyOn(mongoUtils, 'editObject').and.returnValue(q());
+            spyOn(mongoUtils, 'editObject').and.returnValue(q(mockUser));
             spyOn(mongoUtils, 'findObject').and.returnValue(q(mockUser));
+            spyOn(streamUtils, 'produceEvent').and.returnValue(q());
             svc = {
                 customMethod: jasmine.createSpy('svc.customMethod()').and.returnValue(q()),
+                transformMongoDoc: jasmine.createSpy('svc.transformMongoDoc()').and.callFake(function(value) {
+                    return value;
+                }),
+                formatOutput: jasmine.createSpy('svc.formatOutput()').and.callFake(function(value) {
+                    return value;
+                }),
                 _coll: 'fakeColl'
             };
             req = {
                 body: { },
+                _target: 'showcase',
                 session: {
                     user: 'u-12345'
                 }
@@ -2321,8 +2237,32 @@ describe('userSvc (UT)', function() {
             userModule.resendActivation(svc, req).done(function(result) {
                 expect(result).toEqual({code: 403, body: 'No activation token to resend'});
                 expect(mockLog.warn).toHaveBeenCalled();
+                expect(mongoUtils.editObject).not.toHaveBeenCalled();
+                expect(streamUtils.produceEvent).not.toHaveBeenCalled();
                 done();
             });
+        });
+        
+        it('should return a 403 if the user does not exist', function(done) {
+            mongoUtils.findObject.and.returnValue(q());
+            userModule.resendActivation(svc, req).done(function(result) {
+                expect(result).toEqual({code: 403, body: 'No activation token to resend'});
+                expect(mockLog.warn).toHaveBeenCalled();
+                expect(mongoUtils.editObject).not.toHaveBeenCalled();
+                expect(streamUtils.produceEvent).not.toHaveBeenCalled();
+                done();
+            });
+        });
+        
+        it('should reject if finding the user fails', function(done) {
+            mongoUtils.findObject.and.returnValue(q.reject('I GOT A PROBLEM'));
+            userModule.resendActivation(svc, req).then(function(result) {
+                expect(result).not.toBeDefined();
+            }).catch(function(error) {
+                expect(error).toBe('I GOT A PROBLEM');
+                expect(mongoUtils.editObject).not.toHaveBeenCalled();
+                expect(streamUtils.produceEvent).not.toHaveBeenCalled();
+            }).done(done);
         });
 
         it('should call and return svc.customMethod()', function(done) {
@@ -2333,6 +2273,7 @@ describe('userSvc (UT)', function() {
                         id: 'u-12345',
                         email: 'some email'
                     },
+                    _target: 'showcase',
                     session: {
                         user: 'u-12345'
                     }
@@ -2343,10 +2284,9 @@ describe('userSvc (UT)', function() {
         });
 
         describe('the callback passed to svc.customMethod()', function() {
-            var callback;
             var success, failure;
 
-            beforeEach(function(done) {
+            beforeEach(function() {
                 mockUser.activationToken = {
                     token: 'old token'
                 };
@@ -2356,33 +2296,93 @@ describe('userSvc (UT)', function() {
                     token: 'new token',
                     expires: 'sometime'
                 };
-                svc.customMethod.and.callFake(function(req) {
+                req.tempToken = 'unhashedToken';
+                req.user = mockUser;
+                svc.customMethod.and.callFake(function(req, action, cb) {
                     req.body.activationToken = {
                         token: 'new token',
                         expires: 'sometime'
                     };
-                    return q();
+                    return cb();
                 });
-                userModule.resendActivation(svc, req).then(function() {
-                    callback = svc.customMethod.calls.mostRecent().args[2];
-                    return callback();
-                }).then(success, failure).done(done);
             });
             
-            it('should update the user with its new activation token', function() {
-                var expectedUpdates = {
-                    lastUpdated: jasmine.any(Date),
-                    activationToken: {
-                        token: 'new token',
-                        expires: 'sometime'
-                    }
-                };
-                expect(mongoUtils.editObject).toHaveBeenCalledWith(svc._coll, expectedUpdates, 'u-12345');
+            describe('if everything succeeds', function() {
+                beforeEach(function(done) {
+                    userModule.resendActivation(svc, req).then(success, failure).done(done);
+                });
+            
+                it('should update the user with its new activation token', function() {
+                    var expectedUpdates = {
+                        lastUpdated: jasmine.any(Date),
+                        activationToken: {
+                            token: 'new token',
+                            expires: 'sometime'
+                        }
+                    };
+                    expect(mongoUtils.editObject).toHaveBeenCalledWith(svc._coll, expectedUpdates, 'u-12345');
+                });
+                
+                it('should produce a resendActivation event', function() {
+                    expect(streamUtils.produceEvent).toHaveBeenCalledWith('resendActivation', {
+                        target: 'showcase',
+                        token: 'unhashedToken',
+                        user: mockUser
+                    });
+                });
+                
+                it('should format the output properly', function() {
+                    expect(svc.transformMongoDoc).toHaveBeenCalledWith(mockUser);
+                    expect(svc.formatOutput).toHaveBeenCalledWith(mockUser);
+                });
+                
+                it('should return with a 204', function() {
+                    expect(success).toHaveBeenCalledWith({ code: 204 });
+                    expect(failure).not.toHaveBeenCalled();
+                });
+                
+                it('should clear the tempToken', function() {
+                    expect(req.tempToken).not.toBeDefined();
+                });
             });
             
-            it('should return with a 204', function() {
-                expect(success).toHaveBeenCalledWith({code:204});
-                expect(failure).not.toHaveBeenCalled();
+            describe('if editing the user fails', function() {
+                beforeEach(function(done) {
+                    mongoUtils.editObject.and.returnValue(q.reject('MONGO GOT PROBLEMS'));
+                    userModule.resendActivation(svc, req).then(success, failure).done(done);
+                });
+                
+                it('should not produce a resendActivation event', function() {
+                    expect(streamUtils.produceEvent).not.toHaveBeenCalled();
+                });
+                
+                it('should reject the promise', function() {
+                    expect(failure).toHaveBeenCalledWith('MONGO GOT PROBLEMS');
+                });
+                
+                it('should clear the tempToken', function() {
+                    expect(req.tempToken).not.toBeDefined();
+                });
+            });
+            
+            describe('if producing the event fails', function() {
+                beforeEach(function(done) {
+                    streamUtils.produceEvent.and.returnValue(q.reject('KINESIS GOT PROBLEMS'));
+                    userModule.resendActivation(svc, req).then(success, failure).done(done);
+                });
+                
+                it('should reject the promise', function() {
+                    expect(failure).toHaveBeenCalledWith('Failed producing resendActivation event');
+                });
+                
+                it('should log an error', function() {
+                    expect(mockLog.error).toHaveBeenCalled();
+                    expect(mockLog.error.calls.mostRecent().args).toContain(util.inspect('KINESIS GOT PROBLEMS'));
+                });
+                
+                it('should clear the tempToken', function() {
+                    expect(req.tempToken).not.toBeDefined();
+                });
             });
         });
     });
@@ -2390,6 +2390,7 @@ describe('userSvc (UT)', function() {
     describe('produceAccountActivated', function() {
         beforeEach(function() {
             spyOn(streamUtils, 'produceEvent');
+            req._target = 'showcase';
         });
         
         it('should produce the accountActivated event', function(done) {
@@ -2402,7 +2403,7 @@ describe('userSvc (UT)', function() {
             };
             userModule.produceAccountActivated(req, mockResp).then(function(resp) {
                 expect(streamUtils.produceEvent).toHaveBeenCalledWith('accountActivated', {
-                    target: 'selfie',
+                    target: 'showcase',
                     user: {
                         id: 'u-123'
                     }
@@ -2437,65 +2438,11 @@ describe('userSvc (UT)', function() {
             })).then(done, done.fail);
         });
     });
-
-    describe('produceAccountCreated', function() {
-        beforeEach(function() {
-            spyOn(streamUtils, 'produceEvent');
-            req.tempToken = 'tolken'
-        });
-        
-        it('should produce the accountCreated event', function(done) {
-            streamUtils.produceEvent.and.returnValue(q());
-            var mockResp = {
-                code: 201,
-                body: {
-                    id: 'u-123'
-                }
-            };
-            userModule.produceAccountCreated(req, mockResp).then(function(resp) {
-                expect(streamUtils.produceEvent).toHaveBeenCalledWith('accountCreated', {
-                    target: 'selfie',
-                    token: 'tolken',
-                    user: {
-                        id: 'u-123'
-                    }
-                });
-                expect(mockLog.error).not.toHaveBeenCalled();
-                expect(req.tempToken).not.toBeDefined();
-                expect(resp).toEqual(mockResp);
-            }).then(done, done.fail);
-        });
-        
-        it('should reject if there was an error producing the event', function(done) {
-            streamUtils.produceEvent.and.returnValue(q.reject('epic fail'));
-            var mockResp = {
-                code: 201,
-                body: {
-                    id: 'u-123'
-                }
-            };
-            userModule.produceAccountCreated(req, mockResp).then(done.fail).catch(function(error) {
-                expect(error).toBe('epic fail');
-                expect(streamUtils.produceEvent).toHaveBeenCalled();
-                expect(req.tempToken).not.toBeDefined();
-            }).then(done, done.fail);
-        });
-        
-        it('should not produce if not given a successfull response', function(done) {
-            q.all([{ code: 400, body: { } }, { code: 201, body: 'not an object' }].map(function(mockResp) {
-                return userModule.produceAccountCreated(req, mockResp).then(function(resp) {
-                    expect(streamUtils.produceEvent).not.toHaveBeenCalled();
-                    expect(mockLog.error).not.toHaveBeenCalled();
-                    expect(req.tempToken).not.toBeDefined();
-                    expect(resp).toEqual(mockResp);
-                });
-            })).then(done, done.fail);
-        });
-    });
     
     describe('producePasswordChanged', function() {
         beforeEach(function() {
             spyOn(streamUtils, 'produceEvent');
+            req._target = 'selfie';
             req.user = 'user';
         });
         
@@ -2507,6 +2454,7 @@ describe('userSvc (UT)', function() {
             };
             userModule.producePasswordChanged(req, mockResp).then(function(resp) {
                 expect(streamUtils.produceEvent).toHaveBeenCalledWith('passwordChanged', {
+                    target: 'selfie',
                     user: 'user'
                 });
                 expect(mockLog.error).not.toHaveBeenCalled();
@@ -2550,6 +2498,7 @@ describe('userSvc (UT)', function() {
             req.user = {
                 email: 'oldEmail@gmail.com'
             };
+            req._target = 'selfie';
         });
         
         it('should produce the emailChanged event twice', function(done) {
@@ -2561,6 +2510,7 @@ describe('userSvc (UT)', function() {
             userModule.produceEmailChanged(req, mockResp).then(function(resp) {
                 expect(streamUtils.produceEvent.calls.count()).toBe(2);
                 expect(streamUtils.produceEvent).toHaveBeenCalledWith('emailChanged', {
+                    target: 'selfie',
                     oldEmail: 'oldEmail@gmail.com',
                     newEmail: 'newEmail@gmail.com',
                     user: {
@@ -2568,6 +2518,7 @@ describe('userSvc (UT)', function() {
                     }
                 });
                 expect(streamUtils.produceEvent).toHaveBeenCalledWith('emailChanged', {
+                    target: 'selfie',
                     oldEmail: 'oldEmail@gmail.com',
                     newEmail: 'newEmail@gmail.com',
                     user: {
@@ -2605,51 +2556,6 @@ describe('userSvc (UT)', function() {
         });
     });
 
-    describe('produceResendActivation', function() {
-        beforeEach(function() {
-            spyOn(streamUtils, 'produceEvent');
-            req.tempToken = 'tolken'
-            req.user = 'user';
-        });
-        
-        it('should produce the resendActivation event', function(done) {
-            streamUtils.produceEvent.and.returnValue(q());
-            var mockResp = {
-                code: 204
-            };
-            userModule.produceResendActivation(req, mockResp).then(function(resp) {
-                expect(streamUtils.produceEvent).toHaveBeenCalledWith('resendActivation', { target: 'selfie', token: 'tolken', user: 'user' });
-                expect(mockLog.error).not.toHaveBeenCalled();
-                expect(req.tempToken).not.toBeDefined();
-                expect(resp).toEqual(mockResp);
-            }).then(done, done.fail);
-        });
-        
-        it('should reject if there was an error producing the event', function(done) {
-            streamUtils.produceEvent.and.returnValue(q.reject('epic fail'));
-            var mockResp = {
-                code: 204
-            };
-            userModule.produceResendActivation(req, mockResp).then(done.fail).catch(function(error) {
-                expect(error).toBe('epic fail');
-                expect(streamUtils.produceEvent).toHaveBeenCalled();
-                expect(req.tempToken).not.toBeDefined();
-            }).then(done, done.fail);
-        });
-        
-        it('should not produce if not given a successfull response', function(done) {
-            var mockResp = {
-                code: 400
-            };
-            userModule.produceResendActivation(req, mockResp).then(function(resp) {
-                expect(streamUtils.produceEvent).not.toHaveBeenCalled();
-                expect(mockLog.error).not.toHaveBeenCalled();
-                expect(req.tempToken).not.toBeDefined();
-                expect(resp).toEqual(mockResp);
-            }).then(done, done.fail);
-        });
-    });
-    
     describe('forceLogoutUser(svc, req, sessions)', function() {
         var customMethodDeffered;
         var svc, req, sessions;
@@ -2757,82 +2663,6 @@ describe('userSvc (UT)', function() {
                 it('should delete the session object off of the request', function() {
                     expect(req.session).not.toBeDefined();
                 });
-            });
-        });
-    });
-
-    describe('authorizeForceLogout(req, next, done)', function() {
-        var req, next, done;
-
-        function itShouldCallDone() {
-            it('should call done() with a 403', function() {
-                expect(done).toHaveBeenCalledWith({ code: 403, body: 'Not authorized to force logout users' });
-                expect(next).not.toHaveBeenCalled();
-            });
-        }
-
-        beforeEach(function() {
-            req = {
-                user: { id: 'u-1' },
-                requester: { id: 'u-1', permissions: {} }
-            };
-            next = jasmine.createSpy('next()');
-            done = jasmine.createSpy('done()');
-        });
-
-        describe('if the requester has no permissions', function() {
-            beforeEach(function() {
-                req.requester.permissions = null;
-                userModule.authorizeForceLogout(req, next, done);
-            });
-
-            itShouldCallDone();
-        });
-
-        describe('if the requester has no users permissions', function() {
-            beforeEach(function() {
-                req.requester.permissions = { experiences: {}, elections: {}, campaigns: {} };
-                userModule.authorizeForceLogout(req, next, done);
-            });
-
-            itShouldCallDone();
-        });
-
-        describe('if the requester has no edit permissions for users', function() {
-            beforeEach(function() {
-                req.requester.permissions = {
-                    users: { read: Scope.All, create: Scope.Org }
-                };
-                userModule.authorizeForceLogout(req, next, done);
-            });
-
-            itShouldCallDone();
-        });
-
-        [Scope.Own, Scope.Org].forEach(function(scope) {
-            describe('if the requester\'s users edit permissions are ' + scope, function() {
-                beforeEach(function() {
-                    req.requester.permissions = {
-                        users: { edit: scope }
-                    };
-                    userModule.authorizeForceLogout(req, next, done);
-                });
-
-                itShouldCallDone();
-            });
-        });
-
-        describe('if the requester\'s users edit permissions are ' + Scope.All, function() {
-            beforeEach(function() {
-                req.requester.permissions = {
-                    users: { edit: Scope.All }
-                };
-                userModule.authorizeForceLogout(req, next, done);
-            });
-
-            it('should call next()', function() {
-                expect(done).not.toHaveBeenCalled();
-                expect(next).toHaveBeenCalledWith();
             });
         });
     });
