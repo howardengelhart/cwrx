@@ -13,13 +13,13 @@
         logger          = require('../lib/logger'),
         journal         = require('../lib/journal'),
         JobManager      = require('../lib/jobManager'),
+        BeeswaxClient   = require('../lib/beeswax'),
         advertModule    = require('./ads-advertisers'),
         updateModule    = require('./ads-campaignUpdates'),
         campModule      = require('./ads-campaigns'),
         conModule       = require('./ads-containers'),
         placeModule     = require('./ads-placements'),
         siteModule      = require('./ads-sites'),
-        beesAdverts     = require('./ads-beeswax/advertisers'),
         
         state   = {},
         ads = {}; // for exporting functions to unit tests
@@ -68,7 +68,8 @@
             }
         },
         beeswax: {
-            apiRoot: 'https://stingersbx.api.beeswax.com'
+            apiRoot: 'https://stingersbx.api.beeswax.com',
+            impressionRatio: 1.3333     // beeswax impressions = C6 impressions * this
         },
         sessions: {
             key: 'c6Auth',
@@ -126,10 +127,16 @@
         }
         log.info('Running as cluster worker, proceed with setting up web server.');
 
+        //TODO: load beeswax secrets in cookbook
+        var beeswax = new BeeswaxClient({
+            apiRoot: state.config.beeswax.apiRoot,
+            creds: state.secrets.beeswax
+        });
+
         var app          = express(),
             appCreds     = state.rcAppCreds,
             jobManager   = new JobManager(state.cache, state.config.jobTimeouts),
-            advertSvc    = advertModule.setupSvc(state.dbs.c6Db.collection('advertisers')),
+            advertSvc    = advertModule.setupSvc(state.dbs.c6Db.collection('advertisers'), beeswax),
             campSvc      = campModule.setupSvc(state.dbs.c6Db, state.config),
             updateSvc    = updateModule.setupSvc(state.dbs.c6Db, campSvc, state.config, appCreds),
             siteSvc      = siteModule.setupSvc(state.dbs.c6Db.collection('sites')),
@@ -139,8 +146,6 @@
                                                     state.config.appVersion, state.config.appName);
         authUtils._db = state.dbs.c6Db;
         
-        //TODO: load beeswax secrets in cookbook
-        var beesAdvertSvc = beesAdverts.setupSvc(state.dbs.c6Db,state.config,state.secrets.beeswax);
 
         // Nodemailer will automatically get SES creds, but need to set region here
         aws.config.region = state.config.emails.awsRegion;
@@ -171,9 +176,6 @@
         app.get('/api/ads/version',function(req, res) {
             res.send(200, state.config.appVersion);
         });
-        
-        // Beeswax modules MUST come first!
-        beesAdverts.setupEndpoints(app, beesAdvertSvc, state.sessions, audit, jobManager);
         
         advertModule.setupEndpoints(app, advertSvc, state.sessions, audit, jobManager);
         

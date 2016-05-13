@@ -124,27 +124,27 @@ describe('ads: beeswax advertisers endpoints (E2E):', function() {
             testUtils.resetCollection('advertisers', mockAdverts).done(done);
         });
 
-        xit('should retrieve a beeswax advertiser', function(done) {
+        it('should retrieve a beeswax advertiser', function(done) {
         
         });
         
-        xit('should write an entry to the audit collection', function(done) {
+        it('should write an entry to the audit collection', function(done) {
         
         });
         
-        xit('should return a 404 for advertisers without a Beeswax advertiser', function(done) {
+        it('should return a 404 for advertisers without a Beeswax advertiser', function(done) {
         
         });
         
-        xit('should return a 404 for non-existent advertisers', function(done) {
+        it('should return a 404 for non-existent advertisers', function(done) {
         
         });
         
-        xit('should prevent non-admins from retrieving advertisers they do not own', function(done) {
+        it('should prevent non-admins from retrieving advertisers they do not own', function(done) {
         
         });
 
-        xit('should return a 401 error if the user is not authenticated', function(done) {
+        it('should return a 401 error if the user is not authenticated', function(done) {
             delete options.jar;
             requestUtils.qRequest('get', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(401);
@@ -154,7 +154,7 @@ describe('ads: beeswax advertisers endpoints (E2E):', function() {
             }).done(done);
         });
 
-        xit('should allow an app to get an advertiser', function(done) {
+        it('should allow an app to get an advertiser', function(done) {
             delete options.jar;
             requestUtils.makeSignedRequest(appCreds, 'get', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
@@ -164,7 +164,7 @@ describe('ads: beeswax advertisers endpoints (E2E):', function() {
             }).done(done);
         });
         
-        xit('should fail if an app uses the wrong secret to make a request', function(done) {
+        it('should fail if an app uses the wrong secret to make a request', function(done) {
             delete options.jar;
             var badCreds = { key: mockApp.key, secret: 'WRONG' };
             requestUtils.makeSignedRequest(badCreds, 'get', options).then(function(resp) {
@@ -176,7 +176,7 @@ describe('ads: beeswax advertisers endpoints (E2E):', function() {
         });
     });
 
-    xdescribe('POST /api/account/advertisers/:advertId/beeswax/advertisers', function() {
+    describe('POST /api/account/advertisers/:advertId/beeswax/advertisers', function() {
         var options;
         beforeEach(function(done) {
             options = {
@@ -195,31 +195,31 @@ describe('ads: beeswax advertisers endpoints (E2E):', function() {
             testUtils.resetCollection('advertisers').done(done);
         });
 
-        xit('should create a beeswax advertiser for a C6 advertiser', function(done) {
+        it('should create a beeswax advertiser for a C6 advertiser', function(done) {
             
         });
         
-        xit('should write an entry to the audit collection', function(done) {
+        it('should write an entry to the audit collection', function(done) {
             //TODO: should we keep deleting created advertiser in an afterEach?
         });
         
-        xit('should default the advertiser_name', function(done) {
+        it('should default the advertiser_name', function(done) {
             
         });
         
-        xit('should make the advertiser_name unique if needed', function(done) {
+        it('should make the advertiser_name unique if needed', function(done) {
         
         });
         
-        xit('should prevent creating a beeswax advertiser for a C6 advertiser that already has one', function(done) {
+        it('should prevent creating a beeswax advertiser for a C6 advertiser that already has one', function(done) {
         
         });
         
-        xit('should prevent creating a beeswax advertiser for a non-existent C6 advertiser', function(done) {
+        it('should prevent creating a beeswax advertiser for a non-existent C6 advertiser', function(done) {
         
         });
         
-        xit('should return a 401 error if the user is not authenticated', function(done) {
+        it('should return a 401 error if the user is not authenticated', function(done) {
             delete options.jar;
             requestUtils.qRequest('post', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(401);
@@ -229,7 +229,7 @@ describe('ads: beeswax advertisers endpoints (E2E):', function() {
             }).done(done);
         });
         
-        xit('should allow an app to create an advertiser', function(done) {
+        it('should allow an app to create an advertiser', function(done) {
             delete options.jar;
             requestUtils.makeSignedRequest(appCreds, 'post', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(201);
@@ -248,7 +248,7 @@ describe('ads: beeswax advertisers endpoints (E2E):', function() {
         });
     });
 
-    xdescribe('PUT /api/account/advertisers/:advertId/beeswax/advertisers', function() {
+    describe('PUT /api/account/advertisers/:advertId/beeswax/advertisers', function() {
         var mockAdverts, options;
         beforeEach(function(done) {
             mockAdverts = [
@@ -264,31 +264,31 @@ describe('ads: beeswax advertisers endpoints (E2E):', function() {
             return testUtils.resetCollection('advertisers', mockAdverts).done(done);
         });
         
-        xit('should edit a Beeswax advertiser', function(done) {
+        it('should edit a Beeswax advertiser', function(done) {
         
         });
         
-        xit('should write an entry to the audit collection', function(done) {
+        it('should write an entry to the audit collection', function(done) {
             
         });
 
-        xit('should make the advertiser_name unique if needed', function(done) {
+        it('should make the advertiser_name unique if needed', function(done) {
         
         });
 
-        xit('should return a 404 if the C6 advertiser has no Beeswax advertiser', function(done) {
+        it('should return a 404 if the C6 advertiser has no Beeswax advertiser', function(done) {
         
         });
         
-        xit('should return a 404 if the C6 advertiser does not exist', function(done) {
-        
-        });
-
-        xit('should prevent non-admins from editing advertisers they do not own', function(done) {
+        it('should return a 404 if the C6 advertiser does not exist', function(done) {
         
         });
 
-        xit('should return a 401 error if the user is not authenticated', function(done) {
+        it('should prevent non-admins from editing advertisers they do not own', function(done) {
+        
+        });
+
+        it('should return a 401 error if the user is not authenticated', function(done) {
             delete options.jar;
             requestUtils.qRequest('put', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(401);
@@ -298,7 +298,7 @@ describe('ads: beeswax advertisers endpoints (E2E):', function() {
             }).done(done);
         });
 
-        xit('should allow an app to edit an advertiser', function(done) {
+        it('should allow an app to edit an advertiser', function(done) {
             delete options.jar;
             requestUtils.makeSignedRequest(appCreds, 'put', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
@@ -313,7 +313,7 @@ describe('ads: beeswax advertisers endpoints (E2E):', function() {
         });
     });
 
-    xdescribe('DELETE /api/account/advertisers/:advertId/beeswax/advertisers', function() {
+    describe('DELETE /api/account/advertisers/:advertId/beeswax/advertisers', function() {
         var options;
         beforeEach(function(done) {
             var mockAdverts = [
@@ -328,27 +328,27 @@ describe('ads: beeswax advertisers endpoints (E2E):', function() {
             testUtils.resetCollection('advertisers', mockAdverts).done(done);
         });
 
-        xit('should delete a Beeswax advertiser', function(done) {
+        it('should delete a Beeswax advertiser', function(done) {
         
         });
         
-        xit('should write an entry to the audit collection', function(done) {
+        it('should write an entry to the audit collection', function(done) {
             //TODO: rework into above?
         });
 
-        xit('should return a 204 if the C6 advertiser has no Beeswax advertiser', function(done) {
+        it('should return a 204 if the C6 advertiser has no Beeswax advertiser', function(done) {
         
         });
         
-        xit('should return a 404 if the C6 advertiser does not exist', function(done) {
-        
-        });
-
-        xit('should prevent non-admins from deleting advertisers they do not own', function(done) {
+        it('should return a 404 if the C6 advertiser does not exist', function(done) {
         
         });
 
-        xit('should return a 401 error if the user is not authenticated', function(done) {
+        it('should prevent non-admins from deleting advertisers they do not own', function(done) {
+        
+        });
+
+        it('should return a 401 error if the user is not authenticated', function(done) {
             delete options.jar;
             requestUtils.qRequest('delete', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(401);
@@ -358,7 +358,7 @@ describe('ads: beeswax advertisers endpoints (E2E):', function() {
             }).done(done);
         });
 
-        xit('should allow an app to delete an advertiser', function(done) {
+        it('should allow an app to delete an advertiser', function(done) {
             requestUtils.makeSignedRequest(appCreds, 'delete', {url: config.advertUrl + 'e2e-a-1'})
             .then(function(resp) {
                 expect(resp.response.statusCode).toBe(204);
