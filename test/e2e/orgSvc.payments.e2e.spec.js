@@ -986,7 +986,7 @@ describe('orgSvc payments (E2E):', function() {
             
             mockman = new testUtils.Mockman();
             mockman.start().then(function() {
-                testUtils.resetPGTable('fct.billing_transactions').done(done);
+                testUtils.resetPGTable('fct.billing_transactions').then(done, done.fail);
             });
         });
         
@@ -1032,8 +1032,7 @@ describe('orgSvc payments (E2E):', function() {
                 done();
             });
             
-            mockman.on('data', function(record) {
-                expect(record.type).toBe('paymentMade');
+            mockman.on('paymentMade', function(record) {
                 expect(record.data.balance).toBe(amount);
                 expect(record.data.payment).toEqual(createdTransaction);
                 expect(record.data.user).toEqual(jasmine.objectContaining({
@@ -1063,8 +1062,7 @@ describe('orgSvc payments (E2E):', function() {
                 done();
             });
 
-            mockman.on('data', function(record) {
-                expect(record.type).toBe('paymentMade');
+            mockman.on('paymentMade', function(record) {
                 done();
             });
         });
@@ -1090,8 +1088,7 @@ describe('orgSvc payments (E2E):', function() {
                 done();
             });
 
-            mockman.on('data', function(record) {
-                expect(record.type).toBe('paymentMade');
+            mockman.on('paymentMade', function(record) {
                 done();
             });
         });
@@ -1109,7 +1106,7 @@ describe('orgSvc payments (E2E):', function() {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
 
-            mockman.on('data', function(record) {
+            mockman.on('paymentMade', function(record) {
                 expect(record).not.toBeDefined();
             });
         });
@@ -1127,7 +1124,7 @@ describe('orgSvc payments (E2E):', function() {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
 
-            mockman.on('data', function(record) {
+            mockman.on('paymentMade', function(record) {
                 expect(record).not.toBeDefined();
             });
         });
@@ -1141,7 +1138,7 @@ describe('orgSvc payments (E2E):', function() {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
 
-            mockman.on('data', function(record) {
+            mockman.on('paymentMade', function(record) {
                 expect(record).not.toBeDefined();
             });
         });
@@ -1156,7 +1153,7 @@ describe('orgSvc payments (E2E):', function() {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
 
-            mockman.on('data', function(record) {
+            mockman.on('paymentMade', function(record) {
                 expect(record).not.toBeDefined();
             });
         });
@@ -1171,7 +1168,7 @@ describe('orgSvc payments (E2E):', function() {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
 
-            mockman.on('data', function(record) {
+            mockman.on('paymentMade', function(record) {
                 expect(record).not.toBeDefined();
             });
         });
@@ -1185,7 +1182,7 @@ describe('orgSvc payments (E2E):', function() {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
 
-            mockman.on('data', function(record) {
+            mockman.on('paymentMade', function(record) {
                 expect(record).not.toBeDefined();
             });
         });
@@ -1199,7 +1196,7 @@ describe('orgSvc payments (E2E):', function() {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
 
-            mockman.on('data', function(record) {
+            mockman.on('paymentMade', function(record) {
                 expect(record).not.toBeDefined();
             });
         });
@@ -1243,8 +1240,7 @@ describe('orgSvc payments (E2E):', function() {
                 done();
             });
             
-            mockman.on('data', function(record) {
-                expect(record.type).toBe('paymentMade');
+            mockman.on('paymentMade', function(record) {
                 expect(record.data.balance).toBe(amount);
                 expect(record.data.payment).toEqual(createdTransaction);
                 expect(record.data.user).toEqual(jasmine.objectContaining({
@@ -1267,6 +1263,6 @@ describe('orgSvc payments (E2E):', function() {
             return q.npost(gateway.customer, 'delete', [cust.id]);
         })).then(function() {
             return testUtils.closeDbs();
-        }).done(done);
+        }).then(done, done.fail);
     });
 });
