@@ -1825,9 +1825,11 @@ describe('collateralScrape-scraper (UT)', function() {
                         platform: 'iOS',
                         name: response.results[0].trackCensoredName,
                         description: response.results[0].description,
+                        developer: response.results[0].artistName,
                         uri: response.results[0].trackViewUrl,
                         categories: response.results[0].genres,
                         price: response.results[0].formattedPrice,
+                        rating: response.results[0].averageUserRating,
                         extID: response.results[0].trackId,
                         images: [].concat(
                             response.results[0].screenshotUrls.map(function(uri) {

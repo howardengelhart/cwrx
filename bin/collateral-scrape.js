@@ -205,9 +205,11 @@
                 platform: 'iOS',
                 name: app.trackCensoredName,
                 description: app.description,
+                developer: app.artistName,
                 uri: app.trackViewUrl,
                 categories: app.genres,
                 price: app.formattedPrice,
+                rating: app.averageUserRating,
                 extID: app.trackId,
                 images: [].concat(
                     app.screenshotUrls.map(function(uri) {
