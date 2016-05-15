@@ -15,7 +15,6 @@
         objUtils        = require('../lib/objUtils'),
         CrudSvc         = require('../lib/crudSvc'),
         logger          = require('../lib/logger'),
-        email           = require('../lib/email'),
         
         campModule = { config: {} };
         
@@ -154,7 +153,6 @@
 
     // externSvcs is an object with instantiated services from ads-externalCampaigns
     campModule.setupSvc = function(db, config, externSvcs) {
-        campModule.config.emails = config.emails;
         campModule.config.api = config.api;
         Object.keys(campModule.config.api)
         .filter(function(key) { return key !== 'root'; })
@@ -172,11 +170,8 @@
         streamUtils.createProducer(config.kinesis);
         
         var extraValidation = campModule.extraValidation.bind(campModule, svc),
-            notifyEnded     = campModule.notifyEnded.bind(campModule, svc),
             pricingHistory  = historian.middlewarify('pricing', 'pricingHistory');
 
-        var emailingEnabled = campModule.config.emails.enabled;
-        
         svc.use('read', campModule.formatTextQuery);
         
         svc.use('create', campModule.fetchCards);
@@ -198,9 +193,6 @@
         svc.use('edit', campModule.setCardDates);
         svc.use('edit', campModule.syncExternalCamps.bind(campModule, externSvcs));
         svc.use('edit', campModule.updateCards);
-        if(emailingEnabled) {
-            svc.use('edit', notifyEnded);
-        }
         svc.use('edit', pricingHistory);
 
         svc.use('delete', campModule.statusCheck.bind(campModule, [
@@ -710,52 +702,6 @@
         });
     };
 
-    // If a campaign is transitioning to an end state, email the owner
-    campModule.notifyEnded = function(svc, req, next/*, done*/) {
-        var log = logger.getLog(),
-            name = req.body.name || req.origObj.name,
-            ownerId = req.body.user || req.origObj.user,
-            userColl = svc._db.collection('users');
-        
-        // Notify if camp is transitioning to these statuses. Note this does NOT include Canceled
-        var ended = [Status.Expired, Status.OutOfBudget];
-        var isEnding = (ended.indexOf(req.body.status) !== -1) &&
-                       (req.origObj.status && ended.indexOf(req.origObj.status) === -1);
-        
-        if (!isEnding) {
-            return q(next());
-        }
-        
-        return q(userColl.find(
-            { id: ownerId },
-            { fields: { id: 1, email: 1 }, limit: 1 }
-        ).next())
-        .then(function(owner) {
-            if (!owner) {
-                log.warn('[%1] Campaign %2 has nonexistent owner %3, not notifying of campaign end',
-                         req.uuid, req.origObj.id, ownerId);
-                return next();
-            }
-            
-            log.info('[%1] Notifying user %2 at %3 that campaign %4 is %5',
-                     req.uuid, ownerId, owner.email, req.origObj.id, req.body.status);
-            
-            return email.campaignEnded(
-                campModule.config.emails.sender,
-                owner.email,
-                name,
-                req.body.status,
-                campModule.config.emails.dashboardLink,
-                campModule.config.emails.manageLink.replace(':campId', req.origObj.id)
-            )
-            .thenResolve(next());
-        })
-        .catch(function(error) {
-            log.warn('[%1] Error notifying user %2: %3', req.uuid, ownerId, util.inspect(error));
-            return next();
-        });
-    };
-    
     // Middleware to delete all sponsored content associated with this to-be-deleted campaign
     campModule.deleteContent = function(req, next/*, done*/) {
         var log = logger.getLog();
