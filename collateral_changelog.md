@@ -1,5 +1,8 @@
 # Collateral Service Changelog
 
+* [FEATURE]: Provide the name of the developer and star-rating when
+  GETting app product-data: [#895](https://github.com/cinema6/cwrx/pull/895)
+
 ### 2.3.0: Thu Apr 28 16:08:23 EDT 2016
 * [FEATURE]: Add `[GET] /api/public/collateral/website-data`: [#884](https://github.com/cinema6/cwrx/pull/884)
 * [FEATURE]: Add `[GET] /api/public/collateral/product-data`: [#884](https://github.com/cinema6/cwrx/pull/884)
