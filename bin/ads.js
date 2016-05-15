@@ -19,7 +19,6 @@
         campModule      = require('./ads-campaigns'),
         conModule       = require('./ads-containers'),
         placeModule     = require('./ads-placements'),
-        siteModule      = require('./ads-sites'),
         beesCamps       = require('./ads-externalCampaigns/beeswax'),
         
         state   = {},
@@ -142,7 +141,6 @@
             advertSvc    = advertModule.setupSvc(state.dbs.c6Db.collection('advertisers'), beeswax),
             campSvc      = campModule.setupSvc(state.dbs.c6Db, state.config, externSvcs),
             updateSvc    = updateModule.setupSvc(state.dbs.c6Db, campSvc, state.config, appCreds),
-            siteSvc      = siteModule.setupSvc(state.dbs.c6Db.collection('sites')),
             conSvc       = conModule.setupSvc(state.dbs.c6Db),
             placeSvc     = placeModule.setupSvc(state.dbs.c6Db, state.config),
             auditJournal = new journal.AuditJournal(state.dbs.c6Journal.collection('audit'),
@@ -187,7 +185,6 @@
         updateModule.setupEndpoints(app, updateSvc, state.sessions, audit, jobManager);
 
         campModule.setupEndpoints(app, campSvc, state.sessions, audit, jobManager);
-        siteModule.setupEndpoints(app, siteSvc, state.sessions, audit, jobManager);
         conModule.setupEndpoints(app, conSvc, state.sessions, audit, jobManager);
         placeModule.setupEndpoints(app, placeSvc, state.sessions, audit, jobManager);
         
