@@ -51,6 +51,10 @@
             __allowed: false,
             __type: 'number'
         },
+        externalCampaigns: {
+            __allowed: false,
+            __type: 'object'
+        },
         pricing: {
             budget: {
                 __allowed: true,
@@ -148,8 +152,8 @@
         }
     };
 
-    campModule.setupSvc = function(db, config) {
-        campModule.config.emails = config.emails;
+    campModule.setupSvc = function(db, config, externSvcs) {
+		campModule.config.emails = config.emails;
         campModule.config.api = config.api;
         Object.keys(campModule.config.api)
         .filter(function(key) { return key !== 'root'; })
@@ -191,6 +195,7 @@
         svc.use('edit', campModule.cleanCards);
         svc.use('edit', campModule.cleanMiniReels);
         svc.use('edit', campModule.setCardDates);
+        svc.use('edit', campModule.syncExternalCamps.bind(campModule, externSvcs));
         svc.use('edit', campModule.updateCards);
         if(emailingEnabled) {
             svc.use('edit', notifyEnded);
@@ -592,6 +597,39 @@
         });
         
         return next();
+    };
+    
+    //TODO: include note about how this MUST go b4 updateCards, so we have full cards?
+    campModule.syncExternalCamps = function(externSvcs, req, next, done) {
+        var log = logger.getLog(),
+            doneCalled = false;
+        delete req.body.externalCampaigns; // will be overwritten later
+        
+        if (!req.origObj.externalCampaigns) {
+            return q(next());
+        }
+        
+        return q.all(Object.keys(req.origObj.externalCampaigns).map(function(key) {
+            if (!externSvcs[key]) {
+                log.warn('[%1] No module for %2, cannot sync for %3',req.uuid, key, req.origObj.id);
+                return q();
+            }
+            
+            log.trace('[%1] Syncing %2 campaign for C6 camp %3', req.uuid, key, req.origObj.id);
+            
+            return externSvcs[key].syncCampaigns(req).then(function(resp) {
+                if (!!resp.code) { // Handle 4xx responses from external syncCampaigns action
+                    doneCalled = true;
+                    return done(resp);
+                }
+                req.origObj.externalCampaigns[key] = resp;
+            });
+        }))
+        .then(function() {
+            // reset externalCampaigns so changes made in sync methods get saved
+            req.body.externalCampaigns = req.origObj.externalCampaigns;
+            return next();
+        });
     };
     
     /* For each entry in req.body.cards, create/edit the card through the content service.

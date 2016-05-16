@@ -73,15 +73,13 @@
             return beeswax.advertisers.create(beesBody);
         })
         .then(function(resp) {
-            /* TODO: don't think this is needed anymore, but unsure?
-            if (!resp.success) {
+            if (!resp.success) { //TODO: Unsure if needed?
                 log.warn('[%1] Creating Beeswax Advertiser failed: %2', req.uuid, resp.message);
                 return q({
                     code: resp.code || 400,
-                    body: resp.message
+                    body: 'Could not edit Beesax Advertiser'
                 });
             }
-            */
 
             beesId = resp.payload.advertiser_id;
             log.info('[%1] Created Beeswax advertiser %2 for %3', req.uuid, beesId, c6Id);
@@ -118,17 +116,15 @@
         return advertModule.handleNameInUse(req, beesBody, function editAdvert() {
             return beeswax.advertisers.edit(beesId, beesBody);
         })
-        .then(function(/*resp*/) {
-            /* TODO: don't think this is needed anymore, but unsure?
-            if (!resp.success) {
+        .then(function(resp) {
+            if (!resp.success) { //TODO: Unsure if needed?
                 log.warn('[%1] Editing Beeswax Advertiser %2 failed: %3',
                          req.uuid, beesId, resp.message);
                 return q({
                     code: resp.code || 400,
-                    body: resp.message
+                    body: 'Could not edit Beesax Advertiser'
                 });
             }
-            */
             log.info('[%1] Edited Beeswax advertiser %2 for %3', req.uuid, beesId, c6Id);
             return next();
         })

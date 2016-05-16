@@ -13,13 +13,14 @@
         logger          = require('../lib/logger'),
         journal         = require('../lib/journal'),
         JobManager      = require('../lib/jobManager'),
-        BeeswaxClient   = require('../lib/beeswax'),
+        BeeswaxClient   = require('../lib/BeeswaxClient'),
         advertModule    = require('./ads-advertisers'),
         updateModule    = require('./ads-campaignUpdates'),
         campModule      = require('./ads-campaigns'),
         conModule       = require('./ads-containers'),
         placeModule     = require('./ads-placements'),
         siteModule      = require('./ads-sites'),
+        beesCamps       = require('./ads-externalCampaigns/beeswax'),
         
         state   = {},
         ads = {}; // for exporting functions to unit tests
@@ -132,12 +133,15 @@
             apiRoot: state.config.beeswax.apiRoot,
             creds: state.secrets.beeswax
         });
+        var externSvcs = {
+            beeswax: beesCamps.setupSvc(state.dbs.c6Db, state.config, beeswax)
+        };
 
         var app          = express(),
             appCreds     = state.rcAppCreds,
             jobManager   = new JobManager(state.cache, state.config.jobTimeouts),
             advertSvc    = advertModule.setupSvc(state.dbs.c6Db.collection('advertisers'), beeswax),
-            campSvc      = campModule.setupSvc(state.dbs.c6Db, state.config),
+            campSvc      = campModule.setupSvc(state.dbs.c6Db, state.config, externSvcs),
             updateSvc    = updateModule.setupSvc(state.dbs.c6Db, campSvc, state.config, appCreds),
             siteSvc      = siteModule.setupSvc(state.dbs.c6Db.collection('sites')),
             conSvc       = conModule.setupSvc(state.dbs.c6Db),
@@ -179,7 +183,8 @@
         
         advertModule.setupEndpoints(app, advertSvc, state.sessions, audit, jobManager);
         
-        // Update module endpoints MUST be added before campaign endpoints!
+        // These endpoints MUST be added before campaign endpoints!
+        beesCamps.setupEndpoints(app, externSvcs.beeswax, state.sessions, audit, jobManager);
         updateModule.setupEndpoints(app, updateSvc, state.sessions, audit, jobManager);
 
         campModule.setupEndpoints(app, campSvc, state.sessions, audit, jobManager);
