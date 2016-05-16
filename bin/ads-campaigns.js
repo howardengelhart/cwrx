@@ -153,7 +153,7 @@
     };
 
     campModule.setupSvc = function(db, config, externSvcs) {
-		campModule.config.emails = config.emails;
+        campModule.config.emails = config.emails;
         campModule.config.api = config.api;
         Object.keys(campModule.config.api)
         .filter(function(key) { return key !== 'root'; })
