@@ -851,10 +851,12 @@ describe('collateral (E2E):', function() {
                         type: 'app',
                         platform: 'iOS',
                         name: 'Facebook',
+                        developer: 'Facebook, Inc.',
                         description: jasmine.any(String),
                         uri: 'https://itunes.apple.com/us/app/facebook/id284882215?mt=8&uo=4',
                         categories: ['Social Networking'],
                         price: 'Free',
+                        rating: jasmine.any(Number),
                         extID: 284882215,
                         images: jasmine.any(Array)
                     });
