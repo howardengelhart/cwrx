@@ -22,6 +22,27 @@ if [ -n "$1" ]; then
     export PGHOST=$1
 fi
 
+read -r -d '' unique_user_views_lifetime <<- EOM
+CREATE TABLE rpt.unique_user_views(
+	campaign_id character varying(20),
+	unique_user_views integer,
+	first_view_ts timestamp with time zone,
+	last_view_ts timestamp with time zone,
+	created_ts timestamp with time zone,
+	updated_ts timestamp with time zone,
+	CONSTRAINT uc_unique_user_views UNIQUE (campaign_id)
+) WITH ( OIDS=FALSE);
+EOM
+
+read -r -d '' unique_user_views_daily <<- EOM
+CREATE TABLE rpt.unique_user_views_daily (
+	rec_date date NOT NULL,
+	campaign_id character varying(20) NOT NULL,
+	unique_user_views integer NOT NULL,
+	CONSTRAINT uc_unique_user_views_daily UNIQUE (rec_date, campaign_id)
+) WITH ( OIDS=FALSE);
+EOM
+
 read -r -d '' campaign_summary_hourly <<- EOM
 CREATE TABLE rpt.campaign_summary_hourly
 (
@@ -90,6 +111,11 @@ configDb()
     psql -c "${campaign_summary_hourly}" > /dev/null
     psql -c "GRANT SELECT ON TABLE rpt.campaign_summary_hourly TO editor;" > /dev/null
 
+    psql -c "${unique_user_views_daily}" > /dev/null
+    psql -c "GRANT SELECT ON TABLE rpt.unique_user_views_daily TO editor;" > /dev/null
+
+    psql -c "${unique_user_views_lifetime}" > /dev/null
+    psql -c "GRANT SELECT ON TABLE rpt.unique_user_views TO editor;" > /dev/null
 
     psql -c "CREATE SCHEMA fct;" > /dev/null
     psql -c "GRANT USAGE ON SCHEMA fct TO editor;" > /dev/null
@@ -100,7 +126,8 @@ configDb()
 }
 
 echo "Check if init required."
-`psql -tAc "select 1 from pg_roles where rolname = 'sixxy'" 2>&1`
+RESULTS=`psql -tAc "select 1 from pg_roles where rolname = 'sixxy'" 2>&1`
+
 INIT_CHECK=$?
 if [ $INIT_CHECK -eq "0" ]
 then
