@@ -49,6 +49,8 @@
         svc._db = db;
         svc.beeswax = beeswax;
         
+        //TODO: should really probs check that user has perm to edit the camp for create/edit
+        
         svc.use('create', beesCamps.fetchC6Campaign);
         svc.use('create', beesCamps.fetchC6Advertiser);
         svc.use('create', beesCamps.validateBody.bind(beesCamps, 'create'));
@@ -88,6 +90,7 @@
         });
         beesBody.start_date = beesBody.start_date || new Date();
         
+        //TODO: can we clean this up?
         var newVals = {};
         ['budget', 'dailyLimit'].forEach(function(field) {
             var newCampVal = ld.get(newCamp, 'pricing.' + field, null),
@@ -104,10 +107,10 @@
             
             if (field === 'dailyLimit') {
                 // Allow dailyLimit to be set to null
-                if (campVal === null && extCampEntry[field] === null) {
+                if (!campVal && !extCampEntry[field]) {
                     newVals[field] = null;
                     return;
-                } else { // if campVal is null, treat this as infinite dailyLimit
+                } else { // if campVal is null, treat it as infinite dailyLimit
                     campVal = campVal || Infinity;
                 }
             } else { // treat null/undefined budget as 0
@@ -120,6 +123,9 @@
                 campVal
             ), 1); // min of $1 as Beeswax will error on budget/limit of 0
         });
+        // Ensure dailyLimit does not exceed budget
+        newVals.dailyLimit = !!newVals.dailyLimit ? Math.min(newVals.budget, newVals.dailyLimit)
+                                                  : newVals.dailyLimit;
         
         beesBody.campaign_budget = !!newVals.budget ? newVals.budget * impressionRatio
                                                     : newVals.budget;
@@ -132,12 +138,13 @@
     beesCamps.updateExtCampPricing = function(extCampEntry, beesBody) { //TODO: rename?
         var impressionRatio = beesCamps.config.beeswax.impressionRatio;
         
+        // Round to 6 decimal places to deal with JS math errors
         extCampEntry.budget = !!beesBody.campaign_budget ?
-            (beesBody.campaign_budget / impressionRatio) :
+            Number((beesBody.campaign_budget / impressionRatio).toFixed(6)) :
             beesBody.campaign_budget;
 
         extCampEntry.dailyLimit = !!beesBody.daily_budget ?
-            (beesBody.daily_budget / impressionRatio) :
+            Number((beesBody.daily_budget / impressionRatio).toFixed(6)) :
             beesBody.daily_budget;
     };
     

@@ -1,5 +1,4 @@
 var q               = require('q'),
-    braintree       = require('braintree'),
     request         = require('request'),
     util            = require('util'),
     testUtils       = require('./testUtils'),
@@ -10,13 +9,7 @@ var q               = require('q'),
         contentUrl  : 'http://' + (host === 'localhost' ? host + ':3300' : host) + '/api/content',
         geoUrl      : 'http://' + (host === 'localhost' ? host + ':4200' : host) + '/api/geo',
         authUrl     : 'http://' + (host === 'localhost' ? host + ':3200' : host) + '/api/auth'
-    },
-    gateway = braintree.connect({
-        environment : braintree.Environment.Sandbox,
-        merchantId  : 'ztrphcf283bxgn2f',
-        publicKey   : 'rz2pht7gyn6d266b',
-        privateKey  : '0a150dac004756370706a195e2bde296'
-    });
+    };
 
 describe('ads campaigns endpoints (E2E):', function() {
     var selfieJar, adminJar, mockOrgs, mockCards, mockExps, mockApp, appCreds, mockman;
