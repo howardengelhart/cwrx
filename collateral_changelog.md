@@ -1,5 +1,6 @@
 # Collateral Service Changelog
 
+### 2.4.0: Mon May 16 09:05:41 EDT 2016
 * [FEATURE]: Provide the name of the developer and star-rating when
   GETting app product-data: [#895](https://github.com/cinema6/cwrx/pull/895)
 

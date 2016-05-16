@@ -1,5 +1,6 @@
 # User Service Changelog
 
+### 4.0.0: Mon May 16 09:07:44 EDT 2016
 * [REMOVAL]: Users module will no longer send emails: [#887](https://github.com/cinema6/cwrx/issues/887)
 * Ensure `target` is set properly on all watchman notifications: [#887](https://github.com/cinema6/cwrx/issues/887)
 * Use `target` to give signup users correct roles/policies: [#887](https://github.com/cinema6/cwrx/issues/887)
