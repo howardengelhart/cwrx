@@ -1,5 +1,6 @@
 # Search Service Changelog
 
+### 1.5.0: Mon May 16 09:06:43 EDT 2016
 * [FEATURE]: Add `GET [/api/search/apps]` endpoint to search the App
   Store: [#875](https://github.com/cinema6/cwrx/pull/875)
 * **Extra Deployment Steps:**
