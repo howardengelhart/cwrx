@@ -9,6 +9,7 @@
         express         = require('express'),
         Model           = require('../../lib/model'),
         logger          = require('../../lib/logger'),
+        CrudSvc         = require('../../lib/crudSvc'),
         objUtils        = require('../../lib/objUtils'),
         authUtils       = require('../../lib/authUtils'),
         requestUtils    = require('../../lib/requestUtils'),
@@ -49,14 +50,14 @@
         svc._db = db;
         svc.beeswax = beeswax;
         
-        //TODO: should really probs check that user has perm to edit the camp for create/edit
-        
         svc.use('create', beesCamps.fetchC6Campaign);
         svc.use('create', beesCamps.fetchC6Advertiser);
+        svc.use('create', beesCamps.canEditCampaign);
         svc.use('create', beesCamps.validateBody.bind(beesCamps, 'create'));
 
         svc.use('edit', beesCamps.fetchC6Campaign);
         svc.use('edit', beesCamps.fetchC6Advertiser);
+        svc.use('edit', beesCamps.canEditCampaign);
         svc.use('edit', beesCamps.validateBody.bind(beesCamps, 'edit'));
         
         svc.use('syncCampaigns', beesCamps.fetchC6Advertiser);
@@ -199,6 +200,17 @@
             log.error('[%1] Failed fetching advertiser %2: %3', req.uuid, id, util.inspect(error));
             return q.reject('Error fetching advertiser');
         });
+    };
+    
+    beesCamps.canEditCampaign = function(req, next, done) {
+        var log = logger.getLog();
+
+        if (!CrudSvc.checkScope('campaigns', true, req, req.campaign, 'edit')) {
+            log.info('[%1] Requester %2 is not authorized to edit %3',
+                     req.uuid, req.requester.id, req.campaign.id);
+            return done({ code: 403, body: 'Not authorized to edit this campaign' });
+        }
+        return next();
     };
     
     beesCamps.validateBody = function(action, req, next, done) {

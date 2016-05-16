@@ -199,25 +199,21 @@ describe('CrudSvc', function() {
         });
     });
     
-    describe('singularizeName', function() {
-        function createSvc(name) {
-            return new CrudSvc({ collectionName: name }, 'x');
-        }
-
+    describe('CrudSvc.singularizeName', function() {
         it('should return the singular version of the internal objName', function() {
-            expect(createSvc('experiences').singularizeName()).toBe('experience');
-            expect(createSvc('cards').singularizeName()).toBe('card');
-            expect(createSvc('orgs').singularizeName()).toBe('org');
-            expect(createSvc('brownies').singularizeName()).toBe('brownie');
+            expect(CrudSvc.singularizeName('experiences')).toBe('experience');
+            expect(CrudSvc.singularizeName('cards')).toBe('card');
+            expect(CrudSvc.singularizeName('orgs')).toBe('org');
+            expect(CrudSvc.singularizeName('brownies')).toBe('brownie');
         });
         
         it('should handle nouns with non-standard plurals properly', function() {
-            expect(createSvc('categories').singularizeName()).toBe('category');
-            expect(createSvc('policies').singularizeName()).toBe('policy');
+            expect(CrudSvc.singularizeName('categories')).toBe('category');
+            expect(CrudSvc.singularizeName('policies')).toBe('policy');
         });
     });
 
-    describe('checkScope', function() {
+    describe('CrudSvc.checkScope', function() {
         var req, thangs;
         beforeEach(function() {
             req = {
@@ -243,15 +239,15 @@ describe('CrudSvc', function() {
 
         it('should correctly handle the scopes', function() {
             expect(thangs.filter(function(thang) {
-                return svc.checkScope(req, thang, 'read');
+                return CrudSvc.checkScope('thangs', true, req, thang, 'read');
             })).toEqual(thangs);
 
             expect(thangs.filter(function(thang) {
-                return svc.checkScope(req, thang, 'edit');
+                return CrudSvc.checkScope('thangs', true, req, thang, 'edit');
             })).toEqual([thangs[0], thangs[1], thangs[2]]);
 
             expect(thangs.filter(function(thang) {
-                return svc.checkScope(req, thang, 'delete');
+                return CrudSvc.checkScope('thangs', true, req, thang, 'delete');
             })).toEqual([thangs[0], thangs[2]]);
         });
         
@@ -261,15 +257,15 @@ describe('CrudSvc', function() {
             req.application = { id: 'app-1', key: 'watchman' };
             
             expect(thangs.filter(function(thang) {
-                return svc.checkScope(req, thang, 'read');
+                return CrudSvc.checkScope('thangs', true, req, thang, 'read');
             })).toEqual(thangs);
 
             expect(thangs.filter(function(thang) {
-                return svc.checkScope(req, thang, 'edit');
+                return CrudSvc.checkScope('thangs', true, req, thang, 'edit');
             })).toEqual([]);
 
             expect(thangs.filter(function(thang) {
-                return svc.checkScope(req, thang, 'delete');
+                return CrudSvc.checkScope('thangs', true, req, thang, 'delete');
             })).toEqual([]);
         });
 
@@ -277,17 +273,17 @@ describe('CrudSvc', function() {
             var thang = { id: 't-1' };
             
             req.requester.permissions.thangs.read = '';
-            expect(svc.checkScope({}, thang, 'read')).toBe(false);
+            expect(CrudSvc.checkScope('thangs', true, {}, thang, 'read')).toBe(false);
 
             req.requester.permissions.thangs = {};
             req.requester.permissions.orgs = { read: Scope.All };
-            expect(svc.checkScope({}, thang, 'read')).toBe(false);
+            expect(CrudSvc.checkScope('thangs', true, {}, thang, 'read')).toBe(false);
             
             req.requester.permissions = {};
-            expect(svc.checkScope({}, thang, 'read')).toBe(false);
+            expect(CrudSvc.checkScope('thangs', true, {}, thang, 'read')).toBe(false);
             
             delete req.requester;
-            expect(svc.checkScope({}, thang, 'read')).toBe(false);
+            expect(CrudSvc.checkScope('thangs', true, {}, thang, 'read')).toBe(false);
         });
         
         describe('if handling entities not owned by users', function() {
@@ -302,23 +298,22 @@ describe('CrudSvc', function() {
                     { id: 't-2', status: Status.Active, org: 'o-1' },
                     { id: 't-3', status: Status.Active }
                 ];
-                svc._ownedByUser = false;
             });
             
             it('should allow users with own/org scope to get entities they belong to', function() {
                 // 'all' scope should still work the same
                 expect(thangs.filter(function(thang) {
-                    return svc.checkScope(req, thang, 'read');
+                    return CrudSvc.checkScope('thangs', false, req, thang, 'read');
                 })).toEqual(thangs);
                 
                 // 'org' scope should get thangs owned by the org + the user's thang
                 expect(thangs.filter(function(thang) {
-                    return svc.checkScope(req, thang, 'edit');
+                    return CrudSvc.checkScope('thangs', false, req, thang, 'edit');
                 })).toEqual([thangs[0], thangs[1]]);
 
                 // 'own' scope should only get the user's thang
                 expect(thangs.filter(function(thang) {
-                    return svc.checkScope(req, thang, 'delete');
+                    return CrudSvc.checkScope('thangs', false, req, thang, 'delete');
                 })).toEqual([thangs[0]]);
             });
 
@@ -326,19 +321,40 @@ describe('CrudSvc', function() {
                 delete req.user.thang;
                 // 'all' scope should still work the same
                 expect(thangs.filter(function(thang) {
-                    return svc.checkScope(req, thang, 'read');
+                    return CrudSvc.checkScope('thangs', false, req, thang, 'read');
                 })).toEqual(thangs);
                 
                 // 'org' scope should only get thangs owned by the org
                 expect(thangs.filter(function(thang) {
-                    return svc.checkScope(req, thang, 'edit');
+                    return CrudSvc.checkScope('thangs', false, req, thang, 'edit');
                 })).toEqual([thangs[1]]);
 
                 // 'own' scope should get nothing
                 expect(thangs.filter(function(thang) {
-                    return svc.checkScope(req, thang, 'delete');
+                    return CrudSvc.checkScope('thangs', false, req, thang, 'delete');
                 })).toEqual([]);
             });
+        });
+    });
+    
+    describe('CrudSvc.prototype.checkScope', function() {
+        var req, obj, action;
+        beforeEach(function() {
+            req = { uuid: '1234' };
+            obj = { foo: 'bar' };
+            action = 'edit';
+            spyOn(CrudSvc, 'checkScope').and.returnValue(true);
+        });
+
+        it('should call the static method correctly', function() {
+            expect(svc.checkScope(req, obj, action)).toBe(true);
+            expect(CrudSvc.checkScope).toHaveBeenCalledWith('thangs', true, req, obj, action);
+            
+            CrudSvc.checkScope.calls.reset();
+            svc.objName = 'undapants';
+            svc._ownedByUser = false;
+            expect(svc.checkScope(req, obj, action)).toBe(true);
+            expect(CrudSvc.checkScope).toHaveBeenCalledWith('undapants', false, req, obj, action);
         });
     });
 

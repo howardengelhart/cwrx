@@ -64,7 +64,7 @@ describe('ads - Beeswax external campaigns endpoints (E2E):', function() {
                 status: 'active',
                 priority: 1,
                 permissions: {
-                    advertisers: { read: 'org' },
+                    advertisers: { read: 'all' },
                     orgs: { read: 'org' },
                     cards: { read: 'all', create: 'org', edit: 'org', delete: 'org' },
                     campaigns: { read: 'all', create: 'org', edit: 'org', delete: 'org' }
@@ -407,9 +407,15 @@ describe('ads - Beeswax external campaigns endpoints (E2E):', function() {
             }).done(done);
         });
         
-        xit('should return a 403 if the user cannot edit the given campaign', function(done) {
+        it('should return a 403 if the user cannot edit the given campaign', function(done) {
             options.jar = nonAdminJar;
-            //TODO: need to add middleware to check perms, move checkScope out of CrudSvc?
+            options.url = config.adsUrl + '/campaigns/cam-e2e-admin-1/external/beeswax';
+            requestUtils.qRequest('post', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(403);
+                expect(resp.body).toBe('Not authorized to edit this campaign');
+            }).catch(function(error) {
+                expect(error.message || util.inspect(error)).not.toBeDefined();
+            }).done(done);
         });
         
         it('should return a 401 error if no one is authenticated', function(done) {
@@ -674,9 +680,19 @@ describe('ads - Beeswax external campaigns endpoints (E2E):', function() {
             }).done(done);
         });
         
-        xit('should return a 403 if the user cannot edit the given campaign', function(done) {
+        it('should return a 403 if the user cannot edit the given campaign', function(done) {
             options.jar = nonAdminJar;
-            //TODO: need to add middleware to check perms, move checkScope out of CrudSvc?
+            options.url = config.adsUrl + '/campaigns/cam-e2e-admin-1/external/beeswax';
+
+            createBeeswaxCampaign('cam-e2e-admin-1', {})
+            .then(function(beesExtCamp) {
+                return requestUtils.qRequest('put', options).then(function(resp) {
+                    expect(resp.response.statusCode).toBe(403);
+                    expect(resp.body).toBe('Not authorized to edit this campaign');
+                });
+            }).catch(function(error) {
+                expect(error.message || util.inspect(error)).not.toBeDefined();
+            }).done(done);
         });
         
         it('should return a 401 error if no one is authenticated', function(done) {
