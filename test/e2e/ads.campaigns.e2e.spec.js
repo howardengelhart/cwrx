@@ -2,6 +2,7 @@ var q               = require('q'),
     request         = require('request'),
     util            = require('util'),
     testUtils       = require('./testUtils'),
+    BeeswaxClient   = require('../../lib/BeeswaxClient'),
     requestUtils    = require('../../lib/requestUtils'),
     host            = process.env.host || 'localhost',
     config = {
@@ -11,15 +12,21 @@ var q               = require('q'),
         authUrl     : 'http://' + (host === 'localhost' ? host + ':3200' : host) + '/api/auth'
     };
 
+var beeswax = new BeeswaxClient({
+    creds: {
+        email: 'ops@cinema6.com',
+        password: '07743763902206f2b511bead2d2bf12292e2af82'
+    }
+});
+
 describe('ads campaigns endpoints (E2E):', function() {
     var selfieJar, adminJar, mockOrgs, mockCards, mockExps, mockApp, appCreds, mockman;
 
-    beforeEach(function(done) {
+    beforeEach(function() {
         jasmine.DEFAULT_TIMEOUT_INTERVAL = 60000;
-
-        if (selfieJar && adminJar) {
-            return done();
-        }
+    });
+    
+    beforeAll(function(done) {
         selfieJar = request.jar();
         var selfieUser = {
             id: 'e2e-user',
@@ -67,6 +74,7 @@ describe('ads campaigns endpoints (E2E):', function() {
                 status: 'active',
                 priority: 1,
                 permissions: {
+                    advertisers: { read: 'all', create: 'all' },
                     orgs: { read: 'all', edit: 'all', delete: 'all' },
                     cards: { read: 'all', create: 'all', edit: 'all', delete: 'all' },
                     experiences: { read: 'all', delete: 'all' },
@@ -1936,6 +1944,125 @@ describe('ads campaigns endpoints (E2E):', function() {
                 requestUtils.qRequest('put', options, null, { maxAttempts: 30 }).then(function(resp) {
                     expect(resp.response.statusCode).toBe(400);
                     expect(resp.body).toBe('Action not permitted on active campaign');
+                }).catch(function(error) {
+                    expect(util.inspect(error)).not.toBeDefined();
+                }).done(done);
+            });
+        });
+        
+        describe('if a campaign has a Beeswax external campaign', function() {
+            var createdAdvert, campWithBeeswax, beesCampIds, options;
+            beforeAll(function(done) {
+                requestUtils.qRequest('post', {
+                    url: config.adsUrl + '/account/advertisers',
+                    json: { name: Date.now() + ' - campaigns.e2e' },
+                    jar: adminJar
+                })
+                .then(function(resp) {
+                    if (resp.response.statusCode !== 201) {
+                        return q.reject('Failed creating test advert - ' + util.inspect({
+                            code: resp.response.statusCode,
+                            body: resp.body
+                        }));
+                    }
+                    createdAdvert = resp.body;
+                })
+                .then(done, done.fail);
+            });
+            
+            beforeEach(function(done) {
+                beesCampIds = [];
+                requestUtils.qRequest('post', {
+                    url: config.adsUrl + '/campaigns',
+                    json: {
+                        name: 'test w/ beeswax',
+                        advertiserId: createdAdvert.id,
+                        pricing: { budget: 1000, dailyLimit: 100 },
+                        cards: [
+                            { title: 'bw test card', campaign: { startDate: '2016-05-16T20:05:57.163Z' } }
+                        ]
+                    },
+                    jar: adminJar
+                })
+                .then(function(resp) {
+                    if (resp.response.statusCode !== 201) {
+                        return q.reject('Failed creating test camp - ' + util.inspect({
+                            code: resp.response.statusCode,
+                            body: resp.body
+                        }));
+                    }
+                    campWithBeeswax = resp.body;
+                    return requestUtils.qRequest('post', {
+                        url: config.adsUrl + '/campaigns/' + campWithBeeswax.id + '/external/beeswax',
+                        json: { budget: 1000, dailyLimit: 100 },
+                        jar: adminJar
+                    });
+                })
+                .then(function(resp) {
+                    if (resp.response.statusCode !== 201) {
+                        return q.reject('Failed creating beeswax campaign - ' + util.inspect({
+                            code: resp.response.statusCode,
+                            body: resp.body
+                        }));
+                    }
+                    beesCampIds.push(resp.body.externalId);
+
+                    options = {
+                        url: config.adsUrl + '/campaigns/' + campWithBeeswax.id,
+                        json: {
+                            name: 'test w/ beeswax - UPDATED',
+                            cards: [
+                                { id: campWithBeeswax.cards[0].id, campaign: { startDate: '2016-04-04T20:05:57.163Z' } }
+                            ]
+                        },
+                        jar: adminJar
+                    };
+                })
+                .then(done, done.fail);
+            });
+            
+            afterEach(function(done) {
+                q.all(beesCampIds.map(function(id) {
+                    return beeswax.campaigns.delete(id);
+                })).then(function(results) {
+                    done();
+                }).catch(done.fail);
+            });
+            
+            afterAll(function(done) {
+                beeswax.advertisers.delete(createdAdvert.beeswaxIds.advertiser)
+                .then(done, done.fail);
+            });
+            
+            it('should be able to sync the changes to the Beeswax campaign', function(done) {
+                requestUtils.qRequest('put', options).then(function(resp) {
+                    expect(resp.response.statusCode).toBe(200);
+                    expect(resp.body._id).not.toBeDefined();
+                    expect(resp.body.name).toBe('test w/ beeswax - UPDATED');
+                    expect(resp.body.cards).toEqual([jasmine.objectContaining({
+                        id: campWithBeeswax.cards[0].id,
+                        title: 'bw test card',
+                        campaign: jasmine.objectContaining({ startDate: '2016-04-04T20:05:57.163Z' })
+                    })]);
+                    expect(resp.body.externalCampaigns).toEqual({ beeswax: {
+                        budget: 1000,
+                        dailyLimit: 100,
+                        externalId: beesCampIds[0]
+                    } });
+                    
+                    // check that campaign updated in Beeswax successfully
+                    return beeswax.campaigns.find(resp.body.externalCampaigns.beeswax.externalId);
+                }).then(function(resp) {
+                    expect(resp.success).toBe(true);
+                    expect(resp.payload).toEqual(jasmine.objectContaining({
+                        campaign_id     : beesCampIds[0],
+                        advertiser_id   : createdAdvert.beeswaxIds.advertiser,
+                        alternative_id  : campWithBeeswax.id,
+                        campaign_name   : 'test w/ beeswax - UPDATED',
+                        start_date      : '2016-04-04 16:05:57',
+                        campaign_budget : jasmine.any(Number),
+                        daily_budget    : jasmine.any(Number)
+                    }));
                 }).catch(function(error) {
                     expect(util.inspect(error)).not.toBeDefined();
                 }).done(done);

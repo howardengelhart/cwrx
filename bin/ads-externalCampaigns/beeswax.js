@@ -84,7 +84,7 @@
          * within timeframe */
         var cards = newCamp.cards || oldCamp.cards || [];
         cards.forEach(function(card) {
-            var start = new Date(card.campaign.startDate);
+            var start = new Date(ld.get(card, 'campaign.startDate', undefined));
             if (!!start.valueOf() && (!beesBody.start_date || start < beesBody.start_date)) {
                 beesBody.start_date = start;
             }
@@ -300,7 +300,7 @@
             
             return svc.beeswax.campaigns.edit(beesId, beesBody)
             .then(function(resp) {
-                if (!resp.success) { //TODO: Unsure if needed?
+                if (!resp.success) {
                     log.warn('[%1] Editing Beeswax Campaign %2 failed: %3',
                              req.uuid, beesId, resp.message);
                     return q({
@@ -330,7 +330,6 @@
         });
     };
     
-    
     beesCamps.syncCampaigns = function(svc, req) {
         var log = logger.getLog(),
             extCampEntry = req.origObj.externalCampaigns.beeswax;
@@ -351,7 +350,7 @@
             
             return svc.beeswax.campaigns.edit(beesId, newBeesBody)
             .then(function(resp) {
-                if (!resp.success) { //TODO: Unsure if needed?
+                if (!resp.success) {
                     log.warn('[%1] Editing Beeswax Campaign %2 failed: %3',
                              req.uuid, beesId, resp.message);
                     return q({
