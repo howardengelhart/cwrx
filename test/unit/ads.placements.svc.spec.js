@@ -47,7 +47,7 @@ describe('ads-placements (UT)', function() {
     });
 
     describe('setupSvc', function() {
-        var svc, config;
+        var svc, config, costHistMidware;
         beforeEach(function() {
             config = { cacheTTLs: {
                 placements: { freshTTL: 10, maxTTL: 40 },
@@ -55,6 +55,9 @@ describe('ads-placements (UT)', function() {
             } };
             spyOn(placeModule.validateExtRefs, 'bind').and.returnValue(placeModule.validateExtRefs);
             spyOn(placeModule.getPublicPlacement, 'bind').and.returnValue(placeModule.getPublicPlacement);
+            
+            costHistMidware = jasmine.createSpy('handleCostHist');
+            spyOn(historian, 'middlewarify').and.returnValue(costHistMidware);
             
             svc = placeModule.setupSvc(mockDb, config);
         });
@@ -89,6 +92,12 @@ describe('ads-placements (UT)', function() {
             expect(svc._middleware.create).toContain(placeModule.validateExtRefs);
             expect(svc._middleware.edit).toContain(placeModule.validateExtRefs);
         });
+        
+        it('should manage the costHistory on create and edit', function() {
+            expect(historian.middlewarify).toHaveBeenCalledWith('externalCost', 'costHistory');
+            expect(svc._middleware.create).toContain(costHistMidware);
+            expect(svc._middleware.edit).toContain(costHistMidware);
+        });
     });
     
     describe('placement validation', function() {
@@ -117,6 +126,102 @@ describe('ads-placements (UT)', function() {
             });
         });
 
+        ['startDate', 'endDate'].forEach(function(field) {
+            describe('when handling ' + field, function() {
+                it('should allow the field to be set as a Date object', function() {
+                    var now = new Date();
+                    newObj[field] = now;
+                    expect(svc.model.validate('create', newObj, origObj, requester))
+                        .toEqual({ isValid: true, reason: undefined });
+                    expect(newObj[field]).toBe(now);
+                });
+                
+                it('should allow the field to be set as a stringified Date', function() {
+                    newObj[field] = 'Tue Jan 12 2016 17:40:11 GMT-0500 (EST)';
+                    expect(svc.model.validate('create', newObj, origObj, requester))
+                        .toEqual({ isValid: true, reason: undefined });
+                    expect(newObj[field]).toEqual(new Date('Tue Jan 12 2016 17:40:11 GMT-0500 (EST)'));
+                });
+                
+                it('should fail if the field is not a valid Date', function() {
+                    newObj[field] = 'Tue Jaaaaaaaan 12 2016 17:40:11 GMT-0500 (EST)';
+                    expect(svc.model.validate('create', newObj, origObj, requester))
+                        .toEqual({ isValid: false, reason: field + ' must be in format: Date' });
+                });
+            });
+        });
+        
+        describe('when handling budget', function() {
+            beforeEach(function() {
+                newObj.budget = {};
+                requester.fieldValidation.placements.budget = {};
+            });
+
+            ['daily', 'total'].forEach(function(field) {
+                describe('subfield ' + field, function() {
+                    it('should fail if the field is not a number', function() {
+                        newObj.budget[field] = 'many dollars';
+                        expect(svc.model.validate('create', newObj, origObj, requester))
+                            .toEqual({ isValid: false, reason: 'budget.' + field + ' must be in format: number' });
+                    });
+                    
+                    it('should allow the field to be set', function() {
+                        newObj.budget[field] = 1234;
+                        expect(svc.model.validate('create', newObj, origObj, requester))
+                            .toEqual({ isValid: true, reason: undefined });
+                        expect(newObj.budget[field]).toEqual(1234);
+                    });
+                });
+            });
+        });
+        
+        describe('externalCost', function() {
+            beforeEach(function() {
+                newObj.externalCost = {};
+                requester.fieldValidation.placements.externalCost = {};
+            });
+
+            describe('subfield event', function() {
+                it('should fail if the field is not a string', function() {
+                    newObj.externalCost.event = 1234;
+                    expect(svc.model.validate('create', newObj, origObj, requester))
+                        .toEqual({ isValid: false, reason: 'externalCost.event must be in format: string' });
+                });
+                
+                it('should allow the field to be set', function() {
+                    newObj.externalCost.event = 'birthday';
+                    expect(svc.model.validate('create', newObj, origObj, requester))
+                        .toEqual({ isValid: true, reason: undefined });
+                    expect(newObj.externalCost.event).toEqual('birthday');
+                });
+            });
+
+            describe('subfield cost', function() {
+                it('should fail if the field is not a number', function() {
+                    newObj.externalCost.cost = 'many dollars';
+                    expect(svc.model.validate('create', newObj, origObj, requester))
+                        .toEqual({ isValid: false, reason: 'externalCost.cost must be in format: number' });
+                });
+                
+                it('should allow the field to be set', function() {
+                    newObj.externalCost.cost = 1234;
+                    expect(svc.model.validate('create', newObj, origObj, requester))
+                        .toEqual({ isValid: true, reason: undefined });
+                    expect(newObj.externalCost.cost).toEqual(1234);
+                });
+            });
+        });
+
+        describe('when handling costHistory', function() {
+            it('should not allow anyone to set the field', function() {
+                requester.fieldValidation.placements.costHistory = { __allowed: true };
+                newObj.costHistory = 'yesterday it cost a lot';
+                expect(svc.model.validate('create', newObj, origObj, requester))
+                    .toEqual({ isValid: true, reason: undefined });
+                expect(newObj.costHistory).not.toBeDefined();
+            });
+        });
+        
         describe('when handling tagParams', function() {
             beforeEach(function() {
                 requester.fieldValidation.placements.tagParams = {};

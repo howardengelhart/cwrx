@@ -5,6 +5,7 @@
         util            = require('util'),
         express         = require('express'),
         logger          = require('../lib/logger'),
+        historian       = require('../lib/historian'),
         QueryCache      = require('../lib/queryCache'),
         Status          = require('../lib/enums').Status,
         authUtils       = require('../lib/authUtils'),
@@ -21,9 +22,38 @@
             __allowed: true,
             __type: 'string'
         },
-        beeswaxIds: {
+        startDate: {
+            __allowed: true,
+            __type: 'Date'
+        },
+        endDate: {
+            __allowed: true,
+            __type: 'Date'
+        },
+        budget: {
+            daily: {
+                __allowed: true,
+                __type: 'number'
+            },
+            total: {
+                __allowed: true,
+                __type: 'number'
+            }
+        },
+        externalCost: {
+            event: {
+                __allowed: true,
+                __type: 'string'
+            },
+            cost: {
+                __allowed: true,
+                __type: 'number'
+            }
+        },
+        costHistory: {
             __allowed: false,
-            __type: 'object'
+            __type: 'objectArray',
+            __locked: true
         },
         tagParams: {
             __type: 'object',
@@ -60,11 +90,14 @@
         var svc = new CrudSvc(db.collection('placements'), 'pl', {}, placeModule.placeSchema);
         svc._db = db;
         
-        var validateExtRefs = placeModule.validateExtRefs.bind(placeModule, svc);
+        var validateExtRefs = placeModule.validateExtRefs.bind(placeModule, svc),
+            costHistory     = historian.middlewarify('externalCost', 'costHistory');
         
         svc.use('create', validateExtRefs);
+        svc.use('create', costHistory);
         
         svc.use('edit', validateExtRefs);
+        svc.use('edit', costHistory);
         
         var cache = new QueryCache(
             config.cacheTTLs.placements.freshTTL,
