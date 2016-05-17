@@ -43,7 +43,7 @@
     };
     
     /* jshint camelcase: false */
-    advertModule.handleNameInUse = function(req, beesBody, cb) { //TODO: rename, rethink?
+    advertModule.handleNameInUse = function(req, beesBody, cb) {
         var log = logger.getLog();
         return cb().catch(function(errorObj) {
             if (!(/Advertiser name already in use/.test(errorObj.message))) {
@@ -59,7 +59,7 @@
         });
     };
     
-    advertModule.createBeeswaxAdvert = function(beeswax, req, next/*, done*/) {
+    advertModule.createBeeswaxAdvert = function(beeswax, req, next, done) {
         var log = logger.getLog(),
             c6Id = req.body.id,
             beesId;
@@ -73,11 +73,11 @@
             return beeswax.advertisers.create(beesBody);
         })
         .then(function(resp) {
-            if (!resp.success) { //TODO: Unsure if needed?
+            if (!resp.success) {
                 log.warn('[%1] Creating Beeswax Advertiser failed: %2', req.uuid, resp.message);
-                return q({
+                return done({
                     code: resp.code || 400,
-                    body: 'Could not edit Beesax Advertiser'
+                    body: 'Could not edit Beeswax Advertiser'
                 });
             }
 
@@ -94,7 +94,7 @@
         });
     };
     
-    advertModule.editBeeswaxAdvert = function(beeswax, req, next/*, done*/) {
+    advertModule.editBeeswaxAdvert = function(beeswax, req, next, done) {
         var log = logger.getLog(),
             c6Id = req.origObj.id,
             beesId = ld.get(req.origObj, 'beeswaxIds.advertiser', null);
@@ -117,12 +117,12 @@
             return beeswax.advertisers.edit(beesId, beesBody);
         })
         .then(function(resp) {
-            if (!resp.success) { //TODO: Unsure if needed?
+            if (!resp.success) {
                 log.warn('[%1] Editing Beeswax Advertiser %2 failed: %3',
                          req.uuid, beesId, resp.message);
-                return q({
+                return done({
                     code: resp.code || 400,
-                    body: 'Could not edit Beesax Advertiser'
+                    body: 'Could not edit Beeswax Advertiser'
                 });
             }
             log.info('[%1] Edited Beeswax advertiser %2 for %3', req.uuid, beesId, c6Id);

@@ -250,7 +250,7 @@
                     log.warn('[%1] Creating Beeswax Campaign failed: %2', req.uuid, resp.message);
                     return q({
                         code: resp.code || 400,
-                        body: 'Could not create Beesax Campaign'
+                        body: 'Could not create Beeswax Campaign'
                     });
                 }
                 var beesId = resp.payload.campaign_id;
@@ -305,7 +305,7 @@
                              req.uuid, beesId, resp.message);
                     return q({
                         code: resp.code || 400,
-                        body: 'Could not edit Beesax Campaign'
+                        body: 'Could not edit Beeswax Campaign'
                     });
                 }
                 log.info('[%1] Edited Beeswax campaign %2 for %3', req.uuid, beesId, c6Id);
@@ -355,7 +355,7 @@
                              req.uuid, beesId, resp.message);
                     return q({
                         code: resp.code || 400,
-                        body: 'Could not edit Beesax Campaign'
+                        body: 'Could not edit Beeswax Campaign'
                     });
                 }
                 log.info('[%1] Edited Beeswax campaign %2 for %3',req.uuid, beesId, req.origObj.id);
