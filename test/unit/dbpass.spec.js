@@ -1,9 +1,10 @@
 describe('dbpass unit tests',function(){
-    var flush = true, fs, os, pgpass, mockData;
+    var flush = true, fs, os, pgpass, mockData, path;
     beforeEach(function(){
         if (flush) { for (var m in require.cache){ delete require.cache[m]; } flush = false; }
         fs      = require('fs');
         os      = require('os');
+	path	= require('path');
         dbpass  = require('../../lib/dbpass');
         spyOn(fs,'statSync');
         spyOn(fs,'readFileSync');
@@ -31,8 +32,8 @@ describe('dbpass unit tests',function(){
         
             it('will use $HOME/.pgpass by default.',function(){
                 dbpass.open();
-                expect(fs.statSync).toHaveBeenCalledWith('/test/home/.pgpass');
-                expect(fs.readFileSync).toHaveBeenCalledWith('/test/home/.pgpass');
+                expect(fs.statSync).toHaveBeenCalledWith(path.normalize('/test/home/.pgpass'));
+                expect(fs.readFileSync).toHaveBeenCalledWith(path.normalize('/test/home/.pgpass'));
             });
 
             it('will use path if provided.',function(){
