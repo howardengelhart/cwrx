@@ -149,7 +149,8 @@ describe('maint (UT)', function() {
         
         it('should create a working cacheAddress method', function() {
             var cfgObject = maint.createConfiguration({config: 'utConfig'});
-            expect(cfgObject.cacheAddress('test.mp3', 'line')).toBe('ut/line/test.mp3');
+            expect(cfgObject.cacheAddress('test.mp3', 'line'))
+		.toBe(path.normalize('ut/line/test.mp3'));
         });
     });
 
