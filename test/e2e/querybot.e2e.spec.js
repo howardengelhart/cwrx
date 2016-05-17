@@ -273,6 +273,19 @@ describe('querybot (E2E)', function(){
             '(\'' + today() + ' 00:00:00+00\',\'cam-b651cde4158304\',\'q2\',349,0.0000),',
             '(\'' + today() + ' 00:00:00+00\',\'cam-b651cde4158304\',\'q3\',336,0.0000),',
             '(\'' + today() + ' 00:00:00+00\',\'cam-b651cde4158304\',\'q4\',318,0.0000),',
+
+            '(\'' + today(-1) + ' 00:00:00+00\',\'cam-b651cde4158304\',\'completedView\',100,34.9800),',
+            '(\'' + today(-1) + ' 00:00:00+00\',\'cam-b651cde4158304\',\'unique_user_view\',90,0.0000),',
+            '(\'' + today(-1) + ' 00:00:00+00\',\'cam-b651cde4158304\',\'link.Action\',2,0.0000),',
+            '(\'' + today(-1) + ' 00:00:00+00\',\'cam-b651cde4158304\',\'appInstall\',1,0.0000),',
+            '(\'' + today(-1) + ' 00:00:00+00\',\'cam-b651cde4158304\',\'appLaunch\',12,0.0000),',
+
+            '(\'' + today(-2) + ' 00:00:00+00\',\'cam-b651cde4158304\',\'completedView\',80,34.9800),',
+            '(\'' + today(-2) + ' 00:00:00+00\',\'cam-b651cde4158304\',\'unique_user_view\',70,0.0000),',
+            '(\'' + today(-2) + ' 00:00:00+00\',\'cam-b651cde4158304\',\'link.Action\',4,0.0000),',
+            '(\'' + today(-2) + ' 00:00:00+00\',\'cam-b651cde4158304\',\'appInstall\',2,0.0000),',
+            '(\'' + today(-2) + ' 00:00:00+00\',\'cam-b651cde4158304\',\'appLaunch\',12,0.0000),',
+
             '(\'2015-12-03 23:00:00+00\',\'cam-b651cde4158304\',\'cardView\',227,0.0000),',
             '(\'2015-12-03 23:00:00+00\',\'cam-b651cde4158304\',\'completedView\',194,21.3400),',
             '(\'2015-12-03 23:00:00+00\',\'cam-b651cde4158304\',\'unique_user_view\',182,0.0000),',
@@ -665,5 +678,18 @@ describe('querybot (E2E)', function(){
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
+    });
+    
+    fdescribe('GET /api/analytics/campaigns/showcase/apps/:id', function() {
+        it('should allow an app to get stats', function(done) {
+            options.url += '/showcase/apps/cam-b651cde4158304';
+            requestUtils.makeSignedRequest(appCreds, 'get', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.body).toEqual([ camp1Data ]);
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
+
     });
 });

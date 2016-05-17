@@ -1,6 +1,6 @@
 var flush = true;
-describe('querybot-selfie (UT)', function() {
-    var mockLog, logger, q, req, lib, mockPromise, mockDefer, requestUtils, pgUtils, querybot;
+fdescribe('querybot-selfie (UT)', function() {
+    var mockLog, logger, q, req, lib, mockPromise, mockDefer, pgUtils, querybot;
     
     beforeEach(function() {
         if (flush) { for (var m in require.cache){ delete require.cache[m]; } flush = false; }
@@ -8,7 +8,6 @@ describe('querybot-selfie (UT)', function() {
         lib             = require('../../bin/querybot-selfie');
         logger          = require('../../lib/logger');
         pgUtils         = require('../../lib/pgUtils');
-        requestUtils    = require('../../lib/requestUtils');
         querybot        = require('../../bin/querybot');
         
         lib.ServiceError     = querybot.ServiceError;
@@ -56,7 +55,7 @@ describe('querybot-selfie (UT)', function() {
 
 
     describe('queryParamsFromRequest',function(){
-        var req, mockResponse, result, queryOpts, setResult ;
+        var req, mockResponse, result, setResult ;
         beforeEach(function(){
             req = {
                 uuid : '123',
@@ -70,129 +69,26 @@ describe('querybot-selfie (UT)', function() {
                 root : 'https://local'
             };
 
-            mockResponse = {
-                response : {
-                    headers : {},
-                    statusCode : 200
-                },
-                body : {}
-            };
+            mockResponse = [];
 
             setResult = function(r) { result = r; return result; };
 
             result = null;
 
-            queryOpts = null;
-           
-            spyOn(requestUtils, 'proxyRequest').and.callFake(function(req, method, opts) {
-                queryOpts = opts;
-                return q(mockResponse);
-            });
+            lib.lookupCampaigns = jasmine.createSpy('lookupCampaigns')
+                .and.callFake(function(req) {
+                    return q(mockResponse);
+                });
             
         });
 
-        it('pulls campaignIds from the request params',function(done){
-            mockResponse.body = [{ id : 'ABC' }];
-            req.params.id = 'ABC'; 
-            lib.queryParamsFromRequest(req)
-            .then(setResult)
-            .then(function(){
-                expect(queryOpts.qs.ids).toEqual('ABC');
-                expect(queryOpts.url).toEqual('https://local/api/campaigns/');
-                expect(result).toEqual( { campaignIds : ['ABC'], startDate : null, endDate : null } );
-            })
-            .then(done,done.fail);
-        });
-        
-        it('pulls campaignIds from the query params',function(done){
-            req.query.ids = 'ABC,DEF'; 
-            mockResponse.body = [{ id : 'ABC' },{ id : 'DEF' }];
-            lib.queryParamsFromRequest(req)
-            .then(setResult)
-            .then(function(){
-                expect(queryOpts.qs.ids).toEqual('ABC,DEF');
-                expect(queryOpts.url).toEqual('https://local/api/campaigns/');
-                expect(result).toEqual( { campaignIds : ['ABC','DEF'], startDate : null, endDate : null } );
-            })
-            .then(done,done.fail);
-        });
-
-        it('ignores query param ids if main id param is set',function(done){
-            mockResponse.body = [{ id : 'ABC' }];
-            req.params.id = 'ABC'; 
-            req.query.ids = 'DEF,GHI'; 
-            lib.queryParamsFromRequest(req)
-            .then(setResult)
-            .then(function(){
-                expect(queryOpts.qs.ids).toEqual('ABC');
-                expect(queryOpts.url).toEqual('https://local/api/campaigns/');
-                expect(result).toEqual( { campaignIds : ['ABC'], startDate : null, endDate : null } );
-            })
-            .then(done,done.fail);
-        });
-
-        it('squashes duplicate ids',function(done){
-            req.query.ids = 'DEF,ABC,GHI,ABC'; 
-            mockResponse.body = [{ id : 'DEF' },{ id : 'ABC' },{ id : 'GHI' }];
-            lib.queryParamsFromRequest(req)
-            .then(setResult)
-            .then(function(){
-                expect(queryOpts.qs.ids).toEqual('DEF,ABC,GHI');
-                expect(queryOpts.url).toEqual('https://local/api/campaigns/');
-                expect(result).toEqual( { campaignIds : ['DEF','ABC','GHI'], startDate : null, endDate : null } );
-            })
-            .then(done,done.fail);
-        });
-
-        it('return empty array if campaign service returns nothing',function(done){
-            req.query.ids = 'DEF,ABC,GHI'; 
-            mockResponse.body = [];
-            lib.queryParamsFromRequest(req)
-            .then(setResult)
-            .then(function(){
-                expect(queryOpts.qs.ids).toEqual('DEF,ABC,GHI');
-                expect(queryOpts.url).toEqual('https://local/api/campaigns/');
-                expect(result).toEqual( { campaignIds : [], startDate : null, endDate : null } );
-            })
-            .then(done,done.fail);
-        });
-
-        it('return empty array if campaign service returns error',function(done){
-            req.query.ids = 'DEF,ABC,GHI'; 
-            mockResponse.response.statusCode = 401;
-            mockResponse.body = 'Unauthorized.';
-            lib.queryParamsFromRequest(req)
-            .then(setResult)
-            .then(function(){
-                expect(queryOpts.qs.ids).toEqual('DEF,ABC,GHI');
-                expect(queryOpts.url).toEqual('https://local/api/campaigns/');
-                expect(mockLog.error).toHaveBeenCalledWith(
-                    '[%1] Campaign Check Failed with: %2 : %3', req.uuid, 401, 'Unauthorized.'
-                );
-                expect(result).toEqual( { campaignIds : [], startDate : null, endDate : null } );
-            })
-            .then(done,done.fail);
-        });
-
-        it('will reject if there are no ids on the request',function(done){
-            lib.queryParamsFromRequest(req)
-            .then(done.fail,function(err){
-                expect(requestUtils.proxyRequest).not.toHaveBeenCalled();
-                expect(err).toEqual(new Error('At least one campaignId is required.'));
-                expect(err.status).toEqual(400);
-                done();
-            });
-        });
-        
         it('pulls startDate from the query params',function(done){
             req.query.ids = 'ABC,DEF';
             req.query.startDate = '2016-01-01';
-            mockResponse.body = [{ id : 'ABC' },{ id : 'DEF' }];
+            mockResponse = [{ id : 'ABC' },{ id : 'DEF' }];
             lib.queryParamsFromRequest(req)
             .then(setResult)
             .then(function(){
-                expect(queryOpts.qs.ids).toEqual('ABC,DEF');
-                expect(queryOpts.url).toEqual('https://local/api/campaigns/');
                 expect(result).toEqual( { 
                     campaignIds : ['ABC','DEF'],
                     startDate : '2016-01-01',
@@ -205,12 +101,10 @@ describe('querybot-selfie (UT)', function() {
         it('pulls endDate from the query params',function(done){
             req.query.ids = 'ABC,DEF';
             req.query.endDate   = '2016-01-02';
-            mockResponse.body = [{ id : 'ABC' },{ id : 'DEF' }];
+            mockResponse = [{ id : 'ABC' },{ id : 'DEF' }];
             lib.queryParamsFromRequest(req)
             .then(setResult)
             .then(function(){
-                expect(queryOpts.qs.ids).toEqual('ABC,DEF');
-                expect(queryOpts.url).toEqual('https://local/api/campaigns/');
                 expect(result).toEqual( { 
                     campaignIds : ['ABC','DEF'],
                     startDate : null,
@@ -224,12 +118,10 @@ describe('querybot-selfie (UT)', function() {
             req.query.ids = 'ABC,DEF';
             req.query.startDate = '2016-01-01';
             req.query.endDate   = '2016-01-02';
-            mockResponse.body = [{ id : 'ABC' },{ id : 'DEF' }];
+            mockResponse = [{ id : 'ABC' },{ id : 'DEF' }];
             lib.queryParamsFromRequest(req)
             .then(setResult)
             .then(function(){
-                expect(queryOpts.qs.ids).toEqual('ABC,DEF');
-                expect(queryOpts.url).toEqual('https://local/api/campaigns/');
                 expect(result).toEqual( { 
                     campaignIds : ['ABC','DEF'],
                     startDate : '2016-01-01',
@@ -244,7 +136,7 @@ describe('querybot-selfie (UT)', function() {
             req.query.startDate = '01/01/2016';
             lib.queryParamsFromRequest(req)
             .then(done.fail,function(err){
-                expect(requestUtils.proxyRequest).not.toHaveBeenCalled();
+                expect(lib.lookupCampaigns).not.toHaveBeenCalled();
                 expect(err).toEqual(new Error('Invalid startDate format, expecting YYYY-MM-DD.'));
                 expect(err.status).toEqual(400);
                 done();
@@ -256,7 +148,7 @@ describe('querybot-selfie (UT)', function() {
             req.query.startDate = '2016-01-01;delete * from *;';
             lib.queryParamsFromRequest(req)
             .then(done.fail,function(err){
-                expect(requestUtils.proxyRequest).not.toHaveBeenCalled();
+                expect(lib.lookupCampaigns).not.toHaveBeenCalled();
                 expect(err).toEqual(new Error('Invalid startDate format, expecting YYYY-MM-DD.'));
                 expect(err.status).toEqual(400);
                 done();
@@ -268,7 +160,7 @@ describe('querybot-selfie (UT)', function() {
             req.query.startDate = 'delete * from *;2016-01-01';
             lib.queryParamsFromRequest(req)
             .then(done.fail,function(err){
-                expect(requestUtils.proxyRequest).not.toHaveBeenCalled();
+                expect(lib.lookupCampaigns).not.toHaveBeenCalled();
                 expect(err).toEqual(new Error('Invalid startDate format, expecting YYYY-MM-DD.'));
                 expect(err.status).toEqual(400);
                 done();
@@ -280,7 +172,7 @@ describe('querybot-selfie (UT)', function() {
             req.query.endDate = '01/01/2016';
             lib.queryParamsFromRequest(req)
             .then(done.fail,function(err){
-                expect(requestUtils.proxyRequest).not.toHaveBeenCalled();
+                expect(lib.lookupCampaigns).not.toHaveBeenCalled();
                 expect(err).toEqual(new Error('Invalid endDate format, expecting YYYY-MM-DD.'));
                 expect(err.status).toEqual(400);
                 done();
@@ -292,7 +184,7 @@ describe('querybot-selfie (UT)', function() {
             req.query.endDate = '2016-01-01;delete * from *;';
             lib.queryParamsFromRequest(req)
             .then(done.fail,function(err){
-                expect(requestUtils.proxyRequest).not.toHaveBeenCalled();
+                expect(lib.lookupCampaigns).not.toHaveBeenCalled();
                 expect(err).toEqual(new Error('Invalid endDate format, expecting YYYY-MM-DD.'));
                 expect(err.status).toEqual(400);
                 done();
@@ -304,7 +196,7 @@ describe('querybot-selfie (UT)', function() {
             req.query.endDate = 'delete * from *;2016-01-01';
             lib.queryParamsFromRequest(req)
             .then(done.fail,function(err){
-                expect(requestUtils.proxyRequest).not.toHaveBeenCalled();
+                expect(lib.lookupCampaigns).not.toHaveBeenCalled();
                 expect(err).toEqual(new Error('Invalid endDate format, expecting YYYY-MM-DD.'));
                 expect(err.status).toEqual(400);
                 done();

@@ -7,6 +7,8 @@ var q                 = require('q'),
     express           = require('express'),
     bodyParser        = require('body-parser'),
     inherits          = require('util').inherits,
+    url               = require('url'),
+    requestUtils      = require('../lib/requestUtils'),
     expressUtils      = require('../lib/expressUtils'),
     logger            = require('../lib/logger'),
     pgUtils           = require('../lib/pgUtils'),
@@ -92,6 +94,50 @@ lib.campaignCacheSet = function(key,val) {
     return q();
 };
 
+lib.lookupCampaigns = function(req){
+    var log = logger.getLog(),
+        urlBase = url.resolve(state.config.api.root , '/api/campaigns/'),
+        ids = {}, idList = '';
+
+    if (req.params.id) {
+        ids[req.params.id] = 1;
+    }
+    else
+    if (req.query.ids) {
+        req.query.ids.split(',').forEach(function(id){
+            ids[id] = 1;
+        });
+    }
+
+    ids = Object.keys(ids);
+    if( ids.length === 0) {
+        return q.reject(new ServiceError('At least one campaignId is required.', 400));
+    }
+
+    idList = ids.join(',');
+    log.trace('[%1] campaign check: %2, ids=%3', req.uuid,urlBase , idList);
+    return requestUtils.proxyRequest(req, 'get', {
+        url: urlBase,
+        qs : {
+            ids    : idList,
+            fields : 'id'
+        }
+    })
+    .then(function(resp){
+        var result;
+        log.trace('[%1] STATUS CODE: %2',req.uuid,resp.response.statusCode);
+        if (resp.response.statusCode === 200) {
+            log.trace('[%1] campaign found: %2',req.uuid,resp.response.body);
+            result = resp.body;
+        } else {
+            log.error('[%1] Campaign Check Failed with: %2 : %3',
+                req.uuid,resp.response.statusCode,resp.body);
+            result = [];
+        }
+        return result;
+    });
+};
+
 lib.main = function(state) {
     var log = logger.getLog(),
         started = new Date();
@@ -131,23 +177,21 @@ lib.main = function(state) {
         next();
     });
     
-    var sessions = state.sessions;
-    
-    var authGetCamp = authUtils.middlewarify({
-        allowApps: true,
-        permissions: { campaigns: 'read' }
-    });
-
-    require('./querybot-selfie')({
-        app : app,
-        lib : lib,
-        callbacks : {
-            sessions : sessions,
-            authGetCamp : authGetCamp
+    var params = {
+        app       : app,
+        authUtils : authUtils,
+        lib : {
+            ServiceError     : lib.ServiceError,
+            lookupCampaigns  : lib.lookupCampaigns,
+            campaignCacheGet : lib.campaignCacheGet,
+            campaignCacheSet : lib.campaignCacheSet
         },
         pgUtils : pgUtils,
-        state   : state,
-    });
+        state   : state
+    };
+
+    require('./querybot-selfie')(params);
+    require('./querybot-ssb_apps')(params);
     
     app.use(expressUtils.errorHandler());
     

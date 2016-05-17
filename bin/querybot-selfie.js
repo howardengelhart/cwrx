@@ -2,9 +2,7 @@
 var _ut_            = (global.jasmine) ? true : false,
     logger          = require('../lib/logger'),
     inspect         = require('util').inspect,
-    url             = require('url'),
     q               = require('q'),
-    requestUtils    = require('../lib/requestUtils'),
     lib = {};
 
 lib.getCampaignDataFromCache = function(campaignIds,startDate,endDate,keyScope){
@@ -48,24 +46,8 @@ lib.setCampaignDataInCache = function(data,startDate,endDate,keyScope){
 
 
 lib.queryParamsFromRequest = function(req){
-    var log = logger.getLog(), ids = {}, idList = '',
-        ServiceError = lib.ServiceError,
-        urlBase = url.resolve(lib.state.config.api.root , '/api/campaigns/'),
+    var ServiceError = lib.ServiceError,
         result = { campaignIds : [], startDate : null, endDate : null };
-    if (req.params.id) {
-        ids[req.params.id] = 1;
-    }
-    else
-    if (req.query.ids) {
-        req.query.ids.split(',').forEach(function(id){
-            ids[id] = 1;
-        });
-    }
-
-    ids = Object.keys(ids);
-    if( ids.length === 0) {
-        return q.reject(new ServiceError('At least one campaignId is required.', 400));
-    }
 
     if (req.query.startDate) {
         if (req.query.startDate.match(/^\d\d\d\d-\d\d-\d\d$/)){
@@ -87,26 +69,11 @@ lib.queryParamsFromRequest = function(req){
         }
     }
 
-    idList = ids.join(',');
-    log.trace('[%1] campaign check: %2, ids=%3', req.uuid,urlBase , idList);
-    return requestUtils.proxyRequest(req, 'get', {
-        url: urlBase,
-        qs : {
-            ids    : idList,
-            fields : 'id'
-        }
-    })
+    return lib.lookupCampaigns(req)
     .then(function(resp){
-        log.trace('[%1] STATUS CODE: %2',req.uuid,resp.response.statusCode);
-        if (resp.response.statusCode === 200) {
-            log.trace('[%1] campaign found: %2',req.uuid,resp.response.body);
-            result.campaignIds = resp.body.map(function(item){
-                return  item.id;
-            });
-        } else {
-            log.error('[%1] Campaign Check Failed with: %2 : %3',
-                req.uuid,resp.response.statusCode,resp.body);
-        }
+        result.campaignIds = resp.map(function(item){
+            return  item.id;
+        });
         return result;
     });
 };
@@ -424,9 +391,12 @@ lib.getCampaignSummaryAnalytics = function(req){
 lib.handler = function(params){
     var log                 = logger.getLog(),
         app                 = params.app,
-        sessions            = params.callbacks.sessions,
-        authGetCamp         = params.callbacks.authGetCamp,
         state               = params.state,
+        sessions            = state.sessions,
+        authGetCamp         = params.authUtils.middlewarify({
+            allowApps: true,
+            permissons: { campaigns: 'read' }
+        }),
         cloudwatchMetrics   = require('../lib/expressUtils').cloudwatchMetrics,
         cwCampaignSummarySingle, cwCampaignSummaryMulti;
     
@@ -435,6 +405,7 @@ lib.handler = function(params){
     lib.ServiceError     = params.lib.ServiceError;
     lib.campaignCacheGet = params.lib.campaignCacheGet;
     lib.campaignCacheSet = params.lib.campaignCacheSet;
+    lib.lookupCampaigns  = params.lib.lookupCampaigns;
 
     cwCampaignSummarySingle = cloudwatchMetrics(
         state.config.cloudwatch.namespace,
