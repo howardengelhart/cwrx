@@ -43,6 +43,8 @@
     };
     
     /* jshint camelcase: false */
+    
+    // Call a beeswax method, and if it returns a "name in use" error, change the name + retry
     advertModule.handleNameInUse = function(req, beesBody, cb) {
         var log = logger.getLog();
         return cb().catch(function(errorObj) {
@@ -59,6 +61,7 @@
         });
     };
     
+    // Create an advertiser in Beeswax for our advertiser
     advertModule.createBeeswaxAdvert = function(beeswax, req, next, done) {
         var log = logger.getLog(),
             c6Id = req.body.id,
@@ -94,6 +97,7 @@
         });
     };
     
+    // Edit the advertiser in Beeswax if relevant fields have changed
     advertModule.editBeeswaxAdvert = function(beeswax, req, next, done) {
         var log = logger.getLog(),
             c6Id = req.origObj.id,

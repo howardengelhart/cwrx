@@ -17,6 +17,7 @@
 
         beesCamps = { config: {} };
         
+    // Schema for request bodies, matching `campaign.externalCampaigns.beeswax`
     beesCamps.schema = {
         externalId: {
             __allowed: false,
@@ -91,7 +92,6 @@
         });
         beesBody.start_date = beesBody.start_date || new Date();
         
-        //TODO: can we clean this up?
         var newVals = {};
         ['budget', 'dailyLimit'].forEach(function(field) {
             var newCampVal = ld.get(newCamp, 'pricing.' + field, null),
@@ -136,7 +136,7 @@
         return beesBody;
     };
     
-    beesCamps.updateExtCampPricing = function(extCampEntry, beesBody) { //TODO: rename?
+    beesCamps.updateExtCampPricing = function(extCampEntry, beesBody) {
         var impressionRatio = beesCamps.config.beeswax.impressionRatio;
         
         // Round to 6 decimal places to deal with JS math errors
@@ -246,7 +246,7 @@
             
             return svc.beeswax.campaigns.create(beesBody)
             .then(function(resp) {
-                if (!resp.success) { //TODO: Unsure if needed?
+                if (!resp.success) {
                     log.warn('[%1] Creating Beeswax Campaign failed: %2', req.uuid, resp.message);
                     return q({
                         code: resp.code || 400,

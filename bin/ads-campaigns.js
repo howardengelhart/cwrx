@@ -152,6 +152,7 @@
         }
     };
 
+    // externSvcs is an object with instantiated services from ads-externalCampaigns
     campModule.setupSvc = function(db, config, externSvcs) {
         campModule.config.emails = config.emails;
         campModule.config.api = config.api;
@@ -599,7 +600,8 @@
         return next();
     };
     
-    //TODO: include note about how this MUST go b4 updateCards, so we have full cards?
+    // Loop through all origObj.externalCampaigns entries + call syncCampaigns() from appropriate
+    // service. Note: this MUST go before updateCards so syncCampaigns() has full card bodies
     campModule.syncExternalCamps = function(externSvcs, req, next, done) {
         var log = logger.getLog(),
             doneCalled = false;
@@ -619,16 +621,21 @@
             
             return externSvcs[key].syncCampaigns(req).then(function(resp) {
                 if (!!resp.code) { // Handle 4xx responses from external syncCampaigns action
-                    doneCalled = true;
-                    return done(resp);
+                    if (!doneCalled) {
+                        doneCalled = true;
+                        return done(resp);
+                    }
+                } else {
+                    req.origObj.externalCampaigns[key] = resp;
                 }
-                req.origObj.externalCampaigns[key] = resp;
             });
         }))
         .then(function() {
             // reset externalCampaigns so changes made in sync methods get saved
             req.body.externalCampaigns = req.origObj.externalCampaigns;
-            return next();
+            if (!doneCalled) {
+                return next();
+            }
         });
     };
     
