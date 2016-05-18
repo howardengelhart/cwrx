@@ -16,7 +16,8 @@ describe('querybot ssb_apps (E2E)', function(){
     var pgdata_campaign_summary_hourly,
         pgdata_unique_user_views_daily, pgdata_unique_user_views, 
         mockUser, mockCamps,
-        cookieJar, options, camp1Data, camp2Data, camp5Data, mockApp, appCreds;
+        cookieJar, options, camp1Data, camp2Data, camp5Data, 
+        noDataCampData, mockApp, appCreds;
 
     beforeEach(function(done){
         pgconn = {
@@ -58,6 +59,17 @@ describe('querybot ssb_apps (E2E)', function(){
 
             return result;
         }
+        
+        noDataCampData = initCampData({
+            campaignId : 'cam-99999999999999',
+            summary : {
+                clicks :  0,
+                installs: 0,
+                launches: 0,
+                users   : 0,
+                views   : 0
+            }
+        });
 
         camp1Data = initCampData({
             campaignId : 'cam-1757d5cd13e383',
@@ -302,6 +314,8 @@ describe('querybot ssb_apps (E2E)', function(){
                 user: 'e2e-user', org: 'e2e-org' },
             { id: 'cam-b651cde4158304', name: 'camp 2', status: 'active',
                 user: 'e2e-user', org: 'e2e-org' },
+            { id: 'cam-99999999999999', name: 'camp 2', status: 'active',
+                user: 'e2e-user', org: 'e2e-org' },
             { id: 'cam-278b8150021c68', name: 'camp 3', status: 'active',
                 user: 'not-e2e-user', org: 'not-e2e-org' },
             { id: 'e2e-getid3', name: 'camp 4', status: 'active',
@@ -378,14 +392,15 @@ describe('querybot ssb_apps (E2E)', function(){
 
         });
 
-        xit('returns a 400 error if there is no campaignID',function(done){
-            requestUtils.qRequest('get', options)
-            .then(function(resp) {
-                expect(resp.response.statusCode).toEqual(400);
-                expect(resp.response.body).toEqual('At least one campaignId is required.');
-            })
-            .then(done,done.fail);
-        });
+        // Uncomment when we support lookups with the campaignId in the query params
+        //it('returns a 400 error if there is no campaignID',function(done){
+        //    requestUtils.qRequest('get', options)
+        //    .then(function(resp) {
+        //        expect(resp.response.statusCode).toEqual(400);
+        //        expect(resp.response.body).toEqual('At least one campaignId is required.');
+        //    })
+        //    .then(done,done.fail);
+        //});
 
         it('returns a 404 if the campaignId is not found',function(done){
             options.url += '/cam-278b8150021c68';
@@ -428,6 +443,16 @@ describe('querybot ssb_apps (E2E)', function(){
             }).catch(function(error) {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
+        });
+        
+        it('returns single doc with all data set to 0 if campaign has no data',function(done){
+            options.url += '/cam-99999999999999';
+            requestUtils.qRequest('get', options)
+            .then(function(resp) {
+                expect(resp.response.statusCode).toEqual(200);
+                expect(resp.body).toEqual(noDataCampData);
+            })
+            .then(done,done.fail);
         });
     });
 });
