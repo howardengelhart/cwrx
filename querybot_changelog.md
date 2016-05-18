@@ -1,5 +1,9 @@
 # QueryBot Service Changelog
 
+### 1.5.0: Tue May 17 22:50:14 EDT 2016
+* [FEATURE]: Support for slide show bob apps
+* [DEV]: Restructured querybot to separate out different query types
+
 ### 1.4.1: Fri Apr  8 15:27:09 EDT 2016
 * [FIX]: Quartiles adjusting for billable views: [#854](https://github.com/cinema6/cwrx/issues/854)
 * [DEV]: Updates to Vagrant, initcamp to enable auto running of the initcamp.sh script after a vagrant up.  Also, fixed issue with c6postgres breaking vagrant:provision.
