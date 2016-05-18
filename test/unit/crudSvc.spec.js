@@ -1,17 +1,19 @@
 var flush = true;
 describe('CrudSvc', function() {
-    var q, mockLog, logger, CrudSvc, uuid, mongoUtils, FieldValidator, Model, MiddleManager, mockColl, anyFunc,
-        historian, req, svc, enums, Scope, Status, nextSpy, doneSpy, errorSpy, histMidware;
+    var q, ld, mockLog, logger, CrudSvc, uuid, mongoUtils, FieldValidator, Model, MiddleManager, mockColl, anyFunc,
+        requestUtils, historian, req, svc, enums, Scope, Status, nextSpy, doneSpy, errorSpy, histMidware;
 
     beforeEach(function() {
         if (flush){ for (var m in require.cache){ delete require.cache[m]; } flush = false; }
         q               = require('q');
+        ld              = require('lodash');
         uuid            = require('rc-uuid');
         CrudSvc         = require('../../lib/crudSvc');
         enums           = require('../../lib/enums');
         logger          = require('../../lib/logger');
         mongoUtils      = require('../../lib/mongoUtils');
         FieldValidator  = require('../../lib/fieldValidator');
+        requestUtils    = require('../../lib/requestUtils');
         historian       = require('../../lib/historian');
         Model           = require('../../lib/model');
         MiddleManager   = require('../../lib/middleManager');
@@ -334,6 +336,128 @@ describe('CrudSvc', function() {
                     return CrudSvc.checkScope('thangs', false, req, thang, 'delete');
                 })).toEqual([]);
             });
+        });
+    });
+    
+    describe('CrudSvc.fetchRelatedEntity', function() {
+        var opts, config, reqResp;
+        beforeEach(function() {
+            opts = {
+                objName: 'orgs',
+                idPath: 'query.foo'
+            };
+            config = { api: {
+                root: 'http://c6.com',
+                orgs: {
+                    endpoint: '/api/account/orgs/',
+                    baseUrl: 'http://c6.com/api/account/orgs/'
+                }
+            } };
+            req.query = { foo: 'o-1', bar: 'o-2' };
+            req.campaign = { id: 'cam-1', org: 'o-3' };
+            req.body = { entities: { org: 'o-4' } };
+            reqResp = {
+                response: { statusCode: 200 },
+                body: { id: 'o-1', name: 'org 1' }
+            };
+            spyOn(requestUtils, 'proxyRequest').and.callFake(function() { return q(reqResp); });
+        });
+        
+        it('should attempt to fetch an entity and attach it to the request', function(done) {
+            CrudSvc.fetchRelatedEntity(opts, config, req, nextSpy, doneSpy).catch(errorSpy).finally(function() {
+                expect(nextSpy).toHaveBeenCalled();
+                expect(doneSpy).not.toHaveBeenCalled();
+                expect(errorSpy).not.toHaveBeenCalled();
+                expect(req.org).toEqual({ id: 'o-1', name: 'org 1' });
+                expect(requestUtils.proxyRequest).toHaveBeenCalledWith(req, 'get', {
+                    url: 'http://c6.com/api/account/orgs/o-1'
+                });
+                expect(mockLog.error).not.toHaveBeenCalled();
+            }).done(done);
+        });
+        
+        it('should support a list of fallback id paths', function(done) {
+            opts.idPath = ['query.foo', 'query.bar', 'campaign.org', 'body.entities.org'];
+            q.all(opts.idPath.map(function(path, idx) {
+                if (idx >= 1) {
+                    ld.unset(req, opts.idPath[idx - 1]);
+                }
+                return CrudSvc.fetchRelatedEntity(opts, config, req, nextSpy, doneSpy).catch(errorSpy);
+            })).then(function(results) {
+                expect(nextSpy).toHaveBeenCalled();
+                expect(doneSpy).not.toHaveBeenCalled();
+                expect(errorSpy).not.toHaveBeenCalled();
+                expect(req.org).toEqual({ id: 'o-1', name: 'org 1' });
+                expect(requestUtils.proxyRequest.calls.count()).toBe(4);
+                expect(requestUtils.proxyRequest.calls.argsFor(0)[2]).toEqual({
+                    url: 'http://c6.com/api/account/orgs/o-1'
+                });
+                expect(requestUtils.proxyRequest.calls.argsFor(1)[2]).toEqual({
+                    url: 'http://c6.com/api/account/orgs/o-2'
+                });
+                expect(requestUtils.proxyRequest.calls.argsFor(2)[2]).toEqual({
+                    url: 'http://c6.com/api/account/orgs/o-3'
+                });
+                expect(requestUtils.proxyRequest.calls.argsFor(3)[2]).toEqual({
+                    url: 'http://c6.com/api/account/orgs/o-4'
+                });
+                expect(mockLog.error).not.toHaveBeenCalled();
+            }).done(done);
+        });
+        
+        it('should support setting the response on a custom path', function(done) {
+            opts.resultPath = 'related.entities.org';
+            CrudSvc.fetchRelatedEntity(opts, config, req, nextSpy, doneSpy).catch(errorSpy).finally(function() {
+                expect(nextSpy).toHaveBeenCalled();
+                expect(doneSpy).not.toHaveBeenCalled();
+                expect(errorSpy).not.toHaveBeenCalled();
+                expect(req.org).not.toBeDefined();
+                expect(req.related.entities.org).toEqual({ id: 'o-1', name: 'org 1' });
+                expect(requestUtils.proxyRequest).toHaveBeenCalled();
+                expect(mockLog.error).not.toHaveBeenCalled();
+            }).done(done);
+        });
+        
+        it('should throw an error if not passed the necessary options', function() {
+            var msg = 'Must provide opts.idPath and opts.objName';
+            [undefined, null, {}, { idPath: 'query.foo' }, { objName: 'orgs' }].forEach(function(newOpts) {
+                expect(function() { CrudSvc.fetchRelatedEntity(newOpts, config, req, nextSpy, doneSpy); }).toThrow(new Error(msg));
+            });
+        });
+        
+        it('should set the baseUrl for the api config if not defined', function(done) {
+            delete config.api.orgs.baseUrl;
+            CrudSvc.fetchRelatedEntity(opts, config, req, nextSpy, doneSpy).catch(errorSpy).finally(function() {
+                expect(nextSpy).toHaveBeenCalled();
+                expect(doneSpy).not.toHaveBeenCalled();
+                expect(errorSpy).not.toHaveBeenCalled();
+                expect(req.org).toEqual({ id: 'o-1', name: 'org 1' });
+                expect(requestUtils.proxyRequest).toHaveBeenCalledWith(req, 'get', {
+                    url: 'http://c6.com/api/account/orgs/o-1'
+                });
+                expect(config.api.orgs.baseUrl).toBe('http://c6.com/api/account/orgs/');
+                expect(mockLog.error).not.toHaveBeenCalled();
+            }).done(done);
+        });
+        
+        it('should call done with a 400 if the entity is not found', function(done) {
+            reqResp = { response: { statusCode: 400 }, body: 'no way jose' };
+            CrudSvc.fetchRelatedEntity(opts, config, req, nextSpy, doneSpy).catch(errorSpy).finally(function() {
+                expect(nextSpy).not.toHaveBeenCalled();
+                expect(doneSpy).toHaveBeenCalledWith({ code: 400, body: 'Cannot fetch this org' });
+                expect(errorSpy).not.toHaveBeenCalled();
+                expect(mockLog.error).not.toHaveBeenCalled();
+            }).done(done);
+        });
+
+        it('should reject if the request fails', function(done) {
+            reqResp = q.reject('I GOT A PROBLEM');
+            CrudSvc.fetchRelatedEntity(opts, config, req, nextSpy, doneSpy).catch(errorSpy).finally(function() {
+                expect(nextSpy).not.toHaveBeenCalled();
+                expect(doneSpy).not.toHaveBeenCalled();
+                expect(errorSpy).toHaveBeenCalledWith('Error fetching org');
+                expect(mockLog.error).toHaveBeenCalled();
+            }).done(done);
         });
     });
     

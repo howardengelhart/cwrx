@@ -12,7 +12,6 @@
         CrudSvc         = require('../../lib/crudSvc'),
         objUtils        = require('../../lib/objUtils'),
         authUtils       = require('../../lib/authUtils'),
-        requestUtils    = require('../../lib/requestUtils'),
         MiddleManager   = require('../../lib/middleManager'),
 
         beesCamps = { config: {} };
@@ -51,17 +50,30 @@
         svc._db = db;
         svc.beeswax = beeswax;
         
-        svc.use('create', beesCamps.fetchC6Campaign);
-        svc.use('create', beesCamps.fetchC6Advertiser);
+        var fetchC6Campaign = CrudSvc.fetchRelatedEntity.bind(CrudSvc, {
+            objName: 'campaigns',
+            idPath: 'params.c6Id'
+        }, beesCamps.config);
+        // advert id could be on req.campaign for these endpoints, or req.origObj for syncCampaigns
+        var fetchC6Advertiser = CrudSvc.fetchRelatedEntity.bind(CrudSvc, {
+            objName: 'advertisers',
+            idPath: ['campaign.advertiserId', 'origObj.advertiserId'],
+        }, beesCamps.config);
+        
+        svc.use('create', fetchC6Campaign);
+        svc.use('create', fetchC6Advertiser);
+        svc.use('create', beesCamps.ensureBeeswaxAdvert);
         svc.use('create', beesCamps.canEditCampaign);
         svc.use('create', beesCamps.validateBody.bind(beesCamps, 'create'));
 
-        svc.use('edit', beesCamps.fetchC6Campaign);
-        svc.use('edit', beesCamps.fetchC6Advertiser);
+        svc.use('edit', fetchC6Campaign);
+        svc.use('edit', fetchC6Advertiser);
+        svc.use('edit', beesCamps.ensureBeeswaxAdvert);
         svc.use('edit', beesCamps.canEditCampaign);
         svc.use('edit', beesCamps.validateBody.bind(beesCamps, 'edit'));
         
-        svc.use('syncCampaigns', beesCamps.fetchC6Advertiser);
+        svc.use('syncCampaigns', fetchC6Advertiser);
+        svc.use('syncCampaigns', beesCamps.ensureBeeswaxAdvert);
         
         svc.syncCampaigns = beesCamps.syncCampaigns.bind(beesCamps, svc);
         
@@ -149,57 +161,17 @@
             beesBody.daily_budget;
     };
     
-    beesCamps.fetchC6Campaign = function(req, next, done) { //TODO: can we finally modularize?
-        var log = logger.getLog(),
-            id = req.params.c6Id;
-            
-        return requestUtils.proxyRequest(req, 'get', {
-            url: urlUtils.resolve(beesCamps.config.api.campaigns.baseUrl, id)
-        })
-        .then(function(resp) {
-            if (resp && resp.response.statusCode !== 200) {
-                log.info('[%1] Requester %2 could not fetch campaign %3: %4, %5',
-                         req.uuid, req.requester.id, id, resp.response.statusCode, resp.body);
-                return done({ code: 400, body: 'Cannot fetch this campaign' });
-            }
-            req.campaign = resp.body;
-            req._advertiserId = req.campaign.advertiserId; // set for fetchC6Advertiser
-            next();
-        })
-        .catch(function(error) {
-            log.error('[%1] Failed fetching campaign %2: %3',req.uuid, id, util.inspect(error));
-            return q.reject('Error fetching campaign');
-        });
-    };
-    
-    beesCamps.fetchC6Advertiser = function(req, next, done) { //TODO: can we finally modularize?
-        var log = logger.getLog(),
-            id = req._advertiserId; // set differently in syncCampaigns vs. other actions
+    beesCamps.ensureBeeswaxAdvert = function(req, next, done) {
+        var log = logger.getLog();
 
-        return requestUtils.proxyRequest(req, 'get', {
-            url: urlUtils.resolve(beesCamps.config.api.advertisers.baseUrl, id)
-        })
-        .then(function(resp) {
-            if (resp && resp.response.statusCode !== 200) {
-                log.info('[%1] Requester %2 could not fetch advertiser %3: %4, %5',
-                         req.uuid, req.requester.id, id, resp.response.statusCode, resp.body);
-                return done({ code: 400, body: 'Cannot fetch this advertiser' });
-            }
-            req.advertiser = resp.body;
-
-            if (!ld.get(req.advertiser, 'beeswaxIds.advertiser')) {
-                log.info('[%1] Advert %2 has no beeswax id', req.uuid, id);
-                return done({
-                    code: 400,
-                    body: 'Must create beeswax advertiser for ' + id
-                });
-            }
-            next();
-        })
-        .catch(function(error) {
-            log.error('[%1] Failed fetching advertiser %2: %3', req.uuid, id, util.inspect(error));
-            return q.reject('Error fetching advertiser');
-        });
+        if (!ld.get(req.advertiser, 'beeswaxIds.advertiser')) {
+            log.info('[%1] Advert %2 has no beeswax id', req.uuid, req.advertiser.id);
+            return done({
+                code: 400,
+                body: 'Must create beeswax advertiser for ' + req.advertiser.id
+            });
+        }
+        next();
     };
     
     beesCamps.canEditCampaign = function(req, next, done) {
