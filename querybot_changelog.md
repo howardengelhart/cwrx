@@ -1,5 +1,8 @@
 # QueryBot Service Changelog
 
+### 1.5.1: Wed May 18 16:48:09 EDT 2016
+* [FIX]: Handle error when no data is found for a valid campaign.
+
 ### 1.5.0: Tue May 17 22:50:14 EDT 2016
 * [FEATURE]: Support for slide show bob apps
 * [DEV]: Restructured querybot to separate out different query types

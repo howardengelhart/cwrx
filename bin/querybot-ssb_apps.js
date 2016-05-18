@@ -5,6 +5,49 @@ var _ut_            = (global.jasmine) ? true : false,
     _               = require('lodash'),
     lib             = {};
 
+lib.initializeResponseRecord = function(campaignId){
+    var result = { campaignId : campaignId }, refDate, dt, i;
+    
+    result.summary = { clicks: 0, installs: 0, launches: 0, users: 0, views: 0 };
+    result.daily_7  = [];
+    result.daily_30 = [];
+    result.today    = [];
+
+    for (i = 30; i >= 1; i--) {
+        refDate = (new Date(Date.now() + (86400000 * -i))).toISOString().substr(0,10);
+        result.daily_30.push(
+            { date: refDate, clicks: 0, installs: 0, launches: 0, users: 0, views: 0 }
+        );
+    }
+    
+    for (i = 7; i >= 1; i--) {
+        refDate = (new Date(Date.now() + (86400000 * -i))).toISOString().substr(0,10);
+        result.daily_7.push(
+            { date: refDate, clicks: 0, installs: 0, launches: 0, users: 0, views: 0 }
+        );
+    }
+    
+    refDate = (new Date()).toISOString().substr(0,10);
+    for (i = 0; i <= 23; i++) {
+        if (i < 10) {
+            dt = refDate + 'T0' + i + ':00:00.000Z';
+        } else {
+            dt = refDate + 'T' + i + ':00:00.000Z';
+        }
+
+        result.today.push({
+            hour: dt,
+            clicks: 0,
+            installs: 0,
+            launches: 0,
+            users: 0,
+            views: 0
+        });
+    }
+
+    return result;
+};
+
 lib.queryParamsFromRequest = function(req){
     var ServiceError = lib.ServiceError, result = { campaignIds : [] };
 
@@ -27,10 +70,6 @@ lib.flattenOverallRecord = function(record, obj) {
     var eventCount = parseInt(record.eventCount,10) ;
     if (isNaN(eventCount)){ eventCount = 0; }
 
-    if (!obj) {
-        obj = { clicks: 0, installs: 0, launches: 0, users: 0, views: 0 };
-    }
-
     if (obj[record.eventType] !== undefined) {
         obj[record.eventType] = eventCount;
     }
@@ -38,8 +77,9 @@ lib.flattenOverallRecord = function(record, obj) {
     return obj;
 };
 
-lib.queryOverall = function(campaignIds){
-    var log = logger.getLog(), statement;
+lib.queryOverall = function(response){
+    var log = logger.getLog(), statement,
+        campaignIds = Object.keys(response);
 
     statement = [
         'SELECT ',
@@ -69,39 +109,18 @@ lib.queryOverall = function(campaignIds){
     log.trace(statement.join('\n'));
     return lib.pgUtils.query(statement.join('\n'), [campaignIds])
         .then(function(result){
-            var res ;
             result.rows.forEach(function(row){
-                if (res === undefined) {
-                    res = {};
-                }
-
-                if (!res[row.campaignId]){
-                    res[row.campaignId] = {
-                        campaignId : row.campaignId
-                    };
-                }
-
-                res[row.campaignId].summary = lib.flattenOverallRecord(
-                    row,res[row.campaignId].summary
-                );
+                lib.flattenOverallRecord( row,response[row.campaignId].summary);
             });
 
-            return res;
+            return response;
         });
 };
 
-lib.flattenDailyRecord = function(daysBack,record,obj){
-    var eventCount = parseInt(record.eventCount,10), refDate, i, r ;
+lib.flattenDailyRecord = function(record,obj){
+    var eventCount = parseInt(record.eventCount,10), r ;
     if (isNaN(eventCount)){ eventCount = 0; }
-
-    if (!obj) {
-        obj = [];
-        for (i = daysBack; i >= 1; i--) {
-            refDate = (new Date(Date.now() + (86400000 * -i))).toISOString().substr(0,10);
-            obj.push({ date: refDate, clicks: 0, installs: 0, launches: 0, users: 0, views: 0 });
-        }
-    }
-
+    
     r = _.find(obj,function(elt){
         return (elt.date === record.recDate);
     });
@@ -116,8 +135,10 @@ lib.flattenDailyRecord = function(daysBack,record,obj){
     return obj;
 };
 
-lib.queryDaily = function(campaignIds ) {
-    var log = logger.getLog(), statement;
+
+lib.queryDaily = function(response ) {
+    var log = logger.getLog(), statement,
+        campaignIds = Object.keys(response);
 
     statement = [
         'SELECT  ',
@@ -154,54 +175,20 @@ lib.queryDaily = function(campaignIds ) {
     log.trace(statement.join('\n'));
     return lib.pgUtils.query(statement.join('\n'), [campaignIds])
         .then(function(result){
-            var res ;
             result.rows.forEach(function(row){
-                if (res === undefined) {
-                    res = {};
-                }
 
-                if (!res[row.campaignId]){
-                    res[row.campaignId] = { };
-                }
-
-                res[row.campaignId].daily_7 = lib.flattenDailyRecord(
-                    7,row,res[row.campaignId].daily_7
-                );
-                
-                res[row.campaignId].daily_30 = lib.flattenDailyRecord(
-                    30,row,res[row.campaignId].daily_30
-                );
+                lib.flattenDailyRecord( row,response[row.campaignId].daily_7);
+                lib.flattenDailyRecord( row,response[row.campaignId].daily_30);
             });
 
-            return res;
+            return response;
         });
 };
 
 lib.flattenHourlyRecord = function(record,obj){
-    var eventCount = parseInt(record.eventCount,10), refDate, dt, i, r ;
+    var eventCount = parseInt(record.eventCount,10), r ;
 
     if (isNaN(eventCount)){ eventCount = 0; }
-
-    if (!obj) {
-        obj = [];
-        refDate = (new Date()).toISOString().substr(0,10);
-        for (i = 0; i <= 23; i++) {
-            if (i < 10) {
-                dt = refDate + 'T0' + i + ':00:00.000Z';
-            } else {
-                dt = refDate + 'T' + i + ':00:00.000Z';
-            }
-
-            obj.push({
-                hour: dt,
-                clicks: 0,
-                installs: 0,
-                launches: 0,
-                users: 0,
-                views: 0
-            });
-        }
-    }
 
     r = _.find(obj,function(elt){
         return (elt.hour === record.rects.toISOString());
@@ -218,8 +205,9 @@ lib.flattenHourlyRecord = function(record,obj){
 };
 
 
-lib.queryHourly = function(campaignIds) {
-    var log = logger.getLog(), statement;
+lib.queryHourly = function(response) {
+    var log = logger.getLog(), statement,
+        campaignIds = Object.keys(response);
 
     statement = [
         'SELECT  ',
@@ -248,69 +236,40 @@ lib.queryHourly = function(campaignIds) {
     log.trace(statement.join('\n'));
     return lib.pgUtils.query(statement.join('\n'), [campaignIds])
         .then(function(result){
-            var res ;
             result.rows.forEach(function(row){
-                if (res === undefined) {
-                    res = {};
-                }
-
-                if (!res[row.campaignId]){
-                    res[row.campaignId] = { };
-                }
-
-                res[row.campaignId].today = lib.flattenHourlyRecord(
-                    row,res[row.campaignId].today
-                );
+                lib.flattenHourlyRecord( row, response[row.campaignId].today);
             });
 
-            return res;
+            return response;
         });
 };
 
 lib.getAnalytics = function(req) {
-    var campaignIds, result;
 
-    function prepare(r){
-        return lib.queryParamsFromRequest(r)
+    function prepare(){
+        var result = {};
+        return lib.queryParamsFromRequest(req)
             .then(function(res){
-                campaignIds = res.campaignIds;
-            });
-    }
-
-    function getSummaryData() {
-        return lib.queryOverall(campaignIds)
-            .then(function(res){
-                result = res;
-                return result;
-            });
-    }
-
-    function getDailyData() {
-        return lib.queryDaily(campaignIds)
-            .then(function(res){
-                Object.keys(result).forEach(function(campaignId){
-                    if (res[campaignId]){
-                        result[campaignId].daily_7  = res[campaignId].daily_7;
-                        result[campaignId].daily_30 = res[campaignId].daily_30;
-                    }
+                res.campaignIds.forEach(function(campaignId){
+                    result[campaignId] = lib.initializeResponseRecord(campaignId);
                 });
                 return result;
             });
     }
 
-    function getHourlyData() {
-        return lib.queryHourly(campaignIds)
-            .then(function(res){
-                Object.keys(result).forEach(function(campaignId){
-                    if (res[campaignId]){
-                        result[campaignId].today = res[campaignId].today;
-                    }
-                });
-                return result;
-            });
+    function getSummaryData(result) {
+        return lib.queryOverall(result);
     }
 
-    function compileResults(){
+    function getDailyData(result) {
+        return lib.queryDaily(result);
+    }
+
+    function getHourlyData(result) {
+        return lib.queryHourly(result);
+    }
+
+    function compileResults(result){
         return q(_.values(result));
     }
     

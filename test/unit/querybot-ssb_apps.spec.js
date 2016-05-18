@@ -92,9 +92,95 @@ describe('querybot-ssb: apps (UT)', function() {
 
     });
 
+    describe('initializeResponseRecord',function(){
+        it('initializes a full response record',function(){
+            expect(lib.initializeResponseRecord('abc')).toEqual({ 
+                campaignId: 'abc',
+                summary: { clicks: 0, installs: 0, launches: 0, users: 0, views: 0 },
+                daily_7: [ 
+                    {date:'2016-01-20',clicks:0,installs:0,launches:0,users:0,views:0},
+                    {date:'2016-01-21',clicks:0,installs:0,launches:0,users:0,views:0},
+                    {date:'2016-01-22',clicks:0,installs:0,launches:0,users:0,views:0},
+                    {date:'2016-01-23',clicks:0,installs:0,launches:0,users:0,views:0},
+                    {date:'2016-01-24',clicks:0,installs:0,launches:0,users:0,views:0},
+                    {date:'2016-01-25',clicks:0,installs:0,launches:0,users:0,views:0},
+                    {date:'2016-01-26',clicks:0,installs:0,launches:0,users:0,views:0}
+                ],
+                daily_30: [ 
+                    {date:'2015-12-28',clicks:0,installs:0,launches:0,users:0,views:0},
+                    {date:'2015-12-29',clicks:0,installs:0,launches:0,users:0,views:0},
+                    {date:'2015-12-30',clicks:0,installs:0,launches:0,users:0,views:0},
+                    {date:'2015-12-31',clicks:0,installs:0,launches:0,users:0,views:0},
+                    {date:'2016-01-01',clicks:0,installs:0,launches:0,users:0,views:0},
+                    {date:'2016-01-02',clicks:0,installs:0,launches:0,users:0,views:0},
+                    {date:'2016-01-03',clicks:0,installs:0,launches:0,users:0,views:0},
+                    {date:'2016-01-04',clicks:0,installs:0,launches:0,users:0,views:0},
+                    {date:'2016-01-05',clicks:0,installs:0,launches:0,users:0,views:0},
+                    {date:'2016-01-06',clicks:0,installs:0,launches:0,users:0,views:0},
+                    {date:'2016-01-07',clicks:0,installs:0,launches:0,users:0,views:0},
+                    {date:'2016-01-08',clicks:0,installs:0,launches:0,users:0,views:0},
+                    {date:'2016-01-09',clicks:0,installs:0,launches:0,users:0,views:0},
+                    {date:'2016-01-10',clicks:0,installs:0,launches:0,users:0,views:0},
+                    {date:'2016-01-11',clicks:0,installs:0,launches:0,users:0,views:0},
+                    {date:'2016-01-12',clicks:0,installs:0,launches:0,users:0,views:0},
+                    {date:'2016-01-13',clicks:0,installs:0,launches:0,users:0,views:0},
+                    {date:'2016-01-14',clicks:0,installs:0,launches:0,users:0,views:0},
+                    {date:'2016-01-15',clicks:0,installs:0,launches:0,users:0,views:0},
+                    {date:'2016-01-16',clicks:0,installs:0,launches:0,users:0,views:0},
+                    {date:'2016-01-17',clicks:0,installs:0,launches:0,users:0,views:0},
+                    {date:'2016-01-18',clicks:0,installs:0,launches:0,users:0,views:0},
+                    {date:'2016-01-19',clicks:0,installs:0,launches:0,users:0,views:0},
+                    {date:'2016-01-20',clicks:0,installs:0,launches:0,users:0,views:0},
+                    {date:'2016-01-21',clicks:0,installs:0,launches:0,users:0,views:0},
+                    {date:'2016-01-22',clicks:0,installs:0,launches:0,users:0,views:0},
+                    {date:'2016-01-23',clicks:0,installs:0,launches:0,users:0,views:0},
+                    {date:'2016-01-24',clicks:0,installs:0,launches:0,users:0,views:0},
+                    {date:'2016-01-25',clicks:0,installs:0,launches:0,users:0,views:0},
+                    {date:'2016-01-26',clicks:0,installs:0,launches:0,users:0,views:0}
+                ],
+                today: [
+                    {hour:'2016-01-27T00:00:00.000Z',clicks:0,installs:0,launches:0,users:0,views:0},
+                    {hour:'2016-01-27T01:00:00.000Z',clicks:0,installs:0,launches:0,users:0,views:0},
+                    {hour:'2016-01-27T02:00:00.000Z',clicks:0,installs:0,launches:0,users:0,views:0},
+                    {hour:'2016-01-27T03:00:00.000Z',clicks:0,installs:0,launches:0,users:0,views:0},
+                    {hour:'2016-01-27T04:00:00.000Z',clicks:0,installs:0,launches:0,users:0,views:0},
+                    {hour:'2016-01-27T05:00:00.000Z',clicks:0,installs:0,launches:0,users:0,views:0},
+                    {hour:'2016-01-27T06:00:00.000Z',clicks:0,installs:0,launches:0,users:0,views:0},
+                    {hour:'2016-01-27T07:00:00.000Z',clicks:0,installs:0,launches:0,users:0,views:0},
+                    {hour:'2016-01-27T08:00:00.000Z',clicks:0,installs:0,launches:0,users:0,views:0},
+                    {hour:'2016-01-27T09:00:00.000Z',clicks:0,installs:0,launches:0,users:0,views:0},
+                    {hour:'2016-01-27T10:00:00.000Z',clicks:0,installs:0,launches:0,users:0,views:0},
+                    {hour:'2016-01-27T11:00:00.000Z',clicks:0,installs:0,launches:0,users:0,views:0},
+                    {hour:'2016-01-27T12:00:00.000Z',clicks:0,installs:0,launches:0,users:0,views:0},
+                    {hour:'2016-01-27T13:00:00.000Z',clicks:0,installs:0,launches:0,users:0,views:0},
+                    {hour:'2016-01-27T14:00:00.000Z',clicks:0,installs:0,launches:0,users:0,views:0},
+                    {hour:'2016-01-27T15:00:00.000Z',clicks:0,installs:0,launches:0,users:0,views:0},
+                    {hour:'2016-01-27T16:00:00.000Z',clicks:0,installs:0,launches:0,users:0,views:0},
+                    {hour:'2016-01-27T17:00:00.000Z',clicks:0,installs:0,launches:0,users:0,views:0},
+                    {hour:'2016-01-27T18:00:00.000Z',clicks:0,installs:0,launches:0,users:0,views:0},
+                    {hour:'2016-01-27T19:00:00.000Z',clicks:0,installs:0,launches:0,users:0,views:0},
+                    {hour:'2016-01-27T20:00:00.000Z',clicks:0,installs:0,launches:0,users:0,views:0},
+                    {hour:'2016-01-27T21:00:00.000Z',clicks:0,installs:0,launches:0,users:0,views:0},
+                    {hour:'2016-01-27T22:00:00.000Z',clicks:0,installs:0,launches:0,users:0,views:0},
+                    {hour:'2016-01-27T23:00:00.000Z',clicks:0,installs:0,launches:0,users:0,views:0}
+                ]
+            });
+        });
+    });
+
     describe('queryOverall',function(){
-        var records;
+        var records, expected_result, response;
         beforeEach(function(){
+            expected_result = {
+                abc : lib.initializeResponseRecord('abc'),
+                def : lib.initializeResponseRecord('def')
+            };
+
+            response = {
+                abc : lib.initializeResponseRecord('abc'),
+                def : lib.initializeResponseRecord('def')
+            };
+
             records = [
                 { campaignId: 'abc', eventType: 'clicks',   eventCount: 11 },
                 { campaignId: 'abc', eventType: 'views',    eventCount: 121 },
@@ -113,75 +199,56 @@ describe('querybot-ssb: apps (UT)', function() {
             lib.pgUtils.query.and.returnValue(q({ rows : records }));
         });
 
-        it('initializes a record if it is unset',function(done){
-            records.splice(1,7);
-            lib.queryOverall(['abc','def'])
-            .then(function(result){
-                expect(result).toEqual({
-                    abc : {
-                        campaignId : 'abc',
-                        summary : {
-                            clicks : 11, installs: 0, launches: 0, users: 0, views: 0
-                        }
-                    }
-                });
-            })
-            .then(done,done.fail);
-        });
-
         it('adds to an already initialized object',function(done){
+            expected_result.abc.summary = {
+                clicks : 11, installs: 0, launches: 0, users: 111, views:121 
+            };
             records.splice(3,5);
-            lib.queryOverall(['abc','def'])
+            lib.queryOverall(response)
             .then(function(result){
-                expect(result).toEqual({
-                    abc : {
-                        campaignId : 'abc',
-                        summary : {
-                            clicks : 11, installs: 0, launches: 0, users: 111, views:121 
-                        }
-                    }
-                });
+                expect(result).toEqual(expected_result);
             })
             .then(done,done.fail);
         });
 
         it('sets all the expected properties',function(done){
+            expected_result.def.summary = {
+                clicks : 99, installs: 11, launches: 41, users: 275, views: 291 
+            };
             records.splice(0,3);
-            lib.queryOverall(['abc','def'])
+            lib.queryOverall(response)
             .then(function(result){
-                expect(result).toEqual({
-                    def : {
-                        campaignId : 'def',
-                        summary : {
-                            clicks : 99, installs: 11, launches: 41, users: 275, views: 291 
-                        }
-                    }
-                });
+                expect(result).toEqual(expected_result);
             })
             .then(done,done.fail);
         });
 
         it('ignores an unrecoginzed eventType', function(done){
+            expected_result.abc.summary = {
+                clicks : 11, installs: 0, launches: 0, users: 0, views: 121 
+            };
             records.splice(3,5);
             records[2].eventType = 'horse';
-            lib.queryOverall(['abc','def'])
+            lib.queryOverall(response)
             .then(function(result){
-                expect(result).toEqual({
-                    abc : {
-                        campaignId : 'abc',
-                        summary : {
-                            clicks : 11, installs: 0, launches: 0, users: 0, views: 121 
-                        }
-                    }
-                });
+                expect(result).toEqual(expected_result);
             })
             .then(done,done.fail);
         });
     });
     
     describe('queryDaily',function(){
-        var records;
+        var records, expected_result, response;
         beforeEach(function(){
+            expected_result = {
+                abc : lib.initializeResponseRecord('abc'),
+                def : lib.initializeResponseRecord('def')
+            };
+
+            response = {
+                abc : lib.initializeResponseRecord('abc'),
+                def : lib.initializeResponseRecord('def')
+            };
             records = [
                 { recDate: '2016-01-26', campaignId: 'abc', eventType: 'clicks',   eventCount: 11 },
                 { recDate: '2016-01-26', campaignId: 'abc', eventType: 'views',    eventCount: 121 },
@@ -233,97 +300,94 @@ describe('querybot-ssb: apps (UT)', function() {
         });
 
         it('initializes a record if it is unset',function(done){
-            lib.queryDaily(['abc','def'])
-            .then(function(result){
-                expect(result).toEqual({
-                    abc : {
-                        daily_7 : [
-                            { date:'2016-01-20', clicks :0, installs:0, launches:0, users:0, views:0 },
-                            { date:'2016-01-21', clicks :0, installs:0, launches:0, users:0, views:0 },
-                            { date:'2016-01-22', clicks :0, installs:0, launches:0, users:0, views:0 },
-                            { date:'2016-01-23', clicks :0, installs:0, launches:0, users:0, views:0 },
-                            { date:'2016-01-24', clicks :0, installs:0, launches:0, users:0, views:0 },
-                            { date:'2016-01-25', clicks :0, installs:0, launches:0, users:0, views:0 },
-                            { date:'2016-01-26', clicks :11, installs:0, launches:0, users:111, views:121}
-                        ],
-                        daily_30 : [
-                            { date:'2015-12-28', clicks :0, installs:0, launches:0, users:0, views:0 },
-                            { date:'2015-12-29', clicks :0, installs:0, launches:0, users:0, views:0 },
-                            { date:'2015-12-30', clicks :0, installs:0, launches:0, users:0, views:0 },
-                            { date:'2015-12-31', clicks :0, installs:0, launches:0, users:0, views:0 },
-                            { date:'2016-01-01', clicks :0, installs:0, launches:0, users:0, views:0 },
-                            { date:'2016-01-02', clicks :0, installs:0, launches:0, users:0, views:0 },
-                            { date:'2016-01-03', clicks :0, installs:0, launches:0, users:0, views:0 },
-                            { date:'2016-01-04', clicks :0, installs:0, launches:0, users:0, views:0 },
-                            { date:'2016-01-05', clicks :0, installs:0, launches:0, users:0, views:0 },
-                            { date:'2016-01-06', clicks :0, installs:0, launches:0, users:0, views:0 },
-                            { date:'2016-01-07', clicks :0, installs:0, launches:0, users:0, views:0 },
-                            { date:'2016-01-08', clicks :0, installs:0, launches:0, users:0, views:0 },
-                            { date:'2016-01-09', clicks :0, installs:0, launches:0, users:0, views:0 },
-                            { date:'2016-01-10', clicks :0, installs:0, launches:0, users:0, views:0 },
-                            { date:'2016-01-11', clicks :0, installs:0, launches:0, users:0, views:0 },
-                            { date:'2016-01-12', clicks :0, installs:0, launches:0, users:0, views:0 },
-                            { date:'2016-01-13', clicks :0, installs:0, launches:0, users:0, views:0 },
-                            { date:'2016-01-14', clicks :0, installs:0, launches:0, users:0, views:0 },
-                            { date:'2016-01-15', clicks :0, installs:0, launches:0, users:0, views:0 },
-                            { date:'2016-01-16', clicks :0, installs:0, launches:0, users:0, views:0 },
-                            { date:'2016-01-17', clicks :0, installs:0, launches:0, users:0, views:0 },
-                            { date:'2016-01-18', clicks :0, installs:0, launches:0, users:0, views:0 },
-                            { date:'2016-01-19', clicks :0, installs:0, launches:0, users:0, views:0 },
-                            { date:'2016-01-20', clicks :0, installs:0, launches:0, users:0, views:0 },
-                            { date:'2016-01-21', clicks :0, installs:0, launches:0, users:0, views:0 },
-                            { date:'2016-01-22', clicks :0, installs:0, launches:0, users:0, views:0 },
-                            { date:'2016-01-23', clicks :0, installs:0, launches:0, users:0, views:0 },
-                            { date:'2016-01-24', clicks :0, installs:0, launches:0, users:0, views:0 },
-                            { date:'2016-01-25', clicks :0, installs:0, launches:0, users:0, views:0 },
-                            { date:'2016-01-26', clicks :11, installs:0, launches:0, users:111, views:121}
-                        ]
-                    },
-                    def : {
-                        daily_7 : [
-                            { date:'2016-01-20', clicks :0, installs:0, launches:0, users:0, views:270},
-                            { date:'2016-01-21', clicks :0, installs:0, launches:0, users:0, views:271},
-                            { date:'2016-01-22', clicks :0, installs:0, launches:0, users:0, views:272},
-                            { date:'2016-01-23', clicks :0, installs:0, launches:0, users:0, views:273},
-                            { date:'2016-01-24', clicks :0, installs:0, launches:0, users:0, views:274},
-                            { date:'2016-01-25', clicks :0, installs:0, launches:0, users:0, views:275},
-                            { date:'2016-01-26', clicks :99, installs:11, launches:41, users:275, views:291}
-                        ],
-                        daily_30 : [
-                            { date:'2015-12-28', clicks :0, installs:0, launches:0, users:0, views:247 },
-                            { date:'2015-12-29', clicks :0, installs:0, launches:0, users:0, views:248 },
-                            { date:'2015-12-30', clicks :0, installs:0, launches:0, users:0, views:249 },
-                            { date:'2015-12-31', clicks :0, installs:0, launches:0, users:0, views:250 },
-                            { date:'2016-01-01', clicks :0, installs:0, launches:0, users:0, views:251 },
-                            { date:'2016-01-02', clicks :0, installs:0, launches:0, users:0, views:252 },
-                            { date:'2016-01-03', clicks :0, installs:0, launches:0, users:0, views:253 },
-                            { date:'2016-01-04', clicks :0, installs:0, launches:0, users:0, views:254 },
-                            { date:'2016-01-05', clicks :0, installs:0, launches:0, users:0, views:255 },
-                            { date:'2016-01-06', clicks :0, installs:0, launches:0, users:0, views:256 },
-                            { date:'2016-01-07', clicks :0, installs:0, launches:0, users:0, views:257 },
-                            { date:'2016-01-08', clicks :0, installs:0, launches:0, users:0, views:258 },
-                            { date:'2016-01-09', clicks :0, installs:0, launches:0, users:0, views:259 },
-                            { date:'2016-01-10', clicks :0, installs:0, launches:0, users:0, views:260 },
-                            { date:'2016-01-11', clicks :0, installs:0, launches:0, users:0, views:261 },
-                            { date:'2016-01-12', clicks :0, installs:0, launches:0, users:0, views:262 },
-                            { date:'2016-01-13', clicks :0, installs:0, launches:0, users:0, views:263 },
-                            { date:'2016-01-14', clicks :0, installs:0, launches:0, users:0, views:264 },
-                            { date:'2016-01-15', clicks :0, installs:0, launches:0, users:0, views:265 },
-                            { date:'2016-01-16', clicks :0, installs:0, launches:0, users:0, views:266 },
-                            { date:'2016-01-17', clicks :0, installs:0, launches:0, users:0, views:267 },
-                            { date:'2016-01-18', clicks :0, installs:0, launches:0, users:0, views:268 },
-                            { date:'2016-01-19', clicks :0, installs:0, launches:0, users:0, views:269 },
-                            { date:'2016-01-20', clicks :0, installs:0, launches:0, users:0, views:270 },
-                            { date:'2016-01-21', clicks :0, installs:0, launches:0, users:0, views:271 },
-                            { date:'2016-01-22', clicks :0, installs:0, launches:0, users:0, views:272 },
-                            { date:'2016-01-23', clicks :0, installs:0, launches:0, users:0, views:273 },
-                            { date:'2016-01-24', clicks :0, installs:0, launches:0, users:0, views:274 },
-                            { date:'2016-01-25', clicks :0, installs:0, launches:0, users:0, views:275 },
-                            { date:'2016-01-26', clicks :99, installs:11, launches:41, users:275, views:291}
-                        ]
+            expected_result.abc.daily_7 = [
+                { date:'2016-01-20', clicks :0, installs:0, launches:0, users:0, views:0 },
+                { date:'2016-01-21', clicks :0, installs:0, launches:0, users:0, views:0 },
+                { date:'2016-01-22', clicks :0, installs:0, launches:0, users:0, views:0 },
+                { date:'2016-01-23', clicks :0, installs:0, launches:0, users:0, views:0 },
+                { date:'2016-01-24', clicks :0, installs:0, launches:0, users:0, views:0 },
+                { date:'2016-01-25', clicks :0, installs:0, launches:0, users:0, views:0 },
+                { date:'2016-01-26', clicks :11, installs:0, launches:0, users:111, views:121}
+            ];
+            expected_result.abc.daily_30 = [
+                { date:'2015-12-28', clicks :0, installs:0, launches:0, users:0, views:0 },
+                { date:'2015-12-29', clicks :0, installs:0, launches:0, users:0, views:0 },
+                { date:'2015-12-30', clicks :0, installs:0, launches:0, users:0, views:0 },
+                { date:'2015-12-31', clicks :0, installs:0, launches:0, users:0, views:0 },
+                { date:'2016-01-01', clicks :0, installs:0, launches:0, users:0, views:0 },
+                { date:'2016-01-02', clicks :0, installs:0, launches:0, users:0, views:0 },
+                { date:'2016-01-03', clicks :0, installs:0, launches:0, users:0, views:0 },
+                { date:'2016-01-04', clicks :0, installs:0, launches:0, users:0, views:0 },
+                { date:'2016-01-05', clicks :0, installs:0, launches:0, users:0, views:0 },
+                { date:'2016-01-06', clicks :0, installs:0, launches:0, users:0, views:0 },
+                { date:'2016-01-07', clicks :0, installs:0, launches:0, users:0, views:0 },
+                { date:'2016-01-08', clicks :0, installs:0, launches:0, users:0, views:0 },
+                { date:'2016-01-09', clicks :0, installs:0, launches:0, users:0, views:0 },
+                { date:'2016-01-10', clicks :0, installs:0, launches:0, users:0, views:0 },
+                { date:'2016-01-11', clicks :0, installs:0, launches:0, users:0, views:0 },
+                { date:'2016-01-12', clicks :0, installs:0, launches:0, users:0, views:0 },
+                { date:'2016-01-13', clicks :0, installs:0, launches:0, users:0, views:0 },
+                { date:'2016-01-14', clicks :0, installs:0, launches:0, users:0, views:0 },
+                { date:'2016-01-15', clicks :0, installs:0, launches:0, users:0, views:0 },
+                { date:'2016-01-16', clicks :0, installs:0, launches:0, users:0, views:0 },
+                { date:'2016-01-17', clicks :0, installs:0, launches:0, users:0, views:0 },
+                { date:'2016-01-18', clicks :0, installs:0, launches:0, users:0, views:0 },
+                { date:'2016-01-19', clicks :0, installs:0, launches:0, users:0, views:0 },
+                { date:'2016-01-20', clicks :0, installs:0, launches:0, users:0, views:0 },
+                { date:'2016-01-21', clicks :0, installs:0, launches:0, users:0, views:0 },
+                { date:'2016-01-22', clicks :0, installs:0, launches:0, users:0, views:0 },
+                { date:'2016-01-23', clicks :0, installs:0, launches:0, users:0, views:0 },
+                { date:'2016-01-24', clicks :0, installs:0, launches:0, users:0, views:0 },
+                { date:'2016-01-25', clicks :0, installs:0, launches:0, users:0, views:0 },
+                { date:'2016-01-26', clicks :11, installs:0, launches:0, users:111, views:121}
 
-                    }
-                });
+            ];
+
+            expected_result.def.daily_7 = [
+                { date:'2016-01-20', clicks :0, installs:0, launches:0, users:0, views:270},
+                { date:'2016-01-21', clicks :0, installs:0, launches:0, users:0, views:271},
+                { date:'2016-01-22', clicks :0, installs:0, launches:0, users:0, views:272},
+                { date:'2016-01-23', clicks :0, installs:0, launches:0, users:0, views:273},
+                { date:'2016-01-24', clicks :0, installs:0, launches:0, users:0, views:274},
+                { date:'2016-01-25', clicks :0, installs:0, launches:0, users:0, views:275},
+                { date:'2016-01-26', clicks :99, installs:11, launches:41, users:275, views:291}
+            ];
+            expected_result.def.daily_30 = [
+                { date:'2015-12-28', clicks :0, installs:0, launches:0, users:0, views:247 },
+                { date:'2015-12-29', clicks :0, installs:0, launches:0, users:0, views:248 },
+                { date:'2015-12-30', clicks :0, installs:0, launches:0, users:0, views:249 },
+                { date:'2015-12-31', clicks :0, installs:0, launches:0, users:0, views:250 },
+                { date:'2016-01-01', clicks :0, installs:0, launches:0, users:0, views:251 },
+                { date:'2016-01-02', clicks :0, installs:0, launches:0, users:0, views:252 },
+                { date:'2016-01-03', clicks :0, installs:0, launches:0, users:0, views:253 },
+                { date:'2016-01-04', clicks :0, installs:0, launches:0, users:0, views:254 },
+                { date:'2016-01-05', clicks :0, installs:0, launches:0, users:0, views:255 },
+                { date:'2016-01-06', clicks :0, installs:0, launches:0, users:0, views:256 },
+                { date:'2016-01-07', clicks :0, installs:0, launches:0, users:0, views:257 },
+                { date:'2016-01-08', clicks :0, installs:0, launches:0, users:0, views:258 },
+                { date:'2016-01-09', clicks :0, installs:0, launches:0, users:0, views:259 },
+                { date:'2016-01-10', clicks :0, installs:0, launches:0, users:0, views:260 },
+                { date:'2016-01-11', clicks :0, installs:0, launches:0, users:0, views:261 },
+                { date:'2016-01-12', clicks :0, installs:0, launches:0, users:0, views:262 },
+                { date:'2016-01-13', clicks :0, installs:0, launches:0, users:0, views:263 },
+                { date:'2016-01-14', clicks :0, installs:0, launches:0, users:0, views:264 },
+                { date:'2016-01-15', clicks :0, installs:0, launches:0, users:0, views:265 },
+                { date:'2016-01-16', clicks :0, installs:0, launches:0, users:0, views:266 },
+                { date:'2016-01-17', clicks :0, installs:0, launches:0, users:0, views:267 },
+                { date:'2016-01-18', clicks :0, installs:0, launches:0, users:0, views:268 },
+                { date:'2016-01-19', clicks :0, installs:0, launches:0, users:0, views:269 },
+                { date:'2016-01-20', clicks :0, installs:0, launches:0, users:0, views:270 },
+                { date:'2016-01-21', clicks :0, installs:0, launches:0, users:0, views:271 },
+                { date:'2016-01-22', clicks :0, installs:0, launches:0, users:0, views:272 },
+                { date:'2016-01-23', clicks :0, installs:0, launches:0, users:0, views:273 },
+                { date:'2016-01-24', clicks :0, installs:0, launches:0, users:0, views:274 },
+                { date:'2016-01-25', clicks :0, installs:0, launches:0, users:0, views:275 },
+                { date:'2016-01-26', clicks :99, installs:11, launches:41, users:275, views:291}
+            ];
+
+            lib.queryDaily(response)
+            .then(function(result){
+                expect(result).toEqual(expected_result);
             })
             .then(done,done.fail);
         });
