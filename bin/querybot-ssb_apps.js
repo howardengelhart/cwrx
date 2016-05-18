@@ -15,7 +15,7 @@ lib.queryParamsFromRequest = function(req){
         });
         
         if( result.campaignIds.length === 0) {
-            return q.reject(new ServiceError('Unable to get data for campaign.', 400));
+            return q.reject(new ServiceError('Not Found', 404));
         }
 
         return result;

@@ -366,7 +366,7 @@ describe('querybot ssb_apps (E2E)', function(){
     });
 
     describe('GET /api/analytics/campaigns/showcase/apps/:id', function() {
-        fit('requires authentication',function(done){
+        it('requires authentication',function(done){
             delete options.jar;
             options.url += '/cam-1757d5cd13e383';
             requestUtils.qRequest('get', options)
@@ -378,7 +378,7 @@ describe('querybot ssb_apps (E2E)', function(){
 
         });
 
-        it('returns a 400 error if there is no campaignID',function(done){
+        xit('returns a 400 error if there is no campaignID',function(done){
             requestUtils.qRequest('get', options)
             .then(function(resp) {
                 expect(resp.response.statusCode).toEqual(400);
@@ -397,27 +397,7 @@ describe('querybot ssb_apps (E2E)', function(){
             .then(done,done.fail);
         });
 
-        it('returns a 400 if the request has a bad start date format',function(done){
-            options.url += '/cam-1757d5cd13e383?startDate=apple';
-            requestUtils.qRequest('get', options)
-            .then(function(resp) {
-                expect(resp.response.statusCode).toEqual(400);
-                expect(resp.response.body).toEqual('Invalid startDate format, expecting YYYY-MM-DD.');
-            })
-            .then(done,done.fail);
-        });
-
-        it('returns a 400 if the request has a bad end date format',function(done){
-            options.url += '/cam-1757d5cd13e383?startDate=2015-12-01&endDate=2015-12-02T12:55:00+00';
-            requestUtils.qRequest('get', options)
-            .then(function(resp) {
-                expect(resp.response.statusCode).toEqual(400);
-                expect(resp.response.body).toEqual('Invalid endDate format, expecting YYYY-MM-DD.');
-            })
-            .then(done,done.fail);
-        });
-
-        it('returns single doc with all data if the campaigns GET is singular with no dates',function(done){
+        it('returns single doc with all data if the campaigns GET is singular',function(done){
             options.url += '/cam-1757d5cd13e383';
             requestUtils.qRequest('get', options)
             .then(function(resp) {
@@ -427,105 +407,6 @@ describe('querybot ssb_apps (E2E)', function(){
             .then(done,done.fail);
         });
         
-        it('returns single doc with initialized range data if the campaigns GET is singular with dates with no data',function(done){
-            options.url += '/cam-1757d5cd13e383?startDate=2000-09-01&endDate=2000-09-02';
-            requestUtils.qRequest('get', options)
-            .then(function(resp) {
-                camp1Data.range = {
-                    startDate  : '2000-09-01',
-                    endDate    : '2000-09-02',
-                    impressions: 0,
-                    views      : 0,
-                    quartile1  : 0,
-                    quartile2  : 0,
-                    quartile3  : 0,
-                    quartile4  : 0,
-                    totalSpend : '0.0000',
-                    linkClicks : {},
-                    shareClicks : {}
-                };
-                expect(resp.response.statusCode).toEqual(200);
-                expect(resp.body).toEqual(camp1Data);
-            })
-            .then(done,done.fail);
-        });
-
-        it('returns single doc with initialized range data if end date is < start date',function(done){
-            options.url += '/cam-1757d5cd13e383?startDate=2015-12-02&endDate=2015-12-01';
-            requestUtils.qRequest('get', options)
-            .then(function(resp) {
-                camp1Data.range = {
-                    startDate  : '2015-12-02',
-                    endDate    : '2015-12-01',
-                    impressions: 0,
-                    views      : 0,
-                    quartile1  : 0,
-                    quartile2  : 0,
-                    quartile3  : 0,
-                    quartile4  : 0,
-                    totalSpend : '0.0000',
-                    linkClicks : {},
-                    shareClicks : {}
-                };
-                expect(resp.response.statusCode).toEqual(200);
-                expect(resp.body).toEqual(camp1Data);
-            })
-            .then(done,done.fail);
-        });
-
-        it('returns single doc with range data with same start and end date',function(done){
-            options.url += '/cam-1757d5cd13e383?startDate=2015-12-02&endDate=2015-12-02';
-            requestUtils.qRequest('get', options)
-            .then(function(resp) {
-                camp1Data.range = {
-                    startDate  : '2015-12-02',
-                    endDate    : '2015-12-02',
-                    impressions: 283,
-                    views      : 209,
-                    quartile1  : 223,
-                    quartile2  : 155,
-                    quartile3  : 52,
-                    quartile4  : 30,
-                    totalSpend : '39.7100',
-                    linkClicks : {
-                        action : 3 
-                    },
-                    shareClicks : {
-                        facebook : 21,
-                        pinterest : 31
-                    }
-                };
-                expect(resp.response.statusCode).toEqual(200);
-                expect(resp.body).toEqual(camp1Data);
-            })
-            .then(done,done.fail);
-        });
-
-        it('returns single doc with initialized today data if the campaigns GET is singular with dates with no today data',function(done){
-            options.url += '/cam-cabd93049d032a?startDate=2015-12-01&endDate=2015-12-31';
-            requestUtils.qRequest('get', options)
-            .then(function(resp) {
-                camp5Data.range = {
-                    startDate  : '2015-12-01',
-                    endDate    : '2015-12-31',
-                    impressions: 99,
-                    views      : 69,
-                    quartile1  : 63,
-                    quartile2  : 59,
-                    quartile3  : 48,
-                    quartile4  : 41,
-                    totalSpend : '3.4500',
-                    linkClicks : {
-                        website     : 6
-                    },
-                    shareClicks : {}
-                };
-                expect(resp.response.statusCode).toEqual(200);
-                expect(resp.body).toEqual(camp5Data);
-            })
-            .then(done,done.fail);
-        });
-
         it('should allow an app to get stats', function(done) {
             delete options.jar;
             options.url += '/cam-1757d5cd13e383';
@@ -539,6 +420,7 @@ describe('querybot ssb_apps (E2E)', function(){
         
         it('should fail if an app uses the wrong secret to make a request', function(done) {
             delete options.jar;
+            options.url += '/cam-1757d5cd13e383';
             var badCreds = { key: mockApp.key, secret: 'WRONG' };
             requestUtils.makeSignedRequest(badCreds, 'get', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(401);
@@ -547,90 +429,5 @@ describe('querybot ssb_apps (E2E)', function(){
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
-    });
-    
-    describe('GET /api/analytics/campaigns/?ids=:id', function() {
-        it('requires authentication',function(done){
-            delete options.jar;
-            options.url += '/?ids=cam-1757d5cd13e383';
-            requestUtils.qRequest('get', options)
-            .then(function(resp) {
-                expect(resp.response.statusCode).toEqual(401);
-                expect(resp.response.body).toEqual('Unauthorized');
-            })
-            .then(done,done.fail);
-        });
-
-        it('returns a 200 with empty array if the campaignId is not found',function(done){
-            options.url += '/?ids=cam-278b8150021c68';
-            requestUtils.qRequest('get', options)
-            .then(function(resp) {
-                expect(resp.response.statusCode).toEqual(200);
-                expect(resp.body).toEqual([]);
-            })
-            .then(done,done.fail);
-        });
-
-        it('returns single document array if the campaigns GET is plural form',function(done){
-            options.url += '/?ids=cam-1757d5cd13e383';
-            requestUtils.qRequest('get', options)
-            .then(function(resp) {
-                expect(resp.response.statusCode).toEqual(200);
-                expect(resp.body).toEqual([ camp1Data ]);
-            })
-            .then(done,done.fail);
-        });
-        
-        it('returns document array if the campaigns GET is plural form',function(done){
-            options.url += '/?ids=cam-1757d5cd13e383,cam-b651cde4158304';
-            requestUtils.qRequest('get', options)
-            .then(function(resp) {
-                expect(resp.response.statusCode).toEqual(200);
-                expect(isArray(resp.body)).toEqual(true);
-                expect(resp.body).toContain(camp1Data);
-                expect(resp.body).toContain(camp2Data);
-            })
-            .then(done,done.fail);
-        });
-
-        it('returns document array with found items, omits unfound ',function(done){
-            options.url += '/?ids=cam-1757d5cd13e383,cam-b651cde4158304,cam-278b8150021c68';
-            requestUtils.qRequest('get', options)
-            .then(function(resp) {
-                expect(resp.response.statusCode).toEqual(200);
-                expect(resp.body.length).toEqual(2);
-                expect(resp.body).toContain(jasmine.objectContaining(camp1Data));
-                expect(resp.body).toContain(jasmine.objectContaining(camp2Data));
-            })
-            .then(done,done.fail);
-        });
-        
-
-        it('should allow an app to get stats', function(done) {
-            delete options.jar;
-            options.url += '/?ids=cam-1757d5cd13e383';
-            requestUtils.makeSignedRequest(appCreds, 'get', options).then(function(resp) {
-                expect(resp.response.statusCode).toBe(200);
-                expect(resp.body).toEqual([ camp1Data ]);
-            }).catch(function(error) {
-                expect(util.inspect(error)).not.toBeDefined();
-            }).done(done);
-        });
-    });
-    
-    fdescribe('GET /api/analytics/campaigns/showcase/apps/:id', function() {
-        it('should allow an app to get stats', function(done) {
-//            options.url += '/cam-b651cde4158304';
-            options.url += '/cam-1757d5cd13e383';
-            requestUtils.makeSignedRequest(appCreds, 'get', options).then(function(resp) {
-                expect(resp.response.statusCode).toBe(200);
-              expect(resp.body).toEqual( camp1Data );
-//                console.log(resp.body);
-//                console.log(camp1Data);
-            }).catch(function(error) {
-                expect(util.inspect(error)).not.toBeDefined();
-            }).done(done);
-        });
-
     });
 });

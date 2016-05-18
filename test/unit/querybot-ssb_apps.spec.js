@@ -1,5 +1,5 @@
 var flush = true;
-fdescribe('querybot-ssb: apps (UT)', function() {
+describe('querybot-ssb: apps (UT)', function() {
     var mockLog, logger, q, req, lib, mockPromise, mockDefer, requestUtils, querybot;
     
     beforeEach(function() {
@@ -84,7 +84,7 @@ fdescribe('querybot-ssb: apps (UT)', function() {
             mockResponse = [ ];
             lib.queryParamsFromRequest(mockRequest)
             .then(done.fail,function(e){
-                expect(e.message).toEqual('Unable to get data for campaign.');
+                expect(e.message).toEqual('Not Found');
             })
             .then(done,done.fail);
         });

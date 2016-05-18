@@ -1,5 +1,5 @@
 var flush = true;
-fdescribe('querybot (UT)', function() {
+describe('querybot (UT)', function() {
     var mockLog, logger, q, req, lib, mockPromise, mockDefer, mockCache, requestUtils ;
 
     beforeEach(function() {

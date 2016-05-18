@@ -1,5 +1,5 @@
 var flush = true;
-fdescribe('querybot-selfie (UT)', function() {
+describe('querybot-selfie (UT)', function() {
     var mockLog, logger, q, req, lib, mockPromise, mockDefer, pgUtils, querybot;
     
     beforeEach(function() {
