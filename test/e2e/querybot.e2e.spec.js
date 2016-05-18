@@ -13,9 +13,7 @@ var q               = require('q'),
     };
 
 describe('querybot (E2E)', function(){
-    var pgdata_campaign_summary_hourly, pgdata_billing_transactions,
-        pgdata_unique_user_views_daily, pgdata_unique_user_views, 
-        mockUser, mockCamps,
+    var pgdata_campaign_summary_hourly, pgdata_billing_transactions, mockUser, mockCamps,
         cookieJar, options, camp1Data, camp2Data, camp5Data, mockApp, appCreds;
 
     beforeEach(function(done){
@@ -136,10 +134,7 @@ describe('querybot (E2E)', function(){
             }
         };
  
-        var today = function(offset) {
-            var dt = new Date(((new Date()).toISOString()).substr(0,10) + 'T00:00:00.000Z');
-            return (new Date(dt.valueOf() + (86400000 * (offset || 0)))).toISOString().substr(0,10);
-        };
+        var today = ((new Date()).toISOString()).substr(0,10);
 
         // Note: That there are less BillableViews than CompletedViews for cam-1757d5cd13e383
         // and cam-cabd93049d032a will result in quartiles being adjusted for those campaigns.
@@ -173,14 +168,14 @@ describe('querybot (E2E)', function(){
         pgdata_billing_transactions = [
             'INSERT INTO fct.billing_transactions (rec_ts,transaction_ts,transaction_id,',
             '   org_id,campaign_id,sign,units,amount) VALUES',
-            '(now(),\'' + today() + ' 00:00:00+00\',\'t-1\',\'o1\',\'cam-1757d5cd13e383\',-1,987,187.53),',
-            '(now(),\'' + today() + ' 00:00:00+00\',\'t-1\',\'o1\',\'cam-1757d5cd13e383\',-1,499,94.81),',
-            '(now(),\'' + today() + ' 00:00:00+00\',\'t-1\',\'o1\',\'cam-1757d5cd13e383\',-1,1345,255.55),',
-            '(now(),\'' + today() + ' 00:00:00+00\',\'t-1\',\'o1\',\'cam-1757d5cd13e383\',-1,851,161.69),',
-            '(now(),\'' + today() + ' 00:00:00+00\',\'t-1\',\'o1\',\'cam-1757d5cd13e383\',-1,830,157.70),',
-            '(now(),\'' + today() + ' 00:00:00+00\',\'t-1\',\'o1\',\'cam-1757d5cd13e383\',-1,1000,0),',
-            '(now(),\'' + today() + ' 01:00:00+00\',\'t-2\',\'o1\',\'cam-1757d5cd13e383\',-1,1542,292.98),',
-            '(now(),\'' + today() + ' 00:00:00+00\',\'t-3\',\'o2\',\'cam-b651cde4158304\',-1,318,34.98),',
+            '(now(),\'' + today + ' 00:00:00+00\',\'t-1\',\'o1\',\'cam-1757d5cd13e383\',-1,987,187.53),',
+            '(now(),\'' + today + ' 00:00:00+00\',\'t-1\',\'o1\',\'cam-1757d5cd13e383\',-1,499,94.81),',
+            '(now(),\'' + today + ' 00:00:00+00\',\'t-1\',\'o1\',\'cam-1757d5cd13e383\',-1,1345,255.55),',
+            '(now(),\'' + today + ' 00:00:00+00\',\'t-1\',\'o1\',\'cam-1757d5cd13e383\',-1,851,161.69),',
+            '(now(),\'' + today + ' 00:00:00+00\',\'t-1\',\'o1\',\'cam-1757d5cd13e383\',-1,830,157.70),',
+            '(now(),\'' + today + ' 00:00:00+00\',\'t-1\',\'o1\',\'cam-1757d5cd13e383\',-1,1000,0),',
+            '(now(),\'' + today + ' 01:00:00+00\',\'t-2\',\'o1\',\'cam-1757d5cd13e383\',-1,1542,292.98),',
+            '(now(),\'' + today + ' 00:00:00+00\',\'t-3\',\'o2\',\'cam-b651cde4158304\',-1,318,34.98),',
             '(now(),\'2015-12-01 00:00:00+00\',\'t-4\',\'o1\',\'cam-1757d5cd13e383\',-1,89,16.91),',
             '(now(),\'2015-12-02 12:00:00+00\',\'t-5\',\'o1\',\'cam-1757d5cd13e383\',-1,209,39.71),',
             '(now(),\'2015-12-03 23:00:00+00\',\'t-6\',\'o1\',\'cam-1757d5cd13e383\',-1,109,20.71),',
@@ -191,40 +186,37 @@ describe('querybot (E2E)', function(){
 
         pgdata_campaign_summary_hourly = [
             'INSERT INTO rpt.campaign_summary_hourly VALUES',
-            '(\'' + today() + ' 01:00:00+00\',\'cam-1757d5cd13e383\',\'cardView\',2032,0.0000),',
-            '(\'' + today() + ' 01:00:00+00\',\'cam-1757d5cd13e383\',\'completedView\',1542,292.9800),',
-            '(\'' + today() + ' 01:00:00+00\',\'cam-1757d5cd13e383\',\'unique_user_view\',1222,0.0000),',
-            '(\'' + today() + ' 01:00:00+00\',\'cam-1757d5cd13e383\',\'launch\',2032,0.0000),',
-            '(\'' + today() + ' 01:00:00+00\',\'cam-1757d5cd13e383\',\'link.Action\',69,0.0000),',
-            '(\'' + today() + ' 01:00:00+00\',\'cam-1757d5cd13e383\',\'link.Facebook\',7,0.0000),',
-            '(\'' + today() + ' 01:00:00+00\',\'cam-1757d5cd13e383\',\'link.Website\',28,0.0000),',
-            '(\'' + today() + ' 01:00:00+00\',\'cam-1757d5cd13e383\',\'link.YouTube\',2,0.0000),',
-            '(\'' + today() + ' 01:00:00+00\',\'cam-1757d5cd13e383\',\'load\',2038,0.0000),',
-            '(\'' + today() + ' 01:00:00+00\',\'cam-1757d5cd13e383\',\'play\',1881,0.0000),',
-            '(\'' + today() + ' 01:00:00+00\',\'cam-1757d5cd13e383\',\'q1\',1597,0.0000),',
-            '(\'' + today() + ' 01:00:00+00\',\'cam-1757d5cd13e383\',\'q2\',1374,0.0000),',
-            '(\'' + today() + ' 01:00:00+00\',\'cam-1757d5cd13e383\',\'q3\',473,0.0000),',
-            '(\'' + today() + ' 01:00:00+00\',\'cam-1757d5cd13e383\',\'q4\',322,0.0000),',
-            '(\'' + today() + ' 01:00:00+00\',\'cam-1757d5cd13e383\',\'shareLink.facebook\',11,0.0000),',
-            '(\'' + today() + ' 01:00:00+00\',\'cam-1757d5cd13e383\',\'shareLink.twitter\',21,0.0000),',
-            '(\'' + today() + ' 00:00:00+00\',\'cam-1757d5cd13e383\',\'cardView\',5871,0.0000),',
-            '(\'' + today() + ' 00:00:00+00\',\'cam-1757d5cd13e383\',\'completedView\',5512,876.2800),',
-            '(\'' + today() + ' 00:00:00+00\',\'cam-1757d5cd13e383\',\'unique_user_view\',5111,0.0000),',
-            '(\'' + today() + ' 00:00:00+00\',\'cam-1757d5cd13e383\',\'launch\',5871,0.0000),',
-            '(\'' + today() + ' 00:00:00+00\',\'cam-1757d5cd13e383\',\'link.Action\',151,0.0000),',
-            '(\'' + today() + ' 00:00:00+00\',\'cam-1757d5cd13e383\',\'link.Facebook\',11,0.0000),',
-            '(\'' + today() + ' 00:00:00+00\',\'cam-1757d5cd13e383\',\'link.Instagram\',2,0.0000),',
-            '(\'' + today() + ' 00:00:00+00\',\'cam-1757d5cd13e383\',\'link.Website\',86,0.0000),',
-            '(\'' + today() + ' 00:00:00+00\',\'cam-1757d5cd13e383\',\'link.YouTube\',3,0.0000),',
-            '(\'' + today() + ' 00:00:00+00\',\'cam-1757d5cd13e383\',\'load\',5928,0.0000),',
-            '(\'' + today() + ' 00:00:00+00\',\'cam-1757d5cd13e383\',\'play\',5469,0.0000),',
-            '(\'' + today() + ' 00:00:00+00\',\'cam-1757d5cd13e383\',\'q1\',4765,0.0000),',
-            '(\'' + today() + ' 00:00:00+00\',\'cam-1757d5cd13e383\',\'q2\',3981,0.0000),',
-            '(\'' + today() + ' 00:00:00+00\',\'cam-1757d5cd13e383\',\'q3\',1333,0.0000),',
-            '(\'' + today() + ' 00:00:00+00\',\'cam-1757d5cd13e383\',\'q4\',918,0.0000),',
+            '(\'' + today + ' 01:00:00+00\',\'cam-1757d5cd13e383\',\'cardView\',2032,0.0000),',
+            '(\'' + today + ' 01:00:00+00\',\'cam-1757d5cd13e383\',\'completedView\',1542,292.9800),',
+            '(\'' + today + ' 01:00:00+00\',\'cam-1757d5cd13e383\',\'launch\',2032,0.0000),',
+            '(\'' + today + ' 01:00:00+00\',\'cam-1757d5cd13e383\',\'link.Action\',69,0.0000),',
+            '(\'' + today + ' 01:00:00+00\',\'cam-1757d5cd13e383\',\'link.Facebook\',7,0.0000),',
+            '(\'' + today + ' 01:00:00+00\',\'cam-1757d5cd13e383\',\'link.Website\',28,0.0000),',
+            '(\'' + today + ' 01:00:00+00\',\'cam-1757d5cd13e383\',\'link.YouTube\',2,0.0000),',
+            '(\'' + today + ' 01:00:00+00\',\'cam-1757d5cd13e383\',\'load\',2038,0.0000),',
+            '(\'' + today + ' 01:00:00+00\',\'cam-1757d5cd13e383\',\'play\',1881,0.0000),',
+            '(\'' + today + ' 01:00:00+00\',\'cam-1757d5cd13e383\',\'q1\',1597,0.0000),',
+            '(\'' + today + ' 01:00:00+00\',\'cam-1757d5cd13e383\',\'q2\',1374,0.0000),',
+            '(\'' + today + ' 01:00:00+00\',\'cam-1757d5cd13e383\',\'q3\',473,0.0000),',
+            '(\'' + today + ' 01:00:00+00\',\'cam-1757d5cd13e383\',\'q4\',322,0.0000),',
+            '(\'' + today + ' 01:00:00+00\',\'cam-1757d5cd13e383\',\'shareLink.facebook\',11,0.0000),',
+            '(\'' + today + ' 01:00:00+00\',\'cam-1757d5cd13e383\',\'shareLink.twitter\',21,0.0000),',
+            '(\'' + today + ' 00:00:00+00\',\'cam-1757d5cd13e383\',\'cardView\',5871,0.0000),',
+            '(\'' + today + ' 00:00:00+00\',\'cam-1757d5cd13e383\',\'completedView\',5512,876.2800),',
+            '(\'' + today + ' 00:00:00+00\',\'cam-1757d5cd13e383\',\'launch\',5871,0.0000),',
+            '(\'' + today + ' 00:00:00+00\',\'cam-1757d5cd13e383\',\'link.Action\',151,0.0000),',
+            '(\'' + today + ' 00:00:00+00\',\'cam-1757d5cd13e383\',\'link.Facebook\',11,0.0000),',
+            '(\'' + today + ' 00:00:00+00\',\'cam-1757d5cd13e383\',\'link.Instagram\',2,0.0000),',
+            '(\'' + today + ' 00:00:00+00\',\'cam-1757d5cd13e383\',\'link.Website\',86,0.0000),',
+            '(\'' + today + ' 00:00:00+00\',\'cam-1757d5cd13e383\',\'link.YouTube\',3,0.0000),',
+            '(\'' + today + ' 00:00:00+00\',\'cam-1757d5cd13e383\',\'load\',5928,0.0000),',
+            '(\'' + today + ' 00:00:00+00\',\'cam-1757d5cd13e383\',\'play\',5469,0.0000),',
+            '(\'' + today + ' 00:00:00+00\',\'cam-1757d5cd13e383\',\'q1\',4765,0.0000),',
+            '(\'' + today + ' 00:00:00+00\',\'cam-1757d5cd13e383\',\'q2\',3981,0.0000),',
+            '(\'' + today + ' 00:00:00+00\',\'cam-1757d5cd13e383\',\'q3\',1333,0.0000),',
+            '(\'' + today + ' 00:00:00+00\',\'cam-1757d5cd13e383\',\'q4\',918,0.0000),',
             '(\'2015-12-01 00:00:00+00\',\'cam-1757d5cd13e383\',\'cardView\',100,0.0000),',
             '(\'2015-12-01 00:00:00+00\',\'cam-1757d5cd13e383\',\'completedView\',89,16.9100),',
-            '(\'2015-12-01 00:00:00+00\',\'cam-1757d5cd13e383\',\'unique_user_view\',83,0.0000),',
             '(\'2015-12-01 00:00:00+00\',\'cam-1757d5cd13e383\',\'launch\',154,0.0000),',
             '(\'2015-12-01 00:00:00+00\',\'cam-1757d5cd13e383\',\'link.Action\',1,0.0000),',
             '(\'2015-12-01 00:00:00+00\',\'cam-1757d5cd13e383\',\'load\',299,0.0000),',
@@ -237,7 +229,6 @@ describe('querybot (E2E)', function(){
             '(\'2015-12-01 00:00:00+00\',\'cam-1757d5cd13e383\',\'shareLink.twitter\',11,0.0000),',
             '(\'2015-12-02 12:00:00+00\',\'cam-1757d5cd13e383\',\'cardView\',283,0.0000),',
             '(\'2015-12-02 12:00:00+00\',\'cam-1757d5cd13e383\',\'completedView\',209,39.7100),',
-            '(\'2015-12-02 12:00:00+00\',\'cam-1757d5cd13e383\',\'unique_user_view\',199,0.0000),',
             '(\'2015-12-02 12:00:00+00\',\'cam-1757d5cd13e383\',\'launch\',284,0.0000),',
             '(\'2015-12-02 12:00:00+00\',\'cam-1757d5cd13e383\',\'link.Action\',3,0.0000),',
             '(\'2015-12-02 12:00:00+00\',\'cam-1757d5cd13e383\',\'load\',299,0.0000),',
@@ -250,7 +241,6 @@ describe('querybot (E2E)', function(){
             '(\'2015-12-02 12:00:00+00\',\'cam-1757d5cd13e383\',\'shareLink.pinterest\',31,0.0000),',
             '(\'2015-12-03 23:00:00+00\',\'cam-1757d5cd13e383\',\'cardView\',123,0.0000),',
             '(\'2015-12-03 23:00:00+00\',\'cam-1757d5cd13e383\',\'completedView\',109,20.7100),',
-            '(\'2015-12-03 23:00:00+00\',\'cam-1757d5cd13e383\',\'unique_user_view\',99,0.0000),',
             '(\'2015-12-03 23:00:00+00\',\'cam-1757d5cd13e383\',\'launch\',284,0.0000),',
             '(\'2015-12-03 23:00:00+00\',\'cam-1757d5cd13e383\',\'link.Website\',6,0.0000),',
             '(\'2015-12-03 23:00:00+00\',\'cam-1757d5cd13e383\',\'load\',299,0.0000),',
@@ -260,35 +250,20 @@ describe('querybot (E2E)', function(){
             '(\'2015-12-03 23:00:00+00\',\'cam-1757d5cd13e383\',\'q3\',52,0.0000),',
             '(\'2015-12-03 23:00:00+00\',\'cam-1757d5cd13e383\',\'q4\',30,0.0000),',
             
-            '(\'' + today() + ' 00:00:00+00\',\'cam-b651cde4158304\',\'cardView\',385,0.0000),',
-            '(\'' + today() + ' 00:00:00+00\',\'cam-b651cde4158304\',\'completedView\',318,34.9800),',
-            '(\'' + today() + ' 00:00:00+00\',\'cam-b651cde4158304\',\'unique_user_view\',308,0.0000),',
-            '(\'' + today() + ' 00:00:00+00\',\'cam-b651cde4158304\',\'launch\',384,0.0000),',
-            '(\'' + today() + ' 00:00:00+00\',\'cam-b651cde4158304\',\'link.Action\',2,0.0000),',
-            '(\'' + today() + ' 00:00:00+00\',\'cam-b651cde4158304\',\'link.Facebook\',9,0.0000),',
-            '(\'' + today() + ' 00:00:00+00\',\'cam-b651cde4158304\',\'link.Twitter\',11,0.0000),',
-            '(\'' + today() + ' 00:00:00+00\',\'cam-b651cde4158304\',\'load\',384,0.0000),',
-            '(\'' + today() + ' 00:00:00+00\',\'cam-b651cde4158304\',\'play\',384,0.0000),',
-            '(\'' + today() + ' 00:00:00+00\',\'cam-b651cde4158304\',\'q1\',359,0.0000),',
-            '(\'' + today() + ' 00:00:00+00\',\'cam-b651cde4158304\',\'q2\',349,0.0000),',
-            '(\'' + today() + ' 00:00:00+00\',\'cam-b651cde4158304\',\'q3\',336,0.0000),',
-            '(\'' + today() + ' 00:00:00+00\',\'cam-b651cde4158304\',\'q4\',318,0.0000),',
-
-            '(\'' + today(-1) + ' 00:00:00+00\',\'cam-b651cde4158304\',\'completedView\',100,34.9800),',
-            '(\'' + today(-1) + ' 00:00:00+00\',\'cam-b651cde4158304\',\'unique_user_view\',90,0.0000),',
-            '(\'' + today(-1) + ' 00:00:00+00\',\'cam-b651cde4158304\',\'link.Action\',2,0.0000),',
-            '(\'' + today(-1) + ' 00:00:00+00\',\'cam-b651cde4158304\',\'appInstall\',1,0.0000),',
-            '(\'' + today(-1) + ' 00:00:00+00\',\'cam-b651cde4158304\',\'appLaunch\',12,0.0000),',
-
-            '(\'' + today(-2) + ' 00:00:00+00\',\'cam-b651cde4158304\',\'completedView\',80,34.9800),',
-            '(\'' + today(-2) + ' 00:00:00+00\',\'cam-b651cde4158304\',\'unique_user_view\',70,0.0000),',
-            '(\'' + today(-2) + ' 00:00:00+00\',\'cam-b651cde4158304\',\'link.Action\',4,0.0000),',
-            '(\'' + today(-2) + ' 00:00:00+00\',\'cam-b651cde4158304\',\'appInstall\',2,0.0000),',
-            '(\'' + today(-2) + ' 00:00:00+00\',\'cam-b651cde4158304\',\'appLaunch\',12,0.0000),',
-
+            '(\'' + today + ' 00:00:00+00\',\'cam-b651cde4158304\',\'cardView\',385,0.0000),',
+            '(\'' + today + ' 00:00:00+00\',\'cam-b651cde4158304\',\'completedView\',318,34.9800),',
+            '(\'' + today + ' 00:00:00+00\',\'cam-b651cde4158304\',\'launch\',384,0.0000),',
+            '(\'' + today + ' 00:00:00+00\',\'cam-b651cde4158304\',\'link.Action\',2,0.0000),',
+            '(\'' + today + ' 00:00:00+00\',\'cam-b651cde4158304\',\'link.Facebook\',9,0.0000),',
+            '(\'' + today + ' 00:00:00+00\',\'cam-b651cde4158304\',\'link.Twitter\',11,0.0000),',
+            '(\'' + today + ' 00:00:00+00\',\'cam-b651cde4158304\',\'load\',384,0.0000),',
+            '(\'' + today + ' 00:00:00+00\',\'cam-b651cde4158304\',\'play\',384,0.0000),',
+            '(\'' + today + ' 00:00:00+00\',\'cam-b651cde4158304\',\'q1\',359,0.0000),',
+            '(\'' + today + ' 00:00:00+00\',\'cam-b651cde4158304\',\'q2\',349,0.0000),',
+            '(\'' + today + ' 00:00:00+00\',\'cam-b651cde4158304\',\'q3\',336,0.0000),',
+            '(\'' + today + ' 00:00:00+00\',\'cam-b651cde4158304\',\'q4\',318,0.0000),',
             '(\'2015-12-03 23:00:00+00\',\'cam-b651cde4158304\',\'cardView\',227,0.0000),',
             '(\'2015-12-03 23:00:00+00\',\'cam-b651cde4158304\',\'completedView\',194,21.3400),',
-            '(\'2015-12-03 23:00:00+00\',\'cam-b651cde4158304\',\'unique_user_view\',182,0.0000),',
             '(\'2015-12-03 23:00:00+00\',\'cam-b651cde4158304\',\'launch\',227,0.0000),',
             '(\'2015-12-03 23:00:00+00\',\'cam-b651cde4158304\',\'load\',227,0.0000),',
             '(\'2015-12-03 23:00:00+00\',\'cam-b651cde4158304\',\'link.Instagram\',2,0.0000),',
@@ -301,7 +276,6 @@ describe('querybot (E2E)', function(){
             '(\'2015-12-03 23:00:00+00\',\'cam-b651cde4158304\',\'q4\',193,0.0000),',
             '(\'2015-12-03 23:00:00+00\',\'cam-cabd93049d032a\',\'cardView\',99,0.0000),',
             '(\'2015-12-03 23:00:00+00\',\'cam-cabd93049d032a\',\'completedView\',189,9.4500),',
-            '(\'2015-12-03 23:00:00+00\',\'cam-cabd93049d032a\',\'unique_user_view\',178,0.0000),',
             '(\'2015-12-03 23:00:00+00\',\'cam-cabd93049d032a\',\'launch\',98,0.0000),',
             '(\'2015-12-03 23:00:00+00\',\'cam-cabd93049d032a\',\'link.Website\',6,0.0000),',
             '(\'2015-12-03 23:00:00+00\',\'cam-cabd93049d032a\',\'play\',89,0.0000),',
@@ -309,27 +283,6 @@ describe('querybot (E2E)', function(){
             '(\'2015-12-03 23:00:00+00\',\'cam-cabd93049d032a\',\'q2\',161,0.0000),',
             '(\'2015-12-03 23:00:00+00\',\'cam-cabd93049d032a\',\'q3\',132,0.0000),',
             '(\'2015-12-03 23:00:00+00\',\'cam-cabd93049d032a\',\'q4\',113,0.0000);'
-        ];
-
-        pgdata_unique_user_views = [
-            'INSERT INTO rpt.unique_user_views VALUES',
-            '(\'cam-1757d5cd13e383\',7222,\'2015-12-03 00:00:00+00\',\'2016-05-03 23:00:00+00\'),',
-            '(\'cam-b651cde4158304\',6434,\'2015-12-04 00:00:00+00\',\'2016-05-04 23:00:00+00\'),',
-            '(\'cam-cabd93049d032a\',2223,\'2015-12-05 00:00:00+00\',\'2016-05-05 23:00:00+00\');'
-        ];
-
-        pgdata_unique_user_views_daily = [
-            'INSERT INTO rpt.unique_user_views_daily VALUES',
-            '(\'' + today()    + '\',\'cam-1757d5cd13e383\',318),',
-            '(\'' + today(-1)  + '\',\'cam-1757d5cd13e383\',308),',
-            '(\'' + today(-3)  + '\',\'cam-1757d5cd13e383\',328),',
-            '(\'' + today(-5)  + '\',\'cam-1757d5cd13e383\',338),',
-            '(\'' + today(-7)  + '\',\'cam-1757d5cd13e383\',348),',
-            '(\'' + today(-9)  + '\',\'cam-1757d5cd13e383\',318),',
-            '(\'' + today(-10) + '\',\'cam-1757d5cd13e383\',298),',
-            '(\'' + today(-11) + '\',\'cam-1757d5cd13e383\',288),',
-            '(\'' + today(-12) + '\',\'cam-1757d5cd13e383\',278),',
-            '(\'' + today(-13) + '\',\'cam-1757d5cd13e383\',298);'
         ];
 
         mockUser = {
@@ -369,26 +322,14 @@ describe('querybot (E2E)', function(){
         function pgTruncate(){
             return testUtils.pgQuery('TRUNCATE TABLE rpt.campaign_summary_hourly')
                 .then(function(){
-                    return testUtils.pgQuery('TRUNCATE TABLE fct.billing_transactions');
-                })
-                .then(function(){
-                    return testUtils.pgQuery('TRUNCATE TABLE rpt.unique_user_views');
-                })
-                .then(function(){
-                    return testUtils.pgQuery('TRUNCATE TABLE rpt.unique_user_views_daily');
+                    return testUtils.pgQuery('TRUNCATE TABLE fct.billing_transactions')
                 });
         }
 
         function pgInsert() {
             return testUtils.pgQuery(pgdata_campaign_summary_hourly.join(' '))
                 .then(function(){
-                    return testUtils.pgQuery(pgdata_billing_transactions.join(' '));
-                })
-                .then(function(){
-                    return testUtils.pgQuery(pgdata_unique_user_views.join(' '));
-                })
-                .then(function(){
-                    return testUtils.pgQuery(pgdata_unique_user_views_daily.join(' '));
+                    return testUtils.pgQuery(pgdata_billing_transactions.join(' '))
                 });
         }
 
@@ -678,18 +619,5 @@ describe('querybot (E2E)', function(){
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
-    });
-    
-    fdescribe('GET /api/analytics/campaigns/showcase/apps/:id', function() {
-        it('should allow an app to get stats', function(done) {
-            options.url += '/showcase/apps/cam-b651cde4158304';
-            requestUtils.makeSignedRequest(appCreds, 'get', options).then(function(resp) {
-                expect(resp.response.statusCode).toBe(200);
-                expect(resp.body).toEqual([ camp1Data ]);
-            }).catch(function(error) {
-                expect(util.inspect(error)).not.toBeDefined();
-            }).done(done);
-        });
-
     });
 });
