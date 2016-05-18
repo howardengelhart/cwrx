@@ -12,7 +12,7 @@ var q               = require('q'),
             '/api/auth'
     };
 
-describe('querybot (E2E)', function(){
+describe('querybot - selfie (E2E)', function(){
     var pgdata_campaign_summary_hourly, pgdata_billing_transactions, mockUser, mockCamps,
         cookieJar, options, camp1Data, camp2Data, camp5Data, mockApp, appCreds;
 
