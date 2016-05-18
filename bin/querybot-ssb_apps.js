@@ -76,7 +76,9 @@ lib.queryOverall = function(campaignIds){
                 }
 
                 if (!res[row.campaignId]){
-                    res[row.campaignId] = { };
+                    res[row.campaignId] = {
+                        campaignId : row.campaignId
+                    };
                 }
 
                 res[row.campaignId].summary = lib.flattenOverallRecord(
@@ -309,7 +311,7 @@ lib.getAnalytics = function(req) {
     }
 
     function compileResults(){
-        return q(result);
+        return q(_.values(result));
     }
     
     return prepare(req)
@@ -345,7 +347,7 @@ lib.handler = function(params){
                 res.send(404);
             } else {
                 log.info('[%1] - returning campaign data', req.uuid);
-                res.send(200,results);
+                res.send(200,results.shift());
             }
             next();
         })
@@ -362,7 +364,6 @@ lib.handler = function(params){
             next();
         });
     });
-
 };
 
 if (_ut_) {

@@ -119,6 +119,7 @@ fdescribe('querybot-ssb: apps (UT)', function() {
             .then(function(result){
                 expect(result).toEqual({
                     abc : {
+                        campaignId : 'abc',
                         summary : {
                             clicks : 11, installs: 0, launches: 0, users: 0, views: 0
                         }
@@ -134,6 +135,7 @@ fdescribe('querybot-ssb: apps (UT)', function() {
             .then(function(result){
                 expect(result).toEqual({
                     abc : {
+                        campaignId : 'abc',
                         summary : {
                             clicks : 11, installs: 0, launches: 0, users: 111, views:121 
                         }
@@ -149,6 +151,7 @@ fdescribe('querybot-ssb: apps (UT)', function() {
             .then(function(result){
                 expect(result).toEqual({
                     def : {
+                        campaignId : 'def',
                         summary : {
                             clicks : 99, installs: 11, launches: 41, users: 275, views: 291 
                         }
@@ -165,6 +168,7 @@ fdescribe('querybot-ssb: apps (UT)', function() {
             .then(function(result){
                 expect(result).toEqual({
                     abc : {
+                        campaignId : 'abc',
                         summary : {
                             clicks : 11, installs: 0, launches: 0, users: 0, views: 121 
                         }
