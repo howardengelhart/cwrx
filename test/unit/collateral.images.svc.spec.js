@@ -76,12 +76,12 @@ describe('collateralImages-images (UT)', function() {
 
         it('should upload a file', function(done) {
             collateralImages.upload(req, 'ut/o-1', fileOpts, s3, config).then(function(response) {
-                expect(response).toEqual({key: 'ut/o-1/fakeHash.txt', md5: 'qwer1234'});
+                expect(response).toEqual({key: path.normalize('ut/o-1/fakeHash.txt'), md5: 'qwer1234'});
                 expect(hashUtils.hashFile).toHaveBeenCalledWith('/ut/foo.txt');
                 expect(s3.headObject).toHaveBeenCalled();
-                expect(s3.headObject.calls.all()[0].args[0]).toEqual({Bucket:'bkt', Key:'ut/o-1/fakeHash.txt'});
+                expect(s3.headObject.calls.all()[0].args[0]).toEqual({Bucket:'bkt', Key: path.normalize('ut/o-1/fakeHash.txt')});
                 expect(s3util.putObject).toHaveBeenCalledWith(s3, '/ut/foo.txt',
-                    {Bucket:'bkt',Key:'ut/o-1/fakeHash.txt',ACL:'public-read',CacheControl:'max-age=31556926',ContentType:'text/plain'});
+                    {Bucket:'bkt',Key:path.normalize('ut/o-1/fakeHash.txt'),ACL:'public-read',CacheControl:'max-age=31556926',ContentType:'text/plain'});
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
             }).done(done);
@@ -92,7 +92,7 @@ describe('collateralImages-images (UT)', function() {
                 cb(null, { ETag: '"qwer1234"' });
             });
             collateralImages.upload(req, 'ut/o-1', fileOpts, s3, config).then(function(response) {
-                expect(response).toEqual({key: 'ut/o-1/fakeHash.txt', md5: 'qwer1234'});
+                expect(response).toEqual({key: path.normalize('ut/o-1/fakeHash.txt'), md5: 'qwer1234'});
                 expect(hashUtils.hashFile).toHaveBeenCalled();
                 expect(s3.headObject).toHaveBeenCalled();
                 expect(s3util.putObject).not.toHaveBeenCalled();
@@ -341,11 +341,11 @@ describe('collateralImages-images (UT)', function() {
             });
 
             it('should create the tmp file without the query param', function() {
-                expect(fs.createWriteStream).toHaveBeenCalledWith('/tmp/' + jobId + '.png');
+                expect(fs.createWriteStream).toHaveBeenCalledWith(path.normalize('/tmp/' + jobId + '.png'));
             });
 
             it('should upload the file without the query param', function() {
-                expect(collateralImages.upload).toHaveBeenCalledWith(jasmine.anything(), jasmine.anything(), jasmine.objectContaining({ path: '/tmp/' + jobId + '.png' }), jasmine.anything(), jasmine.anything());
+                expect(collateralImages.upload).toHaveBeenCalledWith(jasmine.anything(), jasmine.anything(), jasmine.objectContaining({ path: path.normalize('/tmp/' + jobId + '.png') }), jasmine.anything(), jasmine.anything());
             });
 
             it('should fulfill the promise', function() {
@@ -905,7 +905,7 @@ describe('collateralImages-images (UT)', function() {
             collateralImages.uploadFiles(req, s3, config).then(function(resp) {
                 expect(resp.code).toBe(201);
                 expect(resp.body).toEqual([{code: 201, name: 'testFile', path: '/path/on/s3'}]);
-                expect(collateralImages.upload).toHaveBeenCalledWith(req,'ut/userFiles/u-1',
+                expect(collateralImages.upload).toHaveBeenCalledWith(req,path.normalize('ut/userFiles/u-1'),
                     {name: 'test', type:'image/jpeg',path:'/tmp/123'},'fakeS3',config);
                 expect(collateralImages.checkImageType).toHaveBeenCalledWith('/tmp/123');
                 expect(fs.remove).toHaveBeenCalled();
@@ -1052,22 +1052,22 @@ describe('collateralImages-images (UT)', function() {
         it('should successfully generate and upload a splash image', function(done) {
             collateralImages.generate(req, imgSpec, 'fakeTempl', 'fakeHash', s3, config).then(function(key) {
                 expect(key).toBe('/path/on/s3');
-                expect(fs.writeFile).toHaveBeenCalledWith('/tmp/fakeUuid-compiled.html','compiledHtml',jasmine.any(Function));
+                expect(fs.writeFile).toHaveBeenCalledWith(path.normalize('/tmp/fakeUuid-compiled.html'),'compiledHtml',jasmine.any(Function));
                 expect(phantom.create).toHaveBeenCalledWith('--ssl-protocol=tlsv1',
                     { onExit: jasmine.any(Function),onStderr: jasmine.any(Function) }, jasmine.any(Function));
                 expect(phantObj.createPage).toHaveBeenCalledWith(jasmine.any(Function));
                 expect(page.set).toHaveBeenCalledWith('viewportSize',{height:600,width:600},jasmine.any(Function));
-                expect(page.open).toHaveBeenCalledWith('/tmp/fakeUuid-compiled.html', jasmine.any(Function));
-                expect(page.render).toHaveBeenCalledWith('/tmp/fakeUuid-splash.jpg',{quality:75},jasmine.any(Function));
-                expect(collateralImages.upload).toHaveBeenCalledWith(req,'ut/userFiles/u-1',{
-                    path:'/tmp/fakeUuid-splash.jpg',type:'image/jpeg'},s3,config);
+                expect(page.open).toHaveBeenCalledWith(path.normalize('/tmp/fakeUuid-compiled.html'), jasmine.any(Function));
+                expect(page.render).toHaveBeenCalledWith(path.normalize('/tmp/fakeUuid-splash.jpg'),{quality:75},jasmine.any(Function));
+                expect(collateralImages.upload).toHaveBeenCalledWith(req,path.normalize('ut/userFiles/u-1'),{
+                    path:path.normalize('/tmp/fakeUuid-splash.jpg'),type:'image/jpeg'},s3,config);
                 expect(collateralImages.splashCache.fakeHash).toEqual({md5:'qwer1234',date:jasmine.any(Date)});
                 process.nextTick(function() {
                     expect(page.close).toHaveBeenCalled();
                     expect(phantObj.exit).toHaveBeenCalled();
                     expect(fs.remove.calls.count()).toBe(2);
-                    expect(fs.remove.calls.all()[0].args).toEqual(['/tmp/fakeUuid-compiled.html',jasmine.any(Function)]);
-                    expect(fs.remove.calls.all()[1].args).toEqual(['/tmp/fakeUuid-splash.jpg',jasmine.any(Function)]);
+                    expect(fs.remove.calls.all()[0].args).toEqual([path.normalize('/tmp/fakeUuid-compiled.html'),jasmine.any(Function)]);
+                    expect(fs.remove.calls.all()[1].args).toEqual([path.normalize('/tmp/fakeUuid-splash.jpg'),jasmine.any(Function)]);
                     done();
                 });
             }).catch(function(error) {
@@ -1105,8 +1105,8 @@ describe('collateralImages-images (UT)', function() {
                     expect(page.close).toHaveBeenCalled();
                     expect(phantObj.exit).toHaveBeenCalled();
                     expect(fs.remove.calls.count()).toBe(2);
-                    expect(fs.remove.calls.all()[0].args).toEqual(['/tmp/fakeUuid-compiled.html',jasmine.any(Function)]);
-                    expect(fs.remove.calls.all()[1].args).toEqual(['/tmp/fakeUuid-splash.jpg',jasmine.any(Function)]);
+                    expect(fs.remove.calls.all()[0].args).toEqual([path.normalize('/tmp/fakeUuid-compiled.html'),jasmine.any(Function)]);
+                    expect(fs.remove.calls.all()[1].args).toEqual([path.normalize('/tmp/fakeUuid-splash.jpg'),jasmine.any(Function)]);
                     done();
                 });
             });
@@ -1117,7 +1117,7 @@ describe('collateralImages-images (UT)', function() {
             collateralImages.generate(req, imgSpec, 'fakeTempl', 'fakeHash', s3, config).then(function(key) {
                 expect(key).not.toBeDefined();
             }).catch(function(error) {
-                expect(error).toEqual('Failed to open /tmp/fakeUuid-compiled.html: status was fail');
+                expect(error).toEqual('Failed to open ' + path.normalize('/tmp/fakeUuid-compiled.html') + ': status was fail');
                 expect(fs.writeFile).toHaveBeenCalled();
                 expect(page.set).toHaveBeenCalled();
                 expect(page.render).not.toHaveBeenCalled();
@@ -1280,13 +1280,13 @@ describe('collateralImages-images (UT)', function() {
             collateralImages.splashCache.fakeHash = { md5: 'qwer1234', date: new Date() };
             collateralImages.generateSplash(req, imgSpec, s3, config).then(function(resp) {
                 expect(resp).toEqual({code:201,ratio:'foo',path:'/path/on/s3'});
-                expect(s3.headObject).toHaveBeenCalledWith({Bucket:'bkt',Key:'ut/userFiles/u-1/qwer1234.jpg'},jasmine.any(Function));
+                expect(s3.headObject).toHaveBeenCalledWith({Bucket:'bkt',Key:path.normalize('ut/userFiles/u-1/qwer1234.jpg')},jasmine.any(Function));
                 expect(collateralImages.generate).toHaveBeenCalledWith(req,imgSpec,'fakeTemplate','fakeHash',s3,config);
                 req.query = {};
                 return collateralImages.generateSplash(req, imgSpec, s3, config);
             }).then(function(resp) {
                 expect(resp).toEqual({code:201,ratio:'foo',path:'/path/on/s3'});
-                expect(s3.headObject.calls.all()[1].args).toEqual([{Bucket:'bkt',Key:'ut/userFiles/u-1/qwer1234.jpg'},jasmine.any(Function)]);
+                expect(s3.headObject.calls.all()[1].args).toEqual([{Bucket:'bkt',Key:path.normalize('ut/userFiles/u-1/qwer1234.jpg')},jasmine.any(Function)]);
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
             }).done(done);
@@ -1297,7 +1297,7 @@ describe('collateralImages-images (UT)', function() {
             s3.headObject.and.callFake(function(params, cb) { cb(null, {ETag: '"qwer5678"'}); });
             collateralImages.generateSplash(req, imgSpec, s3, config).then(function(resp) {
                 expect(resp).toEqual({code:201,ratio:'foo',path:'/path/on/s3'});
-                expect(s3.headObject).toHaveBeenCalledWith({Bucket:'bkt',Key:'ut/userFiles/u-1/qwer1234.jpg'},jasmine.any(Function));
+                expect(s3.headObject).toHaveBeenCalledWith({Bucket:'bkt',Key:path.normalize('ut/userFiles/u-1/qwer1234.jpg')},jasmine.any(Function));
                 expect(collateralImages.generate).toHaveBeenCalledWith(req,imgSpec,'fakeTemplate','fakeHash',s3,config);
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
@@ -1308,8 +1308,8 @@ describe('collateralImages-images (UT)', function() {
             collateralImages.splashCache.fakeHash = { md5: 'qwer1234', date: new Date() };
             s3.headObject.and.callFake(function(params, cb) { cb(null, {ETag: '"qwer1234"'}); });
             collateralImages.generateSplash(req, imgSpec, s3, config).then(function(resp) {
-                expect(resp).toEqual({code:201,ratio:'foo',path:'ut/userFiles/u-1/qwer1234.jpg'});
-                expect(s3.headObject).toHaveBeenCalledWith({Bucket:'bkt',Key:'ut/userFiles/u-1/qwer1234.jpg'},jasmine.any(Function));
+                expect(resp).toEqual({code:201,ratio:'foo',path:path.normalize('ut/userFiles/u-1/qwer1234.jpg')});
+                expect(s3.headObject).toHaveBeenCalledWith({Bucket:'bkt',Key:path.normalize('ut/userFiles/u-1/qwer1234.jpg')},jasmine.any(Function));
                 expect(collateralImages.generate).not.toHaveBeenCalled();
                 expect(mockLog.warn).not.toHaveBeenCalled();
             }).catch(function(error) {
@@ -1486,7 +1486,7 @@ describe('collateralImages-images (UT)', function() {
                 expect(s3.headObject).toHaveBeenCalledWith({Bucket: 'bkt', Key: 'ut/foo.txt'}, jasmine.any(Function));
                 expect(s3.copyObject).toHaveBeenCalledWith(
                     {Bucket:'bkt',Key:'ut/foo.txt',CacheControl:'max-age=100',ContentType:'text/plain',
-                     CopySource:'bkt/ut/foo.txt',ACL:'public-read',MetadataDirective:'REPLACE'},
+                     CopySource:path.normalize('bkt/ut/foo.txt'),ACL:'public-read',MetadataDirective:'REPLACE'},
                     jasmine.any(Function)
                 );
             }).catch(function(error) {
@@ -1501,7 +1501,7 @@ describe('collateralImages-images (UT)', function() {
                 expect(s3.headObject).toHaveBeenCalledWith({Bucket: 'bkt', Key: 'ut/foo.txt'}, jasmine.any(Function));
                 expect(s3.copyObject).toHaveBeenCalledWith(
                     {Bucket:'bkt',Key:'ut/foo.txt',CacheControl:'max-age=15',ContentType:'text/plain',
-                     CopySource:'bkt/ut/foo.txt',ACL:'public-read',MetadataDirective:'REPLACE'},
+                     CopySource:path.normalize('bkt/ut/foo.txt'),ACL:'public-read',MetadataDirective:'REPLACE'},
                     jasmine.any(Function)
                 );
             }).catch(function(error) {
@@ -1516,7 +1516,7 @@ describe('collateralImages-images (UT)', function() {
                 expect(s3.headObject).toHaveBeenCalledWith({Bucket: 'bkt', Key: 'ut/foo.txt'}, jasmine.any(Function));
                 expect(s3.copyObject).toHaveBeenCalledWith(
                     {Bucket:'bkt',Key:'ut/foo.txt',CacheControl:'max-age=0',ContentType:'text/plain',
-                     CopySource:'bkt/ut/foo.txt',ACL:'public-read',MetadataDirective:'REPLACE'},
+                     CopySource:path.normalize('bkt/ut/foo.txt'),ACL:'public-read',MetadataDirective:'REPLACE'},
                     jasmine.any(Function)
                 );
             }).catch(function(error) {

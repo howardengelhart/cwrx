@@ -1,4 +1,5 @@
 var flush = true;
+var __windows__ = (process.platform === 'win32');
 describe('service (UT)',function(){
 
     var state, mockLog, processProperties, resolveSpy, rejectSpy, events, requestUtils,
@@ -38,6 +39,10 @@ describe('service (UT)',function(){
         spyOn(console,'log');
 
         processProperties = {};
+	if (__windows__){
+		process.setuid = function(){};
+		process.setgid = function(){};
+	}
         Object.keys(process).forEach(function(key){
             processProperties[key] = process[key];
         });
@@ -86,7 +91,7 @@ describe('service (UT)',function(){
 
         it('looks for version file with name in dir if passed',function(){
             service.getVersion('test','somedir');
-            expect(fs.existsSync).toHaveBeenCalledWith('somedir/test');
+            expect(fs.existsSync).toHaveBeenCalledWith(path.normalize('somedir/test'));
         });
 
         it('looks for version file named .version if name not passed',function(){
@@ -265,9 +270,12 @@ describe('service (UT)',function(){
                 .finally(function(){
                     expect(resolveSpy).toHaveBeenCalledWith(state);
                     expect(rejectSpy).not.toHaveBeenCalled();
-                    expect(state.config.cacheAddress('f','run')).toEqual('/opt/sixxy/run/f');
-                    expect(state.config.cacheAddress('f','log')).toEqual('/opt/sixxy/log/f');
-                    expect(state.config.pidPath).toEqual('/opt/sixxy/run/somefile.pid');
+                    expect(state.config.cacheAddress('f','run'))
+			.toEqual(path.normalize('/opt/sixxy/run/f'));
+                    expect(state.config.cacheAddress('f','log'))
+			.toEqual(path.normalize('/opt/sixxy/log/f'));
+                    expect(state.config.pidPath)
+			.toEqual(path.normalize('/opt/sixxy/run/somefile.pid'));
                 }).done(done);
         });
 
@@ -440,7 +448,8 @@ describe('service (UT)',function(){
                 .then(service.daemonize)
                 .then(resolveSpy,rejectSpy)
                 .finally(function(){
-                    expect(daemon.daemonize.calls.allArgs()[0][0]).toEqual('/opt/sixxy/run/test.pid');
+                    expect(daemon.daemonize.calls.allArgs()[0][0])
+			.toEqual(path.normalize('/opt/sixxy/run/test.pid'));
                     expect(resolveSpy).not.toHaveBeenCalledWith(state);
                     expect(rejectSpy).toHaveBeenCalled();
                     expect(rejectSpy.calls.allArgs()[0]).toEqual(

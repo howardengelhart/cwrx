@@ -1,5 +1,6 @@
 # Ads Service Changelog
 
+### 4.7.1: Mon May 16 17:36:18 EDT 2016
 * Allow apps to edit campaign update requests: [#891](https://github.com/cinema6/cwrx/pull/891)
 * Extra deployment steps:
     * Update watchman app with `permissions.campaignUpdates` and `fieldValidation.campaignUpdates`
