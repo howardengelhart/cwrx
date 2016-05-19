@@ -581,7 +581,6 @@ describe('ads advertisers endpoints (E2E):', function() {
     describe('PUT /api/account/advertisers/:id', function() {
         var createdAdverts, mockAdverts, options, nowStr;
         beforeAll(function(done) { // create new adverts with beeswax entities
-            createdAdverts = [];
             nowStr = String(Date.now()) + ' - ';
             q.all(['put advert 1', 'put advert 2'].map(function(nameSuffix) {
                 return requestUtils.qRequest('post', {
@@ -595,9 +594,10 @@ describe('ads advertisers endpoints (E2E):', function() {
                     if (resp.response.statusCode !== 201) {
                         return q.reject({ code: resp.response.statusCode, body: resp.body });
                     }
-                    createdAdverts.push(resp.body);
+                    return q(resp.body);
                 });
             })).then(function(results) {
+                createdAdverts = results;
                 done();
             }).catch(done.fail);
         });

@@ -1645,7 +1645,7 @@ describe('ads-campaigns (UT)', function() {
         it('should reject if the request fails', function(done) {
             requestUtils.proxyRequest.and.returnValue(q.reject('I GOT A PROBLEM'));
             campModule.sendDeleteRequest(req, 'e-1', 'experiences').then(function() {
-                expect('resolved').not.toBe('resolved');
+                fail('Should not have resolved');
             }).catch(function(error) {
                 expect(error).toEqual(new Error('Failed sending delete request to content service'));
                 expect(mockLog.error).toHaveBeenCalled();

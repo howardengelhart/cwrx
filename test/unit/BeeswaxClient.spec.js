@@ -152,7 +152,7 @@ describe('BeeswaxClient', function() {
         it('should reject if the response succeeds but the success flag is false', function(done) {
             authResp = { success: false, message: 'nah yo password is wrong' };
             beeswax.authenticate().then(function() {
-                expect('resolved').not.toBe('resolved');
+                fail('Should not have resolved');
             }).catch(function(error) {
                 expect(error).toEqual(new Error(util.inspect({ success: false, message: 'nah yo password is wrong' })));
                 expect(mockLog.error).toHaveBeenCalled();
@@ -165,7 +165,7 @@ describe('BeeswaxClient', function() {
         it('should reject if the response fails', function(done) {
             authResp = q.reject({ statusCode: 500, error: 'no can do buddy' });
             beeswax.authenticate().then(function() {
-                expect('resolved').not.toBe('resolved');
+                fail('Should not have resolved');
             }).catch(function(error) {
                 expect(error).toEqual({ statusCode: 500, error: 'no can do buddy' });
                 expect(mockLog.error).toHaveBeenCalled();
@@ -316,7 +316,7 @@ describe('BeeswaxClient', function() {
         it('should reject if the response succeeds but the success flag is false', function(done) {
             resps.get = q({ success: false, message: 'cant find it brah' });
             beeswax.request('get', opts).then(function() {
-                expect('resolved').not.toBe('resolved');
+                fail('Should not have resolved');
             }).catch(function(error) {
                 expect(error).toEqual(new Error(util.inspect({ success: false, message: 'cant find it brah' })));
                 expect(rp.get).toHaveBeenCalled();
@@ -327,7 +327,7 @@ describe('BeeswaxClient', function() {
         it('should reject if the response fails', function(done) {
             resps.get = BluebirdPromise.reject(new rpErrors.StatusCodeError(500, 'BIG PROBLEMS', { opts: 'yes' }, 'omg the whole response'));
             beeswax.request('get', opts).then(function() {
-                expect('resolved').not.toBe('resolved');
+                fail('Should not have resolved');
             }).catch(function(error) {
                 expect(error).toEqual(jasmine.any(rpErrors.StatusCodeError));
                 expect(error.statusCode).toBe(500);

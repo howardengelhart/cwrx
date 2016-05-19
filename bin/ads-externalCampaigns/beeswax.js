@@ -19,8 +19,7 @@
     // Schema for request bodies, matching `campaign.externalCampaigns.beeswax`
     beesCamps.schema = {
         externalId: {
-            __allowed: false,
-            __type: 'string'
+            __allowed: false
         },
         budget: {
             __allowed: true,
@@ -36,7 +35,7 @@
 
     beesCamps.setupSvc = function(db, config, beeswax) {
         beesCamps.config.beeswax = config.beeswax;
-        beesCamps.config.api = config.api; // modularize this?
+        beesCamps.config.api = config.api;
         Object.keys(beesCamps.config.api)
         .filter(function(key) { return key !== 'root'; })
         .forEach(function(key) {
@@ -53,7 +52,7 @@
         var fetchC6Campaign = CrudSvc.fetchRelatedEntity.bind(CrudSvc, {
             objName: 'campaigns',
             idPath: 'params.c6Id'
-        }, beesCamps.config);
+        }, beesCamps.config); //TODO: update to just call with api portion?
         // advert id could be on req.campaign for these endpoints, or req.origObj for syncCampaigns
         var fetchC6Advertiser = CrudSvc.fetchRelatedEntity.bind(CrudSvc, {
             objName: 'advertisers',
@@ -79,6 +78,10 @@
         
         return svc;
     };
+    
+    function round(num) {
+        return Number(num.toFixed(2));
+    }
     
     beesCamps.formatBeeswaxBody = function(newCamp, oldCamp, extCampEntry, req) {
         var log = logger.getLog(),
@@ -106,13 +109,13 @@
         
         var newVals = {};
         ['budget', 'dailyLimit'].forEach(function(field) {
-            var newCampVal = ld.get(newCamp, 'pricing.' + field, null),
-                oldCampVal = ld.get(oldCamp, 'pricing.' + field, null),
+            var newCampVal = ld.get(newCamp, 'pricing.' + field, undefined),
+                oldCampVal = ld.get(oldCamp, 'pricing.' + field, undefined),
                 campVal = (newCampVal !== undefined) ? newCampVal : oldCampVal;
                 
             // Fow now, not handling updating extern camps in case of camp budget/limit changing
             if (!!newCampVal && !!oldCampVal && newCampVal !== oldCampVal) {
-                log.info('[%1] %2 for %3 changing, but not modifying beeswax val',
+                log.info('[%1] %2 for %3 changing, but not modifying beeswax value',
                          req.uuid, field, oldCamp.id);
                 newVals[field] = extCampEntry[field];
                 return;
@@ -140,25 +143,24 @@
         newVals.dailyLimit = !!newVals.dailyLimit ? Math.min(newVals.budget, newVals.dailyLimit)
                                                   : newVals.dailyLimit;
         
-        beesBody.campaign_budget = !!newVals.budget ? newVals.budget * impressionRatio
+        beesBody.campaign_budget = !!newVals.budget ? round(newVals.budget * impressionRatio)
                                                     : newVals.budget;
-        beesBody.daily_budget = !!newVals.dailyLimit ? newVals.dailyLimit * impressionRatio
+        beesBody.daily_budget = !!newVals.dailyLimit ? round(newVals.dailyLimit * impressionRatio)
                                                      : newVals.dailyLimit;
-        
         return beesBody;
     };
     
-    beesCamps.updateExtCampPricing = function(extCampEntry, beesBody) {
+    beesCamps.updateExtCampPricing = function(extCampEntry, beeswaxCampaign) {
         var impressionRatio = beesCamps.config.beeswax.impressionRatio;
         
         // Round to 6 decimal places to deal with JS math errors
-        extCampEntry.budget = !!beesBody.campaign_budget ?
-            Number((beesBody.campaign_budget / impressionRatio).toFixed(6)) :
-            beesBody.campaign_budget;
+        extCampEntry.budget = !!beeswaxCampaign.campaign_budget ?
+            round(beeswaxCampaign.campaign_budget / impressionRatio) :
+            beeswaxCampaign.campaign_budget;
 
-        extCampEntry.dailyLimit = !!beesBody.daily_budget ?
-            Number((beesBody.daily_budget / impressionRatio).toFixed(6)) :
-            beesBody.daily_budget;
+        extCampEntry.dailyLimit = !!beeswaxCampaign.daily_budget ?
+            round(beeswaxCampaign.daily_budget / impressionRatio) :
+            beeswaxCampaign.daily_budget;
     };
     
     beesCamps.ensureBeeswaxAdvert = function(req, next, done) {
@@ -219,16 +221,16 @@
             return svc.beeswax.campaigns.create(beesBody)
             .then(function(resp) {
                 if (!resp.success) {
-                    log.warn('[%1] Creating Beeswax Campaign failed: %2', req.uuid, resp.message);
+                    log.warn('[%1] Creating beeswax campaign failed: %2', req.uuid, resp.message);
                     return q({
                         code: resp.code || 400,
-                        body: 'Could not create Beeswax Campaign'
+                        body: 'Could not create beeswax campaign'
                     });
                 }
                 var beesId = resp.payload.campaign_id;
                 log.info('[%1] Created Beeswax campaign %2 for %3', req.uuid, beesId, c6Id);
 
-                beesCamps.updateExtCampPricing(extCampEntry, beesBody);
+                beesCamps.updateExtCampPricing(extCampEntry, resp.payload);
                 extCampEntry.externalId = beesId;
                 
                 return q(svc._db.collection('campaigns').findOneAndUpdate(
@@ -264,7 +266,7 @@
             // update existing externCamp entry with body fields, if set
             ['budget', 'dailyLimit'].forEach(function(field) {
                 extCampEntry[field] = (req.body[field] !== undefined) ? req.body[field]
-                                                                     : extCampEntry[field];
+                                                                      : extCampEntry[field];
             });
             
             var beesBody = beesCamps.formatBeeswaxBody(req.campaign,req.campaign,extCampEntry, req);
@@ -273,16 +275,16 @@
             return svc.beeswax.campaigns.edit(beesId, beesBody)
             .then(function(resp) {
                 if (!resp.success) {
-                    log.warn('[%1] Editing Beeswax Campaign %2 failed: %3',
+                    log.warn('[%1] Editing beeswax campaign %2 failed: %3',
                              req.uuid, beesId, resp.message);
                     return q({
                         code: resp.code || 400,
-                        body: 'Could not edit Beeswax Campaign'
+                        body: 'Could not edit beeswax campaign'
                     });
                 }
                 log.info('[%1] Edited Beeswax campaign %2 for %3', req.uuid, beesId, c6Id);
 
-                beesCamps.updateExtCampPricing(extCampEntry, beesBody);
+                beesCamps.updateExtCampPricing(extCampEntry, resp.payload);
                 
                 return q(svc._db.collection('campaigns').findOneAndUpdate(
                     { id: c6Id },
@@ -306,8 +308,6 @@
         var log = logger.getLog(),
             extCampEntry = req.origObj.externalCampaigns.beeswax;
         
-        req._advertiserId = req.origObj.advertiserId; // set for fetchC6Advertiser
-        
         return svc.runAction(req, 'syncCampaigns', function() {
             var newBeesBody = beesCamps.formatBeeswaxBody(req.body, req.origObj, extCampEntry, req),
                 oldBeesBody = beesCamps.formatBeeswaxBody(req.origObj,req.origObj,extCampEntry,req),
@@ -323,16 +323,16 @@
             return svc.beeswax.campaigns.edit(beesId, newBeesBody)
             .then(function(resp) {
                 if (!resp.success) {
-                    log.warn('[%1] Editing Beeswax Campaign %2 failed: %3',
+                    log.warn('[%1] Editing beeswax campaign %2 failed: %3',
                              req.uuid, beesId, resp.message);
                     return q({
                         code: resp.code || 400,
-                        body: 'Could not edit Beeswax Campaign'
+                        body: 'Could not edit beeswax campaign'
                     });
                 }
                 log.info('[%1] Edited Beeswax campaign %2 for %3',req.uuid, beesId, req.origObj.id);
 
-                beesCamps.updateExtCampPricing(extCampEntry, newBeesBody);
+                beesCamps.updateExtCampPricing(extCampEntry, resp.payload);
 
                 return q(extCampEntry);
             })
@@ -353,7 +353,7 @@
         
         var authMidware = authUtils.crudMidware('campaigns', { allowApps: true });
         
-        router.post('/', sessions, authMidware.create, audit, function(req, res) {
+        router.post('/', sessions, authMidware.edit, audit, function(req, res) {
             var promise = beesCamps.createBeeswaxCamp(svc, req);
             promise.finally(function() {
                 jobManager.endJob(req, res, promise.inspect())
