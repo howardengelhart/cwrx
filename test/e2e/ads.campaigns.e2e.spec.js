@@ -1,8 +1,8 @@
 var q               = require('q'),
     request         = require('request'),
     util            = require('util'),
+    BeeswaxClient   = require('beeswax-client'),
     testUtils       = require('./testUtils'),
-    BeeswaxClient   = require('../../lib/BeeswaxClient'),
     requestUtils    = require('../../lib/requestUtils'),
     host            = process.env.host || 'localhost',
     config = {
