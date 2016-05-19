@@ -152,7 +152,6 @@ describe('ads-campaignUpdates (UT)', function() {
         
         it('should save some config variables locally', function() {
             expect(updateModule.config.api).toBeDefined();
-            expect(updateModule.config.emails).toBeDefined();
         });
         
         it('should create a JsonProducer', function() {
@@ -1294,39 +1293,6 @@ describe('ads-campaignUpdates (UT)', function() {
         });
     });
 
-    describe('notifySupport', function() {
-        beforeEach(function() {
-            req.campaign = { id: 'cam-1', name: 'my first campaign' };
-            spyOn(email, 'newUpdateRequest').and.returnValue(q());
-        });
-        
-        it('should send an email and call next', function(done) {
-            updateModule.notifySupport(req, nextSpy, doneSpy).catch(errorSpy).finally(function() {
-                expect(nextSpy).toHaveBeenCalled();
-                expect(doneSpy).not.toHaveBeenCalled();
-                expect(errorSpy).not.toHaveBeenCalled();
-                expect(email.newUpdateRequest).toHaveBeenCalledWith(
-                    'no-reply@c6.com',
-                    'support@c6.com',
-                    req,
-                    'my first campaign',
-                    'http://selfie.com/campaigns/cam-1/admin'
-                );
-                done();
-            });
-        });
-        
-        it('should reject if sending the email fails', function(done) {
-            email.newUpdateRequest.and.returnValue(q.reject('I GOT A PROBLEM'));
-            updateModule.notifySupport(req, nextSpy, doneSpy).catch(errorSpy).finally(function() {
-                expect(nextSpy).not.toHaveBeenCalled();
-                expect(doneSpy).not.toHaveBeenCalled();
-                expect(errorSpy).toHaveBeenCalledWith('I GOT A PROBLEM');
-                done();
-            });
-        });
-    });
-
     describe('lockCampaign', function() {
         var svc, mockColl;
         beforeEach(function() {
@@ -1714,154 +1680,6 @@ describe('ads-campaignUpdates (UT)', function() {
                         });
                     });
                 });
-            });
-        });
-    });
-
-    describe('notifyOwner', function() {
-        var svc, mockColl, mockCursor;
-        beforeEach(function() {
-            mockCursor = {
-                next: jasmine.createSpy('cursor.next()').and.returnValue(q({ id: 'u-2', email: 'owner@c6.com' }))
-            };
-            mockColl = {
-                find: jasmine.createSpy('coll.find()').and.returnValue(mockCursor)
-            };
-            mockDb.collection.and.returnValue(mockColl);
-            req.body = { id: 'ur-1', campaign: 'cam-1', data: { foo: 'bar' }, status: Status.Approved };
-            req.origObj = { id: 'ur-1', campaign: 'cam-1', data: { foo: 'baz' }, status: Status.Pending };
-            req.campaign = { id: 'cam-1', name: 'camp 1', updateRequest: 'u-1', user: 'u-2' };
-            spyOn(email, 'updateApproved').and.returnValue(q());
-            spyOn(email, 'updateRejected').and.returnValue(q());
-            svc = { _db: mockDb };
-        });
-
-        it('should look up the owner\'s email and send them a notification', function(done) {
-           updateModule.notifyOwner(svc, req, nextSpy, doneSpy).catch(errorSpy).finally(function() {
-                expect(nextSpy).toHaveBeenCalled();
-                expect(doneSpy).not.toHaveBeenCalled();
-                expect(errorSpy).not.toHaveBeenCalled();
-                expect(mockColl.find).toHaveBeenCalledWith({ id: 'u-2' }, { fields: { id: 1, email: 1 }, limit: 1 });
-                expect(email.updateApproved).toHaveBeenCalledWith(
-                    'no-reply@c6.com',
-                    'owner@c6.com',
-                    false,
-                    'camp 1',
-                    'http://seflie.c6.com/review/campaigns'
-                );
-                expect(email.updateRejected).not.toHaveBeenCalled();
-                expect(mockLog.warn).not.toHaveBeenCalled();
-                done();
-            });
-        });
-        
-        it('should send an alternate message if the update is being rejected', function(done) {
-           req.body.status = Status.Rejected;
-           req.body.rejectionReason = 'worst campaign ever';
-           updateModule.notifyOwner(svc, req, nextSpy, doneSpy).catch(errorSpy).finally(function() {
-                expect(nextSpy).toHaveBeenCalled();
-                expect(doneSpy).not.toHaveBeenCalled();
-                expect(errorSpy).not.toHaveBeenCalled();
-                expect(mockColl.find).toHaveBeenCalled();
-                expect(email.updateRejected).toHaveBeenCalledWith(
-                    'no-reply@c6.com',
-                    'owner@c6.com',
-                    false,
-                    'camp 1',
-                    'http://seflie.c6.com/review/campaigns',
-                    'worst campaign ever'
-                );
-                expect(email.updateApproved).not.toHaveBeenCalled();
-                expect(mockLog.warn).not.toHaveBeenCalled();
-                done();
-            });
-        });
-        
-        it('should inform the email lib if the update was an initial submit', function(done) {
-            req.origObj.initialSubmit = true;
-            var req1 = JSON.parse(JSON.stringify(req)), req2 = JSON.parse(JSON.stringify(req));
-            req2.body.status = Status.Rejected;
-            req2.body.rejectionReason = 'worst campaign ever';
-            q.all([
-                updateModule.notifyOwner(svc, req1, nextSpy, doneSpy).catch(errorSpy),
-                updateModule.notifyOwner(svc, req2, nextSpy, doneSpy).catch(errorSpy)
-            ]).then(function() {
-                expect(nextSpy.calls.count()).toBe(2);
-                expect(doneSpy).not.toHaveBeenCalled();
-                expect(errorSpy).not.toHaveBeenCalled();
-                expect(email.updateApproved).toHaveBeenCalledWith(
-                    'no-reply@c6.com',
-                    'owner@c6.com',
-                    true,
-                    'camp 1',
-                    'http://seflie.c6.com/review/campaigns'
-                );
-                expect(email.updateRejected).toHaveBeenCalledWith(
-                    'no-reply@c6.com',
-                    'owner@c6.com',
-                    true,
-                    'camp 1',
-                    'http://seflie.c6.com/review/campaigns',
-                    'worst campaign ever'
-                );
-                expect(mockLog.warn).not.toHaveBeenCalled();
-                done();
-            });
-        });
-        
-        it('should skip if not approving or rejecting the update', function(done) {
-            req.body.status = Status.Pending;
-            updateModule.notifyOwner(svc, req, nextSpy, doneSpy).catch(errorSpy).finally(function() {
-                expect(nextSpy).toHaveBeenCalled();
-                expect(doneSpy).not.toHaveBeenCalled();
-                expect(errorSpy).not.toHaveBeenCalled();
-                expect(mockColl.find).not.toHaveBeenCalled();
-                expect(email.updateApproved).not.toHaveBeenCalled();
-                expect(email.updateRejected).not.toHaveBeenCalled();
-                expect(mockLog.warn).not.toHaveBeenCalled();
-                done();
-            });
-        });
-        
-        it('should warn and continue if the user is not found', function(done) {
-            mockCursor.next.and.returnValue(q());
-            updateModule.notifyOwner(svc, req, nextSpy, doneSpy).catch(errorSpy).finally(function() {
-                expect(nextSpy).toHaveBeenCalled();
-                expect(doneSpy).not.toHaveBeenCalled();
-                expect(errorSpy).not.toHaveBeenCalled();
-                expect(mockColl.find).toHaveBeenCalled();
-                expect(email.updateApproved).not.toHaveBeenCalled();
-                expect(email.updateRejected).not.toHaveBeenCalled();
-                expect(mockLog.warn).toHaveBeenCalled();
-                done();
-            });
-        });
-
-        
-        it('should warn and continue if looking up the user fails', function(done) {
-            mockCursor.next.and.returnValue(q.reject('I GOT A PROBLEM'));
-            updateModule.notifyOwner(svc, req, nextSpy, doneSpy).catch(errorSpy).finally(function() {
-                expect(nextSpy).toHaveBeenCalled();
-                expect(doneSpy).not.toHaveBeenCalled();
-                expect(errorSpy).not.toHaveBeenCalled();
-                expect(mockColl.find).toHaveBeenCalled();
-                expect(email.updateApproved).not.toHaveBeenCalled();
-                expect(email.updateRejected).not.toHaveBeenCalled();
-                expect(mockLog.warn).toHaveBeenCalled();
-                done();
-            });
-        });
-        
-        it('should warn and continue if emailing the user fails', function(done) {
-            email.updateApproved.and.returnValue(q.reject('I GOT A PROBLEM'));
-            updateModule.notifyOwner(svc, req, nextSpy, doneSpy).catch(errorSpy).finally(function() {
-                expect(nextSpy).toHaveBeenCalled();
-                expect(doneSpy).not.toHaveBeenCalled();
-                expect(errorSpy).not.toHaveBeenCalled();
-                expect(mockColl.find).toHaveBeenCalled();
-                expect(email.updateRejected).not.toHaveBeenCalled();
-                expect(mockLog.warn).toHaveBeenCalled();
-                done();
             });
         });
     });

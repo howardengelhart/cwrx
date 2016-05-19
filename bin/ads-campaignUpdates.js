@@ -17,7 +17,6 @@
         CrudSvc         = require('../lib/crudSvc'),
         logger          = require('../lib/logger'),
         Model           = require('../lib/model'),
-        email           = require('../lib/email'),
         
         updateModule = { config: {} };
         
@@ -65,7 +64,6 @@
     };
 
     updateModule.setupSvc = function(db, campSvc, config, appCreds) {
-        updateModule.config.emails = config.emails;
         updateModule.config.api = config.api;
         Object.keys(updateModule.config.api)
         .filter(function(key) { return key !== 'root'; })
@@ -97,10 +95,7 @@
             handleRenewal       = updateModule.handleRenewal.bind(updateModule, svc),
             lockCampaign        = updateModule.lockCampaign.bind(updateModule, svc),
             unlockCampaign      = updateModule.unlockCampaign.bind(updateModule, svc),
-            applyUpdate         = updateModule.applyUpdate.bind(updateModule, svc, appCreds),
-            notifyOwner         = updateModule.notifyOwner.bind(updateModule, svc);
-        
-        var emailingEnabled = updateModule.config.emails.enabled;
+            applyUpdate         = updateModule.applyUpdate.bind(updateModule, svc, appCreds);
         
         svc.use('create', fetchCamp);
         svc.use('create', canEditCampaign);
@@ -112,9 +107,6 @@
         svc.use('create', updateModule.checkAvailableFunds);
         svc.use('create', handleInitialSubmit);
         svc.use('create', handleRenewal);
-        if(emailingEnabled) {
-            svc.use('create', updateModule.notifySupport);
-        }
         svc.use('create', lockCampaign);
         
         svc.use('edit', updateModule.ignoreCompleted);
@@ -128,9 +120,6 @@
         svc.use('edit', updateModule.checkAvailableFunds);
         svc.use('edit', unlockCampaign);
         svc.use('edit', applyUpdate);
-        if(emailingEnabled) {
-            svc.use('edit', notifyOwner);
-        }
         
         svc.use('autoApprove', autoApproveModel.midWare.bind(autoApproveModel, 'create'));
         svc.use('autoApprove', svc.setupObj.bind(svc));
@@ -480,23 +469,6 @@
         });
     };
     
-    // Send email to support notifying them of new update request
-    updateModule.notifySupport = function(req, next/*, done*/) {
-        var log = logger.getLog();
-
-        return email.newUpdateRequest(
-            updateModule.config.emails.sender,
-            updateModule.config.emails.supportAddress,
-            req,
-            req.campaign.name,
-            updateModule.config.emails.reviewLink.replace(':campId', req.campaign.id)
-        ).then(function() {
-            log.info('[%1] Notified support at %2 of new update request',
-                     req.uuid, updateModule.config.emails.supportAddress);
-            return next();
-        });
-    };
-    
     // Save updateRequest prop on the campaign. Also unsets any previous rejectionReason on campaign
     updateModule.lockCampaign = function(svc, req, next/*, done*/) {
         var log = logger.getLog(),
@@ -649,64 +621,6 @@
             .then(function() {
                 return q.reject('Failed editing campaign: ' + util.inspect(error));
             });
-        });
-    };
-
-    // Emails the user that their update was approved/rejected
-    updateModule.notifyOwner = function(svc, req, next/*, done*/) {
-        var log = logger.getLog(),
-            userColl = svc._db.collection('users');
-        
-        if (!updateModule.approvingUpdate(req) && !updateModule.rejectingUpdate(req)) {
-            return q(next());
-        }
-
-        return q(userColl.find(
-            { id: req.campaign.user },
-            { fields: { id: 1, email: 1 }, limit: 1 }
-        ).next())
-        .then(function(user) {
-            if (!user) {
-                log.warn('[%1] Campaign %2 has nonexistent owner %3, not notifying anyone',
-                         req.uuid, req.campaign.id, req.campaign.user);
-                return next();
-            }
-            
-            var emailPromise, action;
-            
-            if (updateModule.approvingUpdate(req)) {
-                emailPromise = email.updateApproved(
-                    updateModule.config.emails.sender,
-                    user.email,
-                    !!updateModule.isInitSubmit(req),
-                    req.campaign.name,
-                    updateModule.config.emails.dashboardLink
-                );
-                action = 'approved';
-            } else {
-                emailPromise = email.updateRejected(
-                    updateModule.config.emails.sender,
-                    user.email,
-                    !!updateModule.isInitSubmit(req),
-                    req.campaign.name,
-                    updateModule.config.emails.dashboardLink,
-                    req.body.rejectionReason
-                );
-                action = 'rejected';
-            }
-
-            log.info('[%1] Notifying user %2 at %3 that request %4 was %5',
-                     req.uuid, req.campaign.user, user.email, req.origObj.id, action);
-            
-            return emailPromise;
-        })
-        .then(function() {
-            return next();
-        })
-        .catch(function(error) {
-            log.warn('[%1] Error notifying user %2: %3',
-                      req.uuid, req.campaign.user, util.inspect(error));
-            return next();
         });
     };
     
