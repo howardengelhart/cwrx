@@ -82,45 +82,41 @@
     function round(num) {
         return Number(num.toFixed(2));
     }
+
     
-    beesCamps.formatBeeswaxBody = function(newCamp, oldCamp, extCampEntry, req) {
-        var log = logger.getLog(),
-            impressionRatio = beesCamps.config.beeswax.impressionRatio;
+    // Choose + return start date equal to earliest cards' startDate. 
+    beesCamps.chooseStartDate = function(campaign) {
+        var cards = campaign.cards || [];
+
+        return cards.reduce(function(currStart, card) {
+            var thisStart = new Date(ld.get(card, 'campaign.startDate', undefined));
+            if (!!thisStart.valueOf() && (!currStart || thisStart < currStart)) {
+                return thisStart;
+            } else {
+                return currStart;
+            }
+        }, undefined);
+    };
+    
+    // Format campaign + externalCampaigns entry into a beeswax campaign body
+    beesCamps.formatBeeswaxBody = function(campaign, extCampEntry, req) {
+        var impressionRatio = beesCamps.config.beeswax.impressionRatio;
 
         var beesBody = {
             advertiser_id: req.advertiser.beeswaxIds.advertiser,
-            alternative_id: oldCamp.id,
-            campaign_name: newCamp.name || oldCamp.name,
-            budget_type: 1,
-            active: false
+            alternative_id: campaign.id,
+            campaign_name: campaign.name || 'Untitled (' + campaign.id + ')',
+            budget_type: 1
         };
         
-        /* Set start_date to earliest cards' startDate, or now. Don't set end_date, as Beeswax may
-         * return errors if dates + budget/daily limit set such that total budget won't be spent
-         * within timeframe */
-        var cards = newCamp.cards || oldCamp.cards || [];
-        cards.forEach(function(card) {
-            var start = new Date(ld.get(card, 'campaign.startDate', undefined));
-            if (!!start.valueOf() && (!beesBody.start_date || start < beesBody.start_date)) {
-                beesBody.start_date = start;
-            }
-        });
-        beesBody.start_date = beesBody.start_date || new Date();
+        beesBody.start_date = beesCamps.chooseStartDate(campaign);
+        /* Don't set end_date, as Beeswax may return errors if dates + budget/daily limit set such
+         * that total budget won't be spent within timeframe */
         
         var newVals = {};
         ['budget', 'dailyLimit'].forEach(function(field) {
-            var newCampVal = ld.get(newCamp, 'pricing.' + field, undefined),
-                oldCampVal = ld.get(oldCamp, 'pricing.' + field, undefined),
-                campVal = (newCampVal !== undefined) ? newCampVal : oldCampVal;
+            var campVal = ld.get(campaign, 'pricing.' + field, undefined);
                 
-            // Fow now, not handling updating extern camps in case of camp budget/limit changing
-            if (!!newCampVal && !!oldCampVal && newCampVal !== oldCampVal) {
-                log.info('[%1] %2 for %3 changing, but not modifying beeswax value',
-                         req.uuid, field, oldCamp.id);
-                newVals[field] = extCampEntry[field];
-                return;
-            }
-            
             if (field === 'dailyLimit') {
                 // Allow dailyLimit to be set to null
                 if (!campVal && !extCampEntry[field]) {
@@ -150,6 +146,7 @@
         return beesBody;
     };
     
+    // Reset budget + dailyLimit on externalCampaigns entry based on returned beeswax campaign
     beesCamps.updateExtCampPricing = function(extCampEntry, beeswaxCampaign) {
         var impressionRatio = beesCamps.config.beeswax.impressionRatio;
         
@@ -163,6 +160,7 @@
             beeswaxCampaign.daily_budget;
     };
     
+    // Return 400 if campaign's advertiser does not have a beeswax advertiser
     beesCamps.ensureBeeswaxAdvert = function(req, next, done) {
         var log = logger.getLog();
 
@@ -176,6 +174,7 @@
         next();
     };
     
+    // Return 403 if request cannot edit campaign
     beesCamps.canEditCampaign = function(req, next, done) {
         var log = logger.getLog();
 
@@ -187,6 +186,7 @@
         return next();
     };
     
+    // Validate request body using beesCamps.schema
     beesCamps.validateBody = function(action, req, next, done) {
         var model = new Model('beeswaxCampaign', beesCamps.schema),
             origObj = ld.get(req.campaign, 'externalCampaigns.beeswax', {}),
@@ -199,6 +199,7 @@
         }
     };
 
+    // Run action to create Beeswax campaign + update C6 campaign's externalCampaigns field
     beesCamps.createBeeswaxCamp = function(svc, req) {
         var log = logger.getLog(),
             c6Id = req.params.c6Id;
@@ -215,7 +216,10 @@
                 budget: req.body.budget,
                 dailyLimit: req.body.dailyLimit
             };
-            var beesBody = beesCamps.formatBeeswaxBody(req.campaign,req.campaign,extCampEntry, req);
+
+            var beesBody = beesCamps.formatBeeswaxBody(req.campaign, extCampEntry, req);
+            beesBody.active = false; // initialize status to inactive
+            beesBody.start_date = beesBody.start_date || new Date(); // ensure start_date is set
             log.trace('[%1] Body for new beeswax campaign: %2', req.uuid, JSON.stringify(beesBody));
             
             return svc.beeswax.campaigns.create(beesBody)
@@ -251,6 +255,7 @@
         });
     };
 
+    // Run action to edit Beeswax campaign + update C6 campaign's externalCampaigns field
     beesCamps.editBeeswaxCamp = function(svc, req) {
         var log = logger.getLog();
         
@@ -269,7 +274,7 @@
                                                                       : extCampEntry[field];
             });
             
-            var beesBody = beesCamps.formatBeeswaxBody(req.campaign,req.campaign,extCampEntry, req);
+            var beesBody = beesCamps.formatBeeswaxBody(req.campaign, extCampEntry, req);
             log.trace('[%1] Body for beeswax campaign: %2', req.uuid, JSON.stringify(beesBody));
             
             return svc.beeswax.campaigns.edit(beesId, beesBody)
@@ -304,15 +309,23 @@
         });
     };
     
+    // Run action to edit Beeswax campaign if relevant campaign fields changed. Called from
+    // PUT /api/campaigns/:id handler, not directly from any endpoints in this module.
     beesCamps.syncCampaigns = function(svc, req) {
         var log = logger.getLog(),
-            extCampEntry = req.origObj.externalCampaigns.beeswax;
+            extCampEntry = req.origObj.externalCampaigns.beeswax,
+            beesId = extCampEntry.externalId;
         
         return svc.runAction(req, 'syncCampaigns', function() {
-            var newBeesBody = beesCamps.formatBeeswaxBody(req.body, req.origObj, extCampEntry, req),
-                oldBeesBody = beesCamps.formatBeeswaxBody(req.origObj,req.origObj,extCampEntry,req),
-                beesId = extCampEntry.externalId;
-                
+            var oldBeesBody = {
+                campaign_name: req.origObj.name,
+                start_date: beesCamps.chooseStartDate(req.origObj)
+            };
+            var newBeesBody = {
+                campaign_name: req.body.name || req.origObj.name,
+                start_date: beesCamps.chooseStartDate(req.body) || oldBeesBody.start_date
+            };
+            
             if (objUtils.compareObjects(newBeesBody, oldBeesBody)) {
                 log.trace('[%1] Beeswax-related fields for %2 unchanged', req.uuid, req.origObj.id);
                 return q(extCampEntry);
@@ -331,8 +344,6 @@
                     });
                 }
                 log.info('[%1] Edited Beeswax campaign %2 for %3',req.uuid, beesId, req.origObj.id);
-
-                beesCamps.updateExtCampPricing(extCampEntry, resp.payload);
 
                 return q(extCampEntry);
             })

@@ -164,6 +164,13 @@ describe('ads - Beeswax external campaigns endpoints (E2E):', function() {
                 }
             },
             {
+                id: 'cam-e2e-nameless',
+                user: 'u-selfie',
+                org: 'o-selfie',
+                advertiserId: createdAdvert.id,
+                status: 'draft'
+            },
+            {
                 id: 'cam-e2e-admin-1',
                 name: 'E2E - Admin beeswax camp 1',
                 user: 'u-admin',
@@ -371,6 +378,32 @@ describe('ads - Beeswax external campaigns endpoints (E2E):', function() {
                 return beeswax.campaigns.find(beesId);
             }).then(function(resp) {
                 expect(resp.success).toBe(true);
+                expect(resp.payload.campaign_budget).toEqual(Number((1 * impressionRatio).toFixed(2)));
+                expect(resp.payload.daily_budget).toEqual(Number((1 * impressionRatio).toFixed(2)));
+            }).catch(function(error) {
+                expect(error.message || util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
+
+        it('should handle a campaign with no name', function(done) {
+            options.url = config.adsUrl + '/campaigns/cam-e2e-nameless/external/beeswax';
+            var beesId;
+            requestUtils.qRequest('post', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(201);
+                expect(resp.body).toEqual({
+                    externalId: jasmine.any(Number),
+                    budget: 1,
+                    dailyLimit: 1
+                });
+                beesId = resp.body.externalId;
+                beesCampIds.push(beesId);
+                return checkExternCampProp('cam-e2e-nameless', resp.body);
+            }).then(function() {
+                // check that campaign created in Beeswax successfully
+                return beeswax.campaigns.find(beesId);
+            }).then(function(resp) {
+                expect(resp.success).toBe(true);
+                expect(resp.payload.campaign_name).toBe('Untitled (cam-e2e-nameless)');
                 expect(resp.payload.campaign_budget).toEqual(Number((1 * impressionRatio).toFixed(2)));
                 expect(resp.payload.daily_budget).toEqual(Number((1 * impressionRatio).toFixed(2)));
             }).catch(function(error) {

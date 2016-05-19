@@ -188,20 +188,51 @@ describe('ads-externalCampaigns beeswax (UT)', function() {
         });
     });
     
+    describe('chooseStartDate', function() {
+        var campaign;
+        beforeEach(function() {
+            campaign = {
+                id: 'cam-1',
+                name: 'my camp',
+                cards: [
+                    { id: 'rc-1', campaign: { startDate: '2016-05-10T23:00:34.012Z' } },
+                    { id: 'rc-2', campaign: { endDate: '2016-03-10T23:00:34.012Z' } },
+                    { id: 'rc-3', campaign: { startDate: '2016-04-10T23:00:34.012Z' } }
+                ]
+            };
+        });
+        
+        it('should use the oldest card startDate from the new campaign', function() {
+            expect(beesCamps.chooseStartDate(campaign)).toEqual(new Date('2016-04-10T23:00:34.012Z'));
+        });
+        
+        it('should handle a campaign with no cards', function() {
+            campaign.cards = [];
+            expect(beesCamps.chooseStartDate(campaign)).toBe(undefined);
+            delete campaign.cards;
+            expect(beesCamps.chooseStartDate(campaign)).toBe(undefined);
+        });
+    });
+    
     describe('formatBeeswaxBody', function() {
-        var newCamp, oldCamp, extCampEntry;
+        var campaign, extCampEntry;
         beforeEach(function() {
             req.advertiser = {
                 id: 'a-1',
                 beeswaxIds: { advertiser: 1111 }
             };
-            newCamp = {
+            campaign = {
                 id: 'cam-1',
-                name: 'brand new campaign'
-            };
-            oldCamp = {
-                id: 'cam-1',
-                name: 'ye olde campaign'
+                name: 'brand new campaign',
+                cards: [
+                    { id: 'rc-1', campaign: { startDate: '2016-05-10T23:00:34.012Z' } },
+                    { id: 'rc-2', campaign: { endDate: '2016-03-10T23:00:34.012Z' } },
+                    { id: 'rc-3', campaign: { startDate: '2016-04-10T23:00:34.012Z' } }
+                ],
+                pricing: {
+                    budget: 20000,
+                    dailyLimit: 2000
+                }
             };
             extCampEntry = {
                 externalId: 5555,
@@ -211,190 +242,90 @@ describe('ads-externalCampaigns beeswax (UT)', function() {
         });
         
         it('should format + return a Beeswax campaign body', function() {
-            var beesBody = beesCamps.formatBeeswaxBody(newCamp, oldCamp, extCampEntry, req);
+            var beesBody = beesCamps.formatBeeswaxBody(campaign, extCampEntry, req);
             expect(beesBody).toEqual({
                 advertiser_id   : 1111,
                 alternative_id  : 'cam-1',
                 campaign_name   : 'brand new campaign',
                 budget_type     : 1,
-                active          : false,
-                start_date      : jasmine.any(Date),
+                start_date      : new Date('2016-04-10T23:00:34.012Z'),
                 campaign_budget : jasmine.any(Number),
                 daily_budget    : jasmine.any(Number)
             });
         });
         
-        describe('when setting the campaign_name', function() {
-            it('should default to the old name if not set on the new campaign', function() {
-                delete newCamp.name;
-                var beesBody = beesCamps.formatBeeswaxBody(newCamp, oldCamp, extCampEntry, req);
-                expect(beesBody.campaign_name).toBe('ye olde campaign');
-            });
+        it('should have a default if no name is defined on the campaign', function() {
+            delete campaign.name;
+            var beesBody = beesCamps.formatBeeswaxBody(campaign, extCampEntry, req);
+            expect(beesBody.campaign_name).toBe('Untitled (cam-1)');
         });
         
-        describe('when setting the start_date', function() {
-            beforeEach(function() {
-                newCamp.cards = [
-                    { id: 'rc-1', campaign: { startDate: '2016-05-10T23:00:34.012Z' } },
-                    { id: 'rc-2', campaign: { endDate: '2016-03-10T23:00:34.012Z' } },
-                    { id: 'rc-3', campaign: { startDate: '2016-04-10T23:00:34.012Z' } }
-                ];
-                oldCamp.cards = [
-                    { id: 'rc-1', campaign: { startDate: '2010-05-10T23:00:34.012Z' } },
-                    { id: 'rc-2', campaign: { endDate: '2016-03-10T23:00:34.012Z' } },
-                    { id: 'rc-3', campaign: { startDate: '2016-04-10T23:00:34.012Z' } }
-                ];
-                jasmine.clock().install();
-                jasmine.clock().mockDate(new Date('2016-05-18T23:00:34.012Z'));
-            });
-            
-            afterEach(function() {
-                jasmine.clock().uninstall();
-            });
-            
-            it('should use the oldest card startDate from the new campaign', function() {
-                var beesBody = beesCamps.formatBeeswaxBody(newCamp, oldCamp, extCampEntry, req);
-                expect(beesBody.start_date).toEqual(new Date('2016-04-10T23:00:34.012Z'));
-            });
-            
-            it('should use the oldest card startDate from the old campaign if no cards are on the new campaign', function() {
-                delete newCamp.cards;
-                var beesBody = beesCamps.formatBeeswaxBody(newCamp, oldCamp, extCampEntry, req);
-                expect(beesBody.start_date).toEqual(new Date('2010-05-10T23:00:34.012Z'));
-            });
-            
-            it('should use the current date if no cards exist', function() {
-                delete newCamp.cards;
-                oldCamp.cards = [];
-                var beesBody = beesCamps.formatBeeswaxBody(newCamp, oldCamp, extCampEntry, req);
-                expect(beesBody.start_date).toEqual(new Date('2016-05-18T23:00:34.012Z'));
-            });
+        it('should leave the start_date undefined if the campaign has no cards', function() {
+            delete campaign.cards;
+            var beesBody = beesCamps.formatBeeswaxBody(campaign, extCampEntry, req);
+            expect(beesBody.start_date).not.toBeDefined();
         });
         
         describe('when setting the campaign_budget', function() {
-            beforeEach(function() {
-                newCamp.pricing = {
-                    budget: 20000,
-                    dailyLimit: 2000
-                };
-                oldCamp.pricing = {
-                    budget: 20000,
-                    dailyLimit: 2000
-                };
-            });
-            
             it('should use the externalCampaigns entry budget, multiplied by an impression ratio', function() {
-                var beesBody = beesCamps.formatBeeswaxBody(newCamp, oldCamp, extCampEntry, req);
+                var beesBody = beesCamps.formatBeeswaxBody(campaign, extCampEntry, req);
                 expect(Number(beesBody.campaign_budget.toFixed(6))).toBe(13333);
             });
             
-            it('should cap the new budget to the new campaign\'s budget', function() {
+            it('should cap the new budget to the campaign\'s budget', function() {
                 extCampEntry.budget = 66666;
-                var beesBody = beesCamps.formatBeeswaxBody(newCamp, oldCamp, extCampEntry, req);
+                var beesBody = beesCamps.formatBeeswaxBody(campaign, extCampEntry, req);
                 expect(Number(beesBody.campaign_budget.toFixed(6))).toBe(26666);
             });
             
-            it('should default the new budget to the new campaign\'s budget', function() {
+            it('should default the new budget to the campaign\'s budget', function() {
                 delete extCampEntry.budget;
-                var beesBody = beesCamps.formatBeeswaxBody(newCamp, oldCamp, extCampEntry, req);
+                var beesBody = beesCamps.formatBeeswaxBody(campaign, extCampEntry, req);
                 expect(Number(beesBody.campaign_budget.toFixed(6))).toBe(26666);
             });
             
-            it('should be able to use the old campaign\'s budget if the new campaign has no budget', function() {
-                delete newCamp.pricing;
-                extCampEntry.budget = 66666;
-                var beesBody = beesCamps.formatBeeswaxBody(newCamp, oldCamp, extCampEntry, req);
-                expect(Number(beesBody.campaign_budget.toFixed(6))).toBe(26666);
-
-                delete extCampEntry.budget;
-                var beesBody = beesCamps.formatBeeswaxBody(newCamp, oldCamp, extCampEntry, req);
-                expect(Number(beesBody.campaign_budget.toFixed(6))).toBe(26666);
-            });
-            
-            it('should ensure the the budget is set to some low value if neither newCamp or oldCamp have a budget', function() {
-                delete newCamp.pricing;
-                delete oldCamp.pricing;
-                var beesBody = beesCamps.formatBeeswaxBody(newCamp, oldCamp, extCampEntry, req);
+            it('should ensure the the budget is set to some low value if the campaign does not have a budget', function() {
+                delete campaign.pricing;
+                var beesBody = beesCamps.formatBeeswaxBody(campaign, extCampEntry, req);
                 expect(Number(beesBody.campaign_budget.toFixed(6))).toBe(1.33);
-            });
-            
-            it('should log a message and use the extCampEntry value if the campaign budget is changing', function() {
-                newCamp.pricing.budget = 40000;
-                oldCamp.pricing.budget = 20000;
-                var beesBody = beesCamps.formatBeeswaxBody(newCamp, oldCamp, extCampEntry, req);
-                expect(Number(beesBody.campaign_budget.toFixed(6))).toBe(13333);
-                expect(mockLog.info).toHaveBeenCalled();
-                expect(mockLog.info.calls.mostRecent().args).toContain('budget');
             });
         });
         
         describe('when setting the daily_budget', function() {
-            beforeEach(function() {
-                newCamp.pricing = {
-                    budget: 20000,
-                    dailyLimit: 2000
-                };
-                oldCamp.pricing = {
-                    budget: 20000,
-                    dailyLimit: 2000
-                };
-            });
-            
             it('should use the externalCampaigns entry dailyLimit, multiplied by an impression ratio', function() {
-                var beesBody = beesCamps.formatBeeswaxBody(newCamp, oldCamp, extCampEntry, req);
+                var beesBody = beesCamps.formatBeeswaxBody(campaign, extCampEntry, req);
                 expect(Number(beesBody.daily_budget.toFixed(6))).toBe(1333.3);
             });
             
-            it('should cap the new dailyLimit to the new campaign\'s dailyLimit', function() {
+            it('should cap the new dailyLimit to the campaign\'s dailyLimit', function() {
                 extCampEntry.dailyLimit = 6666;
-                var beesBody = beesCamps.formatBeeswaxBody(newCamp, oldCamp, extCampEntry, req);
+                var beesBody = beesCamps.formatBeeswaxBody(campaign, extCampEntry, req);
                 expect(Number(beesBody.daily_budget.toFixed(6))).toBe(2666.6);
             });
             
-            it('should default the new dailyLimit to the new campaign\'s dailyLimit', function() {
+            it('should default the new dailyLimit to the campaign\'s dailyLimit', function() {
                 delete extCampEntry.dailyLimit;
-                var beesBody = beesCamps.formatBeeswaxBody(newCamp, oldCamp, extCampEntry, req);
-                expect(Number(beesBody.daily_budget.toFixed(6))).toBe(2666.6);
-            });
-            
-            it('should be able to use the old campaign\'s dailyLimit if the new campaign has no dailyLimit', function() {
-                delete newCamp.pricing;
-                extCampEntry.dailyLimit = 6666;
-                var beesBody = beesCamps.formatBeeswaxBody(newCamp, oldCamp, extCampEntry, req);
-                expect(Number(beesBody.daily_budget.toFixed(6))).toBe(2666.6);
-
-                delete extCampEntry.dailyLimit;
-                var beesBody = beesCamps.formatBeeswaxBody(newCamp, oldCamp, extCampEntry, req);
+                var beesBody = beesCamps.formatBeeswaxBody(campaign, extCampEntry, req);
                 expect(Number(beesBody.daily_budget.toFixed(6))).toBe(2666.6);
             });
             
             it('should cap the dailyLimit to the campaign budget', function() {
                 extCampEntry.budget = 100;
-                var beesBody = beesCamps.formatBeeswaxBody(newCamp, oldCamp, extCampEntry, req);
+                var beesBody = beesCamps.formatBeeswaxBody(campaign, extCampEntry, req);
                 expect(Number(beesBody.campaign_budget.toFixed(6))).toBe(133.33);
                 expect(Number(beesBody.daily_budget.toFixed(6))).toBe(133.33);
             });
             
             it('should permit setting the new dailyLimit to null if the dailyLimit on the campaign is null', function() {
                 extCampEntry.dailyLimit = null;
-                newCamp.pricing.dailyLimit = null;
-                var beesBody = beesCamps.formatBeeswaxBody(newCamp, oldCamp, extCampEntry, req);
+                campaign.pricing.dailyLimit = null;
+                var beesBody = beesCamps.formatBeeswaxBody(campaign, extCampEntry, req);
                 expect(beesBody.daily_budget).toBe(null);
                 
-                delete newCamp.pricing;
-                delete oldCamp.pricing;
+                delete campaign.pricing;
                 delete extCampEntry.dailyLimit;
-                var beesBody = beesCamps.formatBeeswaxBody(newCamp, oldCamp, extCampEntry, req);
+                var beesBody = beesCamps.formatBeeswaxBody(campaign, extCampEntry, req);
                 expect(beesBody.daily_budget).toBe(null);
-            });
-            
-            it('should log a message and use the extCampEntry value if the campaign dailyLimit is changing', function() {
-                newCamp.pricing.dailyLimit = 40000;
-                oldCamp.pricing.dailyLimit = 20000;
-                var beesBody = beesCamps.formatBeeswaxBody(newCamp, oldCamp, extCampEntry, req);
-                expect(Number(beesBody.daily_budget.toFixed(6))).toBe(1333.3);
-                expect(mockLog.info).toHaveBeenCalled();
-                expect(mockLog.info.calls.mostRecent().args).toContain('dailyLimit');
             });
         });
     });
@@ -568,13 +499,20 @@ describe('ads-externalCampaigns beeswax (UT)', function() {
                 }
             };
             mockBeeswax.campaigns.create.and.callFake(function() { return q(beesResp); });
-            spyOn(beesCamps, 'formatBeeswaxBody').and.callFake(function(newCamp, oldCamp, extCampEntry, req) {
+            spyOn(beesCamps, 'formatBeeswaxBody').and.callFake(function(campaign, extCampEntry, req) {
                 return {
                     campaign_budget: extCampEntry.budget * beesCamps.config.beeswax.impressionRatio,
                     daily_budget: extCampEntry.dailyLimit * beesCamps.config.beeswax.impressionRatio,
+                    start_date: beesCamps.chooseStartDate(campaign)
                 };
             });
-            req.campaign = { id: 'cam-1', orig: 'yes' };
+            req.campaign = {
+                id: 'cam-1',
+                name: 'my camp',
+                cards: [
+                    { id: 'rc-1', campaign: { startDate: '2016-05-10T23:00:34.012Z' } },
+                ]
+            };
             req.body = { budget: 6666, dailyLimit: 666 };
         });
         
@@ -585,8 +523,13 @@ describe('ads-externalCampaigns beeswax (UT)', function() {
                     body: { externalId: 1234, budget: 1000, dailyLimit: 100 }
                 });
                 expect(svc.runAction).toHaveBeenCalledWith(req, 'create', jasmine.any(Function));
-                expect(beesCamps.formatBeeswaxBody).toHaveBeenCalledWith(req.campaign, req.campaign, jasmine.any(Object), req);
-                expect(mockBeeswax.campaigns.create).toHaveBeenCalledWith({ campaign_budget: 8887.7778, daily_budget: 887.9778 });
+                expect(beesCamps.formatBeeswaxBody).toHaveBeenCalledWith(req.campaign, jasmine.any(Object), req);
+                expect(mockBeeswax.campaigns.create).toHaveBeenCalledWith({
+                    campaign_budget: 8887.7778,
+                    daily_budget: 887.9778,
+                    start_date: new Date('2016-05-10T23:00:34.012Z'),
+                    active: false
+                });
                 expect(mockDb.collection).toHaveBeenCalledWith('campaigns');
                 expect(mockColl.findOneAndUpdate).toHaveBeenCalledWith({ id: 'cam-1' }, jasmine.any(Object), jasmine.any(Object));
                 expect(mockColl.findOneAndUpdate.calls.mostRecent().args[1]).toEqual({ $set: {
@@ -595,6 +538,27 @@ describe('ads-externalCampaigns beeswax (UT)', function() {
                 } });
                 expect(mockColl.findOneAndUpdate.calls.mostRecent().args[2])
                     .toEqual({ w: 1, j: true, returnOriginal: false, sort: { id: 1 } });
+                expect(mockLog.warn).not.toHaveBeenCalled();
+                expect(mockLog.error).not.toHaveBeenCalled();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should default the start_date if no cards exist on the campaign', function(done) {
+            delete req.campaign.cards;
+            beesCamps.createBeeswaxCamp(svc, req).then(function(resp) {
+                expect(resp).toEqual({
+                    code: 201,
+                    body: { externalId: 1234, budget: 1000, dailyLimit: 100 }
+                });
+                expect(beesCamps.formatBeeswaxBody).toHaveBeenCalledWith(req.campaign, jasmine.any(Object), req);
+                expect(mockBeeswax.campaigns.create).toHaveBeenCalledWith({
+                    campaign_budget: 8887.7778,
+                    daily_budget: 887.9778,
+                    start_date: jasmine.any(Date),
+                    active: false
+                });
                 expect(mockLog.warn).not.toHaveBeenCalled();
                 expect(mockLog.error).not.toHaveBeenCalled();
             }).catch(function(error) {
@@ -703,7 +667,7 @@ describe('ads-externalCampaigns beeswax (UT)', function() {
                 }
             };
             mockBeeswax.campaigns.edit.and.callFake(function() { return q(beesResp); });
-            spyOn(beesCamps, 'formatBeeswaxBody').and.callFake(function(newCamp, oldCamp, extCampEntry, req) {
+            spyOn(beesCamps, 'formatBeeswaxBody').and.callFake(function(campaign, extCampEntry, req) {
                 return {
                     campaign_budget: extCampEntry.budget * beesCamps.config.beeswax.impressionRatio,
                     daily_budget: extCampEntry.dailyLimit * beesCamps.config.beeswax.impressionRatio,
@@ -725,7 +689,7 @@ describe('ads-externalCampaigns beeswax (UT)', function() {
                     body: { externalId: 7890, budget: 1000, dailyLimit: 100 }
                 });
                 expect(svc.runAction).toHaveBeenCalledWith(req, 'edit', jasmine.any(Function));
-                expect(beesCamps.formatBeeswaxBody).toHaveBeenCalledWith(req.campaign, req.campaign, jasmine.any(Object), req);
+                expect(beesCamps.formatBeeswaxBody).toHaveBeenCalledWith(req.campaign, jasmine.any(Object), req);
                 expect(mockBeeswax.campaigns.edit).toHaveBeenCalledWith(7890, { campaign_budget: 8887.7778, daily_budget: 887.9778 });
                 expect(mockDb.collection).toHaveBeenCalledWith('campaigns');
                 expect(mockColl.findOneAndUpdate).toHaveBeenCalledWith({ id: 'cam-1' }, jasmine.any(Object), jasmine.any(Object));
@@ -750,7 +714,7 @@ describe('ads-externalCampaigns beeswax (UT)', function() {
                     body: { externalId: 7890, budget: 1000, dailyLimit: 100 }
                 });
                 expect(svc.runAction).toHaveBeenCalledWith(req, 'edit', jasmine.any(Function));
-                expect(beesCamps.formatBeeswaxBody).toHaveBeenCalledWith(req.campaign, req.campaign, jasmine.any(Object), req);
+                expect(beesCamps.formatBeeswaxBody).toHaveBeenCalledWith(req.campaign, jasmine.any(Object), req);
                 expect(mockBeeswax.campaigns.edit).toHaveBeenCalledWith(7890, { campaign_budget: 26666, daily_budget: 2666.6 });
                 expect(mockDb.collection).toHaveBeenCalledWith('campaigns');
                 expect(mockColl.findOneAndUpdate).toHaveBeenCalledWith({ id: 'cam-1' }, jasmine.any(Object), jasmine.any(Object));
@@ -855,42 +819,36 @@ describe('ads-externalCampaigns beeswax (UT)', function() {
             beesResp = {
                 success: true,
                 payload: {
-                    campaign_id: 7890,
-                    campaign_budget: 1333.3,
-                    daily_budget: 133.33
+                    campaign_id: 7890
                 }
             };
             mockBeeswax.campaigns.edit.and.callFake(function() { return q(beesResp); });
-            spyOn(beesCamps, 'formatBeeswaxBody').and.callFake(function(newCamp, oldCamp, extCampEntry, req) {
-                return {
-                    campaign_name: newCamp.name,
-                    campaign_budget: extCampEntry.budget * beesCamps.config.beeswax.impressionRatio,
-                    daily_budget: extCampEntry.dailyLimit * beesCamps.config.beeswax.impressionRatio,
-                };
-            });
             req.body = {
                 id: 'cam-1',
-                name: 'brand new campaign'
+                name: 'brand new campaign',
+                cards: [
+                    { id: 'rc-1', campaign: { startDate: '2016-05-10T23:00:34.012Z' } }
+                ]
             };
             req.origObj = {
                 id: 'cam-1',
                 name: 'ye olde campaign',
                 externalCampaigns: {
                     beeswax: { externalId: 7890, budget: 20000, dailyLimit: 2000 }
-                }
+                },
+                cards: [
+                    { id: 'rc-1', campaign: { startDate: '2016-03-07T23:00:34.012Z' } }
+                ]
             };
         });
         
         it('should edit a beeswax campaign', function(done) {
             beesCamps.syncCampaigns(svc, req).then(function(resp) {
-                expect(resp).toEqual({ externalId: 7890, budget: 1000, dailyLimit: 100 });
+                expect(resp).toEqual({ externalId: 7890, budget: 20000, dailyLimit: 2000 });
                 expect(svc.runAction).toHaveBeenCalledWith(req, 'syncCampaigns', jasmine.any(Function));
-                expect(beesCamps.formatBeeswaxBody).toHaveBeenCalledWith(req.body, req.origObj, jasmine.any(Object), req);
-                expect(beesCamps.formatBeeswaxBody).toHaveBeenCalledWith(req.origObj, req.origObj, jasmine.any(Object), req);
                 expect(mockBeeswax.campaigns.edit).toHaveBeenCalledWith(7890, {
                     campaign_name: 'brand new campaign',
-                    campaign_budget: 26666,
-                    daily_budget: 2666.6
+                    start_date: new Date('2016-05-10T23:00:34.012Z')
                 });
                 expect(mockLog.warn).not.toHaveBeenCalled();
                 expect(mockLog.error).not.toHaveBeenCalled();
@@ -899,8 +857,33 @@ describe('ads-externalCampaigns beeswax (UT)', function() {
             }).done(done);
         });
         
-        it('should skip if the beeswax-related fields have not changed', function(done) {
+        it('should still do the edit if only the name or the start_date has changed', function(done) {
+            q.all(['name', 'cards'].map(function(prop) {
+                var reqCopy = JSON.parse(JSON.stringify(req));
+                reqCopy.body[prop] = reqCopy.origObj[prop];
+                return beesCamps.syncCampaigns(svc, reqCopy);
+            })).then(function(results) {
+                expect(results[0]).toEqual({ externalId: 7890, budget: 20000, dailyLimit: 2000 });
+                expect(results[1]).toEqual({ externalId: 7890, budget: 20000, dailyLimit: 2000 });
+                expect(mockBeeswax.campaigns.edit.calls.count()).toBe(2);
+                expect(mockBeeswax.campaigns.edit.calls.argsFor(0)).toEqual([7890, {
+                    campaign_name: 'ye olde campaign',
+                    start_date: new Date('2016-05-10T23:00:34.012Z')
+                }]);
+                expect(mockBeeswax.campaigns.edit.calls.argsFor(1)).toEqual([7890, {
+                    campaign_name: 'brand new campaign',
+                    start_date: new Date('2016-03-07T23:00:34.012Z')
+                }]);
+                expect(mockLog.warn).not.toHaveBeenCalled();
+                expect(mockLog.error).not.toHaveBeenCalled();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should skip if neither name nor start_date have not changed', function(done) {
             req.body.name = 'ye olde campaign';
+            delete req.body.cards;
             beesCamps.syncCampaigns(svc, req).then(function(resp) {
                 expect(resp).toEqual({ externalId: 7890, budget: 20000, dailyLimit: 2000 });
                 expect(svc.runAction).toHaveBeenCalled();
