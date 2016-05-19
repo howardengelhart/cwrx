@@ -172,7 +172,7 @@ describe('ads-campaignUpdates (UT)', function() {
             expect(svc._middleware.create).toContain(getBoundFn(CrudSvc.fetchRelatedEntity, [CrudSvc, {
                 objName: 'campaigns',
                 idPath: ['params.campId']
-            }, updateModule.config]));
+            }, updateModule.config.api]));
             expect(svc._middleware.create).toContain(getBoundFn(updateModule.canEditCampaign, [updateModule, campSvc]));
             expect(svc._middleware.create).toContain(updateModule.enforceLock);
             expect(svc._middleware.create).toContain(getBoundFn(updateModule.validateData, [updateModule, fakeCampModel]));
@@ -195,7 +195,7 @@ describe('ads-campaignUpdates (UT)', function() {
             expect(svc._middleware.edit).toContain(getBoundFn(CrudSvc.fetchRelatedEntity, [CrudSvc, {
                 objName: 'campaigns',
                 idPath: ['params.campId']
-            }, updateModule.config]));
+            }, updateModule.config.api]));
             expect(svc._middleware.edit).toContain(getBoundFn(updateModule.canEditCampaign, [updateModule, campSvc]));
             expect(svc._middleware.edit).toContain(updateModule.requireReason);
             expect(svc._middleware.edit).toContain(getBoundFn(updateModule.validateData, [updateModule, fakeCampModel]));
@@ -218,7 +218,7 @@ describe('ads-campaignUpdates (UT)', function() {
             expect(svc._middleware.create).toContain(getBoundFn(CrudSvc.fetchRelatedEntity, [CrudSvc, {
                 objName: 'campaigns',
                 idPath: ['params.campId']
-            }, updateModule.config]));
+            }, updateModule.config.api]));
             expect(svc._middleware.create).toContain(getBoundFn(updateModule.canEditCampaign, [updateModule, campSvc]));
             expect(svc._middleware.autoApprove).toContain(updateModule.enforceLock);
             expect(svc._middleware.autoApprove).toContain(updateModule.validateZipcodes);

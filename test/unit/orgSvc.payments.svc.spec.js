@@ -208,11 +208,11 @@ describe('orgSvc-payments (UT)', function() {
             var fetchOwnOrg = getBoundFn(CrudSvc.fetchRelatedEntity, [CrudSvc, {
                 objName: 'orgs',
                 idPath: ['user.org']
-            }, payModule.config]);
+            }, payModule.config.api]);
             var fetchAnyOrg = getBoundFn(CrudSvc.fetchRelatedEntity, [CrudSvc, {
                 objName: 'orgs',
                 idPath: ['query.org', 'user.org']
-            }, payModule.config]);
+            }, payModule.config.api]);
 
             expect(orgSvc._middleware.getClientToken).toContain(fetchOwnOrg);
             expect(orgSvc._middleware.getPaymentMethods).toContain(fetchAnyOrg);

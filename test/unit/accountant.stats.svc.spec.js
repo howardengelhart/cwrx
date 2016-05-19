@@ -115,7 +115,7 @@ describe('statsModule-stats (UT)', function() {
             expect(svc._middleware.balanceStats).toContain(getBoundFn(CrudSvc.fetchRelatedEntity, [CrudSvc, {
                 objName: 'orgs',
                 idPath: ['query.org', 'body.org']
-            }, statsModule.config]));
+            }, statsModule.config.api]));
         });
         
         it('should validate the body on creditCheck', function() {
@@ -131,11 +131,11 @@ describe('statsModule-stats (UT)', function() {
             expect(svc._middleware.creditCheck).toContain(getBoundFn(CrudSvc.fetchRelatedEntity, [CrudSvc, {
                 objName: 'orgs',
                 idPath: ['query.org', 'body.org']
-            }, statsModule.config]));
+            }, statsModule.config.api]));
             expect(svc._middleware.creditCheck).toContain(getBoundFn(CrudSvc.fetchRelatedEntity, [CrudSvc, {
                 objName: 'campaigns',
                 idPath: ['body.campaign']
-            }, statsModule.config]));
+            }, statsModule.config.api]));
             expect(svc._middleware.creditCheck).toContain(statsModule.checkCampaignOwnership);
         });
     });

@@ -128,7 +128,6 @@
         }
         log.info('Running as cluster worker, proceed with setting up web server.');
 
-        //TODO: load beeswax secrets in cookbook
         var beeswax = new BeeswaxClient({
             apiRoot: state.config.beeswax.apiRoot,
             creds: state.secrets.beeswax

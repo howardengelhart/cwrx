@@ -52,11 +52,11 @@
         var fetchOrg = CrudSvc.fetchRelatedEntity.bind(CrudSvc, {
             objName: 'orgs',
             idPath: ['query.org', 'body.org']
-        }, statsModule.config);
+        }, statsModule.config.api);
         var fetchCampaign = CrudSvc.fetchRelatedEntity.bind(CrudSvc, {
             objName: 'campaigns',
             idPath: ['body.campaign']
-        }, statsModule.config);
+        }, statsModule.config.api);
         
         svc.use('balanceStats', fetchOrg);
         

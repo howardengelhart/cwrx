@@ -117,7 +117,7 @@ describe('ads-externalCampaigns beeswax (UT)', function() {
             var fetchCamp = getBoundFn(CrudSvc.fetchRelatedEntity, [CrudSvc, {
                 objName: 'campaigns',
                 idPath: 'params.c6Id'
-            }, beesCamps.config]);
+            }, beesCamps.config.api]);
             expect(svc._middleware.create).toContain(fetchCamp);
             expect(svc._middleware.edit).toContain(fetchCamp);
         });
@@ -126,7 +126,7 @@ describe('ads-externalCampaigns beeswax (UT)', function() {
             var fetchAdvert = getBoundFn(CrudSvc.fetchRelatedEntity, [CrudSvc, {
                 objName: 'advertisers',
                 idPath: ['campaign.advertiserId', 'origObj.advertiserId']
-            }, beesCamps.config]);
+            }, beesCamps.config.api]);
             expect(svc._middleware.create).toContain(fetchAdvert);
             expect(svc._middleware.edit).toContain(fetchAdvert);
             expect(svc._middleware.syncCampaigns).toContain(fetchAdvert);

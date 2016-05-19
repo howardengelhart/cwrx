@@ -52,12 +52,12 @@
         var fetchC6Campaign = CrudSvc.fetchRelatedEntity.bind(CrudSvc, {
             objName: 'campaigns',
             idPath: 'params.c6Id'
-        }, beesCamps.config); //TODO: update to just call with api portion?
+        }, beesCamps.config.api);
         // advert id could be on req.campaign for these endpoints, or req.origObj for syncCampaigns
         var fetchC6Advertiser = CrudSvc.fetchRelatedEntity.bind(CrudSvc, {
             objName: 'advertisers',
             idPath: ['campaign.advertiserId', 'origObj.advertiserId'],
-        }, beesCamps.config);
+        }, beesCamps.config.api);
         
         svc.use('create', fetchC6Campaign);
         svc.use('create', fetchC6Advertiser);

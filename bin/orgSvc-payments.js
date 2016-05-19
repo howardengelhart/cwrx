@@ -32,11 +32,11 @@
         var fetchAnyOrg = CrudSvc.fetchRelatedEntity.bind(CrudSvc, {
             objName: 'orgs',
             idPath: ['query.org', 'user.org']
-        }, payModule.config);
+        }, payModule.config.api);
         var fetchOwnOrg = CrudSvc.fetchRelatedEntity.bind(CrudSvc, {
             objName: 'orgs',
             idPath: ['user.org']
-        }, payModule.config);
+        }, payModule.config.api);
         
         var canEditOrg = payModule.canEditOrg.bind(payModule, orgSvc),
             getExistingPayMethod = payModule.getExistingPayMethod.bind(payModule, gateway);

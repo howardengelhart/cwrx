@@ -88,7 +88,7 @@
         var fetchCamp = CrudSvc.fetchRelatedEntity.bind(CrudSvc, {
             objName: 'campaigns',
             idPath: ['params.campId']
-        }, updateModule.config);
+        }, updateModule.config.api);
 
         var canEditCampaign     = updateModule.canEditCampaign.bind(updateModule, campSvc),
             validateData        = updateModule.validateData.bind(updateModule, campDataModel),

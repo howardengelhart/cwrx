@@ -105,7 +105,7 @@
         
         if (!beesId) {
             log.info('[%1] C6 advert %2 has no Beeswax advert', req.uuid, c6Id);
-            return q(next()); //TODO: or call createBeeswaxAdvert?
+            return q(next());
         }
         if (req.body.name === req.origObj.name) {
             log.trace('[%1] Name unchanged, not editing Beeswax advert', req.uuid);
@@ -148,11 +148,6 @@
         router.use(jobManager.setJobTimeout.bind(jobManager));
         
         var authMidware = authUtils.crudMidware('advertisers', { allowApps: true });
-        
-        router.post('/ASDF/:id', function(req, res) {
-            logger.getLog().trace('got post for %1', req.params.id);
-            res.send(200, { id: 'asdf-' + req.params.id, foo: 'bar' });
-        });
         
         router.get('/:id', sessions, authMidware.read, audit, function(req, res) {
             var promise = svc.getObjs({id: req.params.id}, req, false);

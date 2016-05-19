@@ -1,5 +1,11 @@
 # Ads Service Changelog
 
+* [FEATURE]: Create Beeswax advertisers for each C6 advertiser: [#899](https://github.com/cinema6/cwrx/issues/899)
+* [FEATURE]: Add Beeswax external campaigns endpoints: [#899](https://github.com/cinema6/cwrx/issues/899)
+* [FEATURE]: Sync C6 + Beeswax campaigns on `PUT /api/campaigns/:id`: [#899](https://github.com/cinema6/cwrx/issues/899)
+* Extra deployment steps:
+    * Deploy ads cookbook 2.2.0
+
 ### 4.7.1: Mon May 16 17:36:18 EDT 2016
 * Allow apps to edit campaign update requests: [#891](https://github.com/cinema6/cwrx/pull/891)
 * Extra deployment steps:

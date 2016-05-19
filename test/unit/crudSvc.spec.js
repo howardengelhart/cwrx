@@ -340,19 +340,19 @@ describe('CrudSvc', function() {
     });
     
     describe('CrudSvc.fetchRelatedEntity', function() {
-        var opts, config, reqResp;
+        var opts, apiCfg, reqResp;
         beforeEach(function() {
             opts = {
                 objName: 'orgs',
                 idPath: 'query.foo'
             };
-            config = { api: {
+            apiCfg = {
                 root: 'http://c6.com',
                 orgs: {
                     endpoint: '/api/account/orgs/',
                     baseUrl: 'http://c6.com/api/account/orgs/'
                 }
-            } };
+            };
             req.query = { foo: 'o-1', bar: 'o-2' };
             req.campaign = { id: 'cam-1', org: 'o-3' };
             req.body = { entities: { org: 'o-4' } };
@@ -364,7 +364,7 @@ describe('CrudSvc', function() {
         });
         
         it('should attempt to fetch an entity and attach it to the request', function(done) {
-            CrudSvc.fetchRelatedEntity(opts, config, req, nextSpy, doneSpy).catch(errorSpy).finally(function() {
+            CrudSvc.fetchRelatedEntity(opts, apiCfg, req, nextSpy, doneSpy).catch(errorSpy).finally(function() {
                 expect(nextSpy).toHaveBeenCalled();
                 expect(doneSpy).not.toHaveBeenCalled();
                 expect(errorSpy).not.toHaveBeenCalled();
@@ -382,7 +382,7 @@ describe('CrudSvc', function() {
                 if (idx >= 1) {
                     ld.unset(req, opts.idPath[idx - 1]);
                 }
-                return CrudSvc.fetchRelatedEntity(opts, config, req, nextSpy, doneSpy).catch(errorSpy);
+                return CrudSvc.fetchRelatedEntity(opts, apiCfg, req, nextSpy, doneSpy).catch(errorSpy);
             })).then(function(results) {
                 expect(nextSpy).toHaveBeenCalled();
                 expect(doneSpy).not.toHaveBeenCalled();
@@ -407,7 +407,7 @@ describe('CrudSvc', function() {
         
         it('should support setting the response on a custom path', function(done) {
             opts.resultPath = 'related.entities.org';
-            CrudSvc.fetchRelatedEntity(opts, config, req, nextSpy, doneSpy).catch(errorSpy).finally(function() {
+            CrudSvc.fetchRelatedEntity(opts, apiCfg, req, nextSpy, doneSpy).catch(errorSpy).finally(function() {
                 expect(nextSpy).toHaveBeenCalled();
                 expect(doneSpy).not.toHaveBeenCalled();
                 expect(errorSpy).not.toHaveBeenCalled();
@@ -421,13 +421,13 @@ describe('CrudSvc', function() {
         it('should throw an error if not passed the necessary options', function() {
             var msg = 'Must provide opts.idPath and opts.objName';
             [undefined, null, {}, { idPath: 'query.foo' }, { objName: 'orgs' }].forEach(function(newOpts) {
-                expect(function() { CrudSvc.fetchRelatedEntity(newOpts, config, req, nextSpy, doneSpy); }).toThrow(new Error(msg));
+                expect(function() { CrudSvc.fetchRelatedEntity(newOpts, apiCfg, req, nextSpy, doneSpy); }).toThrow(new Error(msg));
             });
         });
         
         it('should set the baseUrl for the api config if not defined', function(done) {
-            delete config.api.orgs.baseUrl;
-            CrudSvc.fetchRelatedEntity(opts, config, req, nextSpy, doneSpy).catch(errorSpy).finally(function() {
+            delete apiCfg.orgs.baseUrl;
+            CrudSvc.fetchRelatedEntity(opts, apiCfg, req, nextSpy, doneSpy).catch(errorSpy).finally(function() {
                 expect(nextSpy).toHaveBeenCalled();
                 expect(doneSpy).not.toHaveBeenCalled();
                 expect(errorSpy).not.toHaveBeenCalled();
@@ -435,14 +435,14 @@ describe('CrudSvc', function() {
                 expect(requestUtils.proxyRequest).toHaveBeenCalledWith(req, 'get', {
                     url: 'http://c6.com/api/account/orgs/o-1'
                 });
-                expect(config.api.orgs.baseUrl).toBe('http://c6.com/api/account/orgs/');
+                expect(apiCfg.orgs.baseUrl).toBe('http://c6.com/api/account/orgs/');
                 expect(mockLog.error).not.toHaveBeenCalled();
             }).done(done);
         });
         
         it('should call done with a 400 if the entity is not found', function(done) {
             reqResp = { response: { statusCode: 400 }, body: 'no way jose' };
-            CrudSvc.fetchRelatedEntity(opts, config, req, nextSpy, doneSpy).catch(errorSpy).finally(function() {
+            CrudSvc.fetchRelatedEntity(opts, apiCfg, req, nextSpy, doneSpy).catch(errorSpy).finally(function() {
                 expect(nextSpy).not.toHaveBeenCalled();
                 expect(doneSpy).toHaveBeenCalledWith({ code: 400, body: 'Cannot fetch this org' });
                 expect(errorSpy).not.toHaveBeenCalled();
@@ -452,7 +452,7 @@ describe('CrudSvc', function() {
 
         it('should reject if the request fails', function(done) {
             reqResp = q.reject('I GOT A PROBLEM');
-            CrudSvc.fetchRelatedEntity(opts, config, req, nextSpy, doneSpy).catch(errorSpy).finally(function() {
+            CrudSvc.fetchRelatedEntity(opts, apiCfg, req, nextSpy, doneSpy).catch(errorSpy).finally(function() {
                 expect(nextSpy).not.toHaveBeenCalled();
                 expect(doneSpy).not.toHaveBeenCalled();
                 expect(errorSpy).toHaveBeenCalledWith('Error fetching org');
