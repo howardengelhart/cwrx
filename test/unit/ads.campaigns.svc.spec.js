@@ -73,7 +73,7 @@ describe('ads-campaigns (UT)', function() {
     });
     
     describe('setupSvc', function() {
-        var config, svc, boundFns, statHistMidware, priceHistMidware, mockProducer;
+        var config, svc, boundFns, statHistMidware, priceHistMidware, mockProducer, externSvcs;
 
         function getBoundFn(original, argParams) {
             var boundObj = boundFns.filter(function(call) {
@@ -105,7 +105,7 @@ describe('ads-campaigns (UT)', function() {
             boundFns = [];
             var bind = Function.prototype.bind;
             
-            [campModule.extraValidation, campModule.statusCheck, campModule.notifyEnded].forEach(function(fn) {
+            [campModule.extraValidation, campModule.statusCheck, campModule.notifyEnded, campModule.syncExternalCamps].forEach(function(fn) {
                 spyOn(fn, 'bind').and.callFake(function() {
                     var boundFn = bind.apply(fn, arguments);
 
@@ -118,6 +118,7 @@ describe('ads-campaigns (UT)', function() {
                     return boundFn;
                 });
             });
+            externSvcs = { beeswax: 'mockBeeswax' };
             
             statHistMidware = jasmine.createSpy('handleStatHist');
             priceHistMidware = jasmine.createSpy('handlePriceHist');
@@ -129,7 +130,7 @@ describe('ads-campaigns (UT)', function() {
             
             spyOn(streamUtils, 'createProducer');
             
-            svc = campModule.setupSvc(mockDb, config);
+            svc = campModule.setupSvc(mockDb, config, externSvcs);
         });
 
         it('should return a CrudSvc', function() {
@@ -219,6 +220,10 @@ describe('ads-campaigns (UT)', function() {
         it('should set dates on cards on create + edit', function() {
             expect(svc._middleware.create).toContain(campModule.setCardDates);
             expect(svc._middleware.edit).toContain(campModule.setCardDates);
+        });
+        
+        it('should sync external campaigns on edit', function() {
+            expect(svc._middleware.edit).toContain(getBoundFn(campModule.syncExternalCamps, [campModule, externSvcs]));
         });
         
         it('should create/edit C6 card entities on create + edit', function() {
@@ -1105,6 +1110,130 @@ describe('ads-campaigns (UT)', function() {
         });
     });
     
+    describe('syncExternalCamps', function() {
+        var externSvcs, externResps;
+        beforeEach(function() {
+            externResps = {
+                beeswax: { externalId: 123, budget: 1000, dailyLimit: 100 },
+                brightroll: { externalId: 456, budget: 2000, dailyLimit: 200 }
+            };
+            externSvcs = {
+                beeswax: {
+                    syncCampaigns: jasmine.createSpy('beeswax.syncCampaigns').and.callFake(function() { return q(externResps.beeswax); })
+                },
+                brightroll: {
+                    syncCampaigns: jasmine.createSpy('brightroll.syncCampaigns').and.callFake(function() { return q(externResps.brightroll); })
+                }
+            };
+            req.body = {
+                id: 'cam-1',
+                name: 'foo',
+                externalCampaigns: { otherJunk: 'gross' }
+            };
+            req.origObj = {
+                id: 'cam-1',
+                externalCampaigns: {
+                    beeswax: { externalId: 123, budget: 300, dailyLimit: 30 },
+                    brightroll: { externalId: 456, budget: 400, dailyLimit: 40 }
+                }
+            };
+        });
+        
+        it('should call syncCampaigns for each external campaign type it has', function(done) {
+            campModule.syncExternalCamps(externSvcs, req, nextSpy, doneSpy).catch(errorSpy).finally(function() {
+                expect(nextSpy).toHaveBeenCalled();
+                expect(doneSpy).not.toHaveBeenCalled();
+                expect(errorSpy).not.toHaveBeenCalled();
+                expect(req.body).toEqual({
+                    id: 'cam-1',
+                    name: 'foo',
+                    externalCampaigns: {
+                        beeswax: { externalId: 123, budget: 1000, dailyLimit: 100 },
+                        brightroll: { externalId: 456, budget: 2000, dailyLimit: 200 }
+                    }
+                });
+                expect(externSvcs.beeswax.syncCampaigns).toHaveBeenCalledWith(req);
+                expect(externSvcs.brightroll.syncCampaigns).toHaveBeenCalledWith(req);
+                expect(mockLog.warn).not.toHaveBeenCalled();
+            }).done(done);
+        });
+        
+        it('should skip if there are no externalCampaigns on the origObj', function(done) {
+            delete req.origObj.externalCampaigns;
+            campModule.syncExternalCamps(externSvcs, req, nextSpy, doneSpy).catch(errorSpy).finally(function() {
+                expect(nextSpy).toHaveBeenCalled();
+                expect(doneSpy).not.toHaveBeenCalled();
+                expect(errorSpy).not.toHaveBeenCalled();
+                expect(req.body).toEqual({
+                    id: 'cam-1',
+                    name: 'foo'
+                });
+                expect(externSvcs.beeswax.syncCampaigns).not.toHaveBeenCalled();
+                expect(externSvcs.brightroll.syncCampaigns).not.toHaveBeenCalled();
+                expect(mockLog.warn).not.toHaveBeenCalled();
+            }).done(done);
+        });
+        
+        it('should warn if the campaign has an unsupported external campaign type', function(done) {
+            req.origObj.externalCampaigns.pocketmath = { externalId: 789, budget: 500, dailyLimit: 50 };
+            campModule.syncExternalCamps(externSvcs, req, nextSpy, doneSpy).catch(errorSpy).finally(function() {
+                expect(nextSpy).toHaveBeenCalled();
+                expect(doneSpy).not.toHaveBeenCalled();
+                expect(errorSpy).not.toHaveBeenCalled();
+                expect(req.body).toEqual({
+                    id: 'cam-1',
+                    name: 'foo',
+                    externalCampaigns: {
+                        beeswax: { externalId: 123, budget: 1000, dailyLimit: 100 },
+                        brightroll: { externalId: 456, budget: 2000, dailyLimit: 200 },
+                        pocketmath: { externalId: 789, budget: 500, dailyLimit: 50 }
+                    }
+                });
+                expect(externSvcs.beeswax.syncCampaigns).toHaveBeenCalledWith(req);
+                expect(externSvcs.brightroll.syncCampaigns).toHaveBeenCalledWith(req);
+                expect(mockLog.warn).toHaveBeenCalled();
+            }).done(done);
+        });
+        
+        it('should call done if one of the syncCampaigns calls returns a 4xx response', function(done) {
+            externResps.brightroll = { code: 400, body: 'i cant EVEN right now' };
+            campModule.syncExternalCamps(externSvcs, req, nextSpy, doneSpy).catch(errorSpy).finally(function() {
+                expect(nextSpy).not.toHaveBeenCalled();
+                expect(doneSpy).toHaveBeenCalledWith({ code: 400, body: 'i cant EVEN right now' });
+                expect(errorSpy).not.toHaveBeenCalled();
+                expect(externSvcs.beeswax.syncCampaigns).toHaveBeenCalled();
+                expect(externSvcs.brightroll.syncCampaigns).toHaveBeenCalled();
+                expect(mockLog.warn).not.toHaveBeenCalled();
+            }).done(done);
+        });
+        
+        it('should only call done once', function(done) {
+            externResps.beeswax = { code: 400, body: 'literally, i CANT' };
+            externResps.brightroll = { code: 400, body: 'i cant EVEN right now' };
+            campModule.syncExternalCamps(externSvcs, req, nextSpy, doneSpy).catch(errorSpy).finally(function() {
+                expect(nextSpy).not.toHaveBeenCalled();
+                expect(doneSpy).toHaveBeenCalledWith({ code: 400, body: 'literally, i CANT' });
+                expect(doneSpy.calls.count()).toBe(1);
+                expect(errorSpy).not.toHaveBeenCalled();
+                expect(externSvcs.beeswax.syncCampaigns).toHaveBeenCalled();
+                expect(externSvcs.brightroll.syncCampaigns).toHaveBeenCalled();
+                expect(mockLog.warn).not.toHaveBeenCalled();
+            }).done(done);
+        });
+        
+        it('should reject if one of the syncCampaigns calls rejects', function(done) {
+            externResps.beeswax = q.reject('I GOT A PROBLEM');
+            campModule.syncExternalCamps(externSvcs, req, nextSpy, doneSpy).catch(errorSpy).finally(function() {
+                expect(nextSpy).not.toHaveBeenCalled();
+                expect(doneSpy).not.toHaveBeenCalled();
+                expect(errorSpy).toHaveBeenCalledWith('I GOT A PROBLEM');
+                expect(externSvcs.beeswax.syncCampaigns).toHaveBeenCalled();
+                expect(externSvcs.brightroll.syncCampaigns).toHaveBeenCalled();
+                expect(mockLog.warn).not.toHaveBeenCalled();
+            }).done(done);
+        });
+    });
+    
     describe('updateCards', function() {
         beforeEach(function() {
             req.body = {
@@ -1516,7 +1645,7 @@ describe('ads-campaigns (UT)', function() {
         it('should reject if the request fails', function(done) {
             requestUtils.proxyRequest.and.returnValue(q.reject('I GOT A PROBLEM'));
             campModule.sendDeleteRequest(req, 'e-1', 'experiences').then(function() {
-                expect('resolved').not.toBe('resolved');
+                fail('Should not have resolved');
             }).catch(function(error) {
                 expect(error).toEqual(new Error('Failed sending delete request to content service'));
                 expect(mockLog.error).toHaveBeenCalled();

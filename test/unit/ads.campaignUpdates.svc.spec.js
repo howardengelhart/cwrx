@@ -2,7 +2,7 @@ var flush = true;
 var q = require('q');
 
 describe('ads-campaignUpdates (UT)', function() {
-    var mockLog, CrudSvc, Model, logger, updateModule, campaignUtils, requestUtils, Status,
+    var mockLog, CrudSvc, Model, logger, updateModule, campaignUtils, requestUtils, Status, objUtils,
         historian, mongoUtils, campModule, email, nextSpy, doneSpy, errorSpy, req, mockDb, appCreds, streamUtils;
 
     beforeEach(function() {
@@ -15,6 +15,7 @@ describe('ads-campaignUpdates (UT)', function() {
         streamUtils     = require('../../lib/streamUtils');
         mongoUtils      = require('../../lib/mongoUtils');
         historian       = require('../../lib/historian');
+        objUtils        = require('../../lib/objUtils');
         CrudSvc         = require('../../lib/crudSvc');
         Model           = require('../../lib/model');
         email           = require('../../lib/email');
@@ -89,27 +90,46 @@ describe('ads-campaignUpdates (UT)', function() {
     });
     
     describe('setupSvc', function() {
-        var config, svc, campSvc, fakeCampModel, fakeAutoApproveModel, histMidware, mockProducer;
+        var config, svc, campSvc, fakeCampModel, fakeAutoApproveModel, histMidware, mockProducer, boundFns;
+
+        function getBoundFn(original, argParams) {
+            var boundObj = boundFns.filter(function(call) {
+                return call.original === original && objUtils.compareObjects(call.args, argParams);
+            })[0] || {};
+            
+            return boundObj.bound;
+        }
+
         beforeEach(function() {
             config = JSON.parse(JSON.stringify(updateModule.config));
             updateModule.config = {};
-            
-            ['fetchCamp', 'validateData', 'extraValidation', 'handleInitialSubmit', 'handleRenewal',
-             'lockCampaign', 'unlockCampaign', 'applyUpdate', 'notifyOwner'].forEach(function(method) {
-                var fn = updateModule[method];
-                spyOn(fn, 'bind').and.returnValue(fn);
-            });
-            spyOn(CrudSvc.prototype.setupObj, 'bind').and.returnValue(CrudSvc.prototype.setupObj);
 
             fakeCampModel = new Model('campaigns', {});
             fakeAutoApproveModel = new Model('campaignUpdates', {});
             
             spyOn(updateModule, 'createCampModel').and.returnValue(fakeCampModel);
             spyOn(updateModule, 'createAutoApproveModel').and.returnValue(fakeAutoApproveModel);
-            spyOn(fakeAutoApproveModel.midWare, 'bind').and.returnValue(fakeAutoApproveModel.midWare);
             
             histMidware = jasmine.createSpy('handleStatHist');
             spyOn(historian, 'middlewarify').and.returnValue(histMidware);
+            
+            boundFns = [];
+            [updateModule.validateData, updateModule.extraValidation, updateModule.handleInitialSubmit,
+             updateModule.handleRenewal, updateModule.lockCampaign, updateModule.unlockCampaign, updateModule.applyUpdate,
+             updateModule.notifyOwner, fakeAutoApproveModel.midWare, updateModule.canEditCampaign, CrudSvc.fetchRelatedEntity].forEach(function(fn) {
+                spyOn(fn, 'bind').and.callFake(function() {
+                    var boundFn = Function.prototype.bind.apply(fn, arguments);
+
+                    boundFns.push({
+                        bound: boundFn,
+                        original: fn,
+                        args: Array.prototype.slice.call(arguments)
+                    });
+
+                    return boundFn;
+                });
+            });
+            spyOn(CrudSvc.prototype.setupObj, 'bind').and.returnValue(CrudSvc.prototype.setupObj);
             
             campSvc = { model: new Model('campaigns', {}) };
             
@@ -149,61 +169,61 @@ describe('ads-campaignUpdates (UT)', function() {
         });
         
         it('should include middleware for create', function() {
-            expect(svc._middleware.create).toContain(updateModule.fetchCamp);
+            expect(svc._middleware.create).toContain(getBoundFn(CrudSvc.fetchRelatedEntity, [CrudSvc, {
+                objName: 'campaigns',
+                idPath: ['params.campId']
+            }, updateModule.config.api]));
+            expect(svc._middleware.create).toContain(getBoundFn(updateModule.canEditCampaign, [updateModule, campSvc]));
             expect(svc._middleware.create).toContain(updateModule.enforceLock);
-            expect(svc._middleware.create).toContain(updateModule.validateData);
-            expect(svc._middleware.create).toContain(updateModule.extraValidation);
+            expect(svc._middleware.create).toContain(getBoundFn(updateModule.validateData, [updateModule, fakeCampModel]));
+            expect(svc._middleware.create).toContain(getBoundFn(updateModule.extraValidation, [updateModule, fakeCampModel]));
             expect(svc._middleware.create).toContain(updateModule.validateCards);
             expect(svc._middleware.create).toContain(updateModule.validateZipcodes);
             expect(svc._middleware.create).toContain(updateModule.checkAvailableFunds);
-            expect(svc._middleware.create).toContain(updateModule.handleInitialSubmit);
-            expect(svc._middleware.create).toContain(updateModule.handleRenewal);
+            expect(svc._middleware.create).toContain(getBoundFn(updateModule.handleInitialSubmit, [updateModule, svc]));
+            expect(svc._middleware.create).toContain(getBoundFn(updateModule.handleRenewal, [updateModule, svc]));
             expect(svc._middleware.create).toContain(updateModule.notifySupport);
-            expect(svc._middleware.create).toContain(updateModule.lockCampaign);
+            expect(svc._middleware.create).toContain(getBoundFn(updateModule.lockCampaign, [updateModule, svc]));
+
             updateModule.config.emails.enabled = false;
             svc = updateModule.setupSvc(mockDb, campSvc, config, appCreds);
-            expect(svc._middleware.create).not.toContain(updateModule.notifySupport);
+            expect(svc._middleware.create).not.toContain(getBoundFn(updateModule.notifySupport, [updateModule, svc]));
         });
         
         it('should include middleware for edit', function() {
             expect(svc._middleware.edit).toContain(updateModule.ignoreCompleted);
-            expect(svc._middleware.edit).toContain(updateModule.fetchCamp);
+            expect(svc._middleware.edit).toContain(getBoundFn(CrudSvc.fetchRelatedEntity, [CrudSvc, {
+                objName: 'campaigns',
+                idPath: ['params.campId']
+            }, updateModule.config.api]));
+            expect(svc._middleware.edit).toContain(getBoundFn(updateModule.canEditCampaign, [updateModule, campSvc]));
             expect(svc._middleware.edit).toContain(updateModule.requireReason);
-            expect(svc._middleware.edit).toContain(updateModule.validateData);
-            expect(svc._middleware.edit).toContain(updateModule.extraValidation);
+            expect(svc._middleware.edit).toContain(getBoundFn(updateModule.validateData, [updateModule, fakeCampModel]));
+            expect(svc._middleware.edit).toContain(getBoundFn(updateModule.extraValidation, [updateModule, fakeCampModel]));
             expect(svc._middleware.edit).toContain(updateModule.validateCards);
             expect(svc._middleware.edit).toContain(updateModule.validateZipcodes);
             expect(svc._middleware.edit).toContain(updateModule.checkAvailableFunds);
-            expect(svc._middleware.edit).toContain(updateModule.unlockCampaign);
-            expect(svc._middleware.edit).toContain(updateModule.applyUpdate);
-            expect(svc._middleware.edit).toContain(updateModule.notifyOwner);
+            expect(svc._middleware.edit).toContain(getBoundFn(updateModule.unlockCampaign, [updateModule, svc]));
+            expect(svc._middleware.edit).toContain(getBoundFn(updateModule.applyUpdate, [updateModule, svc, appCreds]));
+            expect(svc._middleware.edit).toContain(getBoundFn(updateModule.notifyOwner, [updateModule, svc]));
+
             updateModule.config.emails.enabled = false;
             svc = updateModule.setupSvc(mockDb, campSvc, config, appCreds);
-            expect(svc._middleware.create).not.toContain(updateModule.notifyOwner);
+            expect(svc._middleware.create).not.toContain(getBoundFn(updateModule.notifyOwner, [updateModule, svc]));
         });
         
         it('should include middleware for autoApprove', function() {
-            expect(svc._middleware.autoApprove).toContain(fakeAutoApproveModel.midWare);
+            expect(svc._middleware.autoApprove).toContain(getBoundFn(fakeAutoApproveModel.midWare, [fakeAutoApproveModel, 'create']));
             expect(svc._middleware.autoApprove).toContain(svc.setupObj);
-            expect(svc._middleware.autoApprove).toContain(updateModule.fetchCamp);
+            expect(svc._middleware.create).toContain(getBoundFn(CrudSvc.fetchRelatedEntity, [CrudSvc, {
+                objName: 'campaigns',
+                idPath: ['params.campId']
+            }, updateModule.config.api]));
+            expect(svc._middleware.create).toContain(getBoundFn(updateModule.canEditCampaign, [updateModule, campSvc]));
             expect(svc._middleware.autoApprove).toContain(updateModule.enforceLock);
             expect(svc._middleware.autoApprove).toContain(updateModule.validateZipcodes);
             expect(svc._middleware.autoApprove).toContain(updateModule.checkAvailableFunds);
-            expect(svc._middleware.autoApprove).toContain(updateModule.applyUpdate);
-        });
-        
-        it('should bind values into middleware appropriately', function() {
-            expect(updateModule.fetchCamp.bind).toHaveBeenCalledWith(updateModule, campSvc);
-            expect(updateModule.validateData.bind).toHaveBeenCalledWith(updateModule, fakeCampModel);
-            expect(updateModule.extraValidation.bind).toHaveBeenCalledWith(updateModule, fakeCampModel);
-            expect(updateModule.handleInitialSubmit.bind).toHaveBeenCalledWith(updateModule, svc);
-            expect(updateModule.handleRenewal.bind).toHaveBeenCalledWith(updateModule, svc);
-            expect(updateModule.lockCampaign.bind).toHaveBeenCalledWith(updateModule, svc);
-            expect(updateModule.unlockCampaign.bind).toHaveBeenCalledWith(updateModule, svc);
-            expect(updateModule.applyUpdate.bind).toHaveBeenCalledWith(updateModule, svc, appCreds);
-            expect(updateModule.notifyOwner.bind).toHaveBeenCalledWith(updateModule, svc);
-            expect(CrudSvc.prototype.setupObj.bind).toHaveBeenCalledWith(svc);
-            expect(fakeAutoApproveModel.midWare.bind).toHaveBeenCalledWith(fakeAutoApproveModel, 'create');
+            expect(svc._middleware.autoApprove).toContain(getBoundFn(updateModule.applyUpdate, [updateModule, svc, appCreds]));
         });
     });
     
@@ -510,10 +530,10 @@ describe('ads-campaignUpdates (UT)', function() {
         });
     });
 
-    describe('fetchCamp', function() {
-        var campSvc, mockCamp;
+    describe('canEditCampaign', function() {
+        var campSvc;
         beforeEach(function() {
-            mockCamp = {
+            req.campaign = {
                 id: 'cam-1',
                 name: 'camp 1',
                 updateRequest: 'ur-1',
@@ -521,68 +541,33 @@ describe('ads-campaignUpdates (UT)', function() {
                 org: 'o-1',
                 cards: [{ id: 'rc-1', decorated: 'yes' }]
             };
-            req.params.campId = 'cam-1';
             req.body = { data: { foo: 'bar' } };
             req.origObj = { id: 'ur-1' };
             req.requester.permissions = { campaigns: { read: 'own', edit: 'own' } };
             campSvc = campModule.setupSvc(mockDb, updateModule.config);
-            spyOn(requestUtils, 'proxyRequest').and.callFake(function() {
-                return q({ response: { statusCode: 200 }, body: mockCamp });
-            });
         });
         
-        it('should attach the campaign as req.campaign and call next if it is found', function(done) {
-            updateModule.fetchCamp(campSvc, req, nextSpy, doneSpy).catch(errorSpy).finally(function() {
-                expect(nextSpy).toHaveBeenCalled();
-                expect(doneSpy).not.toHaveBeenCalled();
-                expect(errorSpy).not.toHaveBeenCalled();
-                expect(req.campaign).toEqual(mockCamp);
-                expect(req.body).toEqual({ campaign: 'cam-1', data: { foo: 'bar' } });
-                expect(requestUtils.proxyRequest).toHaveBeenCalledWith(req, 'get', {
-                    url: 'https://test.com/api/campaigns/cam-1'
-                });
-                done();
-            });
+        it('should call next normally', function() {
+            updateModule.canEditCampaign(campSvc, req, nextSpy, doneSpy);
+            expect(nextSpy).toHaveBeenCalled();
+            expect(doneSpy).not.toHaveBeenCalled();
+            expect(req.body).toEqual({ campaign: 'cam-1', data: { foo: 'bar' } });
         });
         
-        it('should call done if a 4xx is returned', function(done) {
-            requestUtils.proxyRequest.and.returnValue(q({ response: { statusCode: 404 }, body: 'Campaign not found' }));
-            updateModule.fetchCamp(campSvc, req, nextSpy, doneSpy).catch(errorSpy).finally(function() {
-                expect(nextSpy).not.toHaveBeenCalled();
-                expect(doneSpy).toHaveBeenCalledWith({ code: 404, body: 'Campaign not found' });
-                expect(errorSpy).not.toHaveBeenCalled();
-                done();
-            });
+        it('should call done if the campaign has a different pending update request', function() {
+            req.campaign.updateRequest = 'ur-2';
+            updateModule.canEditCampaign(campSvc, req, nextSpy, doneSpy);
+            expect(nextSpy).not.toHaveBeenCalled();
+            expect(doneSpy).toHaveBeenCalledWith({ code: 400, body: 'Update request does not apply to this campaign' });
+            expect(errorSpy).not.toHaveBeenCalled();
         });
         
-        it('should call done if the campaign has a different pending update request', function(done) {
-            mockCamp.updateRequest = 'ur-2';
-            updateModule.fetchCamp(campSvc, req, nextSpy, doneSpy).catch(errorSpy).finally(function() {
-                expect(nextSpy).not.toHaveBeenCalled();
-                expect(doneSpy).toHaveBeenCalledWith({ code: 400, body: 'Update request does not apply to this campaign' });
-                expect(errorSpy).not.toHaveBeenCalled();
-                done();
-            });
-        });
-        
-        it('should call done if the user does not have permission to edit the campaign', function(done) {
-            mockCamp.user = 'u-2';
-            updateModule.fetchCamp(campSvc, req, nextSpy, doneSpy).catch(errorSpy).finally(function() {
-                expect(nextSpy).not.toHaveBeenCalled();
-                expect(doneSpy).toHaveBeenCalledWith({ code: 403, body: 'Not authorized to edit this campaign' });
-                expect(errorSpy).not.toHaveBeenCalled();
-                done();
-            });
-        });
-
-        it('should reject if the request fails', function(done) {
-            requestUtils.proxyRequest.and.returnValue(q.reject('I GOT A PROBLEM'));
-            updateModule.fetchCamp(campSvc, req, nextSpy, doneSpy).catch(errorSpy).finally(function() {
-                expect(nextSpy).not.toHaveBeenCalled();
-                expect(doneSpy).not.toHaveBeenCalled();
-                expect(errorSpy).toHaveBeenCalledWith('I GOT A PROBLEM');
-                done();
-            });
+        it('should call done if the user does not have permission to edit the campaign', function() {
+            req.campaign.user = 'u-2';
+            updateModule.canEditCampaign(campSvc, req, nextSpy, doneSpy);
+            expect(nextSpy).not.toHaveBeenCalled();
+            expect(doneSpy).toHaveBeenCalledWith({ code: 403, body: 'Not authorized to edit this campaign' });
+            expect(errorSpy).not.toHaveBeenCalled();
         });
     });
     

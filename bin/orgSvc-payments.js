@@ -8,6 +8,7 @@
         rcKinesis       = require('rc-kinesis'),
         Model           = require('../lib/model'),
         logger          = require('../lib/logger'),
+        CrudSvc         = require('../lib/crudSvc'),
         authUtils       = require('../lib/authUtils'),
         mongoUtils      = require('../lib/mongoUtils'),
         requestUtils    = require('../lib/requestUtils'),
@@ -28,9 +29,16 @@
             );
         });
     
-        var fetchAnyOrg = payModule.fetchOrg.bind(payModule, orgSvc, true),
-            fetchOwnOrg = payModule.fetchOrg.bind(payModule, orgSvc, false),
-            canEditOrg = payModule.canEditOrg.bind(payModule, orgSvc),
+        var fetchAnyOrg = CrudSvc.fetchRelatedEntity.bind(CrudSvc, {
+            objName: 'orgs',
+            idPath: ['query.org', 'user.org']
+        }, payModule.config.api);
+        var fetchOwnOrg = CrudSvc.fetchRelatedEntity.bind(CrudSvc, {
+            objName: 'orgs',
+            idPath: ['user.org']
+        }, payModule.config.api);
+        
+        var canEditOrg = payModule.canEditOrg.bind(payModule, orgSvc),
             getExistingPayMethod = payModule.getExistingPayMethod.bind(payModule, gateway);
             
         orgSvc.use('getClientToken', fetchOwnOrg);
@@ -95,28 +103,6 @@
         return formatted;
     };
     
-    // Middleware to fetch the org and attach it as req.org.
-    // If useParam is true, will allow fetching req.query.org; otherwise default to req.user.org
-    payModule.fetchOrg = function(orgSvc, useParam, req, next, done) {
-        var log = logger.getLog(),
-            orgId = (!!useParam && req.query.org) || (req.user && req.user.org);
-            
-        if (!orgId || typeof orgId !== 'string') {
-            return q(done({ code: 400, body: 'Must provide an org id in the query string' }));
-        }
-            
-        log.trace('[%1] Fetching org %2', req.uuid, String(orgId));
-        return orgSvc.getObjs({ id: String(orgId) }, req, false)
-        .then(function(resp) {
-            if (resp.code !== 200) {
-                return done(resp);
-            }
-            
-            req.org = resp.body;
-            next();
-        });
-    };
-
     // Middleware to check if the requester can edit the org they're operating on (req.org)
     payModule.canEditOrg = function(orgSvc, req, next, done) {
         var log = logger.getLog();

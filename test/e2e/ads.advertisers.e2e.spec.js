@@ -1,6 +1,8 @@
 var q               = require('q'),
     util            = require('util'),
+    ld              = require('lodash'),
     request         = require('request'),
+    BeeswaxClient   = require('beeswax-client'),
     testUtils       = require('./testUtils'),
     requestUtils    = require('../../lib/requestUtils'),
     host            = process.env.host || 'localhost',
@@ -9,11 +11,18 @@ var q               = require('q'),
         authUrl : 'http://' + (host === 'localhost' ? host + ':3200' : host) + '/api/auth'
     };
 
+var beeswax = new BeeswaxClient({
+    creds: {
+        email: 'ops@cinema6.com',
+        password: '07743763902206f2b511bead2d2bf12292e2af82'
+    }
+});
+
 describe('ads advertisers endpoints (E2E):', function() {
     var cookieJar, nonAdminJar, mockApp, appCreds;
 
     beforeEach(function(done) {
-        jasmine.DEFAULT_TIMEOUT_INTERVAL = 10000;
+        jasmine.DEFAULT_TIMEOUT_INTERVAL = 30000;
 
         if (cookieJar && nonAdminJar) {
             return done();
@@ -105,7 +114,7 @@ describe('ads advertisers endpoints (E2E):', function() {
                 expect(resp.body).toEqual({id: 'e2e-a-1', name: 'advert 1', status: 'active', org: 'o-selfie'});
                 expect(resp.response.headers['content-range']).not.toBeDefined();
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
+                expect(error.message || util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
         
@@ -125,7 +134,7 @@ describe('ads advertisers endpoints (E2E):', function() {
                 expect(results[0].data).toEqual({route: 'GET /api/account/advertisers/:id',
                                                  params: { 'id': 'e2e-a-1' }, query: {} });
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
+                expect(error.message || util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
 
@@ -153,7 +162,7 @@ describe('ads advertisers endpoints (E2E):', function() {
                 expect(results[1].response.statusCode).toBe(404);
                 expect(results[1].body).toEqual('Object not found');
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
+                expect(error.message || util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
 
@@ -163,7 +172,7 @@ describe('ads advertisers endpoints (E2E):', function() {
                 expect(resp.response.statusCode).toBe(404);
                 expect(resp.body).toEqual('Object not found');
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
+                expect(error.message || util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
         
@@ -173,7 +182,7 @@ describe('ads advertisers endpoints (E2E):', function() {
                 expect(resp.response.statusCode).toBe(401);
                 expect(resp.body).toBe('Unauthorized');
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
+                expect(error.message || util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
 
@@ -183,7 +192,7 @@ describe('ads advertisers endpoints (E2E):', function() {
                 expect(resp.response.statusCode).toBe(404);
                 expect(resp.body).toEqual('Object not found');
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
+                expect(error.message || util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
 
@@ -231,7 +240,7 @@ describe('ads advertisers endpoints (E2E):', function() {
                 expect(resp.body[2].id).toBe('e2e-a-3');
                 expect(resp.response.headers['content-range']).toBe('items 1-3/3');
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
+                expect(error.message || util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
 
@@ -251,7 +260,7 @@ describe('ads advertisers endpoints (E2E):', function() {
                 expect(results[0].data).toEqual({route: 'GET /api/account/advertisers/',
                                                  params: {}, query: { sort: 'id,1' } });
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
+                expect(error.message || util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
 
@@ -277,7 +286,7 @@ describe('ads advertisers endpoints (E2E):', function() {
                 expect(resp.body[0].id).toBe('e2e-a-3');
                 expect(resp.response.headers['content-range']).toBe('items 1-1/1');
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
+                expect(error.message || util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
         
@@ -290,7 +299,7 @@ describe('ads advertisers endpoints (E2E):', function() {
                 expect(resp.body[1].id).toBe('e2e-a-3');
                 expect(resp.response.headers['content-range']).toBe('items 1-2/2');
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
+                expect(error.message || util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
         
@@ -303,7 +312,7 @@ describe('ads advertisers endpoints (E2E):', function() {
                 expect(resp.body[1].id).toBe('e2e-a-2');
                 expect(resp.response.headers['content-range']).toBe('items 1-2/2');
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
+                expect(error.message || util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
 
@@ -314,7 +323,7 @@ describe('ads advertisers endpoints (E2E):', function() {
                 expect(resp.body).toEqual([]);
                 expect(resp.response.headers['content-range']).toBe('items 0-0/0');
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
+                expect(error.message || util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
 
@@ -336,7 +345,7 @@ describe('ads advertisers endpoints (E2E):', function() {
                 expect(resp.body[1].id).toBe('e2e-a-1');
                 expect(resp.response.headers['content-range']).toBe('items 2-3/3');
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
+                expect(error.message || util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
         
@@ -349,7 +358,7 @@ describe('ads advertisers endpoints (E2E):', function() {
                 expect(resp.body[1].id).toBe('e2e-a-2');
                 expect(resp.response.headers['content-range']).toBe('items 1-2/2');
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
+                expect(error.message || util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
 
@@ -360,7 +369,7 @@ describe('ads advertisers endpoints (E2E):', function() {
                 expect(resp.body).toBe('Unauthorized');
                 expect(resp.response.headers['content-range']).not.toBeDefined();
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
+                expect(error.message || util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
 
@@ -380,13 +389,15 @@ describe('ads advertisers endpoints (E2E):', function() {
     });
 
     describe('POST /api/account/advertisers', function() {
-        var options;
+        var options, beesAdvertIds, nowStr;
         beforeEach(function(done) {
+            beesAdvertIds = [];
+            nowStr = String(Date.now()) + ' - ';
             options = {
                 url: config.adsUrl + '/account/advertisers/',
                 jar: cookieJar,
                 json: {
-                    name: 'fake advert',
+                    name: nowStr + 'post advert 1',
                     defaultLinks: {
                         facebook: 'http://facebook.com'
                     },
@@ -397,13 +408,22 @@ describe('ads advertisers endpoints (E2E):', function() {
             };
             testUtils.resetCollection('advertisers').done(done);
         });
+        
+        afterEach(function(done) {
+            q.all(beesAdvertIds.map(function(id) {
+                return beeswax.advertisers.delete(id);
+            })).then(function(results) {
+                done();
+            }).catch(done.fail);
+        });
 
         it('should be able to create an advertiser', function(done) {
+            var createdAdvert, beesId;
             requestUtils.qRequest('post', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(201);
                 expect(resp.body._id).not.toBeDefined();
                 expect(resp.body.id).toBeDefined();
-                expect(resp.body.name).toBe('fake advert');
+                expect(resp.body.name).toBe(nowStr + 'post advert 1');
                 expect(resp.body.org).toBe('o-admin');
                 expect(resp.body.defaultLinks).toEqual({
                     facebook: 'http://facebook.com'
@@ -414,14 +434,29 @@ describe('ads advertisers endpoints (E2E):', function() {
                 expect(new Date(resp.body.created).toString()).not.toEqual('Invalid Date');
                 expect(resp.body.lastUpdated).toEqual(resp.body.created);
                 expect(resp.body.status).toBe('active');
+                expect(resp.body.beeswaxIds).toEqual({ advertiser: jasmine.any(Number) });
+                createdAdvert = resp.body;
+                beesId = ld.get(resp.body, 'beeswaxIds.advertiser', null);
+                beesAdvertIds.push(beesId);
+                
+                // Check that advertiser created in Beeswax successfully
+                return beeswax.advertisers.find(beesId);
+            }).then(function(resp) {
+                expect(resp.success).toBe(true);
+                expect(resp.payload).toEqual(jasmine.objectContaining({
+                    advertiser_id: beesId,
+                    advertiser_name: nowStr + 'post advert 1',
+                    alternative_id: createdAdvert.id
+                }));
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
+                expect(error.message || util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
         
         it('should write an entry to the audit collection', function(done) {
             requestUtils.qRequest('post', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(201);
+                beesAdvertIds.push(ld.get(resp.body, 'beeswaxIds.advertiser', null));
                 return testUtils.mongoFind('audit', {}, {$natural: -1}, 1, 0, {db: 'c6Journal'});
             }).then(function(results) {
                 expect(results[0].user).toBe('u-admin');
@@ -434,7 +469,7 @@ describe('ads advertisers endpoints (E2E):', function() {
                 expect(results[0].version).toEqual(jasmine.any(String));
                 expect(results[0].data).toEqual({route: 'POST /api/account/advertisers/', params: {}, query: {} });
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
+                expect(error.message || util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
         
@@ -444,7 +479,37 @@ describe('ads advertisers endpoints (E2E):', function() {
                 expect(resp.response.statusCode).toBe(400);
                 expect(resp.body).toBe('Missing required field: name');
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
+                expect(error.message || util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should handle naming conflicts in beeswax', function(done) {
+            var createdAdverts = [];
+            requestUtils.qRequest('post', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(201);
+                expect(resp.body.name).toBe(nowStr + 'post advert 1');
+                expect(resp.body.beeswaxIds).toEqual({ advertiser: jasmine.any(Number) });
+                createdAdverts.push(resp.body);
+                beesAdvertIds.push(ld.get(resp.body, 'beeswaxIds.advertiser', null));
+                
+                return requestUtils.qRequest('post', options);
+            }).then(function(resp) {
+                expect(resp.response.statusCode).toBe(201);
+                expect(resp.body.name).toBe(nowStr + 'post advert 1');
+                expect(resp.body.name).toEqual(createdAdverts[0].name);
+                createdAdverts.push(resp.body);
+                beesAdvertIds.push(ld.get(resp.body, 'beeswaxIds.advertiser', null));
+                
+                return q.all(beesAdvertIds.map(function(id) {
+                    return beeswax.advertisers.find(id);
+                }));
+            }).then(function(results) {
+                expect(results[0].payload.alternative_id).toBe(createdAdverts[0].id);
+                expect(results[1].payload.alternative_id).toBe(createdAdverts[1].id);
+                expect(results[0].payload.advertiser_name).toBe(nowStr + 'post advert 1');
+                expect(results[1].payload.advertiser_name).toBe(nowStr + 'post advert 1 (' + createdAdverts[1].id + ')');
+            }).catch(function(error) {
+                expect(error.message || util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
 
@@ -452,6 +517,7 @@ describe('ads advertisers endpoints (E2E):', function() {
             options.json.id = 'a-fake';
             options.json._id = '_WEORIULSKJF';
             options.json.org = 'o-fake';
+            options.json.beesaxIds = { advertiser: 'foo', campaign: 'bar' };
             options.json.created = new Date(Date.now() - 99999999);
             requestUtils.qRequest('post', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(201);
@@ -460,8 +526,10 @@ describe('ads advertisers endpoints (E2E):', function() {
                 expect(resp.body.id).not.toBe('a-fake');
                 expect(resp.body.org).toBe('o-admin');
                 expect(new Date(resp.body.created)).toBeGreaterThan(options.json.created);
+                expect(resp.body.beeswaxIds).toEqual({ advertiser: jasmine.any(Number) });
+                beesAdvertIds.push(ld.get(resp.body, 'beeswaxIds.advertiser', null));
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
+                expect(error.message || util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
 
@@ -472,16 +540,17 @@ describe('ads advertisers endpoints (E2E):', function() {
                 expect(resp.response.statusCode).toBe(401);
                 expect(resp.body).toBe('Unauthorized');
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
+                expect(error.message || util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
 
         it('should allow an app to create an advertiser', function(done) {
             delete options.jar;
+            var createdAdvert, beesId;
             requestUtils.makeSignedRequest(appCreds, 'post', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(201);
                 expect(resp.body.id).toBeDefined();
-                expect(resp.body.name).toBe('fake advert');
+                expect(resp.body.name).toBe(nowStr + 'post advert 1');
                 expect(resp.body.org).not.toBeDefined();
                 expect(resp.body.defaultLinks).toEqual({
                     facebook: 'http://facebook.com'
@@ -489,6 +558,20 @@ describe('ads advertisers endpoints (E2E):', function() {
                 expect(resp.body.defaultLogos).toEqual({
                     square: 'square.png'
                 });
+                expect(resp.body.beeswaxIds).toEqual({ advertiser: jasmine.any(Number) });
+                createdAdvert = resp.body;
+                beesId = ld.get(resp.body, 'beeswaxIds.advertiser', null);
+                beesAdvertIds.push(beesId);
+
+                // Check that advertiser created in Beeswax successfully
+                return beeswax.advertisers.find(beesId);
+            }).then(function(resp) {
+                expect(resp.success).toBe(true);
+                expect(resp.payload).toEqual(jasmine.objectContaining({
+                    advertiser_id: beesId,
+                    advertiser_name: nowStr + 'post advert 1',
+                    alternative_id: createdAdvert.id
+                }));
             }).catch(function(error) {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
@@ -496,19 +579,54 @@ describe('ads advertisers endpoints (E2E):', function() {
     });
 
     describe('PUT /api/account/advertisers/:id', function() {
-        var mockAdverts, options;
+        var createdAdverts, mockAdverts, options, nowStr;
+        beforeAll(function(done) { // create new adverts with beeswax entities
+            nowStr = String(Date.now()) + ' - ';
+            q.all(['put advert 1', 'put advert 2'].map(function(nameSuffix) {
+                return requestUtils.qRequest('post', {
+                    url: config.adsUrl + '/account/advertisers/',
+                    jar: cookieJar,
+                    json: {
+                        name: nowStr + nameSuffix
+                    }
+                })
+                .then(function(resp) {
+                    if (resp.response.statusCode !== 201) {
+                        return q.reject({ code: resp.response.statusCode, body: resp.body });
+                    }
+                    return q(resp.body);
+                });
+            })).then(function(results) {
+                createdAdverts = results;
+                done();
+            }).catch(done.fail);
+        });
+        
+        afterAll(function(done) { // clean up created beeswax advertisers
+            q.all(createdAdverts.map(function(advert) {
+                var beesId = advert.beeswaxIds.advertiser;
+                return beeswax.advertisers.delete(beesId);
+            })).then(function(results) {
+                done();
+            }).catch(done.fail);
+        });
+        
         beforeEach(function(done) {
-            mockAdverts = [
-                { id: 'e2e-a-1', status: 'active', org: 'o-selfie', name: 'advert 1', defaultLogos: { square: 'square.png' } },
-                { id: 'e2e-a-2', status: 'active', org: 'o-admin', name: 'advert 2', defaultLinks: { google: 'google.com' } },
-                { id: 'e2e-a-eted', status: 'deleted', org: 'o-selfie', name: 'deleted advert' }
-            ];
             options = {
                 url: config.adsUrl + '/account/advertisers/e2e-a-1',
                 json: { name: 'new name', defaultLogos: { square: 'rhombus.png' } },
                 jar: cookieJar
             };
-            return testUtils.resetCollection('advertisers', mockAdverts).done(done);
+            mockAdverts = [
+                { id: 'e2e-a-1', status: 'active', org: 'o-selfie', name: 'advert 1', defaultLogos: { square: 'square.png' } },
+                { id: 'e2e-a-2', status: 'active', org: 'o-admin', name: 'advert 2', defaultLinks: { google: 'google.com' } },
+                { id: 'e2e-a-deleted', status: 'deleted', org: 'o-selfie', name: 'deleted advert' }
+            ];
+            return q.all(mockAdverts.map(function(advert) {
+                return testUtils.mongoUpsert('advertisers', { id: advert.id }, advert);
+            })).then(function() {
+                done();
+            }).catch(done.fail);
         });
 
         it('should successfully update an advertiser', function(done) {
@@ -521,7 +639,7 @@ describe('ads advertisers endpoints (E2E):', function() {
                     square: 'rhombus.png'
                 });
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
+                expect(error.message || util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
 
@@ -541,8 +659,57 @@ describe('ads advertisers endpoints (E2E):', function() {
                 expect(results[0].data).toEqual({route: 'PUT /api/account/advertisers/:id',
                                                  params: { id: 'e2e-a-1' }, query: {} });
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
+                expect(error.message || util.inspect(error)).not.toBeDefined();
             }).done(done);
+        });
+        
+        describe('if the advertiser has a beeswax representation', function() {
+            beforeEach(function() {
+                options = {
+                    url: config.adsUrl + '/account/advertisers/' + createdAdverts[0].id,
+                    json: { name: nowStr + 'updated advert 1' },
+                    jar: cookieJar
+                };
+            });
+            
+            it('should be able to edit the entity in beeswax', function(done) {
+                requestUtils.qRequest('put', options).then(function(resp) {
+                    expect(resp.response.statusCode).toBe(200);
+                    expect(resp.body.name).toBe(nowStr + 'updated advert 1');
+                    expect(resp.body.beeswaxIds).toEqual(createdAdverts[0].beeswaxIds);
+                    
+                    // Check that advertiser updated in Beeswax successfully
+                    return beeswax.advertisers.find(resp.body.beeswaxIds.advertiser);
+                }).then(function(resp) {
+                    expect(resp.success).toBe(true);
+                    expect(resp.payload).toEqual(jasmine.objectContaining({
+                        advertiser_name: nowStr + 'updated advert 1',
+                        alternative_id: createdAdverts[0].id
+                    }));
+                }).catch(function(error) {
+                    expect(error.message || util.inspect(error)).not.toBeDefined();
+                }).done(done);
+            });
+            
+            it('should resolve unique name conflicts if necessary', function(done) {
+                options.json.name = createdAdverts[1].name;
+                requestUtils.qRequest('put', options).then(function(resp) {
+                    expect(resp.response.statusCode).toBe(200);
+                    expect(resp.body.name).toBe(createdAdverts[1].name);
+                    expect(resp.body.beeswaxIds).toEqual(createdAdverts[0].beeswaxIds);
+                    
+                    // Check that advertiser updated in Beeswax successfully
+                    return beeswax.advertisers.find(resp.body.beeswaxIds.advertiser);
+                }).then(function(resp) {
+                    expect(resp.success).toBe(true);
+                    expect(resp.payload).toEqual(jasmine.objectContaining({
+                        advertiser_name: nowStr + 'put advert 2 (' + createdAdverts[0].id + ')',
+                        alternative_id: createdAdverts[0].id
+                    }));
+                }).catch(function(error) {
+                    expect(error.message || util.inspect(error)).not.toBeDefined();
+                }).done(done);
+            });
         });
         
         it('should trim off forbidden fields', function(done) {
@@ -558,7 +725,7 @@ describe('ads advertisers endpoints (E2E):', function() {
                 expect(resp.body.org).toBe('o-selfie');
                 expect(resp.body.created).not.toEqual(options.json.created);
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
+                expect(error.message || util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
         
@@ -577,17 +744,17 @@ describe('ads advertisers endpoints (E2E):', function() {
                 expect(results[1].response.statusCode).toBe(403);
                 expect(results[1].body).toEqual('Not authorized to edit this');
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
+                expect(error.message || util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
         
         it('should not edit an advertiser that has been deleted', function(done) {
-            options.url = config.adsUrl + '/account/advertisers/e2e-a-eted';
+            options.url = config.adsUrl + '/account/advertisers/e2e-a-deleted';
             requestUtils.qRequest('put', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(404);
                 expect(resp.body).toBe('That has been deleted');
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
+                expect(error.message || util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
         
@@ -597,7 +764,7 @@ describe('ads advertisers endpoints (E2E):', function() {
                 expect(resp.response.statusCode).toBe(404);
                 expect(resp.body).toBe('That does not exist');
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
+                expect(error.message || util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
 
@@ -607,7 +774,7 @@ describe('ads advertisers endpoints (E2E):', function() {
                 expect(resp.response.statusCode).toBe(401);
                 expect(resp.body).toBe('Unauthorized');
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
+                expect(error.message || util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
 
@@ -651,7 +818,7 @@ describe('ads advertisers endpoints (E2E):', function() {
                 expect(resp.response.statusCode).toBe(404);
                 expect(resp.body).toBe('Object not found');
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
+                expect(error.message || util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
 
@@ -673,7 +840,7 @@ describe('ads advertisers endpoints (E2E):', function() {
                 expect(results[0].data).toEqual({route: 'DELETE /api/account/advertisers/:id',
                                                  params: { id: 'e2e-a-1' }, query: {} });
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
+                expect(error.message || util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
         
@@ -683,7 +850,7 @@ describe('ads advertisers endpoints (E2E):', function() {
                 expect(resp.response.statusCode).toBe(204);
                 expect(resp.body).toBe('');
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
+                expect(error.message || util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
         
@@ -693,7 +860,7 @@ describe('ads advertisers endpoints (E2E):', function() {
                 expect(resp.response.statusCode).toBe(204);
                 expect(resp.body).toBe('');
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
+                expect(error.message || util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
 
@@ -709,7 +876,7 @@ describe('ads advertisers endpoints (E2E):', function() {
                 expect(results[1].response.statusCode).toBe(403);
                 expect(results[1].body).toEqual('Not authorized to delete this');
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
+                expect(error.message || util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
 
@@ -719,7 +886,7 @@ describe('ads advertisers endpoints (E2E):', function() {
                 expect(resp.response.statusCode).toBe(401);
                 expect(resp.body).toBe('Unauthorized');
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
+                expect(error.message || util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
 

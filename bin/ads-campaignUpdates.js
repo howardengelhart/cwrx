@@ -85,7 +85,12 @@
         var campDataModel = updateModule.createCampModel(campSvc),
             autoApproveModel = updateModule.createAutoApproveModel();
         
-        var fetchCamp           = updateModule.fetchCamp.bind(updateModule, campSvc),
+        var fetchCamp = CrudSvc.fetchRelatedEntity.bind(CrudSvc, {
+            objName: 'campaigns',
+            idPath: ['params.campId']
+        }, updateModule.config.api);
+
+        var canEditCampaign     = updateModule.canEditCampaign.bind(updateModule, campSvc),
             validateData        = updateModule.validateData.bind(updateModule, campDataModel),
             extraValidation     = updateModule.extraValidation.bind(updateModule, campDataModel),
             handleInitialSubmit = updateModule.handleInitialSubmit.bind(updateModule, svc),
@@ -98,6 +103,7 @@
         var emailingEnabled = updateModule.config.emails.enabled;
         
         svc.use('create', fetchCamp);
+        svc.use('create', canEditCampaign);
         svc.use('create', updateModule.enforceLock);
         svc.use('create', validateData);
         svc.use('create', extraValidation);
@@ -113,6 +119,7 @@
         
         svc.use('edit', updateModule.ignoreCompleted);
         svc.use('edit', fetchCamp);
+        svc.use('edit', canEditCampaign);
         svc.use('edit', updateModule.requireReason);
         svc.use('edit', validateData);
         svc.use('edit', extraValidation);
@@ -128,6 +135,7 @@
         svc.use('autoApprove', autoApproveModel.midWare.bind(autoApproveModel, 'create'));
         svc.use('autoApprove', svc.setupObj.bind(svc));
         svc.use('autoApprove', fetchCamp);
+        svc.use('autoApprove', canEditCampaign);
         svc.use('autoApprove', updateModule.enforceLock);
         svc.use('autoApprove', updateModule.validateZipcodes);
         svc.use('autoApprove', updateModule.checkAvailableFunds);
@@ -203,39 +211,25 @@
        );
     };
 
+    // Check that update request applies to this campaign, and user can edit this campaign
+    updateModule.canEditCampaign = function(campSvc, req, next, done) {
+        var log = logger.getLog();
 
-    // Middleware to fetch the decorated campaign and attach it as req.campaign.
-    updateModule.fetchCamp = function(campSvc, req, next, done) {
-        var log = logger.getLog(),
-            campId = req.params.campId;
-            
-        log.trace('[%1] Fetching campaign %2', req.uuid, String(campId));
-        return requestUtils.proxyRequest(req, 'get', {
-            url: urlUtils.resolve(updateModule.config.api.campaigns.baseUrl, campId)
-        })
-        .then(function(resp) {
-            if (resp.response.statusCode !== 200) {
-                return done({ code: resp.response.statusCode, body: resp.body });
-            }
-
-            req.campaign = resp.body;
-
-            if (req.origObj && req.origObj.id && req.campaign.updateRequest !== req.origObj.id) {
-                log.warn('[%1] Campaign %2 has updateRequest %3, not %4',
-                         req.uuid, req.campaign.id, req.campaign.updateRequest, req.origObj.id);
-                return done({ code: 400, body: 'Update request does not apply to this campaign' });
-            }
-            
-            if (!campSvc.checkScope(req, req.campaign, 'edit')) {
-                log.info('[%1] Requester %2 does not have permission to edit %3',
-                         req.uuid, req.requester.id, req.campaign.id);
-                return done({ code: 403, body: 'Not authorized to edit this campaign' });
-            }
-            
-            req.body.campaign = campId;
-            
-            next();
-        });
+        if (req.origObj && req.origObj.id && req.campaign.updateRequest !== req.origObj.id) {
+            log.warn('[%1] Campaign %2 has updateRequest %3, not %4',
+                     req.uuid, req.campaign.id, req.campaign.updateRequest, req.origObj.id);
+            return done({ code: 400, body: 'Update request does not apply to this campaign' });
+        }
+        
+        if (!campSvc.checkScope(req, req.campaign, 'edit')) {
+            log.info('[%1] Requester %2 does not have permission to edit %3',
+                     req.uuid, req.requester.id, req.campaign.id);
+            return done({ code: 403, body: 'Not authorized to edit this campaign' });
+        }
+        
+        req.body.campaign = req.campaign.id;
+        
+        next();
     };
     
     // Prevent creating updating request if campaign already has one

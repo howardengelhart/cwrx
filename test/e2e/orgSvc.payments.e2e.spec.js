@@ -372,8 +372,8 @@ describe('orgSvc payments (E2E):', function() {
             options.jar = readOnlyJar;
             options.qs.org = 'o-braintree1';
             requestUtils.qRequest('get', options).then(function(resp) {
-                expect(resp.response.statusCode).toBe(404);
-                expect(resp.body).toEqual('Object not found');
+                expect(resp.response.statusCode).toBe(400);
+                expect(resp.body).toEqual('Cannot fetch this org');
             }).catch(function(error) {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
@@ -422,7 +422,7 @@ describe('orgSvc payments (E2E):', function() {
             options.qs = {};
             requestUtils.makeSignedRequest(appCreds, 'get', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(400);
-                expect(resp.body).toBe('Must provide an org id in the query string');
+                expect(resp.body).toBe('Must specify a org id to fetch');
             }).catch(function(error) {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
@@ -515,8 +515,8 @@ describe('orgSvc payments (E2E):', function() {
             options.jar = readOnlyJar;
             options.qs = { org: 'o-braintree1' };
             requestUtils.qRequest('get', options).then(function(resp) {
-                expect(resp.response.statusCode).toBe(404);
-                expect(resp.body).toEqual('Object not found');
+                expect(resp.response.statusCode).toBe(400);
+                expect(resp.body).toEqual('Cannot fetch this org');
             }).catch(function(error) {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
@@ -564,7 +564,7 @@ describe('orgSvc payments (E2E):', function() {
             options.qs = {};
             requestUtils.makeSignedRequest(appCreds, 'get', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(400);
-                expect(resp.body).toBe('Must provide an org id in the query string');
+                expect(resp.body).toBe('Must specify a org id to fetch');
             }).catch(function(error) {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);

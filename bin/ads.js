@@ -7,6 +7,7 @@
         path            = require('path'),
         express         = require('express'),
         bodyParser      = require('body-parser'),
+        BeeswaxClient   = require('beeswax-client'),
         authUtils       = require('../lib/authUtils'),
         service         = require('../lib/service'),
         expressUtils    = require('../lib/expressUtils'),
@@ -19,6 +20,7 @@
         conModule       = require('./ads-containers'),
         placeModule     = require('./ads-placements'),
         siteModule      = require('./ads-sites'),
+        beesCamps       = require('./ads-externalCampaigns/beeswax'),
         
         state   = {},
         ads = {}; // for exporting functions to unit tests
@@ -53,6 +55,9 @@
             cards: {
                 endpoint: '/api/content/cards/'
             },
+            advertisers: {
+                endpoint: '/api/account/advertisers/'
+            },
             campaigns: {
                 endpoint: '/api/campaigns/'
             },
@@ -62,6 +67,10 @@
             zipcodes: {
                 endpoint: '/api/geo/zipcodes'
             }
+        },
+        beeswax: {
+            apiRoot: 'https://stingersbx.api.beeswax.com',
+            impressionRatio: 1.3333     // beeswax impressions = C6 impressions * this
         },
         sessions: {
             key: 'c6Auth',
@@ -119,11 +128,19 @@
         }
         log.info('Running as cluster worker, proceed with setting up web server.');
 
+        var beeswax = new BeeswaxClient({
+            apiRoot: state.config.beeswax.apiRoot,
+            creds: state.secrets.beeswax
+        });
+        var externSvcs = {
+            beeswax: beesCamps.setupSvc(state.dbs.c6Db, state.config, beeswax)
+        };
+
         var app          = express(),
             appCreds     = state.rcAppCreds,
             jobManager   = new JobManager(state.cache, state.config.jobTimeouts),
-            advertSvc    = advertModule.setupSvc(state.dbs.c6Db.collection('advertisers')),
-            campSvc      = campModule.setupSvc(state.dbs.c6Db, state.config),
+            advertSvc    = advertModule.setupSvc(state.dbs.c6Db.collection('advertisers'), beeswax),
+            campSvc      = campModule.setupSvc(state.dbs.c6Db, state.config, externSvcs),
             updateSvc    = updateModule.setupSvc(state.dbs.c6Db, campSvc, state.config, appCreds),
             siteSvc      = siteModule.setupSvc(state.dbs.c6Db.collection('sites')),
             conSvc       = conModule.setupSvc(state.dbs.c6Db),
@@ -131,6 +148,7 @@
             auditJournal = new journal.AuditJournal(state.dbs.c6Journal.collection('audit'),
                                                     state.config.appVersion, state.config.appName);
         authUtils._db = state.dbs.c6Db;
+        
 
         // Nodemailer will automatically get SES creds, but need to set region here
         aws.config.region = state.config.emails.awsRegion;
@@ -164,7 +182,8 @@
         
         advertModule.setupEndpoints(app, advertSvc, state.sessions, audit, jobManager);
         
-        // Update module endpoints MUST be added before campaign endpoints!
+        // These endpoints MUST be added before campaign endpoints!
+        beesCamps.setupEndpoints(app, externSvcs.beeswax, state.sessions, audit, jobManager);
         updateModule.setupEndpoints(app, updateSvc, state.sessions, audit, jobManager);
 
         campModule.setupEndpoints(app, campSvc, state.sessions, audit, jobManager);

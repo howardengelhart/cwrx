@@ -428,27 +428,29 @@ describe('campaign validation', function() {
         });
     });
     
-    describe('when handling staticCardMap', function() {
-        it('should trim the field if set', function() {
-            newObj.staticCardMap = { cards: 'yes' };
-            expect(svc.model.validate('create', newObj, origObj, requester))
-                .toEqual({ isValid: true, reason: undefined });
-            expect(newObj.staticCardMap).not.toBeDefined();
-        });
-        
-        it('should be able to allow some requesters to set the field', function() {
-            requester.fieldValidation.campaigns.staticCardMap = { __allowed: true };
-            newObj.staticCardMap = { cards: 'yes' };
-            expect(svc.model.validate('create', newObj, origObj, requester))
-                .toEqual({ isValid: true, reason: undefined });
-            expect(newObj.staticCardMap).toEqual({ cards: 'yes' });
-        });
+    ['staticCardMap', 'externalCampaigns'].forEach(function(field) {
+        describe('when handling ' + field, function() {
+            it('should trim the field if set', function() {
+                newObj[field] = { cards: 'yes' };
+                expect(svc.model.validate('create', newObj, origObj, requester))
+                    .toEqual({ isValid: true, reason: undefined });
+                expect(newObj[field]).not.toBeDefined();
+            });
+            
+            it('should be able to allow some requesters to set the field', function() {
+                requester.fieldValidation.campaigns[field] = { __allowed: true };
+                newObj[field] = { cards: 'yes' };
+                expect(svc.model.validate('create', newObj, origObj, requester))
+                    .toEqual({ isValid: true, reason: undefined });
+                expect(newObj[field]).toEqual({ cards: 'yes' });
+            });
 
-        it('should fail if the field is not an object', function() {
-            requester.fieldValidation.campaigns.staticCardMap = { __allowed: true };
-            newObj.staticCardMap = 'asdf';
-            expect(svc.model.validate('create', newObj, origObj, requester))
-                .toEqual({ isValid: false, reason: 'staticCardMap must be in format: object' });
+            it('should fail if the field is not an object', function() {
+                requester.fieldValidation.campaigns[field] = { __allowed: true };
+                newObj[field] = 'asdf';
+                expect(svc.model.validate('create', newObj, origObj, requester))
+                    .toEqual({ isValid: false, reason: field + ' must be in format: object' });
+            });
         });
     });
     

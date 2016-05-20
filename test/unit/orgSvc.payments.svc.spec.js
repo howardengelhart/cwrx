@@ -1,7 +1,7 @@
 var flush = true;
 describe('orgSvc-payments (UT)', function() {
     var payModule, orgModule, events, q, mockLog, mockLogger, logger, Model, mongoUtils, Scope, requestUtils, rcKinesis,
-        objUtils, util, mockDb, mockGateway, mockPayment, mockPaymentMethod, orgSvc, req, nextSpy, doneSpy, errorSpy;
+        CrudSvc, objUtils, util, mockDb, mockGateway, mockPayment, mockPaymentMethod, orgSvc, req, nextSpy, doneSpy, errorSpy;
 
     beforeEach(function() {
         if (flush) { for (var m in require.cache){ delete require.cache[m]; } flush = false; }
@@ -12,6 +12,7 @@ describe('orgSvc-payments (UT)', function() {
         payModule       = require('../../bin/orgSvc-payments');
         orgModule       = require('../../bin/orgSvc-orgs');
         logger          = require('../../lib/logger');
+        CrudSvc         = require('../../lib/crudSvc');
         mongoUtils      = require('../../lib/mongoUtils');
         requestUtils    = require('../../lib/requestUtils');
         objUtils        = require('../../lib/objUtils');
@@ -133,7 +134,7 @@ describe('orgSvc-payments (UT)', function() {
             boundFns = [];
             var bind = Function.prototype.bind;
             
-            [payModule.fetchOrg, payModule.canEditOrg, payModule.getExistingPayMethod].forEach(function(fn) {
+            [CrudSvc.fetchRelatedEntity, payModule.canEditOrg, payModule.getExistingPayMethod].forEach(function(fn) {
                 spyOn(fn, 'bind').and.callFake(function() {
                     var boundFn = bind.apply(fn, arguments);
 
@@ -204,13 +205,22 @@ describe('orgSvc-payments (UT)', function() {
         });
 
         it('should add middleware to fetch the org for every payment endpoint', function() {
-            expect(orgSvc._middleware.getClientToken).toContain(getBoundFn(payModule.fetchOrg, [payModule, orgSvc, false]));
-            expect(orgSvc._middleware.getPaymentMethods).toContain(getBoundFn(payModule.fetchOrg, [payModule, orgSvc, true]));
-            expect(orgSvc._middleware.createPaymentMethod).toContain(getBoundFn(payModule.fetchOrg, [payModule, orgSvc, false]));
-            expect(orgSvc._middleware.editPaymentMethod).toContain(getBoundFn(payModule.fetchOrg, [payModule, orgSvc, false]));
-            expect(orgSvc._middleware.deletePaymentMethod).toContain(getBoundFn(payModule.fetchOrg, [payModule, orgSvc, false]));
-            expect(orgSvc._middleware.getPayments).toContain(getBoundFn(payModule.fetchOrg, [payModule, orgSvc, true]));
-            expect(orgSvc._middleware.createPayment).toContain(getBoundFn(payModule.fetchOrg, [payModule, orgSvc, true]));
+            var fetchOwnOrg = getBoundFn(CrudSvc.fetchRelatedEntity, [CrudSvc, {
+                objName: 'orgs',
+                idPath: ['user.org']
+            }, payModule.config.api]);
+            var fetchAnyOrg = getBoundFn(CrudSvc.fetchRelatedEntity, [CrudSvc, {
+                objName: 'orgs',
+                idPath: ['query.org', 'user.org']
+            }, payModule.config.api]);
+
+            expect(orgSvc._middleware.getClientToken).toContain(fetchOwnOrg);
+            expect(orgSvc._middleware.getPaymentMethods).toContain(fetchAnyOrg);
+            expect(orgSvc._middleware.createPaymentMethod).toContain(fetchOwnOrg);
+            expect(orgSvc._middleware.editPaymentMethod).toContain(fetchOwnOrg);
+            expect(orgSvc._middleware.deletePaymentMethod).toContain(fetchOwnOrg);
+            expect(orgSvc._middleware.getPayments).toContain(fetchAnyOrg);
+            expect(orgSvc._middleware.createPayment).toContain(fetchAnyOrg);
         });
         
         it('should add middleware to check if the requester can edit the org when modifying payment methods', function() {
@@ -307,102 +317,6 @@ describe('orgSvc-payments (UT)', function() {
                 default: true,
                 type: 'paypal',
                 email: 'johnny@test.com'
-            });
-        });
-    });
-    
-    describe('fetchOrg', function() {
-        beforeEach(function() {
-            req.query = {};
-            spyOn(orgSvc, 'getObjs').and.returnValue(q({code: 200, body: { id: 'o-1', name: 'org 1' } }));
-        });
-        
-        it('should fetch the org and save it as req.org', function(done) {
-            payModule.fetchOrg(orgSvc, true, req, nextSpy, doneSpy).catch(errorSpy);
-            process.nextTick(function() {
-                expect(nextSpy).toHaveBeenCalledWith();
-                expect(doneSpy).not.toHaveBeenCalled();
-                expect(errorSpy).not.toHaveBeenCalled();
-                expect(req.org).toEqual({ id: 'o-1', name: 'org 1' });
-                expect(orgSvc.getObjs).toHaveBeenCalledWith({ id: 'o-1' }, req, false);
-                done();
-            });
-        });
-        
-        it('should be able to fetch an org from a query param', function(done) {
-            req.query.org = 'o-2';
-            payModule.fetchOrg(orgSvc, true, req, nextSpy, doneSpy).catch(errorSpy);
-            process.nextTick(function() {
-                expect(nextSpy).toHaveBeenCalledWith();
-                expect(doneSpy).not.toHaveBeenCalled();
-                expect(errorSpy).not.toHaveBeenCalled();
-                expect(req.org).toEqual({ id: 'o-1', name: 'org 1' });
-                expect(orgSvc.getObjs).toHaveBeenCalledWith({ id: 'o-2' }, req, false);
-                done();
-            });
-        });
-        
-        it('should not use the query param if useParam is false', function(done) {
-            req.query.org = 'o-2';
-            payModule.fetchOrg(orgSvc, false, req, nextSpy, doneSpy).catch(errorSpy);
-            process.nextTick(function() {
-                expect(nextSpy).toHaveBeenCalledWith();
-                expect(doneSpy).not.toHaveBeenCalled();
-                expect(errorSpy).not.toHaveBeenCalled();
-                expect(req.org).toEqual({ id: 'o-1', name: 'org 1' });
-                expect(orgSvc.getObjs).toHaveBeenCalledWith({ id: 'o-1' }, req, false);
-                done();
-            });
-        });
-        
-        it('should return a 400 if an app is the requester and no req.query.org is provided', function(done) {
-            delete req.user;
-            delete req.query.org;
-            payModule.fetchOrg(orgSvc, false, req, nextSpy, doneSpy).catch(errorSpy);
-            process.nextTick(function() {
-                expect(nextSpy).not.toHaveBeenCalled();
-                expect(doneSpy).toHaveBeenCalledWith({ code: 400, body: 'Must provide an org id in the query string' });
-                expect(errorSpy).not.toHaveBeenCalled();
-                expect(orgSvc.getObjs).not.toHaveBeenCalled();
-                done();
-            });
-        });
-        
-        it('should call done if the orgSvc returns a non-200 response', function(done) {
-            orgSvc.getObjs.and.returnValue(q({ code: 404, body: 'Org not found' }));
-            payModule.fetchOrg(orgSvc, true, req, nextSpy, doneSpy).catch(errorSpy);
-            process.nextTick(function() {
-                expect(nextSpy).not.toHaveBeenCalled();
-                expect(doneSpy).toHaveBeenCalledWith({ code: 404, body: 'Org not found' });
-                expect(errorSpy).not.toHaveBeenCalled();
-                expect(req.org).not.toBeDefined();
-                expect(orgSvc.getObjs).toHaveBeenCalled();
-                done();
-            });
-        });
-        
-        it('should reject if the orgSvc fails', function(done) {
-            orgSvc.getObjs.and.returnValue(q.reject('I GOT A PROBLEM CROSBY'));
-            payModule.fetchOrg(orgSvc, true, req, nextSpy, doneSpy).catch(errorSpy);
-            process.nextTick(function() {
-                expect(nextSpy).not.toHaveBeenCalled();
-                expect(doneSpy).not.toHaveBeenCalled();
-                expect(errorSpy).toHaveBeenCalledWith('I GOT A PROBLEM CROSBY');
-                expect(req.org).not.toBeDefined();
-                expect(orgSvc.getObjs).toHaveBeenCalled();
-                done();
-            });
-        });
-
-        it('should defend against query selection injector attacks', function(done) {
-            req.query.org = { $gt: '' };
-            payModule.fetchOrg(orgSvc, true, req, nextSpy, doneSpy).catch(errorSpy);
-            process.nextTick(function() {
-                expect(nextSpy).not.toHaveBeenCalled();
-                expect(doneSpy).toHaveBeenCalledWith({ code: 400, body: 'Must provide an org id in the query string' });
-                expect(errorSpy).not.toHaveBeenCalled();
-                expect(orgSvc.getObjs).not.toHaveBeenCalled();
-                done();
             });
         });
     });

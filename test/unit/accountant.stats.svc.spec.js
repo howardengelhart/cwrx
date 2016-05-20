@@ -1,7 +1,7 @@
 var flush = true;
 describe('statsModule-stats (UT)', function() {
-    var mockLog, Model, MiddleManager, logger, q, statsModule, authUtils,
-        requestUtils, pgUtils, req, nextSpy, doneSpy, errorSpy, mockDb, Status;
+    var mockLog, Model, MiddleManager, CrudSvc, logger, q, statsModule, authUtils,
+        requestUtils, objUtils, pgUtils, req, nextSpy, doneSpy, errorSpy, mockDb, Status;
 
     beforeEach(function() {
         if (flush) { for (var m in require.cache){ delete require.cache[m]; } flush = false; }
@@ -10,8 +10,10 @@ describe('statsModule-stats (UT)', function() {
         logger          = require('../../lib/logger');
         Model           = require('../../lib/model');
         MiddleManager   = require('../../lib/middleManager');
+        CrudSvc         = require('../../lib/crudSvc');
         requestUtils    = require('../../lib/requestUtils');
         authUtils       = require('../../lib/authUtils');
+        objUtils        = require('../../lib/objUtils');
         pgUtils         = require('../../lib/pgUtils');
         Status          = require('../../lib/enums').Status;
         
@@ -51,7 +53,16 @@ describe('statsModule-stats (UT)', function() {
     });
     
     describe('setupSvc', function() {
-        var svc, config;
+        var svc, config, boundFns;
+
+        function getBoundFn(original, argParams) {
+            var boundObj = boundFns.filter(function(call) {
+                return call.original === original && objUtils.compareObjects(call.args, argParams);
+            })[0] || {};
+            
+            return boundObj.bound;
+        }
+
         beforeEach(function() {
             config = { api: {
                 root: 'http://foo.com',
@@ -62,7 +73,22 @@ describe('statsModule-stats (UT)', function() {
                     endpoint: '/api/account/orgs',
                 }
             } };
-            spyOn(Model.prototype.midWare, 'bind').and.returnValue(Model.prototype.midWare);
+
+            boundFns = [];
+            [Model.prototype.midWare, CrudSvc.fetchRelatedEntity].forEach(function(fn) {
+                spyOn(fn, 'bind').and.callFake(function() {
+                    var boundFn = Function.prototype.bind.apply(fn, arguments);
+
+                    boundFns.push({
+                        bound: boundFn,
+                        original: fn,
+                        args: Array.prototype.slice.call(arguments)
+                    });
+
+                    return boundFn;
+                });
+            });
+
             svc = statsModule.setupSvc(mockDb, config);
         });
         
@@ -85,22 +111,32 @@ describe('statsModule-stats (UT)', function() {
             } });
         });
         
-        it('should check fetch the org on balanceStats', function() {
-            expect(svc._middleware.balanceStats).toContain(statsModule.fetchOrg);
+        it('should fetch the org on balanceStats', function() {
+            expect(svc._middleware.balanceStats).toContain(getBoundFn(CrudSvc.fetchRelatedEntity, [CrudSvc, {
+                objName: 'orgs',
+                idPath: ['query.org', 'body.org']
+            }, statsModule.config.api]));
         });
         
         it('should validate the body on creditCheck', function() {
-            expect(svc._middleware.creditCheck).toContain(Model.prototype.midWare);
-
             var checkModel = Model.prototype.midWare.bind.calls.mostRecent().args[0];
+            expect(svc._middleware.creditCheck).toContain(getBoundFn(Model.prototype.midWare, [checkModel, 'create']));
+
             expect(checkModel).toEqual(jasmine.any(Model));
             expect(checkModel.objName).toEqual('creditCheck');
             expect(checkModel.schema).toEqual(statsModule.creditCheckSchema);
         });
         
         it('should fetch the org + campaign on creditCheck', function() {
-            expect(svc._middleware.creditCheck).toContain(statsModule.fetchOrg);
-            expect(svc._middleware.creditCheck).toContain(statsModule.fetchCampaign);
+            expect(svc._middleware.creditCheck).toContain(getBoundFn(CrudSvc.fetchRelatedEntity, [CrudSvc, {
+                objName: 'orgs',
+                idPath: ['query.org', 'body.org']
+            }, statsModule.config.api]));
+            expect(svc._middleware.creditCheck).toContain(getBoundFn(CrudSvc.fetchRelatedEntity, [CrudSvc, {
+                objName: 'campaigns',
+                idPath: ['body.campaign']
+            }, statsModule.config.api]));
+            expect(svc._middleware.creditCheck).toContain(statsModule.checkCampaignOwnership);
         });
     });
     
@@ -152,127 +188,24 @@ describe('statsModule-stats (UT)', function() {
         });
     });
     
-    describe('fetchOrg', function() {
-        var orgResp;
-        beforeEach(function() {
-            req.query = { org: 'o-1' };
-            req.body = {};
-            orgResp = {
-                response: { statusCode: 200 },
-                body: { id: 'o-1', name: 'org 1' }
-            };
-            spyOn(requestUtils, 'proxyRequest').and.callFake(function() { return q(orgResp); });
-        });
-        
-        it('should attempt to fetch the org and attach it to the request', function(done) {
-            statsModule.fetchOrg(req, nextSpy, doneSpy).catch(errorSpy).finally(function() {
-                expect(nextSpy).toHaveBeenCalled();
-                expect(doneSpy).not.toHaveBeenCalled();
-                expect(errorSpy).not.toHaveBeenCalled();
-                expect(req.org).toEqual({ id: 'o-1', name: 'org 1' });
-                expect(requestUtils.proxyRequest).toHaveBeenCalledWith(req, 'get', {
-                    url: 'http://test.com/api/account/orgs/o-1'
-                });
-                expect(mockLog.error).not.toHaveBeenCalled();
-                done();
-            });
-        });
-        
-        it('should be able to take the org id from the body', function(done) {
-            delete req.query.org;
-            req.body.org = 'o-2';
-            statsModule.fetchOrg(req, nextSpy, doneSpy).catch(errorSpy).finally(function() {
-                expect(nextSpy).toHaveBeenCalled();
-                expect(doneSpy).not.toHaveBeenCalled();
-                expect(errorSpy).not.toHaveBeenCalled();
-                expect(req.org).toEqual({ id: 'o-1', name: 'org 1' });
-                expect(requestUtils.proxyRequest).toHaveBeenCalledWith(req, 'get', {
-                    url: 'http://test.com/api/account/orgs/o-2'
-                });
-                expect(mockLog.error).not.toHaveBeenCalled();
-                done();
-            });
-        });
-        
-        it('should call done with a 400 if the org is not found', function(done) {
-            orgResp = { response: { statusCode: 400 }, body: 'no way jose' };
-            statsModule.fetchOrg(req, nextSpy, doneSpy).catch(errorSpy).finally(function() {
-                expect(nextSpy).not.toHaveBeenCalled();
-                expect(doneSpy).toHaveBeenCalledWith({ code: 400, body: 'Cannot fetch this org' });
-                expect(errorSpy).not.toHaveBeenCalled();
-                expect(mockLog.error).not.toHaveBeenCalled();
-                done();
-            });
-        });
-
-        it('should reject if the request fails', function(done) {
-            orgResp = q.reject('I GOT A PROBLEM');
-            statsModule.fetchOrg(req, nextSpy, doneSpy).catch(errorSpy).finally(function() {
-                expect(nextSpy).not.toHaveBeenCalled();
-                expect(doneSpy).not.toHaveBeenCalled();
-                expect(errorSpy).toHaveBeenCalledWith('Error fetching org');
-                expect(mockLog.error).toHaveBeenCalled();
-                done();
-            });
-        });
-    });
-    
-    describe('fetchCampaign', function() {
-        var campResp;
+    describe('checkCampaignOwnership', function() {
         beforeEach(function() {
             req.body = { org: 'o-1', campaign: 'cam-1' };
-            campResp = {
-                response: { statusCode: 200 },
-                body: { id: 'cam-1', name: 'camp 1', org: 'o-1' }
-            };
-            spyOn(requestUtils, 'proxyRequest').and.callFake(function() { return q(campResp); });
+            req.org = { id: 'o-1', name: 'org 1' };
+            req.campaign = { id: 'cam-1', org: 'o-1', name: 'camp 1' };
         });
         
-        it('should attempt to fetch the campaign and attach it to the request', function(done) {
-            statsModule.fetchCampaign(req, nextSpy, doneSpy).catch(errorSpy).finally(function() {
-                expect(nextSpy).toHaveBeenCalled();
-                expect(doneSpy).not.toHaveBeenCalled();
-                expect(errorSpy).not.toHaveBeenCalled();
-                expect(req.campaign).toEqual({ id: 'cam-1', name: 'camp 1', org: 'o-1' });
-                expect(requestUtils.proxyRequest).toHaveBeenCalledWith(req, 'get', {
-                    url: 'http://test.com/api/campaigns/cam-1'
-                });
-                expect(mockLog.error).not.toHaveBeenCalled();
-                done();
-            });
+        it('should call next if the campaign belongs to the org', function() {
+            statsModule.checkCampaignOwnership(req, nextSpy, doneSpy);
+            expect(nextSpy).toHaveBeenCalled();
+            expect(doneSpy).not.toHaveBeenCalled();
         });
         
-        it('should call done with a 400 if the campaign is not found', function(done) {
-            campResp = { response: { statusCode: 400 }, body: 'no way jose' };
-            statsModule.fetchCampaign(req, nextSpy, doneSpy).catch(errorSpy).finally(function() {
-                expect(nextSpy).not.toHaveBeenCalled();
-                expect(doneSpy).toHaveBeenCalledWith({ code: 400, body: 'Cannot fetch this campaign' });
-                expect(errorSpy).not.toHaveBeenCalled();
-                expect(mockLog.error).not.toHaveBeenCalled();
-                done();
-            });
-        });
-
-        it('should call done with a 400 if the campaign does not belong to the request org', function(done) {
-            campResp.body.org = 'o-2';
-            statsModule.fetchCampaign(req, nextSpy, doneSpy).catch(errorSpy).finally(function() {
-                expect(nextSpy).not.toHaveBeenCalled();
-                expect(doneSpy).toHaveBeenCalledWith({ code: 400, body: 'Campaign cam-1 does not belong to o-1' });
-                expect(errorSpy).not.toHaveBeenCalled();
-                expect(mockLog.error).not.toHaveBeenCalled();
-                done();
-            });
-        });
-
-        it('should reject if the request fails', function(done) {
-            campResp = q.reject('I GOT A PROBLEM');
-            statsModule.fetchCampaign(req, nextSpy, doneSpy).catch(errorSpy).finally(function() {
-                expect(nextSpy).not.toHaveBeenCalled();
-                expect(doneSpy).not.toHaveBeenCalled();
-                expect(errorSpy).toHaveBeenCalledWith('Error fetching campaign');
-                expect(mockLog.error).toHaveBeenCalled();
-                done();
-            });
+        it('should call done if the campaign does not belong to the org', function() {
+            req.campaign.org = 'o-2';
+            statsModule.checkCampaignOwnership(req, nextSpy, doneSpy);
+            expect(nextSpy).not.toHaveBeenCalled();
+            expect(doneSpy).toHaveBeenCalledWith({ code: 400, body: 'Campaign cam-1 does not belong to o-1' });
         });
     });
     

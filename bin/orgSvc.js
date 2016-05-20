@@ -42,6 +42,9 @@
             transactions: {
                 endpoint: '/api/transactions/'
             },
+            orgs: {
+                endpoint: '/api/account/orgs/'
+            },
             users: {
                 endpoint: '/api/account/users/'
             }

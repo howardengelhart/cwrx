@@ -1,17 +1,19 @@
 var flush = true;
 describe('CrudSvc', function() {
-    var q, mockLog, logger, CrudSvc, uuid, mongoUtils, FieldValidator, Model, MiddleManager, mockColl, anyFunc,
-        historian, req, svc, enums, Scope, Status, nextSpy, doneSpy, errorSpy, histMidware;
+    var q, ld, mockLog, logger, CrudSvc, uuid, mongoUtils, FieldValidator, Model, MiddleManager, mockColl, anyFunc,
+        requestUtils, historian, req, svc, enums, Scope, Status, nextSpy, doneSpy, errorSpy, histMidware;
 
     beforeEach(function() {
         if (flush){ for (var m in require.cache){ delete require.cache[m]; } flush = false; }
         q               = require('q');
+        ld              = require('lodash');
         uuid            = require('rc-uuid');
         CrudSvc         = require('../../lib/crudSvc');
         enums           = require('../../lib/enums');
         logger          = require('../../lib/logger');
         mongoUtils      = require('../../lib/mongoUtils');
         FieldValidator  = require('../../lib/fieldValidator');
+        requestUtils    = require('../../lib/requestUtils');
         historian       = require('../../lib/historian');
         Model           = require('../../lib/model');
         MiddleManager   = require('../../lib/middleManager');
@@ -199,25 +201,21 @@ describe('CrudSvc', function() {
         });
     });
     
-    describe('singularizeName', function() {
-        function createSvc(name) {
-            return new CrudSvc({ collectionName: name }, 'x');
-        }
-
+    describe('CrudSvc.singularizeName', function() {
         it('should return the singular version of the internal objName', function() {
-            expect(createSvc('experiences').singularizeName()).toBe('experience');
-            expect(createSvc('cards').singularizeName()).toBe('card');
-            expect(createSvc('orgs').singularizeName()).toBe('org');
-            expect(createSvc('brownies').singularizeName()).toBe('brownie');
+            expect(CrudSvc.singularizeName('experiences')).toBe('experience');
+            expect(CrudSvc.singularizeName('cards')).toBe('card');
+            expect(CrudSvc.singularizeName('orgs')).toBe('org');
+            expect(CrudSvc.singularizeName('brownies')).toBe('brownie');
         });
         
         it('should handle nouns with non-standard plurals properly', function() {
-            expect(createSvc('categories').singularizeName()).toBe('category');
-            expect(createSvc('policies').singularizeName()).toBe('policy');
+            expect(CrudSvc.singularizeName('categories')).toBe('category');
+            expect(CrudSvc.singularizeName('policies')).toBe('policy');
         });
     });
 
-    describe('checkScope', function() {
+    describe('CrudSvc.checkScope', function() {
         var req, thangs;
         beforeEach(function() {
             req = {
@@ -243,15 +241,15 @@ describe('CrudSvc', function() {
 
         it('should correctly handle the scopes', function() {
             expect(thangs.filter(function(thang) {
-                return svc.checkScope(req, thang, 'read');
+                return CrudSvc.checkScope('thangs', true, req, thang, 'read');
             })).toEqual(thangs);
 
             expect(thangs.filter(function(thang) {
-                return svc.checkScope(req, thang, 'edit');
+                return CrudSvc.checkScope('thangs', true, req, thang, 'edit');
             })).toEqual([thangs[0], thangs[1], thangs[2]]);
 
             expect(thangs.filter(function(thang) {
-                return svc.checkScope(req, thang, 'delete');
+                return CrudSvc.checkScope('thangs', true, req, thang, 'delete');
             })).toEqual([thangs[0], thangs[2]]);
         });
         
@@ -261,15 +259,15 @@ describe('CrudSvc', function() {
             req.application = { id: 'app-1', key: 'watchman' };
             
             expect(thangs.filter(function(thang) {
-                return svc.checkScope(req, thang, 'read');
+                return CrudSvc.checkScope('thangs', true, req, thang, 'read');
             })).toEqual(thangs);
 
             expect(thangs.filter(function(thang) {
-                return svc.checkScope(req, thang, 'edit');
+                return CrudSvc.checkScope('thangs', true, req, thang, 'edit');
             })).toEqual([]);
 
             expect(thangs.filter(function(thang) {
-                return svc.checkScope(req, thang, 'delete');
+                return CrudSvc.checkScope('thangs', true, req, thang, 'delete');
             })).toEqual([]);
         });
 
@@ -277,17 +275,17 @@ describe('CrudSvc', function() {
             var thang = { id: 't-1' };
             
             req.requester.permissions.thangs.read = '';
-            expect(svc.checkScope({}, thang, 'read')).toBe(false);
+            expect(CrudSvc.checkScope('thangs', true, {}, thang, 'read')).toBe(false);
 
             req.requester.permissions.thangs = {};
             req.requester.permissions.orgs = { read: Scope.All };
-            expect(svc.checkScope({}, thang, 'read')).toBe(false);
+            expect(CrudSvc.checkScope('thangs', true, {}, thang, 'read')).toBe(false);
             
             req.requester.permissions = {};
-            expect(svc.checkScope({}, thang, 'read')).toBe(false);
+            expect(CrudSvc.checkScope('thangs', true, {}, thang, 'read')).toBe(false);
             
             delete req.requester;
-            expect(svc.checkScope({}, thang, 'read')).toBe(false);
+            expect(CrudSvc.checkScope('thangs', true, {}, thang, 'read')).toBe(false);
         });
         
         describe('if handling entities not owned by users', function() {
@@ -302,23 +300,22 @@ describe('CrudSvc', function() {
                     { id: 't-2', status: Status.Active, org: 'o-1' },
                     { id: 't-3', status: Status.Active }
                 ];
-                svc._ownedByUser = false;
             });
             
             it('should allow users with own/org scope to get entities they belong to', function() {
                 // 'all' scope should still work the same
                 expect(thangs.filter(function(thang) {
-                    return svc.checkScope(req, thang, 'read');
+                    return CrudSvc.checkScope('thangs', false, req, thang, 'read');
                 })).toEqual(thangs);
                 
                 // 'org' scope should get thangs owned by the org + the user's thang
                 expect(thangs.filter(function(thang) {
-                    return svc.checkScope(req, thang, 'edit');
+                    return CrudSvc.checkScope('thangs', false, req, thang, 'edit');
                 })).toEqual([thangs[0], thangs[1]]);
 
                 // 'own' scope should only get the user's thang
                 expect(thangs.filter(function(thang) {
-                    return svc.checkScope(req, thang, 'delete');
+                    return CrudSvc.checkScope('thangs', false, req, thang, 'delete');
                 })).toEqual([thangs[0]]);
             });
 
@@ -326,19 +323,162 @@ describe('CrudSvc', function() {
                 delete req.user.thang;
                 // 'all' scope should still work the same
                 expect(thangs.filter(function(thang) {
-                    return svc.checkScope(req, thang, 'read');
+                    return CrudSvc.checkScope('thangs', false, req, thang, 'read');
                 })).toEqual(thangs);
                 
                 // 'org' scope should only get thangs owned by the org
                 expect(thangs.filter(function(thang) {
-                    return svc.checkScope(req, thang, 'edit');
+                    return CrudSvc.checkScope('thangs', false, req, thang, 'edit');
                 })).toEqual([thangs[1]]);
 
                 // 'own' scope should get nothing
                 expect(thangs.filter(function(thang) {
-                    return svc.checkScope(req, thang, 'delete');
+                    return CrudSvc.checkScope('thangs', false, req, thang, 'delete');
                 })).toEqual([]);
             });
+        });
+    });
+    
+    describe('CrudSvc.fetchRelatedEntity', function() {
+        var opts, apiCfg, reqResp;
+        beforeEach(function() {
+            opts = {
+                objName: 'orgs',
+                idPath: 'query.foo'
+            };
+            apiCfg = {
+                root: 'http://c6.com',
+                orgs: {
+                    endpoint: '/api/account/orgs/',
+                    baseUrl: 'http://c6.com/api/account/orgs/'
+                }
+            };
+            req.query = { foo: 'o-1', bar: 'o-2' };
+            req.campaign = { id: 'cam-1', org: 'o-3' };
+            req.body = { entities: { org: 'o-4' } };
+            reqResp = {
+                response: { statusCode: 200 },
+                body: { id: 'o-1', name: 'org 1' }
+            };
+            spyOn(requestUtils, 'proxyRequest').and.callFake(function() { return q(reqResp); });
+        });
+        
+        it('should attempt to fetch an entity and attach it to the request', function(done) {
+            CrudSvc.fetchRelatedEntity(opts, apiCfg, req, nextSpy, doneSpy).catch(errorSpy).finally(function() {
+                expect(nextSpy).toHaveBeenCalled();
+                expect(doneSpy).not.toHaveBeenCalled();
+                expect(errorSpy).not.toHaveBeenCalled();
+                expect(req.org).toEqual({ id: 'o-1', name: 'org 1' });
+                expect(requestUtils.proxyRequest).toHaveBeenCalledWith(req, 'get', {
+                    url: 'http://c6.com/api/account/orgs/o-1'
+                });
+                expect(mockLog.error).not.toHaveBeenCalled();
+            }).done(done);
+        });
+        
+        it('should support a list of fallback id paths', function(done) {
+            opts.idPath = ['query.foo', 'query.bar', 'campaign.org', 'body.entities.org'];
+            q.all(opts.idPath.map(function(path, idx) {
+                if (idx >= 1) {
+                    ld.unset(req, opts.idPath[idx - 1]);
+                }
+                return CrudSvc.fetchRelatedEntity(opts, apiCfg, req, nextSpy, doneSpy).catch(errorSpy);
+            })).then(function(results) {
+                expect(nextSpy).toHaveBeenCalled();
+                expect(doneSpy).not.toHaveBeenCalled();
+                expect(errorSpy).not.toHaveBeenCalled();
+                expect(req.org).toEqual({ id: 'o-1', name: 'org 1' });
+                expect(requestUtils.proxyRequest.calls.count()).toBe(4);
+                expect(requestUtils.proxyRequest.calls.argsFor(0)[2]).toEqual({
+                    url: 'http://c6.com/api/account/orgs/o-1'
+                });
+                expect(requestUtils.proxyRequest.calls.argsFor(1)[2]).toEqual({
+                    url: 'http://c6.com/api/account/orgs/o-2'
+                });
+                expect(requestUtils.proxyRequest.calls.argsFor(2)[2]).toEqual({
+                    url: 'http://c6.com/api/account/orgs/o-3'
+                });
+                expect(requestUtils.proxyRequest.calls.argsFor(3)[2]).toEqual({
+                    url: 'http://c6.com/api/account/orgs/o-4'
+                });
+                expect(mockLog.error).not.toHaveBeenCalled();
+            }).done(done);
+        });
+        
+        it('should support setting the response on a custom path', function(done) {
+            opts.resultPath = 'related.entities.org';
+            CrudSvc.fetchRelatedEntity(opts, apiCfg, req, nextSpy, doneSpy).catch(errorSpy).finally(function() {
+                expect(nextSpy).toHaveBeenCalled();
+                expect(doneSpy).not.toHaveBeenCalled();
+                expect(errorSpy).not.toHaveBeenCalled();
+                expect(req.org).not.toBeDefined();
+                expect(req.related.entities.org).toEqual({ id: 'o-1', name: 'org 1' });
+                expect(requestUtils.proxyRequest).toHaveBeenCalled();
+                expect(mockLog.error).not.toHaveBeenCalled();
+            }).done(done);
+        });
+        
+        it('should throw an error if not passed the necessary options', function() {
+            var msg = 'Must provide opts.idPath and opts.objName';
+            [undefined, null, {}, { idPath: 'query.foo' }, { objName: 'orgs' }].forEach(function(newOpts) {
+                expect(function() { CrudSvc.fetchRelatedEntity(newOpts, apiCfg, req, nextSpy, doneSpy); }).toThrow(new Error(msg));
+            });
+        });
+        
+        it('should set the baseUrl for the api config if not defined', function(done) {
+            delete apiCfg.orgs.baseUrl;
+            CrudSvc.fetchRelatedEntity(opts, apiCfg, req, nextSpy, doneSpy).catch(errorSpy).finally(function() {
+                expect(nextSpy).toHaveBeenCalled();
+                expect(doneSpy).not.toHaveBeenCalled();
+                expect(errorSpy).not.toHaveBeenCalled();
+                expect(req.org).toEqual({ id: 'o-1', name: 'org 1' });
+                expect(requestUtils.proxyRequest).toHaveBeenCalledWith(req, 'get', {
+                    url: 'http://c6.com/api/account/orgs/o-1'
+                });
+                expect(apiCfg.orgs.baseUrl).toBe('http://c6.com/api/account/orgs/');
+                expect(mockLog.error).not.toHaveBeenCalled();
+            }).done(done);
+        });
+        
+        it('should call done with a 400 if the entity is not found', function(done) {
+            reqResp = { response: { statusCode: 400 }, body: 'no way jose' };
+            CrudSvc.fetchRelatedEntity(opts, apiCfg, req, nextSpy, doneSpy).catch(errorSpy).finally(function() {
+                expect(nextSpy).not.toHaveBeenCalled();
+                expect(doneSpy).toHaveBeenCalledWith({ code: 400, body: 'Cannot fetch this org' });
+                expect(errorSpy).not.toHaveBeenCalled();
+                expect(mockLog.error).not.toHaveBeenCalled();
+            }).done(done);
+        });
+
+        it('should reject if the request fails', function(done) {
+            reqResp = q.reject('I GOT A PROBLEM');
+            CrudSvc.fetchRelatedEntity(opts, apiCfg, req, nextSpy, doneSpy).catch(errorSpy).finally(function() {
+                expect(nextSpy).not.toHaveBeenCalled();
+                expect(doneSpy).not.toHaveBeenCalled();
+                expect(errorSpy).toHaveBeenCalledWith('Error fetching org');
+                expect(mockLog.error).toHaveBeenCalled();
+            }).done(done);
+        });
+    });
+    
+    describe('CrudSvc.prototype.checkScope', function() {
+        var req, obj, action;
+        beforeEach(function() {
+            req = { uuid: '1234' };
+            obj = { foo: 'bar' };
+            action = 'edit';
+            spyOn(CrudSvc, 'checkScope').and.returnValue(true);
+        });
+
+        it('should call the static method correctly', function() {
+            expect(svc.checkScope(req, obj, action)).toBe(true);
+            expect(CrudSvc.checkScope).toHaveBeenCalledWith('thangs', true, req, obj, action);
+            
+            CrudSvc.checkScope.calls.reset();
+            svc.objName = 'undapants';
+            svc._ownedByUser = false;
+            expect(svc.checkScope(req, obj, action)).toBe(true);
+            expect(CrudSvc.checkScope).toHaveBeenCalledWith('undapants', false, req, obj, action);
         });
     });
 

@@ -7,11 +7,11 @@
         ld              = require('lodash'),
         Model           = require('../lib/model'),
         logger          = require('../lib/logger'),
+        CrudSvc         = require('../lib/crudSvc'),
         pgUtils         = require('../lib/pgUtils'),
         authUtils       = require('../lib/authUtils'),
         Status          = require('../lib/enums').Status,
         expressUtils    = require('../lib/expressUtils'),
-        requestUtils    = require('../lib/requestUtils'),
         MiddleManager   = require('../lib/middleManager'),
 
         statsModule = { config: {} };
@@ -49,91 +49,39 @@
             creditCheckModel = new Model('creditCheck', statsModule.creditCheckSchema);
         svc._db = db;
         
-        svc.use('balanceStats', statsModule.fetchOrg);
+        var fetchOrg = CrudSvc.fetchRelatedEntity.bind(CrudSvc, {
+            objName: 'orgs',
+            idPath: ['query.org', 'body.org']
+        }, statsModule.config.api);
+        var fetchCampaign = CrudSvc.fetchRelatedEntity.bind(CrudSvc, {
+            objName: 'campaigns',
+            idPath: ['body.campaign']
+        }, statsModule.config.api);
+        
+        svc.use('balanceStats', fetchOrg);
         
         svc.use('creditCheck', creditCheckModel.midWare.bind(creditCheckModel, 'create'));
-        svc.use('creditCheck', statsModule.fetchOrg);
-        svc.use('creditCheck', statsModule.fetchCampaign);
+        svc.use('creditCheck', fetchOrg);
+        svc.use('creditCheck', fetchCampaign);
+        svc.use('creditCheck', statsModule.checkCampaignOwnership);
         
         return svc;
     };
     
     
-    // Fetch the org requester is querying for, for permissions purposes
-    statsModule.fetchOrg = function(req, next, done) {
-        var log = logger.getLog(),
-            orgId = req.query.org || req.body.org;
+    // Check that campaign belongs to org in req.body
+    statsModule.checkCampaignOwnership = function(req, next, done) {
+        var log = logger.getLog();
 
-        return requestUtils.proxyRequest(req, 'get', {
-            url: urlUtils.resolve(statsModule.config.api.orgs.baseUrl, orgId)
-        })
-        .then(function(resp) {
-            if (resp && resp.response.statusCode !== 200) {
-                log.info(
-                    '[%1] Requester %2 could not fetch org %3: %4, %5',
-                    req.uuid,
-                    req.requester.id,
-                    orgId,
-                    resp.response.statusCode,
-                    resp.body
-                );
-                return done({
-                    code: 400,
-                    body: 'Cannot fetch this org'
-                });
-            }
-            
-            req.org = resp.body;
-            next();
-        })
-        .catch(function(error) {
-            log.error('[%1] Failed fetching org %2: %3', req.uuid, orgId, util.inspect(error));
-            return q.reject('Error fetching org');
-        });
-    };
-
-    // Fetch the campaign requester is doing credit check for
-    statsModule.fetchCampaign = function(req, next, done) {
-        var log = logger.getLog(),
-            campId = req.body.campaign,
-            orgId = req.body.org;
-
-        return requestUtils.proxyRequest(req, 'get', {
-            url: urlUtils.resolve(statsModule.config.api.campaigns.baseUrl, campId)
-        })
-        .then(function(resp) {
-            if (resp && resp.response.statusCode !== 200) {
-                log.info(
-                    '[%1] Requester %2 could not fetch campaign %3: %4, %5',
-                    req.uuid,
-                    req.requester.id,
-                    campId,
-                    resp.response.statusCode,
-                    resp.body
-                );
-                return done({
-                    code: 400,
-                    body: 'Cannot fetch this campaign'
-                });
-            }
-            
-            req.campaign = resp.body;
-            
-            if (req.campaign.org !== orgId) {
-                log.info('[%1] Campaign %2 belongs to %3, not %4 in req.body',
-                         req.uuid, req.campaign.id, req.campaign.org, orgId);
-                return done({
-                    code: 400,
-                    body: 'Campaign ' + campId + ' does not belong to ' + orgId
-                });
-            }
-
-            next();
-        })
-        .catch(function(error) {
-            log.error('[%1] Failed fetching campaign %2: %3',req.uuid, campId, util.inspect(error));
-            return q.reject('Error fetching campaign');
-        });
+        if (req.campaign.org !== req.org.id) {
+            log.info('[%1] Campaign %2 belongs to %3, not %4 in req.body',
+                     req.uuid, req.campaign.id, req.campaign.org, req.org.id);
+            return done({
+                code: 400,
+                body: 'Campaign ' + req.campaign.id + ' does not belong to ' + req.org.id
+            });
+        }
+        next();
     };
     
 
