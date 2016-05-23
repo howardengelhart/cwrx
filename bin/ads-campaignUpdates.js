@@ -148,22 +148,18 @@
 
     // Helper to return true if update request is an initial campaign submit
     updateModule.isInitSubmit = function(req) {
-        //TODO: update to stop handling draft --> active once frontend updated
         return !!req.body.initialSubmit || (req.origObj && req.origObj.initialSubmit) ||
-               (req.campaign.status === Status.Draft && (req.body.data.status === Status.Pending ||
-                                                         req.body.data.status === Status.Active));
+               (req.campaign.status === Status.Draft && req.body.data.status === Status.Pending);
     };
 
     // Helper to return true if update request is a campaign renewal
     updateModule.isRenewal = function(req) {
-        //TODO: update to stop handling <finished> --> active once frontend updated
         var finishedStatuses = [Status.Expired, Status.OutOfBudget, Status.Canceled],
             oldStatus = req.campaign.status,
             newStatus = req.body.data.status;
 
         return !!req.body.renewal || (req.origObj && req.origObj.renewal) ||
-               (finishedStatuses.indexOf(oldStatus) !== -1 && (newStatus === Status.Pending ||
-                                                               newStatus === Status.Active));
+               (finishedStatuses.indexOf(oldStatus) !== -1 && newStatus === Status.Pending);
     };
     
     // Creates a modified campaign model that allows users to set status
@@ -186,18 +182,13 @@
     
     // Check if we can auto-approve the update request
     updateModule.canAutoApprove = function(req) {
-        return (
+        return !!(
             // Can auto-approve if user has entitlement + ability to set campaign status
             req.requester.entitlements.autoApproveUpdates === true &&
             req.requester.fieldValidation.campaigns &&
             req.requester.fieldValidation.campaigns.status &&
             req.requester.fieldValidation.campaigns.status.__allowed === true
-        ) || (
-            // Otherwise, can auto-approve if body solely consists of paymentMethod
-            //TODO: remove this when frontend no longer depends on it
-           req.body && req.body.data && !!req.body.data.paymentMethod &&
-           Object.keys(req.body.data).length === 1
-       );
+        );
     };
 
     // Check that update request applies to this campaign, and user can edit this campaign

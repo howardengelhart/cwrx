@@ -1868,7 +1868,7 @@ describe('ads campaignUpdates endpoints (E2E):', function() {
                 });
 
                 mockman.once('campaignUpdateApproved', function(record) {
-                    mockmanDef.resolve();
+                    done();
                 });
             });
         });

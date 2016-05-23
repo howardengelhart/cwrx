@@ -116,7 +116,7 @@ describe('ads-campaignUpdates (UT)', function() {
             boundFns = [];
             [updateModule.validateData, updateModule.extraValidation, updateModule.handleInitialSubmit,
              updateModule.handleRenewal, updateModule.lockCampaign, updateModule.unlockCampaign, updateModule.applyUpdate,
-             updateModule.notifyOwner, fakeAutoApproveModel.midWare, updateModule.canEditCampaign, CrudSvc.fetchRelatedEntity].forEach(function(fn) {
+             fakeAutoApproveModel.midWare, updateModule.canEditCampaign, CrudSvc.fetchRelatedEntity].forEach(function(fn) {
                 spyOn(fn, 'bind').and.callFake(function() {
                     var boundFn = Function.prototype.bind.apply(fn, arguments);
 
@@ -181,12 +181,7 @@ describe('ads-campaignUpdates (UT)', function() {
             expect(svc._middleware.create).toContain(updateModule.checkAvailableFunds);
             expect(svc._middleware.create).toContain(getBoundFn(updateModule.handleInitialSubmit, [updateModule, svc]));
             expect(svc._middleware.create).toContain(getBoundFn(updateModule.handleRenewal, [updateModule, svc]));
-            expect(svc._middleware.create).toContain(updateModule.notifySupport);
             expect(svc._middleware.create).toContain(getBoundFn(updateModule.lockCampaign, [updateModule, svc]));
-
-            updateModule.config.emails.enabled = false;
-            svc = updateModule.setupSvc(mockDb, campSvc, config, appCreds);
-            expect(svc._middleware.create).not.toContain(getBoundFn(updateModule.notifySupport, [updateModule, svc]));
         });
         
         it('should include middleware for edit', function() {
@@ -204,11 +199,6 @@ describe('ads-campaignUpdates (UT)', function() {
             expect(svc._middleware.edit).toContain(updateModule.checkAvailableFunds);
             expect(svc._middleware.edit).toContain(getBoundFn(updateModule.unlockCampaign, [updateModule, svc]));
             expect(svc._middleware.edit).toContain(getBoundFn(updateModule.applyUpdate, [updateModule, svc, appCreds]));
-            expect(svc._middleware.edit).toContain(getBoundFn(updateModule.notifyOwner, [updateModule, svc]));
-
-            updateModule.config.emails.enabled = false;
-            svc = updateModule.setupSvc(mockDb, campSvc, config, appCreds);
-            expect(svc._middleware.create).not.toContain(getBoundFn(updateModule.notifyOwner, [updateModule, svc]));
         });
         
         it('should include middleware for autoApprove', function() {
@@ -418,9 +408,6 @@ describe('ads-campaignUpdates (UT)', function() {
             req.body.data.status = Status.Pending;
             req.campaign.status = Status.Draft;
             expect(updateModule.isInitSubmit(req)).toBe(true);
-            // this should still work, for now
-            req.body.data.status = Status.Active;
-            expect(updateModule.isInitSubmit(req)).toBe(true);
         });
         
         it('should return false otherwise', function() {
@@ -457,9 +444,6 @@ describe('ads-campaignUpdates (UT)', function() {
             [Status.Expired, Status.OutOfBudget, Status.Canceled].forEach(function(campStatus) {
                 req.campaign.status = campStatus;
                 req.body.data.status = Status.Pending;
-                expect(updateModule.isRenewal(req)).toBe(true);
-                // this should still work, for now
-                req.body.data.status = Status.Active;
                 expect(updateModule.isRenewal(req)).toBe(true);
             });
         });
@@ -508,15 +492,7 @@ describe('ads-campaignUpdates (UT)', function() {
             req.requester.fieldValidation = { campaigns: {} };
         });
 
-        it('should return true if the paymentMethod is the only thing being changed', function() {
-            expect(updateModule.canAutoApprove(req)).toBe(true);
-            req.body.data.foo = 'bar';
-            expect(updateModule.canAutoApprove(req)).toBe(false);
-            req.body.data = { status: 'active' };
-            expect(updateModule.canAutoApprove(req)).toBe(false);
-        });
-
-        it('should also return true if the user has the autoApproveUpdates entitlement and can edit a campaigns\' status', function() {
+        it('should return true if the user has the autoApproveUpdates entitlement and can edit a campaigns\' status', function() {
             req.body.data.foo = 'bar';
             req.requester.entitlements.autoApproveUpdates = true;
             expect(updateModule.canAutoApprove(req)).toBe(false);
@@ -973,7 +949,7 @@ describe('ads-campaignUpdates (UT)', function() {
             };
             req.body = { campaign: 'cam-1', data: {
                 pricing: { budget: 1000, dailyLimit: 200, cost: 0.15, model: 'cpv' },
-                status: Status.Active
+                status: Status.Pending
             } };
             req.requester.entitlements = {};
             spyOn(updateModule, 'setPending').and.returnValue(q());
@@ -1042,7 +1018,7 @@ describe('ads-campaignUpdates (UT)', function() {
         var svc;
         beforeEach(function() {
             req.campaign = { id: 'cam-1', status: Status.Canceled };
-            req.body = { campaign: 'cam-1', data: { status: Status.Active } };
+            req.body = { campaign: 'cam-1', data: { status: Status.Pending } };
             spyOn(updateModule, 'setPending').and.returnValue(q());
             svc = { _db: mockDb };
         });
@@ -1176,7 +1152,7 @@ describe('ads-campaignUpdates (UT)', function() {
             it('should always perform the check', function(done) {
                 // Test that "initial submit" recognized thru statuses + initialSubmit prop
                 var req1 = JSON.parse(JSON.stringify(req)), req2 = JSON.parse(JSON.stringify(req));
-                req1.body.data.status = Status.Active;
+                req1.body.data.status = Status.Pending;
                 req2.body.initialSubmit = true;
                 
                 q.all([
@@ -1202,7 +1178,7 @@ describe('ads-campaignUpdates (UT)', function() {
         describe('if the update request is a renewal', function() {
             beforeEach(function() {
                 delete req.body.data.pricing;
-                req.body.data.status = Status.Active;
+                req.body.data.status = Status.Pending;
             });
 
             it('should always perform the check', function(done) {
