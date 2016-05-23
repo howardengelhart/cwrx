@@ -116,7 +116,7 @@ describe('ads-campaignUpdates (UT)', function() {
             boundFns = [];
             [updateModule.validateData, updateModule.extraValidation, updateModule.handleInitialSubmit,
              updateModule.handleRenewal, updateModule.lockCampaign, updateModule.unlockCampaign, updateModule.applyUpdate,
-             updateModule.notifyOwner, fakeAutoApproveModel.midWare, updateModule.canEditCampaign, CrudSvc.fetchRelatedEntity].forEach(function(fn) {
+             fakeAutoApproveModel.midWare, updateModule.canEditCampaign, CrudSvc.fetchRelatedEntity].forEach(function(fn) {
                 spyOn(fn, 'bind').and.callFake(function() {
                     var boundFn = Function.prototype.bind.apply(fn, arguments);
 
@@ -152,7 +152,6 @@ describe('ads-campaignUpdates (UT)', function() {
         
         it('should save some config variables locally', function() {
             expect(updateModule.config.api).toBeDefined();
-            expect(updateModule.config.emails).toBeDefined();
         });
         
         it('should create a JsonProducer', function() {
@@ -182,12 +181,7 @@ describe('ads-campaignUpdates (UT)', function() {
             expect(svc._middleware.create).toContain(updateModule.checkAvailableFunds);
             expect(svc._middleware.create).toContain(getBoundFn(updateModule.handleInitialSubmit, [updateModule, svc]));
             expect(svc._middleware.create).toContain(getBoundFn(updateModule.handleRenewal, [updateModule, svc]));
-            expect(svc._middleware.create).toContain(updateModule.notifySupport);
             expect(svc._middleware.create).toContain(getBoundFn(updateModule.lockCampaign, [updateModule, svc]));
-
-            updateModule.config.emails.enabled = false;
-            svc = updateModule.setupSvc(mockDb, campSvc, config, appCreds);
-            expect(svc._middleware.create).not.toContain(getBoundFn(updateModule.notifySupport, [updateModule, svc]));
         });
         
         it('should include middleware for edit', function() {
@@ -205,11 +199,6 @@ describe('ads-campaignUpdates (UT)', function() {
             expect(svc._middleware.edit).toContain(updateModule.checkAvailableFunds);
             expect(svc._middleware.edit).toContain(getBoundFn(updateModule.unlockCampaign, [updateModule, svc]));
             expect(svc._middleware.edit).toContain(getBoundFn(updateModule.applyUpdate, [updateModule, svc, appCreds]));
-            expect(svc._middleware.edit).toContain(getBoundFn(updateModule.notifyOwner, [updateModule, svc]));
-
-            updateModule.config.emails.enabled = false;
-            svc = updateModule.setupSvc(mockDb, campSvc, config, appCreds);
-            expect(svc._middleware.create).not.toContain(getBoundFn(updateModule.notifyOwner, [updateModule, svc]));
         });
         
         it('should include middleware for autoApprove', function() {
@@ -419,9 +408,6 @@ describe('ads-campaignUpdates (UT)', function() {
             req.body.data.status = Status.Pending;
             req.campaign.status = Status.Draft;
             expect(updateModule.isInitSubmit(req)).toBe(true);
-            // this should still work, for now
-            req.body.data.status = Status.Active;
-            expect(updateModule.isInitSubmit(req)).toBe(true);
         });
         
         it('should return false otherwise', function() {
@@ -458,9 +444,6 @@ describe('ads-campaignUpdates (UT)', function() {
             [Status.Expired, Status.OutOfBudget, Status.Canceled].forEach(function(campStatus) {
                 req.campaign.status = campStatus;
                 req.body.data.status = Status.Pending;
-                expect(updateModule.isRenewal(req)).toBe(true);
-                // this should still work, for now
-                req.body.data.status = Status.Active;
                 expect(updateModule.isRenewal(req)).toBe(true);
             });
         });
@@ -509,15 +492,7 @@ describe('ads-campaignUpdates (UT)', function() {
             req.requester.fieldValidation = { campaigns: {} };
         });
 
-        it('should return true if the paymentMethod is the only thing being changed', function() {
-            expect(updateModule.canAutoApprove(req)).toBe(true);
-            req.body.data.foo = 'bar';
-            expect(updateModule.canAutoApprove(req)).toBe(false);
-            req.body.data = { status: 'active' };
-            expect(updateModule.canAutoApprove(req)).toBe(false);
-        });
-
-        it('should also return true if the user has the autoApproveUpdates entitlement and can edit a campaigns\' status', function() {
+        it('should return true if the user has the autoApproveUpdates entitlement and can edit a campaigns\' status', function() {
             req.body.data.foo = 'bar';
             req.requester.entitlements.autoApproveUpdates = true;
             expect(updateModule.canAutoApprove(req)).toBe(false);
@@ -974,7 +949,7 @@ describe('ads-campaignUpdates (UT)', function() {
             };
             req.body = { campaign: 'cam-1', data: {
                 pricing: { budget: 1000, dailyLimit: 200, cost: 0.15, model: 'cpv' },
-                status: Status.Active
+                status: Status.Pending
             } };
             req.requester.entitlements = {};
             spyOn(updateModule, 'setPending').and.returnValue(q());
@@ -1043,7 +1018,7 @@ describe('ads-campaignUpdates (UT)', function() {
         var svc;
         beforeEach(function() {
             req.campaign = { id: 'cam-1', status: Status.Canceled };
-            req.body = { campaign: 'cam-1', data: { status: Status.Active } };
+            req.body = { campaign: 'cam-1', data: { status: Status.Pending } };
             spyOn(updateModule, 'setPending').and.returnValue(q());
             svc = { _db: mockDb };
         });
@@ -1177,7 +1152,7 @@ describe('ads-campaignUpdates (UT)', function() {
             it('should always perform the check', function(done) {
                 // Test that "initial submit" recognized thru statuses + initialSubmit prop
                 var req1 = JSON.parse(JSON.stringify(req)), req2 = JSON.parse(JSON.stringify(req));
-                req1.body.data.status = Status.Active;
+                req1.body.data.status = Status.Pending;
                 req2.body.initialSubmit = true;
                 
                 q.all([
@@ -1203,7 +1178,7 @@ describe('ads-campaignUpdates (UT)', function() {
         describe('if the update request is a renewal', function() {
             beforeEach(function() {
                 delete req.body.data.pricing;
-                req.body.data.status = Status.Active;
+                req.body.data.status = Status.Pending;
             });
 
             it('should always perform the check', function(done) {
@@ -1289,39 +1264,6 @@ describe('ads-campaignUpdates (UT)', function() {
                 expect(errorSpy).toHaveBeenCalledWith('Failed making credit check');
                 expect(mockLog.error).toHaveBeenCalled();
                 expect(mockLog.error.calls.mostRecent().args).toContain('\'I GOT A PROBLEM\'');
-                done();
-            });
-        });
-    });
-
-    describe('notifySupport', function() {
-        beforeEach(function() {
-            req.campaign = { id: 'cam-1', name: 'my first campaign' };
-            spyOn(email, 'newUpdateRequest').and.returnValue(q());
-        });
-        
-        it('should send an email and call next', function(done) {
-            updateModule.notifySupport(req, nextSpy, doneSpy).catch(errorSpy).finally(function() {
-                expect(nextSpy).toHaveBeenCalled();
-                expect(doneSpy).not.toHaveBeenCalled();
-                expect(errorSpy).not.toHaveBeenCalled();
-                expect(email.newUpdateRequest).toHaveBeenCalledWith(
-                    'no-reply@c6.com',
-                    'support@c6.com',
-                    req,
-                    'my first campaign',
-                    'http://selfie.com/campaigns/cam-1/admin'
-                );
-                done();
-            });
-        });
-        
-        it('should reject if sending the email fails', function(done) {
-            email.newUpdateRequest.and.returnValue(q.reject('I GOT A PROBLEM'));
-            updateModule.notifySupport(req, nextSpy, doneSpy).catch(errorSpy).finally(function() {
-                expect(nextSpy).not.toHaveBeenCalled();
-                expect(doneSpy).not.toHaveBeenCalled();
-                expect(errorSpy).toHaveBeenCalledWith('I GOT A PROBLEM');
                 done();
             });
         });
@@ -1714,154 +1656,6 @@ describe('ads-campaignUpdates (UT)', function() {
                         });
                     });
                 });
-            });
-        });
-    });
-
-    describe('notifyOwner', function() {
-        var svc, mockColl, mockCursor;
-        beforeEach(function() {
-            mockCursor = {
-                next: jasmine.createSpy('cursor.next()').and.returnValue(q({ id: 'u-2', email: 'owner@c6.com' }))
-            };
-            mockColl = {
-                find: jasmine.createSpy('coll.find()').and.returnValue(mockCursor)
-            };
-            mockDb.collection.and.returnValue(mockColl);
-            req.body = { id: 'ur-1', campaign: 'cam-1', data: { foo: 'bar' }, status: Status.Approved };
-            req.origObj = { id: 'ur-1', campaign: 'cam-1', data: { foo: 'baz' }, status: Status.Pending };
-            req.campaign = { id: 'cam-1', name: 'camp 1', updateRequest: 'u-1', user: 'u-2' };
-            spyOn(email, 'updateApproved').and.returnValue(q());
-            spyOn(email, 'updateRejected').and.returnValue(q());
-            svc = { _db: mockDb };
-        });
-
-        it('should look up the owner\'s email and send them a notification', function(done) {
-           updateModule.notifyOwner(svc, req, nextSpy, doneSpy).catch(errorSpy).finally(function() {
-                expect(nextSpy).toHaveBeenCalled();
-                expect(doneSpy).not.toHaveBeenCalled();
-                expect(errorSpy).not.toHaveBeenCalled();
-                expect(mockColl.find).toHaveBeenCalledWith({ id: 'u-2' }, { fields: { id: 1, email: 1 }, limit: 1 });
-                expect(email.updateApproved).toHaveBeenCalledWith(
-                    'no-reply@c6.com',
-                    'owner@c6.com',
-                    false,
-                    'camp 1',
-                    'http://seflie.c6.com/review/campaigns'
-                );
-                expect(email.updateRejected).not.toHaveBeenCalled();
-                expect(mockLog.warn).not.toHaveBeenCalled();
-                done();
-            });
-        });
-        
-        it('should send an alternate message if the update is being rejected', function(done) {
-           req.body.status = Status.Rejected;
-           req.body.rejectionReason = 'worst campaign ever';
-           updateModule.notifyOwner(svc, req, nextSpy, doneSpy).catch(errorSpy).finally(function() {
-                expect(nextSpy).toHaveBeenCalled();
-                expect(doneSpy).not.toHaveBeenCalled();
-                expect(errorSpy).not.toHaveBeenCalled();
-                expect(mockColl.find).toHaveBeenCalled();
-                expect(email.updateRejected).toHaveBeenCalledWith(
-                    'no-reply@c6.com',
-                    'owner@c6.com',
-                    false,
-                    'camp 1',
-                    'http://seflie.c6.com/review/campaigns',
-                    'worst campaign ever'
-                );
-                expect(email.updateApproved).not.toHaveBeenCalled();
-                expect(mockLog.warn).not.toHaveBeenCalled();
-                done();
-            });
-        });
-        
-        it('should inform the email lib if the update was an initial submit', function(done) {
-            req.origObj.initialSubmit = true;
-            var req1 = JSON.parse(JSON.stringify(req)), req2 = JSON.parse(JSON.stringify(req));
-            req2.body.status = Status.Rejected;
-            req2.body.rejectionReason = 'worst campaign ever';
-            q.all([
-                updateModule.notifyOwner(svc, req1, nextSpy, doneSpy).catch(errorSpy),
-                updateModule.notifyOwner(svc, req2, nextSpy, doneSpy).catch(errorSpy)
-            ]).then(function() {
-                expect(nextSpy.calls.count()).toBe(2);
-                expect(doneSpy).not.toHaveBeenCalled();
-                expect(errorSpy).not.toHaveBeenCalled();
-                expect(email.updateApproved).toHaveBeenCalledWith(
-                    'no-reply@c6.com',
-                    'owner@c6.com',
-                    true,
-                    'camp 1',
-                    'http://seflie.c6.com/review/campaigns'
-                );
-                expect(email.updateRejected).toHaveBeenCalledWith(
-                    'no-reply@c6.com',
-                    'owner@c6.com',
-                    true,
-                    'camp 1',
-                    'http://seflie.c6.com/review/campaigns',
-                    'worst campaign ever'
-                );
-                expect(mockLog.warn).not.toHaveBeenCalled();
-                done();
-            });
-        });
-        
-        it('should skip if not approving or rejecting the update', function(done) {
-            req.body.status = Status.Pending;
-            updateModule.notifyOwner(svc, req, nextSpy, doneSpy).catch(errorSpy).finally(function() {
-                expect(nextSpy).toHaveBeenCalled();
-                expect(doneSpy).not.toHaveBeenCalled();
-                expect(errorSpy).not.toHaveBeenCalled();
-                expect(mockColl.find).not.toHaveBeenCalled();
-                expect(email.updateApproved).not.toHaveBeenCalled();
-                expect(email.updateRejected).not.toHaveBeenCalled();
-                expect(mockLog.warn).not.toHaveBeenCalled();
-                done();
-            });
-        });
-        
-        it('should warn and continue if the user is not found', function(done) {
-            mockCursor.next.and.returnValue(q());
-            updateModule.notifyOwner(svc, req, nextSpy, doneSpy).catch(errorSpy).finally(function() {
-                expect(nextSpy).toHaveBeenCalled();
-                expect(doneSpy).not.toHaveBeenCalled();
-                expect(errorSpy).not.toHaveBeenCalled();
-                expect(mockColl.find).toHaveBeenCalled();
-                expect(email.updateApproved).not.toHaveBeenCalled();
-                expect(email.updateRejected).not.toHaveBeenCalled();
-                expect(mockLog.warn).toHaveBeenCalled();
-                done();
-            });
-        });
-
-        
-        it('should warn and continue if looking up the user fails', function(done) {
-            mockCursor.next.and.returnValue(q.reject('I GOT A PROBLEM'));
-            updateModule.notifyOwner(svc, req, nextSpy, doneSpy).catch(errorSpy).finally(function() {
-                expect(nextSpy).toHaveBeenCalled();
-                expect(doneSpy).not.toHaveBeenCalled();
-                expect(errorSpy).not.toHaveBeenCalled();
-                expect(mockColl.find).toHaveBeenCalled();
-                expect(email.updateApproved).not.toHaveBeenCalled();
-                expect(email.updateRejected).not.toHaveBeenCalled();
-                expect(mockLog.warn).toHaveBeenCalled();
-                done();
-            });
-        });
-        
-        it('should warn and continue if emailing the user fails', function(done) {
-            email.updateApproved.and.returnValue(q.reject('I GOT A PROBLEM'));
-            updateModule.notifyOwner(svc, req, nextSpy, doneSpy).catch(errorSpy).finally(function() {
-                expect(nextSpy).toHaveBeenCalled();
-                expect(doneSpy).not.toHaveBeenCalled();
-                expect(errorSpy).not.toHaveBeenCalled();
-                expect(mockColl.find).toHaveBeenCalled();
-                expect(email.updateRejected).not.toHaveBeenCalled();
-                expect(mockLog.warn).toHaveBeenCalled();
-                done();
             });
         });
     });

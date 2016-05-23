@@ -1,5 +1,9 @@
 # Ads Service Changelog
 
+* [REMOVAL]: Remove sites module: [#904](https://github.com/cinema6/cwrx/pull/904)
+* [REMOVAL]: Remove emailing functionality from campaigns + campaignUpdates modules: [#904](https://github.com/cinema6/cwrx/pull/904)
+* [BREAKING CHANGE]: Update requests solely changing the `paymentMethod` will no longer be auto-approved: [#904](https://github.com/cinema6/cwrx/pull/904)
+* [BREAKING CHANGE]: Update requests setting draft or finished campaigns to `active` will no longer be initial submits/renewals: [#904](https://github.com/cinema6/cwrx/pull/904)
 * [FEATURE]: Create Beeswax advertisers for each C6 advertiser: [#899](https://github.com/cinema6/cwrx/issues/899)
 * [FEATURE]: Add Beeswax external campaigns endpoints: [#899](https://github.com/cinema6/cwrx/issues/899)
 * [FEATURE]: Sync C6 + Beeswax campaigns on `PUT /api/campaigns/:id`: [#899](https://github.com/cinema6/cwrx/issues/899)
