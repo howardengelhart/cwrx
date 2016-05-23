@@ -1,6 +1,7 @@
 var q               = require('q'),
     request         = require('request'),
     util            = require('util'),
+    BeeswaxClient   = require('beeswax-client'),
     testUtils       = require('./testUtils'),
     requestUtils    = require('../../lib/requestUtils'),
     host            = process.env.host || 'localhost',
@@ -10,6 +11,13 @@ var q               = require('q'),
         orgsUrl     : 'http://' + (host === 'localhost' ? host + ':3700' : host) + '/api/account/orgs',
         adsUrl      : 'http://' + (host === 'localhost' ? host + ':3900' : host) + '/api'
     };
+
+var beeswax = new BeeswaxClient({
+    creds: {
+        email: 'ops@cinema6.com',
+        password: '07743763902206f2b511bead2d2bf12292e2af82'
+    }
+});
 
 describe('userSvc users (E2E):', function() {
     var cookieJar, adminJar, mockRequester, mockAdmin, mockServiceUser, testPolicies, urlRegex, mockApp, appCreds, mockman;
@@ -1914,6 +1922,19 @@ describe('userSvc users (E2E):', function() {
                 testUtils.resetCollection('roles', mockRoles),
                 testUtils.resetCollection('policies', mockPols.concat(testPolicies))
             ]).done(function() { done(); });
+        });
+        
+        // Delete any Beeswax advertisers that have been created
+        afterEach(function(done) {
+            testUtils.mongoFind('advertisers', { 'beeswaxIds.advertiser': { $exists: true } })
+            .then(function(results) {
+                return q.all(results.map(function(advert) {
+                    var beesId = advert.beeswaxIds.advertiser;
+                    return beeswax.advertisers.delete(beesId);
+                }));
+            })
+            .thenResolve()
+            .then(done, done.fail);
         });
 
         it('should 400 concurrent requests', function(done) {
