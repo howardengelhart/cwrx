@@ -152,7 +152,7 @@ describe('orgSvc-orgs (UT)', function() {
             it('should fail if the field is not one of the acceptable values', function() {
                 newObj.type = 'freeeeeeee money baby';
                 expect(svc.model.validate('create', newObj, origObj, requester))
-                    .toEqual({ isValid: false, reason: 'type is UNACCEPTABLE! acceptable values are: [signupReward]' });
+                    .toEqual({ isValid: false, reason: 'type is UNACCEPTABLE! acceptable values are: [signupReward,freeTrial]' });
             });
         });
         
@@ -224,6 +224,66 @@ describe('orgSvc-orgs (UT)', function() {
                 promModule.validateData(req, nextSpy, doneSpy);
                 expect(nextSpy).not.toHaveBeenCalled();
                 expect(doneSpy).toHaveBeenCalledWith({ code: 400, body: 'data.rewardAmount must be greater than the min: 0' });
+            });
+        });
+        
+        describe('if the type is freeTrial', function() {
+            beforeEach(function() {
+                req.body.type = 'freeTrial';
+                req.body.data.trialLength = 14;
+            });
+            
+            it('should call next if the body is valid', function() {
+                promModule.validateData(req, nextSpy, doneSpy);
+                expect(nextSpy).toHaveBeenCalled();
+                expect(doneSpy).not.toHaveBeenCalled();
+                expect(req.body).toEqual({
+                    type: 'freeTrial',
+                    data: {
+                        trialLength: 14,
+                        paymentMethodRequired: true
+                    }
+                });
+            });
+            
+            it('should call done if the trialLength is not defined', function() {
+                delete req.body.data.trialLength;
+                promModule.validateData(req, nextSpy, doneSpy);
+                expect(nextSpy).not.toHaveBeenCalled();
+                expect(doneSpy).toHaveBeenCalledWith({ code: 400, body: 'Missing required field: data.trialLength' });
+            });
+            
+            it('should call done if the trialLength is not valid', function() {
+                req.body.data.trialLength = -123;
+                promModule.validateData(req, nextSpy, doneSpy);
+                expect(doneSpy).toHaveBeenCalledWith({ code: 400, body: 'data.trialLength must be greater than the min: 0' });
+                
+                req.body.data.trialLength = 'soooo many dollars';
+                promModule.validateData(req, nextSpy, doneSpy);
+                expect(doneSpy).toHaveBeenCalledWith({ code: 400, body: 'data.trialLength must be in format: number' });
+                
+                expect(nextSpy).not.toHaveBeenCalled();
+            });
+
+            it('should allow setting paymentMethodRequired to false', function() {
+                req.body.data.paymentMethodRequired = false;
+                promModule.validateData(req, nextSpy, doneSpy);
+                expect(nextSpy).toHaveBeenCalled();
+                expect(doneSpy).not.toHaveBeenCalled();
+                expect(req.body).toEqual({
+                    type: 'freeTrial',
+                    data: {
+                        trialLength: 14,
+                        paymentMethodRequired: false
+                    }
+                });
+            });
+            
+            it('should call done if the paymentMethodRequired is not valid', function() {
+                req.body.data.paymentMethodRequired = 'trust me, its fine';
+                promModule.validateData(req, nextSpy, doneSpy);
+                expect(nextSpy).not.toHaveBeenCalled();
+                expect(doneSpy).toHaveBeenCalledWith({ code: 400, body: 'data.paymentMethodRequired must be in format: boolean' });
             });
         });
     });

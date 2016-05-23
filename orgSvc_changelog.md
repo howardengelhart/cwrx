@@ -1,5 +1,9 @@
 # Org Service Changelog
 
+### 1.11.0: Mon May 23 17:37:12 EDT 2016
+* [FEATURE]: Support `freeTrial` promotions: [#905](https://github.com/cinema6/cwrx/issues/905)
+* Extra deployment steps: None
+
 ### 1.10.0: Tue May  3 17:51:52 EDT 2016
 * [FEATURE]: Add `GET /api/public/promotions/:id` endpoint: [#886](https://github.com/cinema6/cwrx/pull/886)
 * Make `paymentPlanId` and `paymentPlanStart` forbidden fields: [#877](https://github.com/cinema6/cwrx/pull/877)
