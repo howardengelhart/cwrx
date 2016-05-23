@@ -22,7 +22,7 @@
             __allowed: true,
             __type: 'string',
             __required: true,
-            __acceptableValues: ['signupReward']
+            __acceptableValues: ['signupReward', 'freeTrial']
         },
         data: {
             __allowed: true,
@@ -38,6 +38,20 @@
             __type: 'number',
             __required: true,
             __min: 0
+        }
+    };
+    
+    promModule.schemas.freeTrial = { // schema for data hash on freeTrial promotions
+        trialLength: {
+            __allowed: true,
+            __type: 'number',
+            __required: true,
+            __min: 0
+        },
+        paymentMethodRequired: {
+            __allowed: true,
+            __type: 'boolean',
+            __default: true
         }
     };
     

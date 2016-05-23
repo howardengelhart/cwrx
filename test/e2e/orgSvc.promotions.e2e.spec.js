@@ -395,7 +395,7 @@ describe('orgSvc promotions endpoints (E2E):', function() {
             options.json.type = 'freeeeee money';
             requestUtils.qRequest('post', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(400);
-                expect(resp.body).toBe('type is UNACCEPTABLE! acceptable values are: [signupReward]');
+                expect(resp.body).toBe('type is UNACCEPTABLE! acceptable values are: [signupReward,freeTrial]');
             }).catch(function(error) {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
@@ -422,6 +422,41 @@ describe('orgSvc promotions endpoints (E2E):', function() {
                     expect(results[0].body).toBe('data.rewardAmount must be in format: number');
                     expect(results[1].response.statusCode).toBe(400);
                     expect(results[1].body).toBe('data.rewardAmount must be greater than the min: 0');
+                })
+                .catch(function(error) {
+                    expect(util.inspect(error)).not.toBeDefined();
+                }).done(done);
+            });
+        });
+
+        describe('when creating a freeTrial promotion', function() {
+            beforeEach(function() {
+                options.json.type = 'freeTrial';
+                options.json.data = {
+                    trialLength: 7
+                };
+            });
+
+            it('should return a 400 if no trialLength is provided', function(done) {
+                delete options.json.data.trialLength;
+                requestUtils.qRequest('post', options).then(function(resp) {
+                    expect(resp.response.statusCode).toBe(400);
+                    expect(resp.body).toBe('Missing required field: data.trialLength');
+                }).catch(function(error) {
+                    expect(util.inspect(error)).not.toBeDefined();
+                }).done(done);
+            });
+            
+            it('should return a 400 if the trialLength is invalid', function(done) {
+                q.all(['many days', -20].map(function(amount) {
+                    options.json.data.trialLength = amount;
+                    return requestUtils.qRequest('post', options);
+                }))
+                .then(function(results) {
+                    expect(results[0].response.statusCode).toBe(400);
+                    expect(results[0].body).toBe('data.trialLength must be in format: number');
+                    expect(results[1].response.statusCode).toBe(400);
+                    expect(results[1].body).toBe('data.trialLength must be greater than the min: 0');
                 })
                 .catch(function(error) {
                     expect(util.inspect(error)).not.toBeDefined();
@@ -478,6 +513,7 @@ describe('orgSvc promotions endpoints (E2E):', function() {
         beforeEach(function(done) {
             mockProms = [
                 { id: 'e2e-pro-1', status: 'active', name: 'prom 1', type: 'signupReward', data: { rewardAmount: 50 } },
+                { id: 'e2e-pro-2', status: 'active', name: 'prom 2', type: 'freeTrial', data: { trialLength: 7, paymentMethodRequired: true } },
                 { id: 'e2e-pro-deleted', status: 'deleted', name: 'deleted refCode', type: 'signupReward', data: {} }
             ];
             options = {
@@ -537,7 +573,7 @@ describe('orgSvc promotions endpoints (E2E):', function() {
             options.json.type = 'freeeeee money';
             requestUtils.qRequest('put', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(400);
-                expect(resp.body).toBe('type is UNACCEPTABLE! acceptable values are: [signupReward]');
+                expect(resp.body).toBe('type is UNACCEPTABLE! acceptable values are: [signupReward,freeTrial]');
             }).catch(function(error) {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
@@ -567,6 +603,63 @@ describe('orgSvc promotions endpoints (E2E):', function() {
                     expect(results[0].body).toBe('data.rewardAmount must be in format: number');
                     expect(results[1].response.statusCode).toBe(400);
                     expect(results[1].body).toBe('data.rewardAmount must be greater than the min: 0');
+                })
+                .catch(function(error) {
+                    expect(util.inspect(error)).not.toBeDefined();
+                }).done(done);
+            });
+        });
+        
+        describe('when editing a signupReward promotion', function(done) {
+            beforeEach(function() {
+                options.url = config.promUrl + '/e2e-pro-2';
+                options.json.data = {
+                    trialLength: 18,
+                    paymentMethodRequired: false
+                };
+            });
+            
+            it('should allow changing the trialLength and paymentMethodRequired', function(done) {
+                requestUtils.qRequest('put', options).then(function(resp) {
+                    expect(resp.response.statusCode).toBe(200);
+                    expect(resp.body.id).toBe('e2e-pro-2');
+                    expect(resp.body.name).toBe('new name');
+                    expect(resp.body.type).toBe('freeTrial');
+                    expect(resp.body.data).toEqual({
+                        trialLength: 18,
+                        paymentMethodRequired: false
+                    });
+                }).catch(function(error) {
+                    expect(util.inspect(error)).not.toBeDefined();
+                }).done(done);
+            });
+
+            it('should not allow unsetting the trialLength', function(done) {
+                delete options.json.data.trialLength;
+                requestUtils.qRequest('put', options).then(function(resp) {
+                    expect(resp.response.statusCode).toBe(200);
+                    expect(resp.body.id).toBe('e2e-pro-2');
+                    expect(resp.body.name).toBe('new name');
+                    expect(resp.body.type).toBe('freeTrial');
+                    expect(resp.body.data).toEqual({
+                        trialLength: 7,
+                        paymentMethodRequired: false
+                    });
+                }).catch(function(error) {
+                    expect(util.inspect(error)).not.toBeDefined();
+                }).done(done);
+            });
+            
+            it('should return a 400 if the trialLength is invalid', function(done) {
+                q.all(['many dollars', -20].map(function(amount) {
+                    options.json.data = { trialLength: amount };
+                    return requestUtils.qRequest('put', options);
+                }))
+                .then(function(results) {
+                    expect(results[0].response.statusCode).toBe(400);
+                    expect(results[0].body).toBe('data.trialLength must be in format: number');
+                    expect(results[1].response.statusCode).toBe(400);
+                    expect(results[1].body).toBe('data.trialLength must be greater than the min: 0');
                 })
                 .catch(function(error) {
                     expect(util.inspect(error)).not.toBeDefined();
