@@ -1,5 +1,10 @@
 # Search Service Changelog
 
+### 1.6.0: Tue May 24 15:00:42 EDT 2016
+* Add new `GET /api/public/search/apps` endpoint: [#908](https://github.com/cinema6/cwrx/pull/908)
+* Extra deployment steps:
+    * Deploy `v1.2.0` of the search cookbook
+
 ### 1.5.0: Mon May 16 09:06:43 EDT 2016
 * [FEATURE]: Add `GET [/api/search/apps]` endpoint to search the App
   Store: [#875](https://github.com/cinema6/cwrx/pull/875)

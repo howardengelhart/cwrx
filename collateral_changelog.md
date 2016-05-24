@@ -1,5 +1,9 @@
 # Collateral Service Changelog
 
+### 2.4.1: Tue May 24 15:00:42 EDT 2016
+* Set `Access-Control-Allow-Origin` to `'*'` on public endpoints: [#908](https://github.com/cinema6/cwrx/pull/908)
+* Extra deployment steps: None
+
 ### 2.4.0: Mon May 16 09:05:41 EDT 2016
 * [FEATURE]: Provide the name of the developer and star-rating when
   GETting app product-data: [#895](https://github.com/cinema6/cwrx/pull/895)

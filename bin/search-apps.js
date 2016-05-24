@@ -74,6 +74,20 @@
                 });
             });
         });
+        
+        app.get('/api/public/search/apps', function(req, res) {
+            res.header('cache-control', 'max-age=300');
+            res.header('Access-Control-Allow-Origin', '*');
+
+            searchApps.findApps(req, state.config).then(function send(response) {
+                res.send(response.code, response.body);
+            }).catch(function(error) {
+                res.send(500, {
+                    error: 'Error searching for apps',
+                    detail: inspect(error)
+                });
+            });
+        });
     };
 
     module.exports = searchApps;
