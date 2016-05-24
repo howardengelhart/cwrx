@@ -16,8 +16,7 @@ program
     .option('-p, --promotion [PROMOTION_ID]', 'Id of promotion to apply')
     .option('-a, --amount [AMOUNT]', 'Dollar amount of credit to give', parseFloat)
     .option('-o, --org [ORG_ID]', 'Id of org to give credit to')
-    .option('-e, --env [staging|production]', 'Environment to send requests to (staging, production)', 'staging')
-    .option('-l, --local', 'If set, send requests to localhost, authenticating as testuser', false)
+    .option('-e, --env [staging|production|local]', 'Environment to send requests to (staging, production, local)', 'staging')
     .option('--noSaveToOrg [SAVE_TO_ORG]', 'If set, do NOT add entry to org.promotions')
     .parse(process.argv);
 
@@ -30,7 +29,7 @@ var db, passPromise, baseUrl;
     }
 });
 
-if (program.local) {
+if (program.env === 'local') {
     baseUrl = 'http://localhost';
 } else {
     baseUrl = 'https://platform' + (program.env === 'staging' ? '-staging' : '')  + '.reelcontent.com';
