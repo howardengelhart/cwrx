@@ -27,7 +27,7 @@
         caches : {
             run     : path.normalize('/usr/local/share/cwrx/collateral/caches/run/'),
         },
-        cacheControl: {
+        cacheControl: { // Note: Only used for uploaded images, not for public scraping endpoints
             default: 'max-age=31556926'
         },
         splash: {

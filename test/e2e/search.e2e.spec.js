@@ -154,6 +154,102 @@ describe('search (E2E):', function() {
         });
     });
 
+    describe('GET /api/public/search/apps', function() {
+        var options;
+        var success, failure;
+        var apiResponse;
+
+        beforeEach(function() {
+            options = {
+                url: config.searchUrl + '/public/search/apps',
+                qs: {},
+                json: true
+            };
+
+            success = jasmine.createSpy('success()').and.callFake(function(response) {
+                apiResponse = response;
+            });
+            failure = jasmine.createSpy('failure()').and.callFake(function(error) {
+                console.error(error);
+            });
+
+            apiResponse = null;
+        });
+
+        describe('with no query', function() {
+            beforeEach(function(done) {
+                delete options.qs.query;
+
+                requestUtils.qRequest('get', options).then(success, failure).finally(done);
+            });
+
+            it('should [400]', function() {
+                expect(apiResponse.response.statusCode).toBe(400);
+                expect(apiResponse.body).toBe('A search query is required.');
+            });
+            
+            it('should set appropriate headers', function() {
+                expect(apiResponse.response.headers['cache-control']).toBe('max-age=300');
+                expect(apiResponse.response.headers['access-control-allow-origin']).toBe('*');
+            });
+        });
+
+        describe('with a search query', function() {
+            beforeEach(function(done) {
+                options.qs.query = 'coin counter';
+
+                requestUtils.qRequest('get', options).then(success, failure).finally(done);
+            });
+
+            it('should return results from the app store', function() {
+                expect(apiResponse.response.statusCode).toBe(200);
+                expect(apiResponse.body).toEqual(jasmine.any(Array));
+                expect(apiResponse.body.length).toBeGreaterThan(0, 'Response has no results');
+                apiResponse.body.forEach(function(result, index) {
+                    expect(result).toEqual(jasmine.objectContaining({
+                        title: jasmine.any(String),
+                        developer: jasmine.any(String),
+                        thumbnail: jasmine.stringMatching(/^https?:\/\/is\d\.mzstatic\.com\/image\/thumb/),
+                        category: jasmine.any(String),
+                        uri: jasmine.stringMatching(/^https:\/\/itunes\.apple\.com\//),
+                        productDataURI: formatURL({
+                            protocol: 'http',
+                            hostname: 'localhost',
+                            pathname: '/api/collateral/product-data',
+                            query: {
+                                uri: result.uri
+                            }
+                        })
+                    }), 'Failure for results[' + index + ']');
+
+                    if ('rating' in result) {
+                        expect(result.rating).toMatch(/^[0-5]\.?\d*$/, 'Bad rating for results[' + index + ']');
+                    }
+                });
+            });
+
+            it('should set appropriate headers', function() {
+                expect(apiResponse.response.headers['cache-control']).toBe('max-age=300');
+                expect(apiResponse.response.headers['access-control-allow-origin']).toBe('*');
+            });
+
+            describe('and a limit', function() {
+                var unlimitedResults;
+
+                beforeEach(function(done) {
+                    unlimitedResults = apiResponse.body;
+                    options.qs.limit = 10;
+
+                    requestUtils.qRequest('get', options).then(success, failure).finally(done);
+                });
+
+                it('should get a subset of results', function() {
+                    expect(apiResponse.body).toEqual(unlimitedResults.slice(0, 10));
+                });
+            });
+        });
+    });
+
     describe('GET /api/search/videos', function() {
         var options;
         beforeEach(function() {
