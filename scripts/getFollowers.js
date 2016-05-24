@@ -1,5 +1,9 @@
-var key = "qJ1bBAO0fYRcl39lDwCXYupgi";
-var secret = "5WtgmtnlphsXGWuhhxMxg6HDrfvkOP0rW6RIrNUNKBBsRQ4FHe";
+var fs = require('fs-extra');
+var path = require('path');
+var credsPath = path.join(process.env.home, '.twitter.creds.json');
+var twitterCreds = fs.readJsonSync(credsPath);
+var key = twitterCreds.key;
+var secret = twitterCreds.secret;
 //Concatenate Key + Secret and Encode to Base64
 var KSBase64 = new Buffer(key + ":" + secret).toString('base64');
 var userName = 'reelcontent';
@@ -8,8 +12,8 @@ var util = require('util');
 var q = require('q');
 var authToken;
 var numFollowers = 0;
-var fs = require('fs-extra');
 var userData = [];
+var cursor = -1;
 
 
 //Request Bearer Token
@@ -30,15 +34,18 @@ rp(options1)
     .then(function (parsedBody) {
         authToken = parsedBody.access_token;
 
-        //Initialize Cursor to -1
-        var cursor = -1;
-
         function getFollowers(cursor, authToken)  {
           var options2 =  {
-                      uri: 'https://api.twitter.com/1.1/followers/list.json?screen_name='+ userName +'&skip_status=true&include_user_entities=false&cursor='+cursor,
+            uri: 'https://api.twitter.com/1.1/followers/list.json',
+            qs: {
+              screen_name: userName,
+              include_user_entities: false,
+              skip_status: true,
+              cursor : cursor
+            },
             headers:  {
-                    'User-Agent': 'Reelcontent',
-                    'Authorization': 'Bearer ' + authToken,
+              'User-Agent': 'Reelcontent',
+              'Authorization': 'Bearer ' + authToken,
             },
             json: true
           };
@@ -51,8 +58,6 @@ rp(options1)
               {
                 var screen_name = entry.screen_name + "";
                 var user_id = entry.id + "";
-                console.log("\n" + screen_name);
-                console.log(user_id);
 
                 userData.push(screen_name + "," + user_id);
               });
@@ -62,7 +67,7 @@ rp(options1)
 
               if (cursor == 0) //cursor on final page
               {
-                console.log("Total Number of Followers: " + numFollowers);
+                console.log("Fetched Users in Batch: " + numFollowers);
                 return;
               }
               else
@@ -76,8 +81,6 @@ rp(options1)
                 console.log("Twitter rate limit exceeded. Try later.");
               }
               else {
-                console.log('request failed');
-                console.log(util.inspect(err));
                 return q.reject(err);
               }
             });
@@ -85,14 +88,10 @@ rp(options1)
         return getFollowers(cursor, authToken);
     })
       .then(function(body)  {
-        fs.writeFile('out.csv', userData.join("\n"), function (err) {
-          if (err)
-            throw err;
-          else
-            console.log('It\'s saved!');
-        });
+        fs.writeFileSync('out.csv', userData.join("\n"))
+        console.log("File saved to 'out.csv'");
       })
-            .catch(function (err) {
-
-                console.log("Authentification failed." + err);
-            });
+      .catch(function (err) {
+        delete err.response;
+        console.log("Request failed." + util.inspect(err));
+      });
