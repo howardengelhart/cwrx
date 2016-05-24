@@ -1,4 +1,3 @@
-
 var key = "qJ1bBAO0fYRcl39lDwCXYupgi";
 var secret = "5WtgmtnlphsXGWuhhxMxg6HDrfvkOP0rW6RIrNUNKBBsRQ4FHe";
 //Concatenate Key + Secret and Encode to Base64
@@ -9,7 +8,9 @@ var util = require('util');
 var q = require('q');
 var authToken;
 var numFollowers = 0;
-//getFollowers Function
+var fs = require('fs-extra');
+var userData = [];
+
 
 //Request Bearer Token
 var options1 = {
@@ -22,25 +23,20 @@ var options1 = {
         'User-Agent': 'Reelcontent',
         'Authorization': 'Basic ' + KSBase64,
     },
-    json: true // Automatically parses the JSON string in the response
+    json: true
 };
 
 rp(options1)
-    .then(function (parsedBody)
-    {
+    .then(function (parsedBody) {
         authToken = parsedBody.access_token;
+
         //Initialize Cursor to -1
         var cursor = -1;
 
-
-        function getFollowers(cursor, authToken)
-        {
-          console.log("Calling getFollowers");
-          var options2 =
-          {
-            uri: 'https://api.twitter.com/1.1/followers/list.json?screen_name='+ userName +'&skip_status=true&include_user_entities=false&cursor='+cursor,
-            headers:
-            {
+        function getFollowers(cursor, authToken)  {
+          var options2 =  {
+                      uri: 'https://api.twitter.com/1.1/followers/list.json?screen_name='+ userName +'&skip_status=true&include_user_entities=false&cursor='+cursor,
+            headers:  {
                     'User-Agent': 'Reelcontent',
                     'Authorization': 'Bearer ' + authToken,
             },
@@ -49,45 +45,54 @@ rp(options1)
 
             return rp(options2)
 
-            .then(function(twitterResponse)
-            {
-              console.log('request succeeded');
+            .then(function(twitterResponse) {
               numFollowers += twitterResponse.users.length;
               twitterResponse.users.forEach(function(entry)
               {
-                console.log("\n" + entry.screen_name),
-                console.log(entry.id)
+                var screen_name = entry.screen_name + "";
+                var user_id = entry.id + "";
+                console.log("\n" + screen_name);
+                console.log(user_id);
+
+                userData.push(screen_name + "," + user_id);
               });
 
+              //change cursor value to next_cursor to print out next page of results
               cursor = twitterResponse.next_cursor;
-              console.log("Next cursor: " + cursor);
 
-              if (cursor == 0)
+              if (cursor == 0) //cursor on final page
               {
                 console.log("Total Number of Followers: " + numFollowers);
                 return;
               }
               else
               {
-                console.log("In the return getFollowers() code");
                 return getFollowers(cursor, authToken);
               }
 
             })
             .catch(function(err){
-              console.log('request failed');
-              console.log(util.inspect(err));
-              return q.reject(err);
+              if (err.statusCode == 429)  {
+                console.log("Twitter rate limit exceeded. Try later.");
+              }
+              else {
+                console.log('request failed');
+                console.log(util.inspect(err));
+                return q.reject(err);
+              }
             });
-          }
-
-          return getFollowers(cursor, authToken);
-
-
+        }
+        return getFollowers(cursor, authToken);
     })
-      .then(function(body){
-        console.log("In final then handler");
+      .then(function(body)  {
+        fs.writeFile('out.csv', userData.join("\n"), function (err) {
+          if (err)
+            throw err;
+          else
+            console.log('It\'s saved!');
+        });
       })
             .catch(function (err) {
-            console.log("Authentification failed." + err);
-          });
+
+                console.log("Authentification failed." + err);
+            });
