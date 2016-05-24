@@ -6,7 +6,10 @@ var KSBase64 = new Buffer(key + ":" + secret).toString('base64');
 var userName = 'reelcontent';
 var rp = require('request-promise');
 var util = require('util');
+var q = require('q');
 var authToken;
+var numFollowers = 0;
+//getFollowers Function
 
 //Request Bearer Token
 var options1 = {
@@ -21,63 +24,70 @@ var options1 = {
     },
     json: true // Automatically parses the JSON string in the response
 };
+
 rp(options1)
-    .then(function (parsedBody) {
+    .then(function (parsedBody)
+    {
         authToken = parsedBody.access_token;
-        console.log("Bearer Token Acquired:" + authToken);
-
-        //Code to Get Follower List
-
-          //Encode Bearer to Base64
-          //var authToken64 = new Buffer(authToken).toString('base64');
-          var followers;
-
-          var options2 = {
-              uri: 'https://api.twitter.com/1.1/followers/ids.json?cursor=-1&screen_name='+ userName +'&count=5000',
-              headers: {
-                      'User-Agent': 'Reelcontent',
-                      'Authorization': 'Bearer ' + authToken,
-                  },
-              json: true // Automatically parses the JSON string in the response
-              };
-
-              rp(options2)
-                  .then(function (parsedBody2) {
-                      followers = util.inspect(parsedBody2);
-                      console.log(followers);
-                  })
-             .catch(function (err2) {
-                      console.log("Authentification failed. Follower List Not Acquired. " + err2);
-                      console.log(authToken);
-                  });
+        //Initialize Cursor to -1
+        var cursor = -1;
 
 
+        function getFollowers(cursor, authToken)
+        {
+          console.log("Calling getFollowers");
+          var options2 =
+          {
+            uri: 'https://api.twitter.com/1.1/followers/list.json?screen_name='+ userName +'&skip_status=true&include_user_entities=false&cursor='+cursor,
+            headers:
+            {
+                    'User-Agent': 'Reelcontent',
+                    'Authorization': 'Bearer ' + authToken,
+            },
+            json: true
+          };
 
+            return rp(options2)
+
+            .then(function(twitterResponse)
+            {
+              console.log('request succeeded');
+              numFollowers += twitterResponse.users.length;
+              twitterResponse.users.forEach(function(entry)
+              {
+                console.log("\n" + entry.screen_name),
+                console.log(entry.id)
+              });
+
+              cursor = twitterResponse.next_cursor;
+              console.log("Next cursor: " + cursor);
+
+              if (cursor == 0)
+              {
+                console.log("Total Number of Followers: " + numFollowers);
+                return;
+              }
+              else
+              {
+                console.log("In the return getFollowers() code");
+                return getFollowers(cursor, authToken);
+              }
+
+            })
+            .catch(function(err){
+              console.log('request failed');
+              console.log(util.inspect(err));
+              return q.reject(err);
+            });
+          }
+
+          return getFollowers(cursor, authToken);
 
 
     })
-    .catch(function (err) {
-        console.log("Authentification failed. Bearer Token Not Acquired: " + util.inspect(err));
-    });
-
-/*
-
-
-
-/*
-//Get Bearer Token
-POST /oauth2/token HTTP/1.1
-Host: api.twitter.com
-User-Agent: My Twitter App v1.0.23
-Authorization: Basic base64
-Content-Type: application/x-www-form-urlencoded;charset=UTF-8
-Content-Length: 29
-Accept-Encoding: gzip
-grant_type=client_credentials
-
-//Request Follower List
-GET /1.1/followers/ids.json?cursor=-1&screen_name=andypiper&count=5000 HTTP/1.1
-Host: api.twitter.com
-User-Agent: My Twitter App v1.0.23
-Authorization: Bearer
-Accept-Encoding: gzip*/
+      .then(function(body){
+        console.log("In final then handler");
+      })
+            .catch(function (err) {
+            console.log("Authentification failed." + err);
+          });
