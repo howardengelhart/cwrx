@@ -18,30 +18,31 @@ var cursor = -1;
 var idsOnly;
 var prefVar;
 var count = 5000;
+
 //Check and Process Username Argument from Command Line
   if (process.argv[2] == null) {
-    console.log("Error: Please provide arguments for username and the boolean value IDsOnly");
+    console.log("Error. Usage: node getFollowers.js <handle> [--fullUsers]");
     process.exit();
+  }
+  else if (process.argv[2] == "--fullUsers"){
+    console.log("Error. Usage: node getFollowers.js <handle> [--fullUsers]");
   }
   else {
     userName = process.argv[2];
   }
 
-  //Check and Process "IDs Only" Argument from Command Line
-    if (process.argv[3] == "true"){
+  //Check and Process Request Type Argument from Command Line
+    if (process.argv[3] == null){
       idsOnly = true;
-      prefVar = "ids";
+      prefVar = "ids"
     }
-    else if (process.argv[3] == "false"){
+    else if (process.argv[3] == "--fullUsers"){
       idsOnly = false;
       prefVar = "list";
 
     }
-    else if ((process.argv[2] == "true") || (process.argv[2] == "false")){
-      console.log("Error: Please provide username argument");
-    }
     else{
-      console.log("Error: Please provide boolean argument for 'IDs Only'");
+      console.log("Error. Usage: node getFollowers.js <handle> [--fullUsers]");
       process.exit();
     }
 
