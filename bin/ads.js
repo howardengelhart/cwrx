@@ -143,7 +143,7 @@
             campSvc      = campModule.setupSvc(state.dbs.c6Db, state.config, externSvcs),
             updateSvc    = updateModule.setupSvc(state.dbs.c6Db, campSvc, state.config, appCreds),
             conSvc       = conModule.setupSvc(state.dbs.c6Db),
-            placeSvc     = placeModule.setupSvc(state.dbs.c6Db, state.config),
+            placeSvc     = placeModule.setupSvc(state.dbs.c6Db, state.config, beeswax),
             auditJournal = new journal.AuditJournal(state.dbs.c6Journal.collection('audit'),
                                                     state.config.appVersion, state.config.appName);
         authUtils._db = state.dbs.c6Db;

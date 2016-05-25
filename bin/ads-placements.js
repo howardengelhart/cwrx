@@ -90,6 +90,11 @@
                 __allowed: true,
                 __type: 'string'
             }
+        },
+        showInTag: {
+            __type: 'object',
+            __default: {},
+            __required: true
         }
     };
 
@@ -199,14 +204,19 @@
     placeModule.formatBeeswaxBody = function(req) { //TODO: test, comment
         var log = logger.getLog(),
             origObj = req.origObj || {},
-            tagType = req.body.tagType || origObj.tagType,
-            tagParams = req.body.tagParams || origObj.tagParams,
-            showInTag = req.body.showInTag || origObj.showInTag;
-        
+            tagType = req.body.tagType || origObj.tagType;
+            
         if (tagType !== 'mraid') {
             log.info('[%1] Can\'t create beeswax creative for tagType %2', req.uuid, tagType);
             return null;
         }
+        
+        // Ensure that beeswax creative has {{CLICK_URL}} macro
+        req.body.tagParams.clickUrls = req.body.tagParams.clickUrls || [];
+        if (req.body.tagParams.clickUrls.indexOf('{{CLICK_URL}}') === -1) {
+            req.body.tagParams.clickUrls.push('{{CLICK_URL}}');
+        }
+        req.body.showInTag.clickUrls = true;
         
         //TODO: consider reorganizing to pave the way for supporting multiple tagTypes?
         
@@ -225,15 +235,16 @@
                 ADDITIONAL_PIXELS: []
             }
         };
+        //TODO: may need to set extra stuff? creative_attributes? thumbnails?
         
         var pixelUrl = placeModule.config.beeswax.trackingPixel + '?';
         pixelUrl += querystring.stringify(ld.pickBy({
-            campaign        : tagParams.campaign,
-            container       : tagParams.container,
+            campaign        : req.body.tagParams.campaign,
+            container       : req.body.tagParams.container,
             event           : 'impression',
-            hostApp         : tagParams.hostApp,
-            network         : tagParams.network,
-            extSessionId    : tagParams.uuid,
+            hostApp         : req.body.tagParams.hostApp,
+            network         : req.body.tagParams.network,
+            extSessionId    : req.body.tagParams.uuid,
             cb: 1
         }));
         beesBody.creative_content.ADDITIONAL_PIXELS.push({
@@ -241,12 +252,12 @@
         });
         
         var templatePath = path.join(__dirname, '../templates/beeswaxCreatives/mraid.html'),
-            tagHtml = fs.readFileSync(templatePath),
+            tagHtml = fs.readFileSync(templatePath, 'utf8'),
             opts = { placement: req.body.id || origObj.id };
         
-        Object.keys(showInTag || {}).forEach(function(key) {
-            if (showInTag[key] === true && !!tagParams[key]) {
-                opts[key] = tagParams[key];
+        Object.keys(req.body.showInTag || {}).forEach(function(key) {
+            if (req.body.showInTag[key] === true && !!req.body.tagParams[key]) {
+                opts[key] = req.body.tagParams[key];
             }
         });
         beesBody.creative_content.TAG = tagHtml.replace('%OPTIONS%', JSON.stringify(opts));
