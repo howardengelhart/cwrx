@@ -1,5 +1,6 @@
 # Ads Service Changelog
 
+### 5.0.0: Wed May 25 10:08:19 EDT 2016
 * [REMOVAL]: Remove sites module: [#904](https://github.com/cinema6/cwrx/pull/904)
 * [REMOVAL]: Remove emailing functionality from campaigns + campaignUpdates modules: [#904](https://github.com/cinema6/cwrx/pull/904)
 * [BREAKING CHANGE]: Update requests solely changing the `paymentMethod` will no longer be auto-approved: [#904](https://github.com/cinema6/cwrx/pull/904)
