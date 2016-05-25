@@ -80,7 +80,7 @@
                 log.warn('[%1] Creating Beeswax Advertiser failed: %2', req.uuid, resp.message);
                 return done({
                     code: resp.code || 400,
-                    body: 'Could not edit Beeswax Advertiser'
+                    body: 'Could not create Beeswax Advertiser'
                 });
             }
 
