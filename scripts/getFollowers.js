@@ -20,29 +20,32 @@ var prefVar;
 var count = 5000;
 
 //Check and Process Username Argument from Command Line
-  if (process.argv[2] == null) {
+  if (!process.argv[2]) {
     console.log("Error. Usage: node getFollowers.js <handle> [--fullUsers]");
+    console.log(process.argv);
     process.exit();
   }
-  else if (process.argv[2] == "--fullUsers"){
+  else if (process.argv[2] === "--fullUsers"){
     console.log("Error. Usage: node getFollowers.js <handle> [--fullUsers]");
+    console.log(process.argv);
+    process.exit();
   }
   else {
     userName = process.argv[2];
   }
 
   //Check and Process Request Type Argument from Command Line
-    if (process.argv[3] == null){
+    if (!process.argv[3]){
       idsOnly = true;
       prefVar = "ids"
     }
-    else if (process.argv[3] == "--fullUsers"){
+    else if (process.argv[3] === "--fullUsers"){
       idsOnly = false;
       prefVar = "list";
-
     }
     else{
       console.log("Error. Usage: node getFollowers.js <handle> [--fullUsers]");
+      console.log(process.argv);
       process.exit();
     }
 
@@ -126,7 +129,7 @@ rp(options1)
 
             })
             .catch(function(err){
-              if (err.statusCode == 429)  {
+              if (err.statusCode === 429)  {
                 console.log("Twitter rate limit exceeded. Try later.");
                 removeDups(userData);
                 console.log("Fetched Users in Batch: " + numFollowers);
