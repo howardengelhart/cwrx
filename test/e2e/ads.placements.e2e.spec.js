@@ -1,6 +1,7 @@
 var q               = require('q'),
     urlUtils        = require('url'),
     util            = require('util'),
+    ld              = require('lodash'),
     request         = require('request'),
     BeeswaxClient   = require('beeswax-client'),
     testUtils       = require('./testUtils'),
@@ -599,7 +600,8 @@ describe('ads placements endpoints (E2E):', function() {
                         campaign    : 'cam-active',
                         type        : 'full',
                         branding    : 'elitedaily'
-                    }
+                    },
+                    showInTag: {}
                 });
                 expect(new Date(resp.body.created).toString()).not.toEqual('Invalid Date');
             }).catch(function(error) {
@@ -779,11 +781,10 @@ describe('ads placements endpoints (E2E):', function() {
             });
         });
         
-        fdescribe('when creating a beeswax placement', function() { //TODO
-            var beesCreativeIds, nowStr;
+        describe('when creating a beeswax placement', function() {
+            var nowStr;
             beforeEach(function() {
                 nowStr = Date.now() + ' - ';
-                beesCreativeIds = [];
                 options.json = {
                     label: nowStr + 'e2e beeswax placement',
                     tagType: 'mraid',
@@ -792,7 +793,7 @@ describe('ads placements endpoints (E2E):', function() {
                         container: 'beeswax',
                         campaign: 'cam-active',
                         clickUrls: [
-                            "{{CLICK_URL}}"
+                            '{{CLICK_URL}}'
                         ],
                     },
                     showInTag: {
@@ -800,19 +801,8 @@ describe('ads placements endpoints (E2E):', function() {
                     }
                 };
             });
-        
-            afterEach(function(done) {
-                q.all(beesCreativeIds.map(function(id) {
-                    // have to deactivate creative before deleting
-                    return beeswax.creatives.edit(id, { active: false })
-                    .then(function() {
-                        return beeswax.creatives.delete(id);
-                    });
-                })).then(function(results) {
-                    done();
-                }).catch(done.fail);
-            });
-            
+            // Note: created creatives are cleaned up in afterAll at end of file
+
             it('should also create a creative in beeswax', function(done) {
                 var beesId, createdPlacement;
                 requestUtils.qRequest('post', options).then(function(resp) {
@@ -830,7 +820,7 @@ describe('ads placements endpoints (E2E):', function() {
                             campaign    : 'cam-active',
                             type        : 'full',
                             clickUrls: [
-                                "{{CLICK_URL}}"
+                                '{{CLICK_URL}}'
                             ]
                         },
                         showInTag: {
@@ -839,7 +829,6 @@ describe('ads placements endpoints (E2E):', function() {
                     }));
                     createdPlacement = resp.body;
                     beesId = resp.body.beeswaxIds.creative;
-                    beesCreativeIds.push(beesId);
 
                     // check that campaign created in Beeswax successfully
                     return beeswax.creatives.find(beesId);
@@ -856,6 +845,7 @@ describe('ads placements endpoints (E2E):', function() {
                     expect(resp.payload.secure).toBe(true);
                     expect(resp.payload.active).toBe(true);
                     expect(resp.payload.sizeless).toBe(true);
+                    expect(ld.get(resp.payload, 'creative_attributes.mobile.mraid_playable', null)).toEqual([true]);
                     validateCreativePixel(resp.payload, createdPlacement);
                     
                     var mraidOpts = getMraidOpts(resp.payload, createdPlacement);
@@ -883,13 +873,12 @@ describe('ads placements endpoints (E2E):', function() {
                         network     : 'da internetz',
                         type        : 'full',
                         clickUrls: [
-                            "{{CLICK_URL}}"
+                            '{{CLICK_URL}}'
                         ]
                     });
                     expect(resp.body.showInTag).toEqual({ hostApp: true, network: true, clickUrls: true });
                     createdPlacement = resp.body;
                     beesId = resp.body.beeswaxIds.creative;
-                    beesCreativeIds.push(beesId);
 
                     // check that campaign created in Beeswax successfully
                     return beeswax.creatives.find(beesId);
@@ -921,13 +910,12 @@ describe('ads placements endpoints (E2E):', function() {
                         campaign    : 'cam-active',
                         type        : 'full',
                         clickUrls: [
-                            "{{CLICK_URL}}"
+                            '{{CLICK_URL}}'
                         ]
                     });
                     expect(resp.body.showInTag).toEqual({ clickUrls: true });
                     createdPlacement = resp.body;
                     beesId = resp.body.beeswaxIds.creative;
-                    beesCreativeIds.push(beesId);
 
                     // check that campaign created in Beeswax successfully
                     return beeswax.creatives.find(beesId);
@@ -946,18 +934,77 @@ describe('ads placements endpoints (E2E):', function() {
                 }).done(done);
             });
             
-            xit('should not interfere with other clickUrls', function(done) {
-            
+            it('should not interfere with other clickUrls', function(done) {
+                options.json.tagParams.clickUrls = ['click.me', 'click.you'];
+                var beesId, createdPlacement;
+                requestUtils.qRequest('post', options).then(function(resp) {
+                    expect(resp.response.statusCode).toBe(201);
+                    expect(resp.body.tagParams.clickUrls).toEqual(['click.me', 'click.you', '{{CLICK_URL}}']);
+                    expect(resp.body.showInTag).toEqual({ clickUrls: true });
+                    createdPlacement = resp.body;
+                    beesId = resp.body.beeswaxIds.creative;
+
+                    // check that campaign created in Beeswax successfully
+                    return beeswax.creatives.find(beesId);
+                }).then(function(resp) {
+                    expect(resp.success).toBe(true);
+                    expect(resp.payload.creative_id).toBe(beesId);
+                    validateCreativePixel(resp.payload, createdPlacement);
+                    
+                    var mraidOpts = getMraidOpts(resp.payload, createdPlacement);
+                    expect(mraidOpts).toEqual({
+                        placement: createdPlacement.id,
+                        clickUrls: ['click.me', 'click.you', '{{CLICK_URL}}']
+                    });
+                }).catch(function(error) {
+                    expect(util.inspect(error)).not.toBeDefined();
+                }).done(done);
             });
             
-            xit('should not create a creative if the tagType is not mraid', function(done) {
-            
+            it('should not create a creative if the tagType is not mraid', function(done) {
+                options.json.tagType = 'vpaid';
+                delete options.json.tagParams.clickUrls;
+                delete options.json.showInTag;
+                requestUtils.qRequest('post', options).then(function(resp) {
+                    expect(resp.response.statusCode).toBe(201);
+                    expect(resp.body).toEqual(jasmine.objectContaining({
+                        id          : jasmine.any(String),
+                        status      : 'active',
+                        label       : nowStr + 'e2e beeswax placement',
+                        tagType     : 'vpaid',
+                        tagParams : {
+                            container   : 'beeswax',
+                            campaign    : 'cam-active',
+                            type        : 'full',
+                        },
+                        showInTag: {}
+                    }));
+                    expect(resp.body.beeswaxIds).not.toBeDefined();
+                }).catch(function(error) {
+                    expect(util.inspect(error)).not.toBeDefined();
+                }).done(done);
             });
             
-            xit('should handle the label being undefined', function(done) { //TODO: necessary? beeswax may fail?
-            
+            it('should handle the label being undefined', function(done) {
+                delete options.json.label;
+                var beesId, createdPlacement;
+                requestUtils.qRequest('post', options).then(function(resp) {
+                    expect(resp.response.statusCode).toBe(201);
+                    expect(resp.body.label).not.toBeDefined();
+                    createdPlacement = resp.body;
+                    beesId = resp.body.beeswaxIds.creative;
+
+                    // check that campaign created in Beeswax successfully
+                    return beeswax.creatives.find(beesId);
+                }).then(function(resp) {
+                    expect(resp.success).toBe(true);
+                    expect(resp.payload.creative_id).toBe(beesId);
+                    expect(resp.payload.creative_name).toBe('Untitled (' + createdPlacement.id + ')');
+                    validateCreativePixel(resp.payload, createdPlacement);
+                }).catch(function(error) {
+                    expect(util.inspect(error)).not.toBeDefined();
+                }).done(done);
             });
-            
             //TODO: any other cases that need to be handled here??
         });
         
@@ -1295,8 +1342,156 @@ describe('ads placements endpoints (E2E):', function() {
             }).done(done);
         });
         
-        describe('when editing a beeswax placement', function() { //TODO
-        
+        describe('when editing a beeswax placement', function() {
+            var nowStr = Date.now() + ' - ',
+                createdPlacement;
+            beforeEach(function(done) {
+                requestUtils.qRequest('post', {
+                    url: config.adsUrl + '/placements',
+                    json: {
+                        label: nowStr + 'e2e placement',
+                        tagType: 'mraid',
+                        tagParams: {
+                            type: 'full',
+                            container: 'beeswax',
+                            campaign: 'cam-active'
+                        }
+                    },
+                    jar: cookieJar
+                })
+                .then(function(resp) {
+                    if (resp.response.statusCode !== 201) {
+                        return q.reject('Failed creating test placement - ' + util.inspect({
+                            code: resp.response.statusCode,
+                            body: resp.body
+                        }));
+                    }
+                    createdPlacement = resp.body;
+
+                    options.url = config.adsUrl + '/placements/' + createdPlacement.id;
+                    options.json = {
+                        label: nowStr + 'e2e placement - updated',
+                        tagType: 'mraid',
+                        tagParams: {
+                            container: 'beeswax',
+                            campaign: 'cam-active',
+                            network: 'the social network'
+                        },
+                        showInTag: {
+                            network: true
+                        }
+                    };
+                }).then(done, done.fail);
+            });
+            // Note: created creatives are cleaned up in afterAll at end of file
+
+            it('should also edit a creative in beeswax', function(done) {
+                var beesId;
+                requestUtils.qRequest('put', options).then(function(resp) {
+                    expect(resp.response.statusCode).toBe(200);
+                    expect(resp.body).toEqual(jasmine.objectContaining({
+                        id          : createdPlacement.id,
+                        status      : 'active',
+                        label       : nowStr + 'e2e placement - updated',
+                        tagType     : 'mraid',
+                        beeswaxIds : {
+                            creative: createdPlacement.beeswaxIds.creative
+                        },
+                        tagParams : {
+                            container   : 'beeswax',
+                            campaign    : 'cam-active',
+                            type        : 'full',
+                            network     : 'the social network',
+                            clickUrls: [
+                                '{{CLICK_URL}}'
+                            ]
+                        },
+                        showInTag: {
+                            clickUrls: true,
+                            network: true
+                        }
+                    }));
+                    createdPlacement = resp.body;
+                    beesId = resp.body.beeswaxIds.creative;
+
+                    // check that campaign created in Beeswax successfully
+                    return beeswax.creatives.find(beesId);
+                }).then(function(resp) {
+                    expect(resp.success).toBe(true);
+                    expect(resp.payload.creative_id).toBe(beesId);
+                    expect(resp.payload.alternative_id).toBe(createdPlacement.id);
+                    expect(resp.payload.creative_name).toBe(nowStr + 'e2e placement - updated');
+                    validateCreativePixel(resp.payload, createdPlacement);
+                    
+                    var mraidOpts = getMraidOpts(resp.payload, createdPlacement);
+                    expect(mraidOpts).toEqual({
+                        placement: createdPlacement.id,
+                        network: 'the social network',
+                        clickUrls: ['{{CLICK_URL}}']
+                    });
+                }).catch(function(error) {
+                    expect(util.inspect(error)).not.toBeDefined();
+                }).done(done);
+            });
+            
+            it('should not interfere with other clickUrls', function(done) {
+                options.json.tagParams.clickUrls = ['click.me', 'click.you'];
+                var beesId;
+                requestUtils.qRequest('put', options).then(function(resp) {
+                    expect(resp.response.statusCode).toBe(200);
+                    expect(resp.body.tagParams.clickUrls).toEqual(['click.me', 'click.you', '{{CLICK_URL}}']);
+                    expect(resp.body.showInTag).toEqual({ network: true, clickUrls: true });
+                    createdPlacement = resp.body;
+                    beesId = resp.body.beeswaxIds.creative;
+
+                    // check that campaign created in Beeswax successfully
+                    return beeswax.creatives.find(beesId);
+                }).then(function(resp) {
+                    expect(resp.success).toBe(true);
+                    expect(resp.payload.creative_id).toBe(beesId);
+                    validateCreativePixel(resp.payload, createdPlacement);
+                    
+                    var mraidOpts = getMraidOpts(resp.payload, createdPlacement);
+                    expect(mraidOpts).toEqual({
+                        placement: createdPlacement.id,
+                        network: 'the social network',
+                        clickUrls: ['click.me', 'click.you', '{{CLICK_URL}}']
+                    });
+                }).catch(function(error) {
+                    expect(util.inspect(error)).not.toBeDefined();
+                }).done(done);
+            });
+            
+            it('should handle the case where no beeswax creative exists', function(done) {
+                testUtils.mongoUpsert('placements', { id: 'e2e-fake-beeswax' }, {
+	                id: 'e2e-fake-beeswax',
+	                status: 'active',
+	                user: 'u-selfie',
+	                org: 'o-selfie',
+	                tagParams: { type: 'full', container: 'beeswax', campaign: 'cam-active' }
+                }).then(function() {
+                    options.url = config.adsUrl + '/placements/e2e-fake-beeswax';
+                    return requestUtils.qRequest('put', options);
+                }).then(function(resp) {
+                    expect(resp.response.statusCode).toBe(200);
+                    expect(resp.body.label).toBe(nowStr + 'e2e placement - updated');
+                    expect(resp.body.tagType).toBe('mraid');
+                    expect(resp.body.tagParams).toEqual({
+                        container: 'beeswax',
+                        type: 'full',
+                        campaign: 'cam-active',
+                        network: 'the social network'
+                    });
+                    expect(resp.body.showInTag).toEqual({
+                        network: true
+                    });
+                    expect(resp.body.beeswaxIds).not.toBeDefined();
+                }).catch(function(error) {
+                    expect(util.inspect(error)).not.toBeDefined();
+                }).done(done);
+            });
+
+            //TODO: any other cases that need to be handled here??
         });
         
         it('should trim off forbidden fields', function(done) {
@@ -1510,10 +1705,22 @@ describe('ads placements endpoints (E2E):', function() {
         });
     });
 
-    // clean up created Beeswax advertiser
-    // Note: this will actually fail if any campaigns are not cleaned up!
+    // clean up created Beeswax advertiser + its creatives
     afterAll(function(done) {
-        beeswax.advertisers.delete(createdAdvert.beeswaxIds.advertiser)
+        q(beeswax.creatives.query({ advertiser_id: createdAdvert.beeswaxIds.advertiser }))
+        .then(function(resp) {
+            return q.all(resp.payload.map(function(creative) {
+                // have to deactivate creative before deleting
+                return q(beeswax.creatives.edit(creative.creative_id, { active: false }))
+                .then(function() {
+                    return q(beeswax.creatives.delete(creative.creative_id));
+                });
+            }));
+        })
+        .then(function() {
+            return q(beeswax.advertisers.delete(createdAdvert.beeswaxIds.advertiser));
+        })
+        .thenResolve()
         .then(done, done.fail);
     });
 

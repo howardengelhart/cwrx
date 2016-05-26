@@ -204,6 +204,7 @@
     placeModule.formatBeeswaxBody = function(req) { //TODO: test, comment
         var log = logger.getLog(),
             origObj = req.origObj || {},
+            c6Id = req.body.id || origObj.id,
             tagType = req.body.tagType || origObj.tagType;
             
         if (tagType !== 'mraid') {
@@ -222,8 +223,8 @@
         
         var beesBody = {
             advertiser_id: req.advertiser.beeswaxIds.advertiser,
-            alternative_id: req.body.id || origObj.id,
-            creative_name: req.body.label || origObj.label,
+            alternative_id: c6Id,
+            creative_name: req.body.label || origObj.label || 'Untitled (' + c6Id + ')',
             creative_type: 0,
             creative_template_id: 13,
             sizeless: true,
@@ -233,9 +234,13 @@
             height: 480,
             creative_content: {
                 ADDITIONAL_PIXELS: []
+            },
+            creative_attributes: {
+                mobile: {
+                    mraid_playable: [true]
+                }
             }
         };
-        //TODO: may need to set extra stuff? creative_attributes? thumbnails?
         
         var pixelUrl = placeModule.config.beeswax.trackingPixel + '?';
         pixelUrl += querystring.stringify(ld.pickBy({
@@ -253,7 +258,7 @@
         
         var templatePath = path.join(__dirname, '../templates/beeswaxCreatives/mraid.html'),
             tagHtml = fs.readFileSync(templatePath, 'utf8'),
-            opts = { placement: req.body.id || origObj.id };
+            opts = { placement: c6Id };
         
         Object.keys(req.body.showInTag || {}).forEach(function(key) {
             if (req.body.showInTag[key] === true && !!req.body.tagParams[key]) {
