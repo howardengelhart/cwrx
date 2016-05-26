@@ -3,6 +3,7 @@ var rp = require('request-promise');
 var util = require('util');
 var q = require('q');
 var path = require('path');
+var program = require('commander');
 var credsPath = path.join(process.env.home, '.twitter.creds.json');
 var twitterCreds = fs.readJsonSync(credsPath);
 var key = twitterCreds.key;
@@ -11,6 +12,7 @@ var secret = twitterCreds.secret;
 //Concatenate Key + Secret and Encode to Base64
 var KSBase64 = new Buffer(key + ":" + secret).toString('base64');
 var authToken;
+var userName;
 var numFollowers = 0;
 var userData = [];
 var noDups = [];
@@ -19,35 +21,38 @@ var idsOnly;
 var prefVar;
 var count = 5000;
 
-//Check and Process Username Argument from Command Line
-  if (!process.argv[2]) {
-    console.log("Error. Usage: node getFollowers.js <handle> [--fullUsers]");
-    console.log(process.argv);
-    process.exit();
-  }
-  else if (process.argv[2] === "--fullUsers"){
-    console.log("Error. Usage: node getFollowers.js <handle> [--fullUsers]");
-    console.log(process.argv);
-    process.exit();
-  }
-  else {
-    userName = process.argv[2];
-  }
+program
+  .version('0.0.1')
+  .option('-a, --allInfo', 'get username, id\'s, and names')
+  .option('-i, --idsOnly', 'get id\'s only')
+  .option('-u, --userName <name>','get username', String, "")
 
-  //Check and Process Request Type Argument from Command Line
-    if (!process.argv[3]){
-      idsOnly = true;
-      prefVar = "ids"
-    }
-    else if (process.argv[3] === "--fullUsers"){
-      idsOnly = false;
-      prefVar = "list";
-    }
-    else{
-      console.log("Error. Usage: node getFollowers.js <handle> [--fullUsers]");
-      console.log(process.argv);
-      process.exit();
-    }
+  program.parse(process.argv);
+
+//Handles No Username Input
+if(!program.userName){
+  console.log(program.help());
+  process.exit();
+}
+else {
+  userName = program.userName;
+}
+//Sets default to Ids-Only Request
+if (!program.allInfo) {
+  idsOnly = true;
+  prefVar = "ids";
+}
+//Handles Conflicting Requests
+else if(program.idsOnly){
+  console.log("\n Error: Conflicting requests.");
+  console.log(program.help());
+  process.exit();
+}
+//Handles All-Info Request
+else {
+  idsOnly = false;
+  prefVar = "list";
+}
 
 //Request Bearer Token
 var options1 = {
