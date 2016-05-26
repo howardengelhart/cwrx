@@ -30,26 +30,26 @@ program
   program.parse(process.argv);
 
 //Handles No Username Input
-if((program.userName === "")||(!program.userName)){
-  console.log(program.userName);
-  console.log("Add a username. Usage: (-u | --userName) <name>");
+if(!program.userName){
+  console.log(program.help());
   process.exit();
 }
 else {
   userName = program.userName;
 }
-//Handles Conflicting Requests
-if((program.idsOnly)&&(program.allInfo)){
-  console.log("Error. Usage: ( (-a | --allInfo) | (-i | --idsOnly)) ");
-  process.exit();
-}
-//Defaults to Id-Only Request
-else if (((!program.idsOnly)&&(!program.allInfo))||(program.idsOnly)){
+//Sets default to Ids-Only Request
+if (!program.allInfo) {
   idsOnly = true;
   prefVar = "ids";
 }
+//Handles Conflicting Requests
+else if(program.idsOnly){
+  console.log("\n Error: Conflicting requests.");
+  console.log(program.help());
+  process.exit();
+}
 //Handles All-Info Request
-else if(program.allInfo){
+else {
   idsOnly = false;
   prefVar = "list";
 }
