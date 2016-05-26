@@ -122,7 +122,7 @@ rp(options1)
             .then(function(twitterResponse) {
 
               if (idsOnly == false){
-                twitterResponse.users.forEach(function(user) {
+                twitterResponse.users.forEach(function(user, index) {
                   var user_id = user.id + "";
                   var screen_name = user.screen_name + "";
                   var name = user.name + "";
@@ -130,10 +130,12 @@ rp(options1)
 
                   if (userData.length === limit){
                     cursor = 0;
+                    console.log("Index: " + index);
                     return;
                   }
                   else {
-                    userData.push(pushVar);
+                    if (isDup(user, index, twitterResponse.users) === false)
+                      userData.push(pushVar);
                   }
                 });
               }
