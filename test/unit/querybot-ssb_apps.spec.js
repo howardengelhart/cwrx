@@ -418,7 +418,7 @@ describe('querybot-ssb: apps (UT)', function() {
 
             lib.getCampaignDataFromCache('abc')
             .then(function(r){
-                expect(lib.campaignCacheGet.calls.argsFor(0)).toEqual(['abc']);
+                expect(lib.campaignCacheGet.calls.argsFor(0)).toEqual(['qb:ssb:apps:abc']);
                 expect(r).toBe(val);
             })
             .then(done,done.fail);
@@ -434,7 +434,7 @@ describe('querybot-ssb: apps (UT)', function() {
             .then(function(r){
                 expect(mockLog.warn).toHaveBeenCalled();
                 expect(mockLog.warn.calls.argsFor(0)).toEqual([
-                    'Cache error: Key=%1, Error=%2', 'abc', 'err'     
+                    'Cache error: Key=%1, Error=%2', 'qb:ssb:apps:abc', 'err'
                 ]);
                 expect(r).toBeNull();
             })
@@ -455,7 +455,9 @@ describe('querybot-ssb: apps (UT)', function() {
 
             lib.setCampaignDataInCache('abc',data)
             .then(function(r){
-                expect(lib.campaignCacheSet.calls.argsFor(0)).toEqual(['abc',data]);
+                expect(lib.campaignCacheSet.calls.argsFor(0)).toEqual([
+                    'qb:ssb:apps:abc',data
+                ]);
                 expect(r).toBe(data);
             })
             .then(done,done.fail);
@@ -469,7 +471,7 @@ describe('querybot-ssb: apps (UT)', function() {
             .then(function(r){
                 expect(mockLog.warn).toHaveBeenCalled();
                 expect(mockLog.warn.calls.argsFor(0)).toEqual([
-                    'Cache set error: Key=%1, Error=%2', 'abc', 'err'     
+                    'Cache set error: Key=%1, Error=%2', 'qb:ssb:apps:abc', 'err'
                 ]);
                 expect(r).toBe(data);
             })

@@ -8,7 +8,8 @@ var _ut_            = (global.jasmine) ? true : false,
 lib.getCampaignDataFromCache = function(campaignIds,startDate,endDate,keyScope){
     var log = logger.getLog(), retval;
     return q.all(campaignIds.map(function(id){
-        var key = [ id, startDate || 'null', endDate || 'null', keyScope ].join(':');
+        var key = [ 'qb','selfie',id, startDate || 'null', endDate || 'null', keyScope ]
+            .join(':');
         return lib.campaignCacheGet(key).catch(function(e){
             log.warn('Cache error: Key=%1, Error=%2', key, e.message);
             return null;
@@ -31,7 +32,8 @@ lib.getCampaignDataFromCache = function(campaignIds,startDate,endDate,keyScope){
 lib.setCampaignDataInCache = function(data,startDate,endDate,keyScope){
     var log = logger.getLog();
     return q.all(Object.keys(data).map(function(id){
-        var key = [ id, startDate || 'null', endDate || 'null', keyScope ].join(':');
+        var key = [ 'qb','selfie', id, startDate || 'null', endDate || 'null', keyScope ]
+            .join(':');
         log.trace('Store campaign[%1] in cache.',key);
         return lib.campaignCacheSet(key, data[id]);
     }))

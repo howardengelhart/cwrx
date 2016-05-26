@@ -255,17 +255,17 @@ lib.queryHourly = function(response) {
 };
 
 lib.getCampaignDataFromCache = function(campaignId){
-    var log = logger.getLog();
+    var log = logger.getLog(), key = ['qb','ssb', 'apps', campaignId].join(':');
     
-    return lib.campaignCacheGet(campaignId)
+    return lib.campaignCacheGet(key)
     .catch(function(e){
-        log.warn('Cache error: Key=%1, Error=%2', campaignId, e.message);
+        log.warn('Cache error: Key=%1, Error=%2', key, e.message);
         return null;
     });
 };
 
-lib.setCampaignDataInCache = function(key,data){
-    var log = logger.getLog();
+lib.setCampaignDataInCache = function(campaignId,data){
+    var log = logger.getLog(), key = ['qb','ssb', 'apps', campaignId].join(':');
     return lib.campaignCacheSet(key, data)
     .then(function(){
         return data;

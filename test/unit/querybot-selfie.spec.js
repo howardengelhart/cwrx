@@ -899,12 +899,12 @@ describe('querybot-selfie (UT)', function() {
         var fakeCache;
         beforeEach(function(){
             fakeCache = {
-                'abc:null:null:summary'             : { campaignId : 'abc', v: 1 },
-                'abc:2016-01-03:null:summary'       : { campaignId : 'abc', v: 2 },
-                'abc:null:2016-01-03:summary'       : { campaignId : 'abc', v: 3 },
-                'def:null:null:summary'             : { campaignId : 'def', v: 1 },
-                'ghi:null:null:summary'             : { campaignId : 'ghi', v: 1 },
-                'ghi:2016-01-03:2016-01-03:summary' : { campaignId : 'ghi', v: 2 }
+                'qb:selfie:abc:null:null:summary'             : { campaignId : 'abc', v: 1 },
+                'qb:selfie:abc:2016-01-03:null:summary'       : { campaignId : 'abc', v: 2 },
+                'qb:selfie:abc:null:2016-01-03:summary'       : { campaignId : 'abc', v: 3 },
+                'qb:selfie:def:null:null:summary'             : { campaignId : 'def', v: 1 },
+                'qb:selfie:ghi:null:null:summary'             : { campaignId : 'ghi', v: 1 },
+                'qb:selfie:ghi:2016-01-03:2016-01-03:summary' : { campaignId : 'ghi', v: 2 }
             };
             spyOn(lib,'campaignCacheGet').and.callFake(function(id){
                 return q(fakeCache[id]);
@@ -956,7 +956,7 @@ describe('querybot-selfie (UT)', function() {
         it('warns if there is an error, but proceeds',function(done){
             var err = new Error('An error');
             lib.campaignCacheGet.and.callFake(function(id){
-                if (id === 'def:null:null:summary') {
+                if (id === 'qb:selfie:def:null:null:summary') {
                     return q.reject(err);
                 } else {
                     return q(fakeCache[id]);
@@ -965,7 +965,7 @@ describe('querybot-selfie (UT)', function() {
             lib.getCampaignDataFromCache(['abc','123','def','ghi'],null,null,'summary')
             .then(function(res){
                 expect(mockLog.warn).toHaveBeenCalledWith('Cache error: Key=%1, Error=%2',
-                    'def:null:null:summary','An error');
+                    'qb:selfie:def:null:null:summary','An error');
                 expect(res).toEqual({
                     'abc' : { campaignId : 'abc', v: 1 },
                     'ghi' : { campaignId : 'ghi', v: 1 }
@@ -993,11 +993,11 @@ describe('querybot-selfie (UT)', function() {
             .then(function(result){
                 expect(lib.campaignCacheSet.calls.count()).toEqual(3);
                 expect(lib.campaignCacheSet.calls.allArgs()[0])
-                    .toEqual( ['abc:null:2016-01-01:summary', { campaignId: 'abc'}] );
+                    .toEqual( ['qb:selfie:abc:null:2016-01-01:summary', { campaignId: 'abc'}] );
                 expect(lib.campaignCacheSet.calls.allArgs()[1])
-                    .toEqual( ['def:null:2016-01-01:summary', { campaignId: 'def'}] );
+                    .toEqual( ['qb:selfie:def:null:2016-01-01:summary', { campaignId: 'def'}] );
                 expect(lib.campaignCacheSet.calls.allArgs()[2])
-                    .toEqual( ['ghi:null:2016-01-01:summary', { campaignId: 'ghi'}] );
+                    .toEqual( ['qb:selfie:ghi:null:2016-01-01:summary', { campaignId: 'ghi'}] );
                 expect(result).toBe(fakeData);
             })
             .then(done,done.fail);
