@@ -393,4 +393,112 @@ describe('querybot-ssb: apps (UT)', function() {
         });
 
     });
+
+    describe('getCampaignDataFromCache',function(){
+        var response;
+        beforeEach(function(){
+            response = {
+                abc : {
+                    campaignId : 'abc',
+                    summary : {}, daily_7 : [], daily_30 :  [], today : []
+                },
+                def : {
+                    campaignId : 'def',
+                    summary : {}, daily_7 : [], daily_30 :  [], today : []
+                }
+            };
+            lib.campaignCacheGet = jasmine.createSpy('campaignCacheGet');
+        });
+
+        it('returns the cached data structure campaign if found',function(done){
+            var val = { campaignId : 'abc' };
+            lib.campaignCacheGet.and.callFake(function(id){
+                return  q(val);
+            });
+
+            lib.getCampaignDataFromCache('abc')
+            .then(function(r){
+                expect(lib.campaignCacheGet.calls.argsFor(0)).toEqual(['qb:ssb:apps:abc']);
+                expect(r).toBe(val);
+            })
+            .then(done,done.fail);
+        });
+
+        it('returns null if there is an error',function(done){
+            var e = new Error('err');
+            lib.campaignCacheGet.and.callFake(function(id){
+                return  q.reject(e);
+            });
+
+            lib.getCampaignDataFromCache('abc')
+            .then(function(r){
+                expect(mockLog.warn).toHaveBeenCalled();
+                expect(mockLog.warn.calls.argsFor(0)).toEqual([
+                    'Cache error: Key=%1, Error=%2', 'qb:ssb:apps:abc', 'err'
+                ]);
+                expect(r).toBeNull();
+            })
+            .then(done,done.fail);
+        });
+
+    });
+
+    describe('setCampaignDataInCache',function(){
+        var data;
+        beforeEach(function(){
+            data = { campaignId : 'abc' };
+            lib.campaignCacheSet = jasmine.createSpy('campaignCacheSet');
+        });
+
+        it('returns the passed data structure campaign if succeeds',function(done){
+            lib.campaignCacheSet.and.returnValue(q(true));
+
+            lib.setCampaignDataInCache('abc',data)
+            .then(function(r){
+                expect(lib.campaignCacheSet.calls.argsFor(0)).toEqual([
+                    'qb:ssb:apps:abc',data
+                ]);
+                expect(r).toBe(data);
+            })
+            .then(done,done.fail);
+        });
+
+        it('returns the passed data if there is an error',function(done){
+            var e = new Error('err');
+            lib.campaignCacheSet.and.returnValue(q.reject(e));
+
+            lib.setCampaignDataInCache('abc',data)
+            .then(function(r){
+                expect(mockLog.warn).toHaveBeenCalled();
+                expect(mockLog.warn.calls.argsFor(0)).toEqual([
+                    'Cache set error: Key=%1, Error=%2', 'qb:ssb:apps:abc', 'err'
+                ]);
+                expect(r).toBe(data);
+            })
+            .then(done,done.fail);
+        });
+
+
+    });
+
+    describe('getUncachedCampaignIds',function(){
+        var response;
+        beforeEach(function(){
+            response = {
+                'abc' : { campaignId : 'abc' },
+                'def' : { campaignId : 'def', cacheTime : new Date() },
+                'ghi' : { campaignId : 'ghi' }
+            };
+        });
+
+        it('returns a list of campaignIds for campaigns with no cacheTime',function(){
+            expect(lib.getUncachedCampaignIds(response)).toEqual([ 'abc','ghi' ]);
+        });
+
+        it('returns an empty list if there are no campaigns without a cacheTime',function(){
+            response.abc.cacheTime = new Date();
+            response.ghi.cacheTime = new Date();
+            expect(lib.getUncachedCampaignIds(response)).toEqual([ ]);
+        });
+    });
 });

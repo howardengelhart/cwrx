@@ -1,5 +1,6 @@
 /*jshint camelcase: false */
 var _ut_            = (global.jasmine) ? true : false,
+    inspect         = require('util').inspect,
     logger          = require('../lib/logger'),
     q               = require('q'),
     _               = require('lodash'),
@@ -48,6 +49,16 @@ lib.initializeResponseRecord = function(campaignId){
     return result;
 };
 
+lib.getUncachedCampaignIds = function(response){
+    var list = [];
+    _.values(response).map(function(data){
+        if (!data.cacheTime) {
+            list.push(data.campaignId);
+        }
+    });
+    return list;
+};
+
 lib.queryParamsFromRequest = function(req){
     var ServiceError = lib.ServiceError, result = { campaignIds : [] };
 
@@ -79,7 +90,7 @@ lib.flattenOverallRecord = function(record, obj) {
 
 lib.queryOverall = function(response){
     var log = logger.getLog(), statement,
-        campaignIds = Object.keys(response);
+        campaignIds = lib.getUncachedCampaignIds(response);
 
     statement = [
         'SELECT ',
@@ -135,10 +146,9 @@ lib.flattenDailyRecord = function(record,obj){
     return obj;
 };
 
-
 lib.queryDaily = function(response ) {
     var log = logger.getLog(), statement,
-        campaignIds = Object.keys(response);
+        campaignIds = lib.getUncachedCampaignIds(response);
 
     statement = [
         'SELECT  ',
@@ -207,7 +217,7 @@ lib.flattenHourlyRecord = function(record,obj){
 
 lib.queryHourly = function(response) {
     var log = logger.getLog(), statement,
-        campaignIds = Object.keys(response);
+        campaignIds = lib.getUncachedCampaignIds(response);
 
     statement = [
         'SELECT  ',
@@ -244,39 +254,94 @@ lib.queryHourly = function(response) {
         });
 };
 
+lib.getCampaignDataFromCache = function(campaignId){
+    var log = logger.getLog(), key = ['qb','ssb', 'apps', campaignId].join(':');
+    
+    return lib.campaignCacheGet(key)
+    .catch(function(e){
+        log.warn('Cache error: Key=%1, Error=%2', key, e.message);
+        return null;
+    });
+};
+
+lib.setCampaignDataInCache = function(campaignId,data){
+    var log = logger.getLog(), key = ['qb','ssb', 'apps', campaignId].join(':');
+    return lib.campaignCacheSet(key, data)
+    .then(function(){
+        return data;
+    })
+    .catch(function(e){
+        log.warn('Cache set error: Key=%1, Error=%2',key,e.message);
+        return data;
+    });
+};
+
+
 lib.getAnalytics = function(req) {
+    var log = logger.getLog();
 
     function prepare(){
         var result = {};
         return lib.queryParamsFromRequest(req)
-            .then(function(res){
-                res.campaignIds.forEach(function(campaignId){
-                    result[campaignId] = lib.initializeResponseRecord(campaignId);
-                });
-                return result;
-            });
+        .then(function(res){
+            return q.all(res.campaignIds.map(function(campaignId){
+                return lib.getCampaignDataFromCache(campaignId)
+                    .then(function(data){
+                        if ((data === null) || (data === undefined)){
+                            log.info('[%1] Initializing response: Key=%2',
+                                req.uuid, campaignId);
+                            result[campaignId] = lib.initializeResponseRecord(campaignId);
+                        } else {
+                            log.info('[%1] Found in Cache: Key=%2, CacheTime=%3',
+                                req.uuid, campaignId, data.cacheTime);
+                            result[campaignId] = data;
+                        }
+                    });
+            }));
+        })
+        .then(function(){
+            return result;
+        });
     }
 
-    function getSummaryData(result) {
-        return lib.queryOverall(result);
-    }
+    function getFromDb(result){
+        if (lib.getUncachedCampaignIds(result).length === 0){
+            log.info('[%1] Found all requested campaigns in cache, skip db lookups', req.uuid);
+            return q(result);
+        }
 
-    function getDailyData(result) {
-        return lib.queryDaily(result);
-    }
+        function getSummaryData(result) {
+            return lib.queryOverall(result);
+        }
 
-    function getHourlyData(result) {
-        return lib.queryHourly(result);
+        function getDailyData(result) {
+            return lib.queryDaily(result);
+        }
+
+        function getHourlyData(result) {
+            return lib.queryHourly(result);
+        }
+
+        return getSummaryData(result)
+        .then(getDailyData)
+        .then(getHourlyData);
     }
 
     function compileResults(result){
-        return q(_.values(result));
+        return q.all(_.values(result).map(function(data){
+            if (!data.cacheTime){
+                data.cacheTime = new Date();
+            }
+            return lib.setCampaignDataInCache(data.campaignId,data)
+            .then(function(data){
+                delete data.cacheTime;
+                return data;
+            });
+        }));
     }
     
     return prepare(req)
-    .then(getSummaryData)
-    .then(getDailyData)
-    .then(getHourlyData)
+    .then(getFromDb)
     .then(compileResults);
 };
 
@@ -288,7 +353,9 @@ lib.handler = function(params){
         authGetCamp         = params.authUtils.middlewarify({
             allowApps: true,
             permissons: { campaigns: 'read' }
-        });
+        }),
+        cloudwatchMetrics   = require('../lib/expressUtils').cloudwatchMetrics,
+        cwSingle;
 
     lib.state            = state;
     lib.pgUtils          = params.pgUtils;
@@ -296,8 +363,32 @@ lib.handler = function(params){
     lib.campaignCacheGet = params.lib.campaignCacheGet;
     lib.campaignCacheSet = params.lib.campaignCacheSet;
     lib.lookupCampaigns  = params.lib.lookupCampaigns;
+    
+    cwSingle = cloudwatchMetrics(
+        state.config.cloudwatch.namespace,
+        state.config.cloudwatch.sendInterval,
+        {
+            MetricName : 'Duration',
+            Dimensions : [
+                {
+                    Name : 'Environment',
+                    Value : state.config.cloudwatch.environment
+                },
+                {
+                    Name  : 'Function',
+                    Value : '/api/analytics/campaigns/showcase/apps/:id'
+                }
+            ],
+            Unit: 'Milliseconds'
+        }
+    );
+    cwSingle.reporter.removeAllListeners('flush');
+    cwSingle.reporter.on('flush', function(data) {
+        log.info('Sending cwSingle timing metrics to CloudWatch: %1',
+            inspect(data));
+    });
 
-    app.get('/api/analytics/campaigns/showcase/apps/:id', sessions, authGetCamp,
+    app.get('/api/analytics/campaigns/showcase/apps/:id', sessions, authGetCamp, cwSingle,
         function(req, res, next) {
         lib.getAnalytics(req)
         .then(function(results){
