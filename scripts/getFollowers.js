@@ -8,24 +8,26 @@ var credsPath = path.join(process.env.home, '.twitter.creds.json');
 var twitterCreds = fs.readJsonSync(credsPath);
 var key = twitterCreds.key;
 var secret = twitterCreds.secret;
-
 //Concatenate Key + Secret and Encode to Base64
 var KSBase64 = new Buffer(key + ":" + secret).toString('base64');
-var authToken;
-var userName;
 var numFollowers = 0;
 var userData = [];
-var noDups = [];
 var cursor = -1;
+var uriCount = 5000;
+var limit = 0;
+var authToken;
+var userName;
 var idsOnly;
 var prefVar;
-var count = 5000;
+var fileName;
 
 program
   .version('0.0.1')
+  .option('-u, --userName <name>','set username')
   .option('-a, --allInfo', 'get username, id\'s, and names')
   .option('-i, --idsOnly', 'get id\'s only')
-  .option('-u, --userName <name>','get username', String, "")
+  .option('-l, --limit <num>', 'set output limit [500]')
+  .option('-f, --fileName <filename>', 'set file name [<username>followers.csv]')
 
   program.parse(process.argv);
 
@@ -54,6 +56,22 @@ else {
   prefVar = "list";
 }
 
+//Set limit
+if (!program.limit) {
+  limit = 500;
+}
+else {
+  limit = parseInt(program.limit);
+}
+
+//Set Filename
+if (!program.fileName) {
+  fileName = userName + 'followers.csv';
+}
+else {
+  fileName = program.fileName;
+}
+
 //Request Bearer Token
 var options1 = {
     method: 'POST',
@@ -72,14 +90,13 @@ rp(options1)
     .then(function (parsedBody) {
         authToken = parsedBody.access_token;
 
-        function removeDups(array) {
-          noDups = array.filter( function (value, index) {
-              if (array.indexOf(value) != index)
-                return false;
-              else return true;
-          });
-          userData = noDups.sort();
-          numFollowers = userData.length;
+        function isDup(value, index, array) {
+          if (array.indexOf(value) != index)  {
+            return true;
+          }
+          else {
+            return false;
+          }
         }
 
         function getFollowers(cursor, authToken)  {
@@ -91,7 +108,7 @@ rp(options1)
               include_user_entities: false,
               skip_status: true,
               cursor : cursor,
-              count: count
+              count: uriCount
             },
             headers:  {
               'User-Agent': 'Reelcontent',
@@ -105,30 +122,47 @@ rp(options1)
             .then(function(twitterResponse) {
 
               if (idsOnly == false){
-                twitterResponse.users.forEach(function(user)
-                {
+                twitterResponse.users.forEach(function(user) {
                   var user_id = user.id + "";
                   var screen_name = user.screen_name + "";
                   var name = user.name + "";
-                  userData.push(screen_name + "," + user_id + "," + name);
+                  var pushVar = (screen_name + "," + user_id + "," + name);
+
+                  if (userData.length === limit){
+                    cursor = 0;
+                    return;
+                  }
+                  else {
+                    userData.push(pushVar);
+                  }
                 });
               }
               else{
-                twitterResponse.ids.forEach(function(user) {
-                  userData.push(user);
+                twitterResponse.ids.forEach(function(user,index) {
+                    if (userData.length === limit){
+                      cursor = 0;
+                      return;
+                    }
+                    else {
+                      if (isDup(user, index, twitterResponse.ids) === false)
+                        userData.push(user);
+                    }
                 });
               }
-              //Change Cursor Value to next_cursor to Print Out Next Page of Results
-              cursor = twitterResponse.next_cursor;
+              numFollowers = userData.length;
+              userData.sort();
 
-              if (cursor == 0) //cursor on final page
+              //Change Cursor Value
+
+              //Check for cursor on final page
+              if (cursor === 0)
               {
-                removeDups(userData);
                 console.log("Fetched Users in Batch: " + numFollowers);
-                return;
               }
+              //Change cursor to print out next page of results
               else
               {
+                cursor = twitterResponse.next_cursor;
                 return getFollowers(cursor, authToken);
               }
 
@@ -136,7 +170,6 @@ rp(options1)
             .catch(function(err){
               if (err.statusCode === 429)  {
                 console.log("Twitter rate limit exceeded. Try later.");
-                removeDups(userData);
                 console.log("Fetched Users in Batch: " + numFollowers);
               }
               else {
@@ -144,12 +177,12 @@ rp(options1)
               }
             });
         }
-        return getFollowers(cursor, authToken);
 
+        return getFollowers(cursor, authToken);
     })
       .then(function(body)  {
-        fs.writeFileSync('out.csv', userData.join("\n"))
-        console.log("File saved to 'out.csv'");
+        fs.writeFileSync(fileName, userData.join("\n"))
+        console.log("File saved to: " + fileName);
       })
       .catch(function (err) {
         delete err.response;
