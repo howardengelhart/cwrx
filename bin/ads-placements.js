@@ -201,7 +201,8 @@
 
     /* jshint camelcase: false */
     
-    placeModule.formatBeeswaxBody = function(req) { //TODO: test, comment
+    // Format + return beeswax creative body. Returns null if tagType is unsupported
+    placeModule.formatBeeswaxBody = function(req) {
         var log = logger.getLog(),
             origObj = req.origObj || {},
             c6Id = req.body.id || origObj.id,
@@ -218,8 +219,6 @@
             req.body.tagParams.clickUrls.push('{{CLICK_URL}}');
         }
         req.body.showInTag.clickUrls = true;
-        
-        //TODO: consider reorganizing to pave the way for supporting multiple tagTypes?
         
         var beesBody = {
             advertiser_id: req.advertiser.beeswaxIds.advertiser,
@@ -302,15 +301,15 @@
             }
 
             var beesId = resp.payload.creative_id;
-            log.info('[%1] Created Beeswax creative %2 for %3', req.uuid, beesId, c6Id);
+            log.info('[%1] Created beeswax creative %2 for %3', req.uuid, beesId, c6Id);
             
             req.body.beeswaxIds = { creative: beesId };
             return next();
         })
         .catch(function(error) {
-            log.error('[%1] Error creating Beeswax creative for %2: %3',
+            log.error('[%1] Error creating beeswax creative for %2: %3',
                       req.uuid, c6Id, error.message || util.inspect(error));
-            return q.reject('Error creating Beeswax creative');
+            return q.reject('Error creating beeswax creative');
         });
     };
     
@@ -321,7 +320,7 @@
             beesId = ld.get(req.origObj, 'beeswaxIds.creative', null);
         
         if (!beesId) {
-            log.trace('[%1] C6 placement %2 has no Beeswax creative', req.uuid, c6Id);
+            log.trace('[%1] C6 placement %2 has no beeswax creative', req.uuid, c6Id);
             return q(next());
         }
         if (!req.body.tagParams) { // skip if not editing tagParams

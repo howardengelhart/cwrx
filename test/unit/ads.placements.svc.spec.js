@@ -1,15 +1,18 @@
 var flush = true;
 describe('ads-placements (UT)', function() {
-    var mockLog, CrudSvc, QueryCache, Model, Status, logger, q, placeModule, historian,
-        mockDb, nextSpy, doneSpy, errorSpy, req;
+    var mockLog, CrudSvc, QueryCache, Model, Status, logger, q, placeModule, historian, mongoUtils,
+        fs, util, mockDb, mockBeeswax, nextSpy, doneSpy, errorSpy, req;
 
     beforeEach(function() {
         if (flush) { for (var m in require.cache){ delete require.cache[m]; } flush = false; }
         q               = require('q');
+        fs              = require('fs-extra');
+        util            = require('util');
         logger          = require('../../lib/logger');
         placeModule     = require('../../bin/ads-placements');
         CrudSvc         = require('../../lib/crudSvc');
         historian       = require('../../lib/historian');
+        mongoUtils      = require('../../lib/mongoUtils');
         QueryCache      = require('../../lib/queryCache');
         Model           = require('../../lib/model');
         Status          = require('../../lib/enums').Status;
@@ -30,6 +33,10 @@ describe('ads-placements (UT)', function() {
                 return { collectionName: name };
             })
         };
+        mockBeeswax = { creatives: {
+            create: jasmine.createSpy('beeswax.creatives.create()'),
+            edit: jasmine.createSpy('beeswax.creatives.edit()'),
+        } };
         
         placeModule.config.cacheTTLs = {
             placements: {
@@ -37,6 +44,9 @@ describe('ads-placements (UT)', function() {
                 maxTTL: 4
             },
             cloudFront: 5
+        };
+        placeModule.config.beeswax = {
+            trackingPixel: 'track.me'
         };
         
         req = { uuid: '1234' };
@@ -49,17 +59,24 @@ describe('ads-placements (UT)', function() {
     describe('setupSvc', function() {
         var svc, config, costHistMidware;
         beforeEach(function() {
-            config = { cacheTTLs: {
-                placements: { freshTTL: 10, maxTTL: 40 },
-                cloudFront: 50
-            } };
+            config = {
+                cacheTTLs: {
+                    placements: { freshTTL: 10, maxTTL: 40 },
+                    cloudFront: 50
+                },
+                beeswax: {
+                    trackingPixel: 'track.you'
+                }
+            };
             spyOn(placeModule.validateExtRefs, 'bind').and.returnValue(placeModule.validateExtRefs);
             spyOn(placeModule.getPublicPlacement, 'bind').and.returnValue(placeModule.getPublicPlacement);
+            spyOn(placeModule.createBeeswaxCreative, 'bind').and.returnValue(placeModule.createBeeswaxCreative);
+            spyOn(placeModule.editBeeswaxCreative, 'bind').and.returnValue(placeModule.editBeeswaxCreative);
             
             costHistMidware = jasmine.createSpy('handleCostHist');
             spyOn(historian, 'middlewarify').and.returnValue(costHistMidware);
             
-            svc = placeModule.setupSvc(mockDb, config);
+            svc = placeModule.setupSvc(mockDb, config, mockBeeswax);
         });
 
         it('should return a CrudSvc', function() {
@@ -75,6 +92,7 @@ describe('ads-placements (UT)', function() {
 
         it('should save some config variables locally', function() {
             expect(placeModule.config.cacheTTLs).toEqual({ placements: { freshTTL: 10, maxTTL: 40 }, cloudFront: 50 });
+            expect(placeModule.config.beeswax).toEqual({ trackingPixel: 'track.you' });
         });
 
         it('should save some bound methods on the service', function() {
@@ -93,6 +111,16 @@ describe('ads-placements (UT)', function() {
             expect(svc._middleware.edit).toContain(placeModule.validateExtRefs);
         });
         
+        it('should create beeswax creatives on create', function() {
+            expect(placeModule.createBeeswaxCreative.bind).toHaveBeenCalledWith(placeModule, mockBeeswax);
+            expect(svc._middleware.create).toContain(placeModule.createBeeswaxCreative);
+        });
+
+        it('should edit beeswax creatives on edit', function() {
+            expect(placeModule.editBeeswaxCreative.bind).toHaveBeenCalledWith(placeModule, mockBeeswax);
+            expect(svc._middleware.edit).toContain(placeModule.editBeeswaxCreative);
+        });
+        
         it('should manage the costHistory on create and edit', function() {
             expect(historian.middlewarify).toHaveBeenCalledWith('externalCost', 'costHistory');
             expect(svc._middleware.create).toContain(costHistMidware);
@@ -103,7 +131,7 @@ describe('ads-placements (UT)', function() {
     describe('placement validation', function() {
         var svc, newObj, origObj, requester;
         beforeEach(function() {
-            svc = placeModule.setupSvc(mockDb, placeModule.config);
+            svc = placeModule.setupSvc(mockDb, placeModule.config, mockBeeswax);
             newObj = { tagParams: { type: 'full', container: 'box', campaign: 'cam-1' } };
             origObj = {};
             requester = { fieldValidation: { placements: {} } };
@@ -221,6 +249,30 @@ describe('ads-placements (UT)', function() {
                 expect(newObj.costHistory).not.toBeDefined();
             });
         });
+
+        describe('when handling beeswaxIds', function() {
+            it('should trim the field if set', function() {
+                newObj.beeswaxIds = { creative: 1234 };
+                expect(svc.model.validate('create', newObj, origObj, requester))
+                    .toEqual({ isValid: true, reason: undefined });
+                expect(newObj.beeswaxIds).not.toBeDefined();
+            });
+            
+            it('should be able to allow some requesters to set the field', function() {
+                requester.fieldValidation.placements.beeswaxIds = { __allowed: true };
+                newObj.beeswaxIds = { creative: 1234 };
+                expect(svc.model.validate('create', newObj, origObj, requester))
+                    .toEqual({ isValid: true, reason: undefined });
+                expect(newObj.beeswaxIds).toEqual({ creative: 1234 });
+            });
+
+            it('should fail if the field is not an object', function() {
+                requester.fieldValidation.placements.beeswaxIds = { __allowed: true };
+                newObj.beeswaxIds = 'asdf';
+                expect(svc.model.validate('create', newObj, origObj, requester))
+                    .toEqual({ isValid: false, reason: 'beeswaxIds must be in format: object' });
+            });
+        });
         
         describe('when handling tagParams', function() {
             beforeEach(function() {
@@ -301,10 +353,40 @@ describe('ads-placements (UT)', function() {
                 });
             });
         });
+        
+        describe('when handling showInTag', function() {
+            it('should allow the field to be set', function() {
+                newObj.showInTag = { foo: true };
+                expect(svc.model.validate('create', newObj, origObj, requester))
+                    .toEqual({ isValid: true, reason: undefined });
+                expect(newObj.showInTag).toEqual({ foo: true });
+            });
+            
+            it('should fail if the field is not an object', function() {
+                newObj.showInTag = 'asdf';
+                expect(svc.model.validate('create', newObj, origObj, requester))
+                    .toEqual({ isValid: false, reason: 'showInTag must be in format: object' });
+            });
+            
+            it('should default the field to an empty object', function() {
+                delete newObj.showInTag;
+                expect(svc.model.validate('create', newObj, origObj, requester))
+                    .toEqual({ isValid: true, reason: undefined });
+                expect(newObj.showInTag).toEqual({});
+            });
+            
+            it('should not allow the field to be unset', function() {
+                origObj.showInTag = { foo: true };
+                newObj.showInTag = null;
+                expect(svc.model.validate('edit', newObj, origObj, requester))
+                    .toEqual({ isValid: true, reason: undefined });
+                expect(newObj.showInTag).toEqual({ foo: true });
+            });
+        });
     });
     
     describe('validateExtRefs', function() {
-        var svc, collections;
+        var svc, resps;
         beforeEach(function() {
             req.body = {
                 tagParams: {
@@ -314,14 +396,15 @@ describe('ads-placements (UT)', function() {
                     experience: 'e-1'
                 }
             };
-            collections = {
-                containers: { count: jasmine.createSpy('containers.count()').and.returnValue(q(1)) },
-                campaigns: { count: jasmine.createSpy('campaigns.count()').and.returnValue(q(1)) },
-                cards: { count: jasmine.createSpy('cards.count()').and.returnValue(q(1)) },
-                experiences: { count: jasmine.createSpy('experiences.count()').and.returnValue(q(1)) },
+            resps = {
+                campaigns: { id: 'cam-1', advertiserId: 'a-1', name: 'camp1' },
+                containers: { id: 'con-1', name: 'container1' },
+                cards: { id: 'rc-1', name: 'card1' },
+                experiences: { id: 'e-1', name: 'exp1' },
+                advertisers: { id: 'a-1', name: 'advertiser1' },
             };
-            mockDb.collection.and.callFake(function(collName) {
-                return collections[collName];
+            spyOn(mongoUtils, 'findObject').and.callFake(function(coll, query) {
+                return q(resps[coll.collectionName]);
             });
             svc = { _db: mockDb };
         });
@@ -331,13 +414,22 @@ describe('ads-placements (UT)', function() {
                 expect(nextSpy).toHaveBeenCalled();
                 expect(doneSpy).not.toHaveBeenCalled();
                 expect(errorSpy).not.toHaveBeenCalled();
-                expect(collections.containers.count).toHaveBeenCalledWith({ name: 'box', status: { $ne: Status.Deleted } });
-                expect(collections.campaigns.count).toHaveBeenCalledWith({
+                expect(req.campaign).toEqual({ id: 'cam-1', advertiserId: 'a-1', name: 'camp1' });
+                expect(req.container).toEqual({ id: 'con-1', name: 'container1' });
+                expect(req.card).toEqual({ id: 'rc-1', name: 'card1' });
+                expect(req.experience).toEqual({ id: 'e-1', name: 'exp1' });
+                expect(req.advertiser).toEqual({ id: 'a-1', name: 'advertiser1' });
+
+                expect(mongoUtils.findObject.calls.count()).toBe(5);
+                expect(mongoUtils.findObject).toHaveBeenCalledWith({ collectionName: 'containers' },
+                    { name: 'box', status: { $ne: Status.Deleted } });
+                expect(mongoUtils.findObject).toHaveBeenCalledWith({ collectionName: 'campaigns' }, {
                     id: 'cam-1',
                     status: { $nin: [Status.Deleted, Status.Canceled, Status.Expired, Status.OutOfBudget] }
                 });
-                expect(collections.experiences.count).toHaveBeenCalledWith({ id: 'e-1', 'status.0.status': { $ne: Status.Deleted } });
-                expect(collections.cards.count).toHaveBeenCalledWith({ id: 'rc-1', campaignId: 'cam-1', status: { $ne: Status.Deleted } });
+                expect(mongoUtils.findObject).toHaveBeenCalledWith({ collectionName: 'experiences' }, { id: 'e-1', 'status.0.status': { $ne: Status.Deleted } });
+                expect(mongoUtils.findObject).toHaveBeenCalledWith({ collectionName: 'cards' }, { id: 'rc-1', campaignId: 'cam-1', status: { $ne: Status.Deleted } });
+                expect(mongoUtils.findObject).toHaveBeenCalledWith({ collectionName: 'advertisers' }, { id: 'a-1',status: { $ne: Status.Deleted } });
                 expect(mockLog.error).not.toHaveBeenCalled();
             }).done(done);
         });
@@ -349,56 +441,379 @@ describe('ads-placements (UT)', function() {
                 expect(nextSpy).toHaveBeenCalled();
                 expect(doneSpy).not.toHaveBeenCalled();
                 expect(errorSpy).not.toHaveBeenCalled();
-                expect(collections.containers.count).toHaveBeenCalled();
-                expect(collections.campaigns.count).toHaveBeenCalled();
-                expect(collections.experiences.count).not.toHaveBeenCalled();
-                expect(collections.cards.count).not.toHaveBeenCalled();
+                expect(req.campaign).toBeDefined();
+                expect(req.container).toBeDefined();
+                expect(req.card).not.toBeDefined();
+                expect(req.experience).not.toBeDefined();
+                expect(req.advertiser).toBeDefined();
+                expect(mongoUtils.findObject.calls.count()).toBe(3);
+                expect(mongoUtils.findObject).toHaveBeenCalledWith({ collectionName: 'containers' }, jasmine.any(Object));
+                expect(mongoUtils.findObject).toHaveBeenCalledWith({ collectionName: 'campaigns' }, jasmine.any(Object));
+                expect(mongoUtils.findObject).toHaveBeenCalledWith({ collectionName: 'advertisers' }, jasmine.any(Object));
                 expect(mockLog.error).not.toHaveBeenCalled();
             }).done(done);
         });
         
         it('should call done if an entity cannot be found', function(done) {
-            collections.cards.count.and.returnValue(q(0));
+            delete resps.cards;
             placeModule.validateExtRefs(svc, req, nextSpy, doneSpy).catch(errorSpy).finally(function() {
                 expect(nextSpy).not.toHaveBeenCalled();
                 expect(doneSpy).toHaveBeenCalledWith({ code: 400, body: 'card rc-1 not found' });
                 expect(errorSpy).not.toHaveBeenCalled();
-                expect(collections.containers.count).toHaveBeenCalled();
-                expect(collections.campaigns.count).toHaveBeenCalled();
-                expect(collections.experiences.count).toHaveBeenCalled();
-                expect(collections.cards.count).toHaveBeenCalled();
+                expect(mongoUtils.findObject).toHaveBeenCalled();
                 expect(mockLog.error).not.toHaveBeenCalled();
             }).done(done);
         });
         
         it('should only call done once', function(done) {
-            collections.cards.count.and.returnValue(q(0));
-            collections.containers.count.and.returnValue(q(0));
+            delete resps.cards;
+            delete resps.containers;
             placeModule.validateExtRefs(svc, req, nextSpy, doneSpy).catch(errorSpy).finally(function() {
                 expect(nextSpy).not.toHaveBeenCalled();
                 expect(doneSpy).toHaveBeenCalledWith({ code: 400, body: 'container box not found' });
                 expect(doneSpy.calls.count()).toBe(1);
                 expect(errorSpy).not.toHaveBeenCalled();
-                expect(collections.containers.count).toHaveBeenCalled();
-                expect(collections.campaigns.count).toHaveBeenCalled();
-                expect(collections.experiences.count).toHaveBeenCalled();
-                expect(collections.cards.count).toHaveBeenCalled();
+                expect(mongoUtils.findObject).toHaveBeenCalled();
                 expect(mockLog.error).not.toHaveBeenCalled();
             }).done(done);
         });
         
         it('should reject if one or more queries fail', function(done) {
-            collections.experiences.count.and.returnValue(q.reject('Experiences got a problem'));
-            collections.campaigns.count.and.returnValue(q.reject('Campaigns got a problem'));
+            resps.experiences = q.reject('Experiences got a problem');
+            resps.campaigns = q.reject('Campaigns got a problem');
             placeModule.validateExtRefs(svc, req, nextSpy, doneSpy).catch(errorSpy).finally(function() {
                 expect(nextSpy).not.toHaveBeenCalled();
                 expect(doneSpy).not.toHaveBeenCalled();
                 expect(errorSpy).toHaveBeenCalledWith(new Error('Mongo error'));
-                expect(collections.containers.count).toHaveBeenCalled();
-                expect(collections.campaigns.count).toHaveBeenCalled();
-                expect(collections.experiences.count).toHaveBeenCalled();
-                expect(collections.cards.count).toHaveBeenCalled();
                 expect(mockLog.error.calls.count()).toBe(2);
+            }).done(done);
+        });
+    });
+    
+    describe('formatBeeswaxBody', function() {
+        beforeEach(function() {
+            req.body = {
+                id: 'pl-1234',
+                label: 'da best placement',
+                tagType: 'mraid',
+                tagParams: {
+                    container: 'beeswax',
+                    campaign: 'cam-active',
+                    clickUrls: ['{{CLICK_URL}}', 'click.me'],
+                    hostApp: 'Mapsaurus',
+                    network: 'interwebz',
+                    uuid: 'univuniqid',
+                    foo: 'bar'
+                },
+                showInTag: {
+                    clickUrls: true,
+                    hostApp: true,
+                    uuid: true,
+                    foo: true
+                }
+            };
+            req.advertiser = { id: 'a-1', beeswaxIds: { advertiser: 9876 } };
+            spyOn(fs, 'readFileSync').and.returnValue('window.c6mraid(%OPTIONS%)');
+        });
+        
+        it('should format and return a beeswax creative', function() {
+            var beesBody = placeModule.formatBeeswaxBody(req);
+            expect(beesBody).toEqual({
+                advertiser_id: 9876,
+                alternative_id: 'pl-1234',
+                creative_name: 'da best placement',
+                creative_type: 0,
+                creative_template_id: 13,
+                sizeless: true,
+                secure: true,
+                active: true,
+                width: 320,
+                height: 480,
+                creative_content: {
+                    TAG: jasmine.any(String),
+                    ADDITIONAL_PIXELS: [{ PIXEL_URL: jasmine.any(String) }]
+                },
+                creative_attributes: {
+                    mobile: {
+                        mraid_playable: [true]
+                    }
+                }
+            });
+            expect(req.body.tagParams.clickUrls).toEqual(['{{CLICK_URL}}', 'click.me']);
+            expect(req.body.showInTag).toEqual({ clickUrls: true, hostApp: true, uuid: true, foo: true });
+            expect(beesBody.creative_content.TAG).toBe('window.c6mraid(' + JSON.stringify({
+                'placement': 'pl-1234',
+                'clickUrls': ['{{CLICK_URL}}', 'click.me'],
+                'hostApp': 'Mapsaurus',
+                'uuid': 'univuniqid',
+                'foo': 'bar'
+            }) + ')');
+            expect(beesBody.creative_content.ADDITIONAL_PIXELS[0].PIXEL_URL)
+                .toBe('track.me?campaign=cam-active&container=beeswax&event=impression&hostApp=Mapsaurus&network=interwebz&extSessionId=univuniqid&cb=1');
+        });
+        
+        it('should return null if the tagType is not mraid', function() {
+            req.body.tagType = 'vpaid';
+            expect(placeModule.formatBeeswaxBody(req)).toBe(null);
+        });
+        
+        it('should ensure the CLICK_URL macro is included on the body and in the tag', function() {
+            req.body.tagParams = { campaign: 'cam-active',container: 'beeswax' };
+            req.body.showInTag = {};
+            var beesBody = placeModule.formatBeeswaxBody(req);
+            expect(beesBody).toEqual(jasmine.objectContaining({
+                advertiser_id: 9876,
+                alternative_id: 'pl-1234',
+                creative_name: 'da best placement',
+            }));
+            expect(req.body.tagParams.clickUrls).toEqual(['{{CLICK_URL}}']);
+            expect(req.body.showInTag).toEqual({ clickUrls: true });
+            expect(beesBody.creative_content.TAG).toBe('window.c6mraid(' + JSON.stringify({
+                'placement': 'pl-1234',
+                'clickUrls': ['{{CLICK_URL}}']
+            }) + ')');
+            expect(beesBody.creative_content.ADDITIONAL_PIXELS[0].PIXEL_URL)
+                .toBe('track.me?campaign=cam-active&container=beeswax&event=impression&cb=1');
+        });
+        
+        it('should not interfere with other clickUrls if inserting the CLICK_URL macro', function() {
+            req.body.tagParams.clickUrls = ['click.me', 'click.you'];
+            var beesBody = placeModule.formatBeeswaxBody(req);
+            expect(beesBody).toEqual(jasmine.objectContaining({
+                advertiser_id: 9876,
+                alternative_id: 'pl-1234',
+                creative_name: 'da best placement',
+            }));
+            expect(req.body.tagParams.clickUrls).toEqual(['click.me', 'click.you', '{{CLICK_URL}}']);
+            expect(beesBody.creative_content.TAG).toBe('window.c6mraid(' + JSON.stringify({
+                'placement': 'pl-1234',
+                'clickUrls': ['click.me', 'click.you', '{{CLICK_URL}}'],
+                'hostApp': 'Mapsaurus',
+                'uuid': 'univuniqid',
+                'foo': 'bar'
+            }) + ')');
+        });
+        
+        it('should handle an unset label', function() {
+            delete req.body.label;
+            var beesBody = placeModule.formatBeeswaxBody(req);
+            expect(beesBody).toEqual(jasmine.objectContaining({
+                advertiser_id: 9876,
+                alternative_id: 'pl-1234',
+                creative_name: 'Untitled (pl-1234)',
+            }));
+            expect(req.body.label).not.toBeDefined();
+        });
+        
+        it('should be able to use props from origObj', function() {
+            req.origObj = {
+                id: 'pl-2345',
+                tagType: 'mraid',
+                label: 'ye olde placement',
+                tagParams: {},
+                showInTag: {}
+            };
+            delete req.body.label;
+            delete req.body.id;
+            delete req.body.tagType;
+            var beesBody = placeModule.formatBeeswaxBody(req);
+            expect(beesBody).toEqual(jasmine.objectContaining({
+                advertiser_id: 9876,
+                alternative_id: 'pl-2345',
+                creative_name: 'ye olde placement'
+            }));
+        });
+    });
+    
+    describe('createBeeswaxCreative', function() {
+        var beesResp;
+        beforeEach(function() {
+            req.body = {
+                id: 'pl-1234',
+                label: 'my new placement',
+                tagType: 'mraid',
+                tagParams: {
+                    container: 'beeswax',
+                    campaign: 'cam-1'
+                }
+            };
+            req.advertiser = { id: 'a-1', beeswaxIds: { advertiser: 9876 } };
+            beesResp = {
+                success: true,
+                payload: {
+                    creative_id: 3456,
+                    creative_name: 'my new placement',
+                    foo: 'bar'
+                }
+            };
+            spyOn(placeModule, 'formatBeeswaxBody').and.returnValue({ beeswax: 'yes' });
+            mockBeeswax.creatives.create.and.callFake(function() { return q(beesResp); });
+        });
+        
+        it('should create a beeswax creative for the new placement', function(done) {
+            placeModule.createBeeswaxCreative(mockBeeswax, req, nextSpy, doneSpy).catch(errorSpy).finally(function() {
+                expect(nextSpy).toHaveBeenCalled();
+                expect(doneSpy).not.toHaveBeenCalled();
+                expect(errorSpy).not.toHaveBeenCalled();
+                expect(req.body).toEqual({
+                    id: 'pl-1234',
+                    label: 'my new placement',
+                    tagType: 'mraid',
+                    tagParams: {
+                        container: 'beeswax',
+                        campaign: 'cam-1'
+                    },
+                    beeswaxIds: { creative: 3456 }
+                });
+                expect(placeModule.formatBeeswaxBody).toHaveBeenCalledWith(req);
+                expect(mockBeeswax.creatives.create).toHaveBeenCalledWith({ beeswax: 'yes' });
+                expect(mockLog.warn).not.toHaveBeenCalled();
+                expect(mockLog.error).not.toHaveBeenCalled();
+            }).done(done);
+        });
+        
+        it('should skip if the placement is not tied to the beeswax container', function(done) {
+            req.body.tagParams.container = 'brightroll';
+            placeModule.createBeeswaxCreative(mockBeeswax, req, nextSpy, doneSpy).catch(errorSpy).finally(function() {
+                expect(nextSpy).toHaveBeenCalled();
+                expect(doneSpy).not.toHaveBeenCalled();
+                expect(errorSpy).not.toHaveBeenCalled();
+                expect(req.body.beeswaxIds).not.toBeDefined();
+                expect(mockBeeswax.creatives.create).not.toHaveBeenCalled();
+                expect(mockLog.warn).not.toHaveBeenCalled();
+                expect(mockLog.error).not.toHaveBeenCalled();
+            }).done(done);
+        });
+        
+        it('should skip if the advertiser has no beeswax id', function(done) {
+            delete req.advertiser.beeswaxIds;
+            placeModule.createBeeswaxCreative(mockBeeswax, req, nextSpy, doneSpy).catch(errorSpy).finally(function() {
+                expect(nextSpy).toHaveBeenCalled();
+                expect(doneSpy).not.toHaveBeenCalled();
+                expect(errorSpy).not.toHaveBeenCalled();
+                expect(req.body.beeswaxIds).not.toBeDefined();
+                expect(mockBeeswax.creatives.create).not.toHaveBeenCalled();
+                expect(mockLog.warn).not.toHaveBeenCalled();
+                expect(mockLog.error).not.toHaveBeenCalled();
+            }).done(done);
+        });
+        
+        it('should skip if formatBeeswaxBody returns an empty body', function(done) {
+            placeModule.formatBeeswaxBody.and.returnValue(null);
+            placeModule.createBeeswaxCreative(mockBeeswax, req, nextSpy, doneSpy).catch(errorSpy).finally(function() {
+                expect(nextSpy).toHaveBeenCalled();
+                expect(doneSpy).not.toHaveBeenCalled();
+                expect(errorSpy).not.toHaveBeenCalled();
+                expect(req.body.beeswaxIds).not.toBeDefined();
+                expect(mockBeeswax.creatives.create).not.toHaveBeenCalled();
+                expect(mockLog.warn).not.toHaveBeenCalled();
+                expect(mockLog.error).not.toHaveBeenCalled();
+            }).done(done);
+        });
+        
+        it('should warn and return a 4xx if the beeswax request resolves with an unsuccessful response', function(done) {
+            beesResp = { success: false, message: 'i cant do it' };
+            placeModule.createBeeswaxCreative(mockBeeswax, req, nextSpy, doneSpy).catch(errorSpy).finally(function() {
+                expect(nextSpy).not.toHaveBeenCalled();
+                expect(doneSpy).toHaveBeenCalledWith({ code: 400, body: 'Could not create beeswax creative' });
+                expect(errorSpy).not.toHaveBeenCalled();
+                expect(mockBeeswax.creatives.create).toHaveBeenCalled();
+                expect(mockLog.warn).toHaveBeenCalled();
+                expect(mockLog.warn.calls.mostRecent().args).toContain('i cant do it');
+                expect(mockLog.error).not.toHaveBeenCalled();
+            }).done(done);
+        });
+        
+        it('should reject if the beeswax request fails', function(done) {
+            beesResp = q.reject('beeswax struggles');
+            placeModule.createBeeswaxCreative(mockBeeswax, req, nextSpy, doneSpy).catch(errorSpy).finally(function() {
+                expect(nextSpy).not.toHaveBeenCalled();
+                expect(doneSpy).not.toHaveBeenCalled();
+                expect(errorSpy).toHaveBeenCalledWith('Error creating beeswax creative');
+                expect(mockBeeswax.creatives.create).toHaveBeenCalled();
+                expect(mockLog.warn).not.toHaveBeenCalled();
+                expect(mockLog.error).toHaveBeenCalled();
+                expect(mockLog.error.calls.mostRecent().args).toContain(util.inspect('beeswax struggles'));
+            }).done(done);
+        });
+    });
+    
+    describe('editBeeswaxCreative', function() {
+        var beesResp;
+        beforeEach(function() {
+            req.body = {
+                id: 'pl-1234',
+                label: 'my new placement',
+                tagType: 'mraid',
+                tagParams: {
+                    container: 'beeswax',
+                    campaign: 'cam-1'
+                }
+            };
+            req.origObj = {
+                id: 'pl-1234',
+                beeswaxIds: { creative: 3456 }
+            };
+            req.advertiser = { id: 'a-1', beeswaxIds: { advertiser: 9876 } };
+            beesResp = {
+                success: true,
+                payload: {
+                    creative_id: 3456,
+                    creative_name: 'my new placement',
+                    foo: 'bar'
+                }
+            };
+            spyOn(placeModule, 'formatBeeswaxBody').and.returnValue({ beeswax: 'yes' });
+            mockBeeswax.creatives.edit.and.callFake(function() { return q(beesResp); });
+        });
+        
+        it('should edit a beeswax creative for the placement', function(done) {
+            placeModule.editBeeswaxCreative(mockBeeswax, req, nextSpy, doneSpy).catch(errorSpy).finally(function() {
+                expect(nextSpy).toHaveBeenCalled();
+                expect(doneSpy).not.toHaveBeenCalled();
+                expect(errorSpy).not.toHaveBeenCalled();
+                expect(placeModule.formatBeeswaxBody).toHaveBeenCalledWith(req);
+                expect(mockBeeswax.creatives.edit).toHaveBeenCalledWith(3456, { beeswax: 'yes' });
+                expect(mockLog.warn).not.toHaveBeenCalled();
+                expect(mockLog.error).not.toHaveBeenCalled();
+            }).done(done);
+        });
+        
+        it('should skip if formatBeeswaxBody returns an empty body', function(done) {
+            placeModule.formatBeeswaxBody.and.returnValue(null);
+            placeModule.editBeeswaxCreative(mockBeeswax, req, nextSpy, doneSpy).catch(errorSpy).finally(function() {
+                expect(nextSpy).toHaveBeenCalled();
+                expect(doneSpy).not.toHaveBeenCalled();
+                expect(errorSpy).not.toHaveBeenCalled();
+                expect(mockBeeswax.creatives.edit).not.toHaveBeenCalled();
+                expect(mockLog.warn).not.toHaveBeenCalled();
+                expect(mockLog.error).not.toHaveBeenCalled();
+            }).done(done);
+        });
+        
+        it('should warn and return a 4xx if the beeswax request resolves with an unsuccessful response', function(done) {
+            beesResp = { success: false, message: 'i cant do it' };
+            placeModule.editBeeswaxCreative(mockBeeswax, req, nextSpy, doneSpy).catch(errorSpy).finally(function() {
+                expect(nextSpy).not.toHaveBeenCalled();
+                expect(doneSpy).toHaveBeenCalledWith({ code: 400, body: 'Could not edit beeswax creative' });
+                expect(errorSpy).not.toHaveBeenCalled();
+                expect(mockBeeswax.creatives.edit).toHaveBeenCalled();
+                expect(mockLog.warn).toHaveBeenCalled();
+                expect(mockLog.warn.calls.mostRecent().args).toContain('i cant do it');
+                expect(mockLog.error).not.toHaveBeenCalled();
+            }).done(done);
+        });
+        
+        it('should reject if the beeswax request fails', function(done) {
+            beesResp = q.reject('beeswax struggles');
+            placeModule.editBeeswaxCreative(mockBeeswax, req, nextSpy, doneSpy).catch(errorSpy).finally(function() {
+                expect(nextSpy).not.toHaveBeenCalled();
+                expect(doneSpy).not.toHaveBeenCalled();
+                expect(errorSpy).toHaveBeenCalledWith('Error editing beeswax creative');
+                expect(mockBeeswax.creatives.edit).toHaveBeenCalled();
+                expect(mockLog.warn).not.toHaveBeenCalled();
+                expect(mockLog.error).toHaveBeenCalled();
+                expect(mockLog.error.calls.mostRecent().args).toContain(util.inspect('beeswax struggles'));
             }).done(done);
         });
     });
