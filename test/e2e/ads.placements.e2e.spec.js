@@ -1005,7 +1005,6 @@ describe('ads placements endpoints (E2E):', function() {
                     expect(util.inspect(error)).not.toBeDefined();
                 }).done(done);
             });
-            //TODO: any other cases that need to be handled here??
         });
         
         it('should trim off forbidden fields', function(done) {
@@ -1490,8 +1489,35 @@ describe('ads placements endpoints (E2E):', function() {
                     expect(util.inspect(error)).not.toBeDefined();
                 }).done(done);
             });
-
-            //TODO: any other cases that need to be handled here??
+            
+            it('should handle the case where the beeswax creative has been deleted', function(done) {
+                testUtils.mongoUpsert('placements', { id: 'e2e-fake-beeswax' }, {
+	                id: 'e2e-fake-beeswax',
+	                status: 'active',
+	                user: 'u-selfie',
+	                org: 'o-selfie',
+	                tagParams: { type: 'full', container: 'beeswax', campaign: 'cam-active' }
+                }).then(function() {
+                    options.url = config.adsUrl + '/placements/e2e-fake-beeswax';
+                    return requestUtils.qRequest('put', options);
+                }).then(function(resp) {
+                    expect(resp.response.statusCode).toBe(200);
+                    expect(resp.body.label).toBe(nowStr + 'e2e placement - updated');
+                    expect(resp.body.tagType).toBe('mraid');
+                    expect(resp.body.tagParams).toEqual({
+                        container: 'beeswax',
+                        type: 'full',
+                        campaign: 'cam-active',
+                        network: 'the social network'
+                    });
+                    expect(resp.body.showInTag).toEqual({
+                        network: true
+                    });
+                    expect(resp.body.beeswaxIds).not.toBeDefined();
+                }).catch(function(error) {
+                    expect(util.inspect(error)).not.toBeDefined();
+                }).done(done);
+            });
         });
         
         it('should trim off forbidden fields', function(done) {

@@ -331,7 +331,6 @@
         if (!beesBody) {
             return q(next());
         }
-        //TODO: would be nice to skip request to Beeswax if beesBody is unchanged
         
         return beeswax.creatives.edit(beesId, beesBody)
         .then(function(resp) {

@@ -70,7 +70,7 @@
         beeswax: {
             apiRoot: 'https://stingersbx.api.beeswax.com',
             impressionRatio: 1.3333,    // beeswax impressions = C6 impressions * this
-            trackingPixel: 'https://s3.amazonaws.com/c6.dev/e2e/1x1-pixel.gif' //TODO: move?
+            trackingPixel: 'https://s3.amazonaws.com/c6.dev/e2e/1x1-pixel.gif'
         },
         sessions: {
             key: 'c6Auth',

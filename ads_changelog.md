@@ -1,5 +1,10 @@
 # Ads Service Changelog
 
+* [FEATURE]: Create beeswax creatives for C6 placements: [#902](https://github.com/cinema6/cwrx/issues/902)
+* Extra deployment steps:
+    * Ensure beeswax trackingPixel is set correctly in staging + production environments
+    * Update watchman environments to ensure placements are created correctly for showcase campaigns
+
 ### 5.0.0: Wed May 25 10:08:19 EDT 2016
 * [REMOVAL]: Remove sites module: [#904](https://github.com/cinema6/cwrx/pull/904)
 * [REMOVAL]: Remove emailing functionality from campaigns + campaignUpdates modules: [#904](https://github.com/cinema6/cwrx/pull/904)
