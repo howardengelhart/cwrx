@@ -2,6 +2,7 @@
 
 ### 1.5.2: Thu May 26 10:15:08 EDT 2016
 * [FEATURE]: Use memcache for ssb query results.
+* [FEATURE]: Added cloudwatch metrics for ssb query.
 
 ### 1.5.1: Wed May 18 16:48:09 EDT 2016
 * [FIX]: Handle error when no data is found for a valid campaign.
