@@ -27,7 +27,7 @@ program
   .option('-a, --allInfo', 'get username, id\'s, and names')
   .option('-i, --idsOnly', 'get id\'s only')
   .option('-l, --limit <num>', 'set output limit [500]')
-  .option('-c, --cursor', 'set initial cursor [-1]')
+  .option('-c, --cursor <cursor>', 'set initial cursor [-1]')
   .option('-f, --fileName <filename>', 'set file name [<username>followers.csv]')
 
   program.parse(process.argv);
@@ -165,14 +165,11 @@ rp(options1)
 
               numFollowers = userData.length;
 
-              //Change Cursor Value
-
               //Check for limit
               if (userData.length === limit)
               {
+                console.log("Current cursor: " + cursor);
                 cursor = 0;
-                userData.sort();
-                console.log("Fetched Users in Batch: " + numFollowers);
               }
               //Change cursor to print out next page of results
               else
@@ -184,9 +181,8 @@ rp(options1)
             })
             .catch(function(err){
               if (err.statusCode === 429)  {
-                userData.sort();
                 console.log("Twitter rate limit exceeded. Try later.");
-                console.log("Fetched Users in Batch: " + numFollowers);
+                console.log("Current cursor: " + cursor);
               }
               else {
                 return q.reject(err);
@@ -195,10 +191,9 @@ rp(options1)
         }
 
       return getFollowers(cursor, authToken);
-      userData.sort();
-      console.log("Fetched Users in Batch: " + numFollowers);
     })
       .then(function(body)  {
+        console.log("Fetched Users in Batch: " + numFollowers);
         fs.writeFileSync(fileName, userData.join("\n"))
         console.log("File saved to: " + fileName);
       })
