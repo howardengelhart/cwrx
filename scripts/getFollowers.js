@@ -172,7 +172,7 @@ rp(options1)
                 cursor = 0;
               }
               //Change cursor to print out next page of results
-              else
+              else if (!(cursor === 0))
               {
                 cursor = twitterResponse.next_cursor;
                 return getFollowers(cursor, authToken);
