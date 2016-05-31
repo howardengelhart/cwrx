@@ -1,6 +1,9 @@
 var q               = require('q'),
+    urlUtils        = require('url'),
     util            = require('util'),
+    ld              = require('lodash'),
     request         = require('request'),
+    BeeswaxClient   = require('beeswax-client'),
     testUtils       = require('./testUtils'),
     requestUtils    = require('../../lib/requestUtils'),
     host            = process.env.host || 'localhost',
@@ -9,16 +12,21 @@ var q               = require('q'),
         authUrl : 'http://' + (host === 'localhost' ? host + ':3200' : host) + '/api/auth'
     };
 
+var beeswax = new BeeswaxClient({
+    creds: {
+        email: 'ops@cinema6.com',
+        password: '07743763902206f2b511bead2d2bf12292e2af82'
+    }
+});
+
 describe('ads placements endpoints (E2E):', function() {
-    var cookieJar, nonAdminJar, mockCons, mockCards, mockCamps, mockExps, mockApp, appCreds;
+    var cookieJar, nonAdminJar, mockCons, mockCards, mockCamps, mockExps, createdAdvert, mockApp, appCreds;
 
-    beforeEach(function(done) {
+    beforeEach(function() {
         jasmine.DEFAULT_TIMEOUT_INTERVAL = 10000;
-
-        if (cookieJar && nonAdminJar) {
-            return done();
-        }
-
+    });
+    
+    beforeAll(function(done) {
         cookieJar = request.jar();
         nonAdminJar = request.jar();
         var mockUser = {
@@ -44,6 +52,7 @@ describe('ads placements endpoints (E2E):', function() {
                 status: 'active',
                 priority: 1,
                 permissions: {
+                    advertisers: { read: 'all', create: 'all' },
                     placements: { read: 'all', create: 'all', edit: 'all', delete: 'all' }
                 }
             },
@@ -68,30 +77,6 @@ describe('ads placements endpoints (E2E):', function() {
         };
         appCreds = { key: mockApp.key, secret: mockApp.secret };
 
-        mockCons = [
-            { id: 'con-1', status: 'active', name: 'box-active', defaultTagParams: { container: 'box-active' } },
-            { id: 'con-2', status: 'inactive', name: 'box-inactive', defaultTagParams: { container: 'box-inactive' } },
-            { id: 'con-3', status: 'deleted', name: 'box-deleted', defaultTagParams: { container: 'box-deleted' } },
-        ];
-        mockExps = [
-            { id: 'e-active', status: [{ status: 'active' }], user: 'e2e-user', org: 'e2e-org' },
-            { id: 'e-inactive', status: [{ status: 'inactive' }], user: 'e2e-user', org: 'e2e-org' },
-            { id: 'e-deleted', status: [{ status: 'deleted' }], user: 'e2e-user', org: 'e2e-org' },
-        ];
-        mockCards = [
-            { id: 'rc-active', campaignId: 'cam-active', status: 'active', user: 'e2e-user', org: 'e2e-org' },
-            { id: 'rc-paused', campaignId: 'cam-paused', status: 'paused', user: 'e2e-user', org: 'e2e-org' },
-            { id: 'rc-deleted', campaignId: 'cam-deleted', status: 'deleted', user: 'e2e-user', org: 'e2e-org' },
-        ];
-        mockCamps = [
-            { id: 'cam-active', status: 'active', cards: [{ id: 'rc-active' }], user: 'e2e-user', org: 'e2e-org' },
-            { id: 'cam-paused', status: 'paused', cards: [{ id: 'rc-paused' }], user: 'e2e-user', org: 'e2e-org' },
-            { id: 'cam-deleted', status: 'deleted', cards: [{ id: 'rc-deleted' }], user: 'e2e-user', org: 'e2e-org' },
-            { id: 'cam-canceled', status: 'canceled', cards: [], user: 'e2e-user', org: 'e2e-org' },
-            { id: 'cam-outOfBudget', status: 'outOfBudget', cards: [], user: 'e2e-user', org: 'e2e-org' },
-            { id: 'cam-expired', status: 'expired', cards: [], user: 'e2e-user', org: 'e2e-org' },
-        ];
-
         var logins = [
             {url: config.authUrl + '/login', json: {email: mockUser.email, password: 'password'}, jar: cookieJar},
             {url: config.authUrl + '/login', json: {email: nonAdmin.email, password: 'password'}, jar: nonAdminJar},
@@ -107,6 +92,95 @@ describe('ads placements endpoints (E2E):', function() {
             done();
         });
     });
+
+    
+    // Setup beeswax advert that creatives can be tied to
+    beforeAll(function(done) {
+        requestUtils.qRequest('post', {
+            url: config.adsUrl + '/account/advertisers',
+            json: { name: Date.now() + ' - placements.e2e' },
+            jar: cookieJar
+        })
+        .then(function(resp) {
+            if (resp.response.statusCode !== 201) {
+                return q.reject('Failed creating test advert - ' + util.inspect({
+                    code: resp.response.statusCode,
+                    body: resp.body
+                }));
+            }
+            createdAdvert = resp.body;
+        })
+        .then(done, done.fail);
+    });
+    
+    // Setup other entities
+    beforeAll(function(done) {
+        mockCons = [
+            { id: 'con-1', status: 'active', name: 'box-active', defaultTagParams: {} },
+            { id: 'con-2', status: 'inactive', name: 'box-inactive', defaultTagParams: {} },
+            { id: 'con-3', status: 'deleted', name: 'box-deleted', defaultTagParams: {} },
+            { id: 'con-beeswax', status: 'active', name: 'beeswax', defaultTagParams: {} }
+        ];
+        mockCamps = [
+            { id: 'cam-active', advertiserId: createdAdvert.id, status: 'active', cards: [{ id: 'rc-active' }], user: 'e2e-user', org: 'e2e-org' },
+            { id: 'cam-paused', advertiserId: createdAdvert.id, status: 'paused', cards: [{ id: 'rc-paused' }], user: 'e2e-user', org: 'e2e-org' },
+            { id: 'cam-deleted', advertiserId: createdAdvert.id, status: 'deleted', cards: [{ id: 'rc-deleted' }], user: 'e2e-user', org: 'e2e-org' },
+            { id: 'cam-canceled', advertiserId: createdAdvert.id, status: 'canceled', cards: [], user: 'e2e-user', org: 'e2e-org' },
+            { id: 'cam-outOfBudget', advertiserId: createdAdvert.id, status: 'outOfBudget', cards: [], user: 'e2e-user', org: 'e2e-org' },
+            { id: 'cam-expired', advertiserId: createdAdvert.id, status: 'expired', cards: [], user: 'e2e-user', org: 'e2e-org' },
+        ];
+        mockExps = [
+            { id: 'e-active', status: [{ status: 'active' }], user: 'e2e-user', org: 'e2e-org' },
+            { id: 'e-inactive', status: [{ status: 'inactive' }], user: 'e2e-user', org: 'e2e-org' },
+            { id: 'e-deleted', status: [{ status: 'deleted' }], user: 'e2e-user', org: 'e2e-org' },
+        ];
+        mockCards = [
+            { id: 'rc-active', campaignId: 'cam-active', status: 'active', user: 'e2e-user', org: 'e2e-org' },
+            { id: 'rc-paused', campaignId: 'cam-paused', status: 'paused', user: 'e2e-user', org: 'e2e-org' },
+            { id: 'rc-deleted', campaignId: 'cam-deleted', status: 'deleted', user: 'e2e-user', org: 'e2e-org' }
+        ];
+
+        q.all([
+            testUtils.resetCollection('containers', mockCons),
+            testUtils.resetCollection('campaigns', mockCamps),
+            testUtils.resetCollection('cards', mockCards),
+            testUtils.resetCollection('experiences', mockExps)
+        ])
+        .done(function() { done(); });
+    });
+    
+    
+    function getMraidOpts(creative, placement) {
+        var tag = creative.creative_content.TAG;
+        expect(tag).toEqual(jasmine.any(String));
+        expect(tag).toMatch(/src = .*c6mraid\.min\.js/);
+        var mraidMatch = tag.match(/window.c6mraid\(([^\(]+)\)/),
+            mraidOpts;
+        
+        try {
+            mraidOpts = JSON.parse(mraidMatch[1]);
+        } catch(e) {}
+        mraidOpts = mraidOpts || {};
+        return mraidOpts;
+    }
+
+    function validateCreativePixel(creative, placement) {
+        expect(creative.creative_content.ADDITIONAL_PIXELS).toEqual([{
+            PIXEL_URL: jasmine.stringMatching('pixel.gif')
+        }]);
+        var pixelUrl = creative.creative_content.ADDITIONAL_PIXELS[0].PIXEL_URL,
+            pixelQuery = urlUtils.parse(pixelUrl, true).query;
+        
+        expect(pixelQuery.placement).toBe(placement.id);
+        expect(pixelQuery.campaign).toBe(placement.tagParams.campaign);
+        expect(pixelQuery.container).toBe(placement.tagParams.container);
+        expect(pixelQuery.event).toBe('impression');
+        expect(pixelQuery.hostApp).toBe(placement.tagParams.hostApp);
+        expect(pixelQuery.network).toBe(placement.tagParams.network);
+        expect(pixelQuery.extSessionId).toBe(placement.tagParams.uuid);
+        expect(pixelQuery.cb).toBe('{{CACHEBUSTER}}');
+    }
+    
     
     describe('GET /api/placements/:id', function() {
         var options;
@@ -504,14 +578,7 @@ describe('ads placements endpoints (E2E):', function() {
                     }
                 }
             };
-            q.all([
-                testUtils.resetCollection('placements'),
-                testUtils.resetCollection('containers', mockCons),
-                testUtils.resetCollection('campaigns', mockCamps),
-                testUtils.resetCollection('cards', mockCards),
-                testUtils.resetCollection('experiences', mockExps)
-            ])
-            .done(function() { done(); });
+            testUtils.resetCollection('placements').then(done, done.fail);
         });
 
         it('should be able to create a placement', function(done) {
@@ -534,7 +601,8 @@ describe('ads placements endpoints (E2E):', function() {
                         campaign    : 'cam-active',
                         type        : 'full',
                         branding    : 'elitedaily'
-                    }
+                    },
+                    showInTag: {}
                 });
                 expect(new Date(resp.body.created).toString()).not.toEqual('Invalid Date');
             }).catch(function(error) {
@@ -709,6 +777,232 @@ describe('ads placements endpoints (E2E):', function() {
                         expect(resp.body).toBe(arr[0] + ' ' + arr[1] + ' not found');
                     });
                 })).catch(function(error) {
+                    expect(util.inspect(error)).not.toBeDefined();
+                }).done(done);
+            });
+        });
+        
+        describe('when creating a beeswax placement', function() {
+            var nowStr;
+            beforeEach(function() {
+                nowStr = Date.now() + ' - ';
+                options.json = {
+                    label: nowStr + 'e2e beeswax placement',
+                    tagType: 'mraid',
+                    tagParams: {
+                        type: 'full',
+                        container: 'beeswax',
+                        campaign: 'cam-active',
+                        clickUrls: [
+                            '{{CLICK_URL}}'
+                        ],
+                    },
+                    showInTag: {
+                        clickUrls: true
+                    }
+                };
+            });
+            // Note: created creatives are cleaned up in afterAll at end of file
+
+            it('should also create a creative in beeswax', function(done) {
+                var beesId, createdPlacement;
+                requestUtils.qRequest('post', options).then(function(resp) {
+                    expect(resp.response.statusCode).toBe(201);
+                    expect(resp.body).toEqual(jasmine.objectContaining({
+                        id          : jasmine.any(String),
+                        status      : 'active',
+                        label       : nowStr + 'e2e beeswax placement',
+                        tagType     : 'mraid',
+                        beeswaxIds : {
+                            creative: jasmine.any(Number)
+                        },
+                        tagParams : {
+                            container   : 'beeswax',
+                            campaign    : 'cam-active',
+                            type        : 'full',
+                            clickUrls: [
+                                '{{CLICK_URL}}'
+                            ]
+                        },
+                        showInTag: {
+                            clickUrls: true
+                        }
+                    }));
+                    createdPlacement = resp.body;
+                    beesId = resp.body.beeswaxIds.creative;
+
+                    // check that campaign created in Beeswax successfully
+                    return beeswax.creatives.find(beesId);
+                }).then(function(resp) {
+                    expect(resp.success).toBe(true);
+                    expect(resp.payload.creative_id).toBe(beesId);
+                    expect(resp.payload.alternative_id).toBe(createdPlacement.id);
+                    expect(resp.payload.advertiser_id).toBe(createdAdvert.beeswaxIds.advertiser);
+                    expect(resp.payload.creative_name).toBe(nowStr + 'e2e beeswax placement');
+                    expect(resp.payload.creative_type).toBe(0);
+                    expect(resp.payload.creative_template_id).toBe(13);
+                    expect(resp.payload.width).toBe(320);
+                    expect(resp.payload.height).toBe(480);
+                    expect(resp.payload.secure).toBe(true);
+                    expect(resp.payload.active).toBe(true);
+                    expect(resp.payload.sizeless).toBe(true);
+                    expect(ld.get(resp.payload, 'creative_attributes.mobile.mraid_playable', null)).toEqual([true]);
+                    validateCreativePixel(resp.payload, createdPlacement);
+                    
+                    var mraidOpts = getMraidOpts(resp.payload, createdPlacement);
+                    expect(mraidOpts).toEqual({
+                        placement: createdPlacement.id,
+                        clickUrls: ['{{CLICK_URL}}']
+                    });
+                }).catch(function(error) {
+                    expect(util.inspect(error)).not.toBeDefined();
+                }).done(done);
+            });
+            
+            it('should handle setting additional parameters that will appear in the tag', function(done) {
+                options.json.tagParams.hostApp = 'Angry Birds';
+                options.json.tagParams.network = 'da internetz';
+                options.json.showInTag = { hostApp: true, network: true, clickUrls: true };
+
+                var beesId, createdPlacement;
+                requestUtils.qRequest('post', options).then(function(resp) {
+                    expect(resp.response.statusCode).toBe(201);
+                    expect(resp.body.tagParams).toEqual({
+                        container   : 'beeswax',
+                        campaign    : 'cam-active',
+                        hostApp     : 'Angry Birds',
+                        network     : 'da internetz',
+                        type        : 'full',
+                        clickUrls: [
+                            '{{CLICK_URL}}'
+                        ]
+                    });
+                    expect(resp.body.showInTag).toEqual({ hostApp: true, network: true, clickUrls: true });
+                    createdPlacement = resp.body;
+                    beesId = resp.body.beeswaxIds.creative;
+
+                    // check that campaign created in Beeswax successfully
+                    return beeswax.creatives.find(beesId);
+                }).then(function(resp) {
+                    expect(resp.success).toBe(true);
+                    expect(resp.payload.creative_id).toBe(beesId);
+                    validateCreativePixel(resp.payload, createdPlacement);
+                    
+                    var mraidOpts = getMraidOpts(resp.payload, createdPlacement);
+                    expect(mraidOpts).toEqual({
+                        placement: createdPlacement.id,
+                        clickUrls: ['{{CLICK_URL}}'],
+                        hostApp: 'Angry Birds',
+                        network: 'da internetz'
+                    });
+                }).catch(function(error) {
+                    expect(util.inspect(error)).not.toBeDefined();
+                }).done(done);
+            });
+            
+            it('should ensure the CLICK_URL macro is set in the tag', function(done) {
+                delete options.json.tagParams.clickUrls;
+                delete options.json.showInTag;
+                var beesId, createdPlacement;
+                requestUtils.qRequest('post', options).then(function(resp) {
+                    expect(resp.response.statusCode).toBe(201);
+                    expect(resp.body.tagParams).toEqual({
+                        container   : 'beeswax',
+                        campaign    : 'cam-active',
+                        type        : 'full',
+                        clickUrls: [
+                            '{{CLICK_URL}}'
+                        ]
+                    });
+                    expect(resp.body.showInTag).toEqual({ clickUrls: true });
+                    createdPlacement = resp.body;
+                    beesId = resp.body.beeswaxIds.creative;
+
+                    // check that campaign created in Beeswax successfully
+                    return beeswax.creatives.find(beesId);
+                }).then(function(resp) {
+                    expect(resp.success).toBe(true);
+                    expect(resp.payload.creative_id).toBe(beesId);
+                    validateCreativePixel(resp.payload, createdPlacement);
+                    
+                    var mraidOpts = getMraidOpts(resp.payload, createdPlacement);
+                    expect(mraidOpts).toEqual({
+                        placement: createdPlacement.id,
+                        clickUrls: ['{{CLICK_URL}}']
+                    });
+                }).catch(function(error) {
+                    expect(util.inspect(error)).not.toBeDefined();
+                }).done(done);
+            });
+            
+            it('should not interfere with other clickUrls', function(done) {
+                options.json.tagParams.clickUrls = ['click.me', 'click.you'];
+                var beesId, createdPlacement;
+                requestUtils.qRequest('post', options).then(function(resp) {
+                    expect(resp.response.statusCode).toBe(201);
+                    expect(resp.body.tagParams.clickUrls).toEqual(['click.me', 'click.you', '{{CLICK_URL}}']);
+                    expect(resp.body.showInTag).toEqual({ clickUrls: true });
+                    createdPlacement = resp.body;
+                    beesId = resp.body.beeswaxIds.creative;
+
+                    // check that campaign created in Beeswax successfully
+                    return beeswax.creatives.find(beesId);
+                }).then(function(resp) {
+                    expect(resp.success).toBe(true);
+                    expect(resp.payload.creative_id).toBe(beesId);
+                    validateCreativePixel(resp.payload, createdPlacement);
+                    
+                    var mraidOpts = getMraidOpts(resp.payload, createdPlacement);
+                    expect(mraidOpts).toEqual({
+                        placement: createdPlacement.id,
+                        clickUrls: ['click.me', 'click.you', '{{CLICK_URL}}']
+                    });
+                }).catch(function(error) {
+                    expect(util.inspect(error)).not.toBeDefined();
+                }).done(done);
+            });
+            
+            it('should not create a creative if the tagType is not mraid', function(done) {
+                options.json.tagType = 'vpaid';
+                delete options.json.tagParams.clickUrls;
+                delete options.json.showInTag;
+                requestUtils.qRequest('post', options).then(function(resp) {
+                    expect(resp.response.statusCode).toBe(201);
+                    expect(resp.body).toEqual(jasmine.objectContaining({
+                        id          : jasmine.any(String),
+                        status      : 'active',
+                        label       : nowStr + 'e2e beeswax placement',
+                        tagType     : 'vpaid',
+                        tagParams : {
+                            container   : 'beeswax',
+                            campaign    : 'cam-active',
+                            type        : 'full',
+                        },
+                        showInTag: {}
+                    }));
+                    expect(resp.body.beeswaxIds).not.toBeDefined();
+                }).catch(function(error) {
+                    expect(util.inspect(error)).not.toBeDefined();
+                }).done(done);
+            });
+            
+            it('should handle the label being undefined', function(done) {
+                delete options.json.label;
+                var beesId, createdPlacement;
+                requestUtils.qRequest('post', options).then(function(resp) {
+                    expect(resp.response.statusCode).toBe(201);
+                    expect(resp.body.label).not.toBeDefined();
+                    createdPlacement = resp.body;
+                    beesId = resp.body.beeswaxIds.creative;
+
+                    // check that campaign created in Beeswax successfully
+                    return beeswax.creatives.find(beesId);
+                }).then(function(resp) {
+                    expect(resp.success).toBe(true);
+                    expect(resp.payload.creative_id).toBe(beesId);
+                    expect(resp.payload.creative_name).toBe('Untitled (' + createdPlacement.id + ')');
+                    validateCreativePixel(resp.payload, createdPlacement);
+                }).catch(function(error) {
                     expect(util.inspect(error)).not.toBeDefined();
                 }).done(done);
             });
@@ -1048,6 +1342,185 @@ describe('ads placements endpoints (E2E):', function() {
             }).done(done);
         });
         
+        describe('when editing a beeswax placement', function() {
+            var nowStr = Date.now() + ' - ',
+                createdPlacement;
+            beforeEach(function(done) {
+                requestUtils.qRequest('post', {
+                    url: config.adsUrl + '/placements',
+                    json: {
+                        label: nowStr + 'e2e placement',
+                        tagType: 'mraid',
+                        tagParams: {
+                            type: 'full',
+                            container: 'beeswax',
+                            campaign: 'cam-active'
+                        }
+                    },
+                    jar: cookieJar
+                })
+                .then(function(resp) {
+                    if (resp.response.statusCode !== 201) {
+                        return q.reject('Failed creating test placement - ' + util.inspect({
+                            code: resp.response.statusCode,
+                            body: resp.body
+                        }));
+                    }
+                    createdPlacement = resp.body;
+
+                    options.url = config.adsUrl + '/placements/' + createdPlacement.id;
+                    options.json = {
+                        label: nowStr + 'e2e placement - updated',
+                        tagType: 'mraid',
+                        tagParams: {
+                            container: 'beeswax',
+                            campaign: 'cam-active',
+                            network: 'the social network'
+                        },
+                        showInTag: {
+                            network: true
+                        }
+                    };
+                }).then(done, done.fail);
+            });
+            // Note: created creatives are cleaned up in afterAll at end of file
+
+            it('should also edit a creative in beeswax', function(done) {
+                var beesId;
+                requestUtils.qRequest('put', options).then(function(resp) {
+                    expect(resp.response.statusCode).toBe(200);
+                    expect(resp.body).toEqual(jasmine.objectContaining({
+                        id          : createdPlacement.id,
+                        status      : 'active',
+                        label       : nowStr + 'e2e placement - updated',
+                        tagType     : 'mraid',
+                        beeswaxIds : {
+                            creative: createdPlacement.beeswaxIds.creative
+                        },
+                        tagParams : {
+                            container   : 'beeswax',
+                            campaign    : 'cam-active',
+                            type        : 'full',
+                            network     : 'the social network',
+                            clickUrls: [
+                                '{{CLICK_URL}}'
+                            ]
+                        },
+                        showInTag: {
+                            clickUrls: true,
+                            network: true
+                        }
+                    }));
+                    createdPlacement = resp.body;
+                    beesId = resp.body.beeswaxIds.creative;
+
+                    // check that campaign created in Beeswax successfully
+                    return beeswax.creatives.find(beesId);
+                }).then(function(resp) {
+                    expect(resp.success).toBe(true);
+                    expect(resp.payload.creative_id).toBe(beesId);
+                    expect(resp.payload.alternative_id).toBe(createdPlacement.id);
+                    expect(resp.payload.creative_name).toBe(nowStr + 'e2e placement - updated');
+                    validateCreativePixel(resp.payload, createdPlacement);
+                    
+                    var mraidOpts = getMraidOpts(resp.payload, createdPlacement);
+                    expect(mraidOpts).toEqual({
+                        placement: createdPlacement.id,
+                        network: 'the social network',
+                        clickUrls: ['{{CLICK_URL}}']
+                    });
+                }).catch(function(error) {
+                    expect(util.inspect(error)).not.toBeDefined();
+                }).done(done);
+            });
+            
+            it('should not interfere with other clickUrls', function(done) {
+                options.json.tagParams.clickUrls = ['click.me', 'click.you'];
+                var beesId;
+                requestUtils.qRequest('put', options).then(function(resp) {
+                    expect(resp.response.statusCode).toBe(200);
+                    expect(resp.body.tagParams.clickUrls).toEqual(['click.me', 'click.you', '{{CLICK_URL}}']);
+                    expect(resp.body.showInTag).toEqual({ network: true, clickUrls: true });
+                    createdPlacement = resp.body;
+                    beesId = resp.body.beeswaxIds.creative;
+
+                    // check that campaign created in Beeswax successfully
+                    return beeswax.creatives.find(beesId);
+                }).then(function(resp) {
+                    expect(resp.success).toBe(true);
+                    expect(resp.payload.creative_id).toBe(beesId);
+                    validateCreativePixel(resp.payload, createdPlacement);
+                    
+                    var mraidOpts = getMraidOpts(resp.payload, createdPlacement);
+                    expect(mraidOpts).toEqual({
+                        placement: createdPlacement.id,
+                        network: 'the social network',
+                        clickUrls: ['click.me', 'click.you', '{{CLICK_URL}}']
+                    });
+                }).catch(function(error) {
+                    expect(util.inspect(error)).not.toBeDefined();
+                }).done(done);
+            });
+            
+            it('should handle the case where no beeswax creative exists', function(done) {
+                testUtils.mongoUpsert('placements', { id: 'e2e-fake-beeswax' }, {
+	                id: 'e2e-fake-beeswax',
+	                status: 'active',
+	                user: 'u-selfie',
+	                org: 'o-selfie',
+	                tagParams: { type: 'full', container: 'beeswax', campaign: 'cam-active' }
+                }).then(function() {
+                    options.url = config.adsUrl + '/placements/e2e-fake-beeswax';
+                    return requestUtils.qRequest('put', options);
+                }).then(function(resp) {
+                    expect(resp.response.statusCode).toBe(200);
+                    expect(resp.body.label).toBe(nowStr + 'e2e placement - updated');
+                    expect(resp.body.tagType).toBe('mraid');
+                    expect(resp.body.tagParams).toEqual({
+                        container: 'beeswax',
+                        type: 'full',
+                        campaign: 'cam-active',
+                        network: 'the social network'
+                    });
+                    expect(resp.body.showInTag).toEqual({
+                        network: true
+                    });
+                    expect(resp.body.beeswaxIds).not.toBeDefined();
+                }).catch(function(error) {
+                    expect(util.inspect(error)).not.toBeDefined();
+                }).done(done);
+            });
+            
+            it('should handle the case where the beeswax creative has been deleted', function(done) {
+                testUtils.mongoUpsert('placements', { id: 'e2e-fake-beeswax' }, {
+	                id: 'e2e-fake-beeswax',
+	                status: 'active',
+	                user: 'u-selfie',
+	                org: 'o-selfie',
+	                tagParams: { type: 'full', container: 'beeswax', campaign: 'cam-active' }
+                }).then(function() {
+                    options.url = config.adsUrl + '/placements/e2e-fake-beeswax';
+                    return requestUtils.qRequest('put', options);
+                }).then(function(resp) {
+                    expect(resp.response.statusCode).toBe(200);
+                    expect(resp.body.label).toBe(nowStr + 'e2e placement - updated');
+                    expect(resp.body.tagType).toBe('mraid');
+                    expect(resp.body.tagParams).toEqual({
+                        container: 'beeswax',
+                        type: 'full',
+                        campaign: 'cam-active',
+                        network: 'the social network'
+                    });
+                    expect(resp.body.showInTag).toEqual({
+                        network: true
+                    });
+                    expect(resp.body.beeswaxIds).not.toBeDefined();
+                }).catch(function(error) {
+                    expect(util.inspect(error)).not.toBeDefined();
+                }).done(done);
+            });
+        });
+        
         it('should trim off forbidden fields', function(done) {
             options.json.id = 'pl-fake';
             options.json._id = '_WEORIULSKJF';
@@ -1257,6 +1730,25 @@ describe('ads placements endpoints (E2E):', function() {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
+    });
+
+    // clean up created Beeswax advertiser + its creatives
+    afterAll(function(done) {
+        q(beeswax.creatives.query({ advertiser_id: createdAdvert.beeswaxIds.advertiser }))
+        .then(function(resp) {
+            return q.all(resp.payload.map(function(creative) {
+                // have to deactivate creative before deleting
+                return q(beeswax.creatives.edit(creative.creative_id, { active: false }))
+                .then(function() {
+                    return q(beeswax.creatives.delete(creative.creative_id));
+                });
+            }));
+        })
+        .then(function() {
+            return q(beeswax.advertisers.delete(createdAdvert.beeswaxIds.advertiser));
+        })
+        .thenResolve()
+        .then(done, done.fail);
     });
 
     afterAll(function(done) {

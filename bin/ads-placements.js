@@ -3,11 +3,16 @@
 
     var q               = require('q'),
         util            = require('util'),
+        path            = require('path'),
+        ld              = require('lodash'),
         express         = require('express'),
+        fs              = require('fs-extra'),
+        querystring     = require('querystring'),
         logger          = require('../lib/logger'),
         historian       = require('../lib/historian'),
         QueryCache      = require('../lib/queryCache'),
         Status          = require('../lib/enums').Status,
+        mongoUtils      = require('../lib/mongoUtils'),
         authUtils       = require('../lib/authUtils'),
         CrudSvc         = require('../lib/crudSvc'),
 
@@ -55,6 +60,10 @@
             __type: 'objectArray',
             __locked: true
         },
+        beeswaxIds: {
+            __allowed: false,
+            __type: 'object'
+        },
         tagParams: {
             __type: 'object',
             __required: true,
@@ -81,11 +90,17 @@
                 __allowed: true,
                 __type: 'string'
             }
+        },
+        showInTag: {
+            __type: 'object',
+            __default: {},
+            __required: true
         }
     };
 
-    placeModule.setupSvc = function(db, config) {
+    placeModule.setupSvc = function(db, config, beeswax) {
         placeModule.config.cacheTTLs = config.cacheTTLs;
+        placeModule.config.beeswax = config.beeswax;
     
         var svc = new CrudSvc(db.collection('placements'), 'pl', {}, placeModule.placeSchema);
         svc._db = db;
@@ -95,9 +110,11 @@
         
         svc.use('create', validateExtRefs);
         svc.use('create', costHistory);
-        
+        svc.use('create', placeModule.createBeeswaxCreative.bind(placeModule, beeswax));
+
         svc.use('edit', validateExtRefs);
         svc.use('edit', costHistory);
+        svc.use('edit', placeModule.editBeeswaxCreative.bind(placeModule, beeswax));
         
         var cache = new QueryCache(
             config.cacheTTLs.placements.freshTTL,
@@ -108,23 +125,25 @@
         
         return svc;
     };
+
     
     // Check that references to other C6 objects in tagParams hash are valid
     placeModule.validateExtRefs = function(svc, req, next, done) {
         var log = logger.getLog(),
             doneCalled = false;
         
-        function checkExistence(prop, query) {
+        function checkExistence(prop, query, propPath) {
             // pass check w/o querying mongo if prop doesn't exist
-            if (!req.body.tagParams[prop]) {
+            if (!ld.get(req, propPath, null)) {
                 return q();
             }
             
-            log.trace('[%1] Checking that %2 %3 exists', req.uuid, prop, req.body.tagParams[prop]);
+            log.trace('[%1] Fetching %2 %3', req.uuid, prop, req.body.tagParams[prop]);
             
-            return q(svc._db.collection(prop + 's').count(query))
-            .then(function(count) {
-                if (count > 0) {
+            return mongoUtils.findObject(svc._db.collection(prop + 's'), query)
+            .then(function(obj) {
+                if (!!obj) {
+                    req[prop] = obj;
                     return;
                 }
 
@@ -149,27 +168,192 @@
             checkExistence('container', {
                 name: req.body.tagParams.container,
                 status: { $ne: Status.Deleted }
-            }),
+            }, 'body.tagParams.container'),
             checkExistence('card', {
                 id: req.body.tagParams.card,
                 campaignId: req.body.tagParams.campaign,
                 status: { $ne: Status.Deleted }
-            }),
+            }, 'body.tagParams.card'),
             checkExistence('campaign', {
                 id: req.body.tagParams.campaign,
                 status: { $nin: campFinished }
-            }),
+            }, 'body.tagParams.campaign'),
             checkExistence('experience', {
                 id: req.body.tagParams.experience,
                 'status.0.status': { $ne: Status.Deleted }
-            })
+            }, 'body.tagParams.experience'),
         ])
+        .then(function() {
+            if (!doneCalled) {
+                return checkExistence('advertiser', {
+                    id: ld.get(req, 'campaign.advertiserId', null),
+                    status: { $ne: Status.Deleted }
+                }, 'campaign.advertiserId');
+            }
+            return q();
+        })
         .then(function() {
             if (!doneCalled) {
                 return next();
             }
         });
     };
+
+    /* jshint camelcase: false */
+    
+    // Format + return beeswax creative body. Returns null if tagType is unsupported
+    placeModule.formatBeeswaxBody = function(req) {
+        var log = logger.getLog(),
+            origObj = req.origObj || {},
+            c6Id = req.body.id || origObj.id,
+            tagType = req.body.tagType || origObj.tagType;
+            
+        if (tagType !== 'mraid') {
+            log.info('[%1] Can\'t create beeswax creative for tagType %2', req.uuid, tagType);
+            return null;
+        }
+        
+        // Ensure that beeswax creative has {{CLICK_URL}} macro
+        req.body.tagParams.clickUrls = req.body.tagParams.clickUrls || [];
+        if (req.body.tagParams.clickUrls.indexOf('{{CLICK_URL}}') === -1) {
+            req.body.tagParams.clickUrls.push('{{CLICK_URL}}');
+        }
+        req.body.showInTag.clickUrls = true;
+        
+        var beesBody = {
+            advertiser_id: req.advertiser.beeswaxIds.advertiser,
+            alternative_id: c6Id,
+            creative_name: req.body.label || origObj.label || 'Untitled (' + c6Id + ')',
+            creative_type: 0,
+            creative_template_id: 13,
+            sizeless: true,
+            secure: true,
+            active: true,
+            width: 320,
+            height: 480,
+            creative_content: {
+                ADDITIONAL_PIXELS: []
+            },
+            creative_attributes: {
+                mobile: {
+                    mraid_playable: [true]
+                }
+            }
+        };
+        
+        var pixelUrl = placeModule.config.beeswax.trackingPixel + '?';
+        pixelUrl += querystring.stringify(ld.pickBy({
+            placement       : c6Id,
+            campaign        : req.body.tagParams.campaign,
+            container       : req.body.tagParams.container,
+            event           : 'impression',
+            hostApp         : req.body.tagParams.hostApp,
+            network         : req.body.tagParams.network,
+            extSessionId    : req.body.tagParams.uuid,
+        }));
+        pixelUrl += '&cb={{CACHEBUSTER}}';
+        beesBody.creative_content.ADDITIONAL_PIXELS.push({
+            PIXEL_URL: pixelUrl
+        });
+        
+        var templatePath = path.join(__dirname, '../templates/beeswaxCreatives/mraid.html'),
+            tagHtml = fs.readFileSync(templatePath, 'utf8'),
+            opts = { placement: c6Id };
+        
+        Object.keys(req.body.showInTag || {}).forEach(function(key) {
+            if (req.body.showInTag[key] === true && !!req.body.tagParams[key]) {
+                opts[key] = req.body.tagParams[key];
+            }
+        });
+        beesBody.creative_content.TAG = tagHtml.replace('%OPTIONS%', JSON.stringify(opts));
+        
+        return beesBody;
+    };
+    
+    // Create a new Creative in Beeswax, if tagParams.container === 'beeswax'
+    placeModule.createBeeswaxCreative = function(beeswax, req, next, done) {
+        var log = logger.getLog(),
+            c6Id = req.body.id;
+        
+        if (req.body.tagParams.container !== 'beeswax') {
+            log.trace('[%1] Not setting up beeswax creative for %2 placement',
+                      req.uuid, req.body.tagParams.container);
+            return q(next());
+        }
+        if (!ld.get(req.advertiser, 'beeswaxIds.advertiser', null)) {
+            log.info('[%1] Advert %2 has no beeswax id, not creating creative',
+                     req.uuid, req.advertiser.id);
+            return q(next());
+        }
+        
+        var beesBody = placeModule.formatBeeswaxBody(req);
+        if (!beesBody) {
+            return q(next());
+        }
+        
+        return beeswax.creatives.create(beesBody)
+        .then(function(resp) {
+            if (!resp.success) {
+                log.warn('[%1] Creating beeswax creative failed: %2', req.uuid, resp.message);
+                return done({
+                    code: resp.code || 400,
+                    body: 'Could not create beeswax creative'
+                });
+            }
+
+            var beesId = resp.payload.creative_id;
+            log.info('[%1] Created beeswax creative %2 for %3', req.uuid, beesId, c6Id);
+            
+            req.body.beeswaxIds = { creative: beesId };
+            return next();
+        })
+        .catch(function(error) {
+            log.error('[%1] Error creating beeswax creative for %2: %3',
+                      req.uuid, c6Id, error.message || util.inspect(error));
+            return q.reject('Error creating beeswax creative');
+        });
+    };
+    
+    // Edit the creative in Beeswax, if one exists for this placement
+    placeModule.editBeeswaxCreative = function(beeswax, req, next, done) {
+        var log = logger.getLog(),
+            c6Id = req.origObj.id,
+            beesId = ld.get(req.origObj, 'beeswaxIds.creative', null);
+        
+        if (!beesId) {
+            log.trace('[%1] C6 placement %2 has no beeswax creative', req.uuid, c6Id);
+            return q(next());
+        }
+        if (!req.body.tagParams) { // skip if not editing tagParams
+            return q(next());
+        }
+        
+        var beesBody = placeModule.formatBeeswaxBody(req);
+        if (!beesBody) {
+            return q(next());
+        }
+        
+        return beeswax.creatives.edit(beesId, beesBody)
+        .then(function(resp) {
+            if (!resp.success) {
+                log.warn('[%1] Editing beeswax creative %2 failed: %3',
+                         req.uuid, beesId, resp.message);
+                return done({
+                    code: resp.code || 400,
+                    body: 'Could not edit beeswax creative'
+                });
+            }
+            log.info('[%1] Edited beeswax creative %2 for %3', req.uuid, beesId, c6Id);
+            return next();
+        })
+        .catch(function(error) {
+            log.error('[%1] Error editing beeswax creative %2 for %3: %4',
+                      req.uuid, beesId, c6Id, error.message || util.inspect(error));
+            return q.reject('Error editing beeswax creative');
+        });
+    };
+    
+    /* jshint camelcase: true */
     
     placeModule.getPublicPlacement = function(svc, cache, id, req) {
         var log = logger.getLog(),

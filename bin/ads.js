@@ -69,7 +69,8 @@
         },
         beeswax: {
             apiRoot: 'https://stingersbx.api.beeswax.com',
-            impressionRatio: 1.3333     // beeswax impressions = C6 impressions * this
+            impressionRatio: 1.3333,    // beeswax impressions = C6 impressions * this
+            trackingPixel: 'https://s3.amazonaws.com/c6.dev/e2e/1x1-pixel.gif'
         },
         sessions: {
             key: 'c6Auth',
@@ -142,7 +143,7 @@
             campSvc      = campModule.setupSvc(state.dbs.c6Db, state.config, externSvcs),
             updateSvc    = updateModule.setupSvc(state.dbs.c6Db, campSvc, state.config, appCreds),
             conSvc       = conModule.setupSvc(state.dbs.c6Db),
-            placeSvc     = placeModule.setupSvc(state.dbs.c6Db, state.config),
+            placeSvc     = placeModule.setupSvc(state.dbs.c6Db, state.config, beeswax),
             auditJournal = new journal.AuditJournal(state.dbs.c6Journal.collection('audit'),
                                                     state.config.appVersion, state.config.appName);
         authUtils._db = state.dbs.c6Db;

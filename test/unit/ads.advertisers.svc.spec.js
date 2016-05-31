@@ -128,6 +128,30 @@ describe('ads-advertisers (UT)', function() {
                 });
             });
         });
+
+        describe('when handling beeswaxIds', function() {
+            it('should trim the field if set', function() {
+                newObj.beeswaxIds = { advertiser: 1234 };
+                expect(svc.model.validate('create', newObj, origObj, requester))
+                    .toEqual({ isValid: true, reason: undefined });
+                expect(newObj.beeswaxIds).not.toBeDefined();
+            });
+            
+            it('should be able to allow some requesters to set the field', function() {
+                requester.fieldValidation.advertisers.beeswaxIds = { __allowed: true };
+                newObj.beeswaxIds = { advertiser: 1234 };
+                expect(svc.model.validate('create', newObj, origObj, requester))
+                    .toEqual({ isValid: true, reason: undefined });
+                expect(newObj.beeswaxIds).toEqual({ advertiser: 1234 });
+            });
+
+            it('should fail if the field is not an object', function() {
+                requester.fieldValidation.advertisers.beeswaxIds = { __allowed: true };
+                newObj.beeswaxIds = 'asdf';
+                expect(svc.model.validate('create', newObj, origObj, requester))
+                    .toEqual({ isValid: false, reason: 'beeswaxIds must be in format: object' });
+            });
+        });
     });
     
     describe('handleNameInUse', function() {
@@ -278,7 +302,7 @@ describe('ads-advertisers (UT)', function() {
             beesResp = { success: false, message: 'i cant do it' };
             advertModule.createBeeswaxAdvert(mockBeeswax, req, nextSpy, doneSpy).catch(errorSpy).finally(function() {
                 expect(nextSpy).not.toHaveBeenCalled();
-                expect(doneSpy).toHaveBeenCalledWith({ code: 400, body: 'Could not edit Beeswax Advertiser' });
+                expect(doneSpy).toHaveBeenCalledWith({ code: 400, body: 'Could not create Beeswax Advertiser' });
                 expect(errorSpy).not.toHaveBeenCalled();
                 expect(advertModule.handleNameInUse).toHaveBeenCalled();
                 expect(mockBeeswax.advertisers.create).toHaveBeenCalled();
