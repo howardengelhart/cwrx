@@ -243,14 +243,15 @@
         
         var pixelUrl = placeModule.config.beeswax.trackingPixel + '?';
         pixelUrl += querystring.stringify(ld.pickBy({
+            placement       : c6Id,
             campaign        : req.body.tagParams.campaign,
             container       : req.body.tagParams.container,
             event           : 'impression',
             hostApp         : req.body.tagParams.hostApp,
             network         : req.body.tagParams.network,
             extSessionId    : req.body.tagParams.uuid,
-            cb: 1
         }));
+        pixelUrl += '&cb={{CACHEBUSTER}}';
         beesBody.creative_content.ADDITIONAL_PIXELS.push({
             PIXEL_URL: pixelUrl
         });

@@ -549,7 +549,8 @@ describe('ads-placements (UT)', function() {
                 'foo': 'bar'
             }) + ')');
             expect(beesBody.creative_content.ADDITIONAL_PIXELS[0].PIXEL_URL)
-                .toBe('track.me?campaign=cam-active&container=beeswax&event=impression&hostApp=Mapsaurus&network=interwebz&extSessionId=univuniqid&cb=1');
+                .toBe('track.me?placement=pl-1234&campaign=cam-active&container=beeswax&event=impression' + 
+                      '&hostApp=Mapsaurus&network=interwebz&extSessionId=univuniqid&cb={{CACHEBUSTER}}');
         });
         
         it('should return null if the tagType is not mraid', function() {
@@ -573,7 +574,7 @@ describe('ads-placements (UT)', function() {
                 'clickUrls': ['{{CLICK_URL}}']
             }) + ')');
             expect(beesBody.creative_content.ADDITIONAL_PIXELS[0].PIXEL_URL)
-                .toBe('track.me?campaign=cam-active&container=beeswax&event=impression&cb=1');
+                .toBe('track.me?placement=pl-1234&campaign=cam-active&container=beeswax&event=impression&cb={{CACHEBUSTER}}');
         });
         
         it('should not interfere with other clickUrls if inserting the CLICK_URL macro', function() {

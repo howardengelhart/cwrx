@@ -170,14 +170,15 @@ describe('ads placements endpoints (E2E):', function() {
         }]);
         var pixelUrl = creative.creative_content.ADDITIONAL_PIXELS[0].PIXEL_URL,
             pixelQuery = urlUtils.parse(pixelUrl, true).query;
-            
+        
+        expect(pixelQuery.placement).toBe(placement.id);
         expect(pixelQuery.campaign).toBe(placement.tagParams.campaign);
         expect(pixelQuery.container).toBe(placement.tagParams.container);
         expect(pixelQuery.event).toBe('impression');
         expect(pixelQuery.hostApp).toBe(placement.tagParams.hostApp);
         expect(pixelQuery.network).toBe(placement.tagParams.network);
         expect(pixelQuery.extSessionId).toBe(placement.tagParams.uuid);
-        expect(pixelQuery.cb).toBe('1');
+        expect(pixelQuery.cb).toBe('{{CACHEBUSTER}}');
     }
     
     
