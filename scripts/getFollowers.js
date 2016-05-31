@@ -12,9 +12,9 @@ var secret = twitterCreds.secret;
 var KSBase64 = new Buffer(key + ":" + secret).toString('base64');
 var numFollowers = 0;
 var userData = [];
-var cursor = -1;
-var uriCount = 5000;
+var count = 5000;
 var limit = 0;
+var cursor;
 var authToken;
 var userName;
 var idsOnly;
@@ -27,6 +27,7 @@ program
   .option('-a, --allInfo', 'get username, id\'s, and names')
   .option('-i, --idsOnly', 'get id\'s only')
   .option('-l, --limit <num>', 'set output limit [500]')
+  .option('-c, --cursor <cursor>', 'set initial cursor [-1]')
   .option('-f, --fileName <filename>', 'set file name [<username>followers.csv]')
 
   program.parse(process.argv);
@@ -64,6 +65,14 @@ else {
   limit = parseInt(program.limit);
 }
 
+//Set cursor
+if (!program.cursor) {
+  cursor = -1;
+}
+else {
+  cursor = parseInt(program.cursor);
+}
+
 //Set Filename
 if (!program.fileName) {
   fileName = userName + 'followers.csv';
@@ -91,7 +100,7 @@ rp(options1)
         authToken = parsedBody.access_token;
 
         function isDup(value, index, array) {
-          if (array.indexOf(value) != index)  {
+          if (array.indexOf(value) !== -1)  {
             return true;
           }
           else {
@@ -108,7 +117,7 @@ rp(options1)
               include_user_entities: false,
               skip_status: true,
               cursor : cursor,
-              count: uriCount
+              count: count
             },
             headers:  {
               'User-Agent': 'Reelcontent',
@@ -121,48 +130,49 @@ rp(options1)
 
             .then(function(twitterResponse) {
 
-              if (idsOnly == false){
-                twitterResponse.users.forEach(function(user, index) {
-                  var user_id = user.id + "";
-                  var screen_name = user.screen_name + "";
-                  var name = user.name + "";
+              if (idsOnly === false)  {
+
+                for (var i = 0; i < twitterResponse.users.length; i++ )  {
+                  var user_id = twitterResponse.users[i].id + "";
+                  var screen_name = twitterResponse.users[i].screen_name + "";
+                  var name = twitterResponse.users[i].name + "";
                   var pushVar = (screen_name + "," + user_id + "," + name);
 
-                  if (userData.length === limit){
-                    cursor = 0;
-                    console.log("Index: " + index);
-                    return;
+                  if (userData.length === limit)  {
+                    break;
                   }
                   else {
-                    if (isDup(user, index, twitterResponse.users) === false)
+                    if (isDup(pushVar, i, userData) === false)
                       userData.push(pushVar);
                   }
-                });
+                }
               }
+
               else{
-                twitterResponse.ids.forEach(function(user,index) {
-                    if (userData.length === limit){
-                      cursor = 0;
-                      return;
-                    }
-                    else {
-                      if (isDup(user, index, twitterResponse.ids) === false)
-                        userData.push(user);
-                    }
-                });
+
+                for (var i = 0; i < twitterResponse.ids.length; i++ )  {
+                  pushVar = twitterResponse.ids[i];
+                  if (userData.length === limit)  {
+                    break;
+                  }
+                  else {
+                    if (isDup(pushVar, i, userData) === false)
+                      userData.push(pushVar);
+                  }
+                }
+
               }
+
               numFollowers = userData.length;
-              userData.sort();
 
-              //Change Cursor Value
-
-              //Check for cursor on final page
-              if (cursor === 0)
+              //Check for limit
+              if (userData.length === limit)
               {
-                console.log("Fetched Users in Batch: " + numFollowers);
+                console.log("Current cursor: " + cursor);
+                cursor = 0;
               }
               //Change cursor to print out next page of results
-              else
+              else if (!(cursor === 0))
               {
                 cursor = twitterResponse.next_cursor;
                 return getFollowers(cursor, authToken);
@@ -172,7 +182,7 @@ rp(options1)
             .catch(function(err){
               if (err.statusCode === 429)  {
                 console.log("Twitter rate limit exceeded. Try later.");
-                console.log("Fetched Users in Batch: " + numFollowers);
+                console.log("Current cursor: " + cursor);
               }
               else {
                 return q.reject(err);
@@ -180,9 +190,10 @@ rp(options1)
             });
         }
 
-        return getFollowers(cursor, authToken);
+      return getFollowers(cursor, authToken);
     })
       .then(function(body)  {
+        console.log("Fetched Users in Batch: " + numFollowers);
         fs.writeFileSync(fileName, userData.join("\n"))
         console.log("File saved to: " + fileName);
       })
