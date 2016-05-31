@@ -201,6 +201,38 @@
 
     /* jshint camelcase: false */
     
+    // Format pixel url to add to beeswax creative content
+    placeModule.formatPixelUrl = function(tagParams, c6Id) {
+        var pixelUrl = placeModule.config.beeswax.trackingPixel + '?';
+
+        pixelUrl += querystring.stringify(ld.pickBy({
+            placement       : c6Id,
+            campaign        : tagParams.campaign,
+            container       : tagParams.container,
+            event           : 'impression'
+        }));
+
+        [
+            { field: 'hostApp', qp: 'hostApp' },
+            { field: 'network', qp: 'network' },
+            { field: 'uuid', qp: 'extSessionId' }
+        ].forEach(function(obj) {
+            var val;
+            if (tagParams[obj.field]) {
+                // Do not url-encode the field if it's a beeswax macro
+                if (/{{.+}}/.test(tagParams[obj.field])) {
+                    val = tagParams[obj.field];
+                } else {
+                    val = encodeURIComponent(tagParams[obj.field]);
+                }
+                pixelUrl += '&' + obj.qp + '=' + val;
+            }
+        });
+        pixelUrl += '&cb={{CACHEBUSTER}}';
+        
+        return pixelUrl;
+    };
+    
     // Format + return beeswax creative body. Returns null if tagType is unsupported
     placeModule.formatBeeswaxBody = function(req) {
         var log = logger.getLog(),
@@ -232,7 +264,9 @@
             width: 320,
             height: 480,
             creative_content: {
-                ADDITIONAL_PIXELS: []
+                ADDITIONAL_PIXELS: [{
+                    PIXEL_URL: placeModule.formatPixelUrl(req.body.tagParams, c6Id)
+                }]
             },
             creative_attributes: {
                 mobile: {
@@ -240,21 +274,6 @@
                 }
             }
         };
-        
-        var pixelUrl = placeModule.config.beeswax.trackingPixel + '?';
-        pixelUrl += querystring.stringify(ld.pickBy({
-            placement       : c6Id,
-            campaign        : req.body.tagParams.campaign,
-            container       : req.body.tagParams.container,
-            event           : 'impression',
-            hostApp         : req.body.tagParams.hostApp,
-            network         : req.body.tagParams.network,
-            extSessionId    : req.body.tagParams.uuid,
-        }));
-        pixelUrl += '&cb={{CACHEBUSTER}}';
-        beesBody.creative_content.ADDITIONAL_PIXELS.push({
-            PIXEL_URL: pixelUrl
-        });
         
         var templatePath = path.join(__dirname, '../templates/beeswaxCreatives/mraid.html'),
             tagHtml = fs.readFileSync(templatePath, 'utf8'),
