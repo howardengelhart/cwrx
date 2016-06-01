@@ -531,7 +531,7 @@ describe('orgSvc-payments (UT)', function() {
     
     describe('validatePaymentBody', function() {
         beforeEach(function() {
-            req.body = { amount: 100, paymentMethod: 'asdf1234' };
+            req.body = { amount: 100, paymentMethod: 'asdf1234', description: 'foo' };
         });
 
         it('should call next if the body is valid', function() {
@@ -563,15 +563,20 @@ describe('orgSvc-payments (UT)', function() {
             });
         });
         
-        it('should call done if either field is the wrong type', function() {
-            [{ amount: 'many dollars', paymentMethod: 'asdf1234' }, { amount: 100, paymentMethod: 10 }].forEach(function(body) {
+        it('should call done if any field is the wrong type', function() {
+            [
+                { amount: 'many dollars', paymentMethod: 'asdf1234' },
+                { amount: 100, paymentMethod: 10 },
+                { amount: 100, paymentMethod: 'asdf1234', description: { eventType: 'credit' } }
+            ].forEach(function(body) {
                 req.body = body;
                 payModule.validatePaymentBody(req, nextSpy, doneSpy);
             });
             expect(nextSpy).not.toHaveBeenCalled();
-            expect(doneSpy.calls.count()).toBe(2);
+            expect(doneSpy.calls.count()).toBe(3);
             expect(doneSpy.calls.argsFor(0)).toEqual([{ code: 400, body: 'amount must be in format: number' }]);
             expect(doneSpy.calls.argsFor(1)).toEqual([{ code: 400, body: 'paymentMethod must be in format: string' }]);
+            expect(doneSpy.calls.argsFor(2)).toEqual([{ code: 400, body: 'description must be in format: string' }]);
         });
         
         it('should not allow overriding the model through fieldValidation', function() {
@@ -1819,7 +1824,7 @@ describe('orgSvc-payments (UT)', function() {
         beforeEach(function() {
             appCreds = { key: 'cwrx', secret: 'omgsosecret' };
             req.org = { id: 'o-1', braintreeCustomer: 'cust1' };
-            req.body = { amount: 100, paymentMethod: 'method1' };
+            req.body = { amount: 100, paymentMethod: 'method1', description: 'foobar' };
 
             transResp = {
                 success: true,
@@ -1863,7 +1868,7 @@ describe('orgSvc-payments (UT)', function() {
                 }, jasmine.any(Function));
                 expect(requestUtils.makeSignedRequest).toHaveBeenCalledWith(appCreds, 'post', {
                     url: 'https://test.com/api/transactions/',
-                    json: { amount: 100, org: 'o-1', braintreeId: 'trans1' }
+                    json: { amount: 100, org: 'o-1', braintreeId: 'trans1', description: 'foobar' }
                 });
                 expect(payModule.producePaymentEvent).toHaveBeenCalledWith(req, resp.body);
                 expect(mockLog.error).not.toHaveBeenCalled();

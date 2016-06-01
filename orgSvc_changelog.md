@@ -1,5 +1,7 @@
 # Org Service Changelog
 
+* Allow setting transaction `description` on body of `POST /api/payments` request: [#921](https://github.com/cinema6/cwrx/issues/921)
+
 ### 1.11.0: Mon May 23 17:37:12 EDT 2016
 * [FEATURE]: Support `freeTrial` promotions: [#905](https://github.com/cinema6/cwrx/issues/905)
 * Extra deployment steps: None
