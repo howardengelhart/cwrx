@@ -843,6 +843,45 @@ describe('ads advertisers endpoints (E2E):', function() {
                 expect(error.message || util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
+
+        describe('if the advertiser has a beeswax representation', function() {
+            var nowStr = Date.now() + ' - ',
+                createdAdvert;
+            beforeEach(function(done) {
+                requestUtils.qRequest('post', {
+                    url: config.adsUrl + '/account/advertisers',
+                    json: { name: nowStr + 'e2e advert' },
+                    jar: cookieJar
+                })
+                .then(function(resp) {
+                    if (resp.response.statusCode !== 201) {
+                        return q.reject('Failed creating test advert - ' + util.inspect({
+                            code: resp.response.statusCode,
+                            body: resp.body
+                        }));
+                    }
+                    createdAdvert = resp.body;
+
+                    options.url = config.adsUrl + '/account/advertisers/' + createdAdvert.id;
+                }).then(done, done.fail);
+            });
+
+            it('if the advertiser has a beeswax representation', function(done) {
+                requestUtils.qRequest('delete', options).then(function(resp) {
+                    expect(resp.response.statusCode).toBe(204);
+                    expect(resp.body).toBe('');
+
+                    // check that advertiser deleted in Beeswax successfully
+                    return beeswax.advertisers.find(createdAdvert.beeswaxIds.advertiser);
+                }).then(function(resp) {
+                    expect(resp.success).toBe(true);
+                    expect(resp.payload).not.toBeDefined();
+                }).catch(function(error) {
+                    expect(util.inspect(error)).not.toBeDefined();
+                }).done(done);
+            });
+            //TODO: test advert in use errors?
+        });
         
         it('should still return a 204 if the advertiser has been deleted', function(done) {
             options.url = config.adsUrl + '/account/advertisers/e2e-deleted';

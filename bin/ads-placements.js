@@ -115,6 +115,8 @@
         svc.use('edit', validateExtRefs);
         svc.use('edit', costHistory);
         svc.use('edit', placeModule.editBeeswaxCreative.bind(placeModule, beeswax));
+
+        svc.use('delete', placeModule.deleteBeeswaxCreative.bind(placeModule, beeswax));
         
         var cache = new QueryCache(
             config.cacheTTLs.placements.freshTTL,
@@ -340,7 +342,7 @@
             beesId = ld.get(req.origObj, 'beeswaxIds.creative', null);
         
         if (!beesId) {
-            log.trace('[%1] C6 placement %2 has no beeswax creative', req.uuid, c6Id);
+            log.trace('[%1] C6 placement %2 has no beeswax creative to edit', req.uuid, c6Id);
             return q(next());
         }
         if (!req.body.tagParams) { // skip if not editing tagParams
@@ -372,6 +374,70 @@
         });
     };
     
+    placeModule.deleteBeeswaxCreative = function(beeswax, req, next, done) { //TODO: test, comment
+        var log = logger.getLog(),
+            c6Id = req.origObj.id,
+            beesId = ld.get(req.origObj, 'beeswaxIds.creative', null);
+        
+        if (!beesId) {
+            log.info('[%1] C6 placement %2 has no Beeswax creative to delete', req.uuid, c6Id);
+            return q(next());
+        }
+        
+        // Must set creative to inactive before attempting to delete
+        return beeswax.creatives.edit(beesId, { active: false })
+        .then(function(editResp) {
+            if (!editResp.success) {
+                log.warn('[%1] De-activating beeswax creative %2 failed: %3',
+                         req.uuid, beesId, editResp.message);
+                if (editResp.message === 'Not found') {
+                    return next();
+                } else {
+                    return done({
+                        code: editResp.code || 400,
+                        body: 'Could not edit beeswax creative'
+                    });
+                }
+            }
+            
+            return beeswax.creatives.delete(beesId)
+            .then(function(deleteResp) {
+                if (!deleteResp.success) {
+                    log.warn('[%1] Deleting beeswax creative %2 failed: %3',
+                             req.uuid, beesId, deleteResp.message);
+                    if (deleteResp.message === 'Not found') {
+                        return next();
+                    } else {
+                        return done({
+                            code: deleteResp.code || 400,
+                            body: 'Could not delete beeswax creative'
+                        });
+                    }
+                } else {
+                    log.info('[%1] Deleted beeswax creative %2 for %3', req.uuid, beesId, c6Id);
+                }
+                return next();
+            });
+        })
+        .catch(function(error) {
+            var inUse = [
+                /creative inactive.*line item without.*active creatives/,
+                /Cannot delete creative when it is associated with/
+            ].some(function(regex) { return regex.test(error.message); });
+            
+            if (!!inUse) {
+                log.info('[%1] Creative %2 in use, cannot delete: %3',req.uuid,c6Id, error.message);
+                return done({
+                    code: 400,
+                    body: 'Cannot delete creative in use by beeswax entities'
+                });
+            }
+            
+            log.error('[%1] Error deleting Beeswax creative %2 for %3: %4',
+                      req.uuid, beesId, c6Id, error.message || util.inspect(error));
+            return q.reject('Error deleting Beeswax creative');
+        });
+    };
     /* jshint camelcase: true */
     
     placeModule.getPublicPlacement = function(svc, cache, id, req) {

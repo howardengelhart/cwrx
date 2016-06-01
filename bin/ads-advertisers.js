@@ -39,6 +39,8 @@
 
         svc.use('edit', advertModule.editBeeswaxAdvert.bind(advertModule, beeswax));
         
+        svc.use('delete', advertModule.deleteBeeswaxAdvert.bind(advertModule, beeswax));
+        
         return svc;
     };
     
@@ -104,7 +106,7 @@
             beesId = ld.get(req.origObj, 'beeswaxIds.advertiser', null);
         
         if (!beesId) {
-            log.info('[%1] C6 advert %2 has no Beeswax advert', req.uuid, c6Id);
+            log.info('[%1] C6 advert %2 has no Beeswax advert to edit', req.uuid, c6Id);
             return q(next());
         }
         if (req.body.name === req.origObj.name) {
@@ -138,6 +140,50 @@
             return q.reject('Error editing Beeswax advertiser');
         });
     };
+    
+    advertModule.deleteBeeswaxAdvert = function(beeswax, req, next, done) { //TODO: test, comment
+        var log = logger.getLog(),
+            c6Id = req.origObj.id,
+            beesId = ld.get(req.origObj, 'beeswaxIds.advertiser', null);
+        
+        if (!beesId) {
+            log.info('[%1] C6 advert %2 has no Beeswax advert to delete', req.uuid, c6Id);
+            return q(next());
+        }
+        
+        return beeswax.advertisers.delete(beesId)
+        .then(function(resp) {
+            if (!resp.success) {
+                log.warn('[%1] Deleting Beeswax Advertiser %2 failed: %3',
+                         req.uuid, beesId, resp.message);
+                if (resp.message === 'Not found') {
+                    return next();
+                } else {
+                    return done({
+                        code: resp.code || 400,
+                        body: 'Could not edit Beeswax Advertiser'
+                    });
+                }
+            } else {
+                log.info('[%1] Deleted Beeswax advertiser %2 for %3', req.uuid, beesId, c6Id);
+            }
+            return next();
+        })
+        .catch(function(error) {
+            if (/Cannot delete Advertiser when it is associated with/.test(error.message)) {
+                log.info('[%1] Advert %2 in use, cannot delete: %3',req.uuid, c6Id, error.message);
+                return done({
+                    code: 400,
+                    body: 'Cannot delete advertiser in use by beeswax entities'
+                });
+            }
+            
+            log.error('[%1] Error deleting Beeswax advert %2 for %3: %4',
+                      req.uuid, beesId, c6Id, error.message || util.inspect(error));
+            return q.reject('Error deleting Beeswax advertiser');
+        });
+    };
+
     /* jshint camelcase: true */
 
     

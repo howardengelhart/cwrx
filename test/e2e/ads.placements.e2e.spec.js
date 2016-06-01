@@ -23,7 +23,7 @@ describe('ads placements endpoints (E2E):', function() {
     var cookieJar, nonAdminJar, mockCons, mockCards, mockCamps, mockExps, createdAdvert, mockApp, appCreds;
 
     beforeEach(function() {
-        jasmine.DEFAULT_TIMEOUT_INTERVAL = 10000;
+        jasmine.DEFAULT_TIMEOUT_INTERVAL = 30000;
     });
     
     beforeAll(function(done) {
@@ -831,7 +831,7 @@ describe('ads placements endpoints (E2E):', function() {
                     createdPlacement = resp.body;
                     beesId = resp.body.beeswaxIds.creative;
 
-                    // check that campaign created in Beeswax successfully
+                    // check that creative created in Beeswax successfully
                     return beeswax.creatives.find(beesId);
                 }).then(function(resp) {
                     expect(resp.success).toBe(true);
@@ -881,7 +881,7 @@ describe('ads placements endpoints (E2E):', function() {
                     createdPlacement = resp.body;
                     beesId = resp.body.beeswaxIds.creative;
 
-                    // check that campaign created in Beeswax successfully
+                    // check that creative created in Beeswax successfully
                     return beeswax.creatives.find(beesId);
                 }).then(function(resp) {
                     expect(resp.success).toBe(true);
@@ -918,7 +918,7 @@ describe('ads placements endpoints (E2E):', function() {
                     createdPlacement = resp.body;
                     beesId = resp.body.beeswaxIds.creative;
 
-                    // check that campaign created in Beeswax successfully
+                    // check that creative created in Beeswax successfully
                     return beeswax.creatives.find(beesId);
                 }).then(function(resp) {
                     expect(resp.success).toBe(true);
@@ -945,7 +945,7 @@ describe('ads placements endpoints (E2E):', function() {
                     createdPlacement = resp.body;
                     beesId = resp.body.beeswaxIds.creative;
 
-                    // check that campaign created in Beeswax successfully
+                    // check that creative created in Beeswax successfully
                     return beeswax.creatives.find(beesId);
                 }).then(function(resp) {
                     expect(resp.success).toBe(true);
@@ -977,7 +977,7 @@ describe('ads placements endpoints (E2E):', function() {
                     createdPlacement = resp.body;
                     beesId = resp.body.beeswaxIds.creative;
 
-                    // check that campaign created in Beeswax successfully
+                    // check that creative created in Beeswax successfully
                     return beeswax.creatives.find(beesId);
                 }).then(function(resp) {
                     expect(resp.success).toBe(true);
@@ -1026,7 +1026,7 @@ describe('ads placements endpoints (E2E):', function() {
                     createdPlacement = resp.body;
                     beesId = resp.body.beeswaxIds.creative;
 
-                    // check that campaign created in Beeswax successfully
+                    // check that creative created in Beeswax successfully
                     return beeswax.creatives.find(beesId);
                 }).then(function(resp) {
                     expect(resp.success).toBe(true);
@@ -1445,7 +1445,7 @@ describe('ads placements endpoints (E2E):', function() {
                     createdPlacement = resp.body;
                     beesId = resp.body.beeswaxIds.creative;
 
-                    // check that campaign created in Beeswax successfully
+                    // check that creative created in Beeswax successfully
                     return beeswax.creatives.find(beesId);
                 }).then(function(resp) {
                     expect(resp.success).toBe(true);
@@ -1475,7 +1475,7 @@ describe('ads placements endpoints (E2E):', function() {
                     createdPlacement = resp.body;
                     beesId = resp.body.beeswaxIds.creative;
 
-                    // check that campaign created in Beeswax successfully
+                    // check that creative created in Beeswax successfully
                     return beeswax.creatives.find(beesId);
                 }).then(function(resp) {
                     expect(resp.success).toBe(true);
@@ -1703,6 +1703,53 @@ describe('ads placements endpoints (E2E):', function() {
             }).catch(function(error) {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
+        });
+
+        describe('when deleting a beeswax placement', function() {
+            var nowStr = Date.now() + ' - ',
+                createdPlacement;
+            beforeEach(function(done) {
+                requestUtils.qRequest('post', {
+                    url: config.adsUrl + '/placements',
+                    json: {
+                        label: nowStr + 'e2e placement',
+                        tagType: 'mraid',
+                        tagParams: {
+                            type: 'full',
+                            container: 'beeswax',
+                            campaign: 'cam-active'
+                        }
+                    },
+                    jar: cookieJar
+                })
+                .then(function(resp) {
+                    if (resp.response.statusCode !== 201) {
+                        return q.reject('Failed creating test placement - ' + util.inspect({
+                            code: resp.response.statusCode,
+                            body: resp.body
+                        }));
+                    }
+                    createdPlacement = resp.body;
+
+                    options.url = config.adsUrl + '/placements/' + createdPlacement.id;
+                }).then(done, done.fail);
+            });
+
+            it('should also delete the creative in beeswax', function(done) {
+                var beesId;
+                requestUtils.qRequest('delete', options).then(function(resp) {
+                    expect(resp.response.statusCode).toBe(204);
+                    expect(resp.body).toBe('');
+
+                    // check that creative deleted in Beeswax successfully
+                    return beeswax.creatives.find(createdPlacement.beeswaxIds.creative);
+                }).then(function(resp) {
+                    expect(resp.success).toBe(true);
+                    expect(resp.payload).not.toBeDefined();
+                }).catch(function(error) {
+                    expect(util.inspect(error)).not.toBeDefined();
+                }).done(done);
+            });
         });
 
         it('should only allow non-admins to delete their own placements', function(done) {
