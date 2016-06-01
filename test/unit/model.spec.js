@@ -227,6 +227,12 @@ describe('Model', function() {
             expect(Model.checkLimits({ __length: 3 }, ['max', 'knut', 'charlie', 'woofles'], 'doggieFriends'))
                 .toEqual({ isValid: false, reason: 'doggieFriends must have at most 3 entries' });
         });
+
+        it('should be able to check that a string passes a max length threshold', function() {
+            expect(Model.checkLimits({ __length: 3 }, 'max', 'name')).toEqual({ isValid: true });
+            expect(Model.checkLimits({ __length: 3 }, 'woofles', 'name'))
+                .toEqual({ isValid: false, reason: 'name must have at most 3 characters' });
+        });
         
         it('should be able to check that a value is in a set of acceptable values', function() {
             var cfg = { __acceptableValues: ['poodle', 'lab'] };

@@ -563,6 +563,13 @@ describe('orgSvc-payments (UT)', function() {
             });
         });
         
+        it('should call done if the description is too long', function() {
+            req.body.description = new Array(300).join(',').split(',').map(function() { return 'a'; }).join('');
+            payModule.validatePaymentBody(req, nextSpy, doneSpy);
+            expect(nextSpy).not.toHaveBeenCalled();
+            expect(doneSpy).toHaveBeenCalledWith({ code: 400, body: 'description must have at most 255 characters' });
+        });
+        
         it('should call done if any field is the wrong type', function() {
             [
                 { amount: 'many dollars', paymentMethod: 'asdf1234' },

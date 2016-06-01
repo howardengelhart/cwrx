@@ -1123,6 +1123,16 @@ describe('orgSvc payments (E2E):', function() {
                 done();
             });
         });
+
+        it('should fail if the description is too long', function(done) {
+            options.json.description = new Array(1000).join(',').split(',').map(function() { return 'a'; }).join('');
+            requestUtils.qRequest('post', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(400);
+                expect(resp.body).toBe('description must have at most 255 characters');
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
         
         it('should return a 400 if the body is missing a required parameter', function(done) {
             q.all([{ amount: amount }, { paymentMethod: origCard.token }].map(function(body) {

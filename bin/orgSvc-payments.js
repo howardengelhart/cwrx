@@ -219,7 +219,8 @@
             },
             description: {
                 __allowed: true,
-                __type: 'string'
+                __type: 'string',
+                __length: 255
             }
         });
 
