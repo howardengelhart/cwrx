@@ -962,6 +962,37 @@ describe('ads placements endpoints (E2E):', function() {
                 }).done(done);
             });
             
+            it('should handle other beeswax macros properly', function(done) {
+                options.json.tagParams.hostApp = '{{APP_BUNDLE}}';
+                options.json.tagParams.network = '{{INVENTORY_SOURCE}}';
+                options.json.tagParams.uuid = '{{IOS_ID}}';
+                var beesId, createdPlacement;
+                requestUtils.qRequest('post', options).then(function(resp) {
+                    expect(resp.response.statusCode).toBe(201);
+                    expect(resp.body.tagParams).toEqual(jasmine.objectContaining({
+                        hostApp     : '{{APP_BUNDLE}}',
+                        network     : '{{INVENTORY_SOURCE}}',
+                        uuid        : '{{IOS_ID}}'
+                    }));
+                    createdPlacement = resp.body;
+                    beesId = resp.body.beeswaxIds.creative;
+
+                    // check that campaign created in Beeswax successfully
+                    return beeswax.creatives.find(beesId);
+                }).then(function(resp) {
+                    expect(resp.success).toBe(true);
+                    expect(resp.payload.creative_id).toBe(beesId);
+                    validateCreativePixel(resp.payload, createdPlacement);
+                    // check exact matches of string to ensure macros weren't url-encoded
+                    var pixelUrl = resp.payload.creative_content.ADDITIONAL_PIXELS[0].PIXEL_URL;
+                    expect(pixelUrl).toMatch('hostApp={{APP_BUNDLE}}');
+                    expect(pixelUrl).toMatch('network={{INVENTORY_SOURCE}}');
+                    expect(pixelUrl).toMatch('extSessionId={{IOS_ID}}');
+                }).catch(function(error) {
+                    expect(util.inspect(error)).not.toBeDefined();
+                }).done(done);
+            });
+            
             it('should not create a creative if the tagType is not mraid', function(done) {
                 options.json.tagType = 'vpaid';
                 delete options.json.tagParams.clickUrls;

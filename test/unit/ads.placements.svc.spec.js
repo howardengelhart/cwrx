@@ -490,6 +490,45 @@ describe('ads-placements (UT)', function() {
         });
     });
     
+    describe('formatPixelUrl', function() {
+        var tagParams, c6Id;
+        beforeEach(function() {
+            c6Id = 'pl-1234';
+            tagParams = {
+                container: 'beeswax',
+                campaign: 'cam-active',
+                clickUrls: ['{{CLICK_URL}}', 'click.me'],
+                hostApp: 'Mapsaurus',
+                network: 'http://foo.bar.com',
+                uuid: 'univuniqid',
+            };
+        });
+        
+        it('should format and return a pixel url', function() {
+            var url = placeModule.formatPixelUrl(tagParams, c6Id);
+            expect(url).toMatch(/^track.me?.+/);
+            expect(url).toMatch('placement=pl-1234');
+            expect(url).toMatch('campaign=cam-active');
+            expect(url).toMatch('container=beeswax');
+            expect(url).toMatch('event=impression');
+            expect(url).toMatch('hostApp=Mapsaurus');
+            expect(url).toMatch('network=http%3A%2F%2Ffoo.bar.com');
+            expect(url).toMatch('extSessionId=univuniqid');
+            expect(url).toMatch('cb={{CACHEBUSTER}}');
+        });
+        
+        it('should not url escape beeswax macros', function() {
+            tagParams.hostApp = '{{APP_BUNDLE}}';
+            tagParams.network = '{{INVENTORY_SOURCE}}';
+            tagParams.uuid = '{{IOS_ID}}';
+            var url = placeModule.formatPixelUrl(tagParams, c6Id);
+            expect(url).toMatch(/^track.me?.+/);
+            expect(url).toMatch('hostApp={{APP_BUNDLE}}');
+            expect(url).toMatch('network={{INVENTORY_SOURCE}}');
+            expect(url).toMatch('extSessionId={{IOS_ID}}');
+        });
+    });
+    
     describe('formatBeeswaxBody', function() {
         beforeEach(function() {
             req.body = {
@@ -548,9 +587,6 @@ describe('ads-placements (UT)', function() {
                 'uuid': 'univuniqid',
                 'foo': 'bar'
             }) + ')');
-            expect(beesBody.creative_content.ADDITIONAL_PIXELS[0].PIXEL_URL)
-                .toBe('track.me?placement=pl-1234&campaign=cam-active&container=beeswax&event=impression' + 
-                      '&hostApp=Mapsaurus&network=interwebz&extSessionId=univuniqid&cb={{CACHEBUSTER}}');
         });
         
         it('should return null if the tagType is not mraid', function() {
@@ -573,8 +609,6 @@ describe('ads-placements (UT)', function() {
                 'placement': 'pl-1234',
                 'clickUrls': ['{{CLICK_URL}}']
             }) + ')');
-            expect(beesBody.creative_content.ADDITIONAL_PIXELS[0].PIXEL_URL)
-                .toBe('track.me?placement=pl-1234&campaign=cam-active&container=beeswax&event=impression&cb={{CACHEBUSTER}}');
         });
         
         it('should not interfere with other clickUrls if inserting the CLICK_URL macro', function() {
