@@ -216,6 +216,11 @@
                 __type: 'string',
                 __required: true,
                 __locked: true
+            },
+            description: {
+                __allowed: true,
+                __type: 'string',
+                __length: 255
             }
         });
 
@@ -721,7 +726,8 @@
                     json: {
                         amount      : req.body.amount,
                         org         : req.org.id,
-                        braintreeId : result.transaction.id
+                        braintreeId : result.transaction.id,
+                        description : req.body.description
                     }
                 })
                 .then(function(resp) {

@@ -508,6 +508,16 @@ describe('accountant (E2E):', function() {
             }).done(done);
         });
 
+        it('should fail if the description is too long', function(done) {
+            options.json.description = new Array(1000).join(',').split(',').map(function() { return 'a'; }).join('');
+            requestUtils.makeSignedRequest(appCreds, 'post', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(400);
+                expect(resp.body).toBe('description must have at most 255 characters');
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
+
         it('should trim forbidden fields', function(done) {
             options.json.id = 't-!@*#^%!@*$&!%@*#&^!*@&#%!*@&$^*!&@$^';
             options.json.created = new Date('2000-03-21T15:53:11.927Z');

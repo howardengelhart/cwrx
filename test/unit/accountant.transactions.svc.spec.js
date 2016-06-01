@@ -209,7 +209,7 @@ describe('accountant-transactions (UT)', function() {
             });
         });
         
-        ['braintreeId', 'promotion', 'campaign', 'description'].forEach(function(field) {
+        ['braintreeId', 'promotion', 'campaign'].forEach(function(field) {
             describe('when handling ' + field, function() {
                 it('should fail if the field is not a string', function() {
                     newObj[field] = { foo: 'bar' };
@@ -223,6 +223,27 @@ describe('accountant-transactions (UT)', function() {
                         .toEqual({ isValid: true, reason: undefined });
                     expect(newObj[field]).toEqual('foo');
                 });
+            });
+        });
+
+        describe('when handling description', function() {
+            it('should fail if the field is not a string', function() {
+                newObj.description = { foo: 'bar' };
+                expect(model.validate('create', newObj, origObj, requester))
+                    .toEqual({ isValid: false, reason: 'description must be in format: string' });
+            });
+            
+            it('should allow the field to be set on create', function() {
+                newObj.description = 'foo';
+                expect(model.validate('create', newObj, origObj, requester))
+                    .toEqual({ isValid: true, reason: undefined });
+                expect(newObj.description).toEqual('foo');
+            });
+            
+            it('should fail if the field is too long', function() {
+                newObj.description = new Array(300).join(',').split(',').map(function() { return 'a'; }).join('');
+                expect(model.validate('create', newObj, origObj, requester))
+                    .toEqual({ isValid: false, reason: 'description must have at most 255 characters' });
             });
         });
     });

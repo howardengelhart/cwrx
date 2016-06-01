@@ -1,5 +1,7 @@
 # Accountant Service Changelog
 
+* Set max length on `description`: [#923](https://github.com/cinema6/cwrx/pull/923)
+
 ### 1.3.0: Mon May 16 09:02:34 EDT 2016
 * Publish a record to kinesis when a transaction is created: [#892](https://github.com/cinema6/cwrx/pull/892)
 
