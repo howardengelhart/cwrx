@@ -138,7 +138,7 @@
                 return q();
             }
             
-            log.trace('[%1] Fetching %2 %3', req.uuid, prop, req.body.tagParams[prop]);
+            log.trace('[%1] Fetching %2 %3', req.uuid, prop, ld.get(req, propPath, null));
             
             return mongoUtils.findObject(svc._db.collection(prop + 's'), query)
             .then(function(obj) {
@@ -274,6 +274,14 @@
                 }
             }
         };
+
+        if (req.body.thumbnail) {
+            /* Beeswax is dumb and returns "ERROR: URL must begin with HTTP or HTTPS" if the url
+             * DOES begin with http or https. However, trimming the protocol works, for some reason.
+             * So this workaround should hopefully work for now, until they get their act together.
+             */
+            beesBody.creative_thumbnail_url = req.body.thumbnail.replace(/^https?:\/\//, '');
+        }
         
         var templatePath = path.join(__dirname, '../templates/beeswaxCreatives/mraid.html'),
             tagHtml = fs.readFileSync(templatePath, 'utf8'),

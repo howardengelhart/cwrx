@@ -858,6 +858,31 @@ describe('ads placements endpoints (E2E):', function() {
                     expect(util.inspect(error)).not.toBeDefined();
                 }).done(done);
             });
+
+            it('should set the creative thumbnail if provided', function(done) {
+                options.json.thumbnail = 'https://s3.amazonaws.com/c6.dev/e2e/sampleThumbs/sample1.jpg';
+                var beesId, createdPlacement;
+                requestUtils.qRequest('post', options).then(function(resp) {
+                    expect(resp.response.statusCode).toBe(201);
+                    expect(resp.body).toEqual(jasmine.objectContaining({
+                        id          : jasmine.any(String),
+                        beeswaxIds : {
+                            creative: jasmine.any(Number)
+                        },
+                        thumbnail: 'https://s3.amazonaws.com/c6.dev/e2e/sampleThumbs/sample1.jpg',
+                    }));
+                    createdPlacement = resp.body;
+                    beesId = resp.body.beeswaxIds.creative;
+
+                    // check that campaign created in Beeswax successfully
+                    return beeswax.creatives.find(beesId);
+                }).then(function(resp) {
+                    expect(resp.success).toBe(true);
+                    expect(resp.payload.creative_thumbnail_url).toBe('s3.amazonaws.com/c6.dev/e2e/sampleThumbs/sample1.jpg');
+                }).catch(function(error) {
+                    expect(util.inspect(error)).not.toBeDefined();
+                }).done(done);
+            });
             
             it('should handle setting additional parameters that will appear in the tag', function(done) {
                 options.json.tagParams.hostApp = 'Angry Birds';
@@ -1382,6 +1407,7 @@ describe('ads placements endpoints (E2E):', function() {
                     json: {
                         label: nowStr + 'e2e placement',
                         tagType: 'mraid',
+                        thumbnail: 'https://s3.amazonaws.com/c6.dev/e2e/sampleThumbs/sample1.jpg',
                         tagParams: {
                             type: 'full',
                             container: 'beeswax',
@@ -1403,6 +1429,7 @@ describe('ads placements endpoints (E2E):', function() {
                     options.json = {
                         label: nowStr + 'e2e placement - updated',
                         tagType: 'mraid',
+                        thumbnail: 'https://s3.amazonaws.com/c6.dev/e2e/sampleThumbs/sample2.jpg',
                         tagParams: {
                             container: 'beeswax',
                             campaign: 'cam-active',
@@ -1425,6 +1452,7 @@ describe('ads placements endpoints (E2E):', function() {
                         status      : 'active',
                         label       : nowStr + 'e2e placement - updated',
                         tagType     : 'mraid',
+                        thumbnail: 'https://s3.amazonaws.com/c6.dev/e2e/sampleThumbs/sample2.jpg',
                         beeswaxIds : {
                             creative: createdPlacement.beeswaxIds.creative
                         },
@@ -1452,6 +1480,7 @@ describe('ads placements endpoints (E2E):', function() {
                     expect(resp.payload.creative_id).toBe(beesId);
                     expect(resp.payload.alternative_id).toBe(createdPlacement.id);
                     expect(resp.payload.creative_name).toBe(nowStr + 'e2e placement - updated');
+                    expect(resp.payload.creative_thumbnail_url).toBe('s3.amazonaws.com/c6.dev/e2e/sampleThumbs/sample2.jpg');
                     validateCreativePixel(resp.payload, createdPlacement);
                     
                     var mraidOpts = getMraidOpts(resp.payload, createdPlacement);

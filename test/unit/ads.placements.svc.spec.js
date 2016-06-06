@@ -594,6 +594,16 @@ describe('ads-placements (UT)', function() {
             expect(placeModule.formatBeeswaxBody(req)).toBe(null);
         });
         
+        it('should set the creative thumbnail if provided', function() {
+            var beesBodies = ['http://thumb.1', 'https://thumb.2', 'thumb.3'].map(function(thumbUrl) {
+                req.body.thumbnail = thumbUrl;
+                return placeModule.formatBeeswaxBody(req);
+            });
+            expect(beesBodies[0].creative_thumbnail_url).toBe('thumb.1');
+            expect(beesBodies[1].creative_thumbnail_url).toBe('thumb.2');
+            expect(beesBodies[2].creative_thumbnail_url).toBe('thumb.3');
+        });
+        
         it('should ensure the CLICK_URL macro is included on the body and in the tag', function() {
             req.body.tagParams = { campaign: 'cam-active',container: 'beeswax' };
             req.body.showInTag = {};
