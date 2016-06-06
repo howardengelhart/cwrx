@@ -1,5 +1,5 @@
 # Ads Service Changelog
-
+* [FEATURE]: Create beeswax representation for pre-existing user: [#920](https://github.com/cinema6/cwrx/issues/920)
 * [FEATURE]: Create beeswax creatives for C6 placements: [#902](https://github.com/cinema6/cwrx/issues/902)
 * Extra deployment steps:
     * Ensure beeswax trackingPixel is set correctly in staging + production environments

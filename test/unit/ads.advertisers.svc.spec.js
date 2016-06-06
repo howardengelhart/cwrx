@@ -136,7 +136,7 @@ describe('ads-advertisers (UT)', function() {
                     .toEqual({ isValid: true, reason: undefined });
                 expect(newObj.beeswaxIds).not.toBeDefined();
             });
-            
+
             it('should be able to allow some requesters to set the field', function() {
                 requester.fieldValidation.advertisers.beeswaxIds = { __allowed: true };
                 newObj.beeswaxIds = { advertiser: 1234 };
@@ -370,7 +370,7 @@ describe('ads-advertisers (UT)', function() {
                 expect(mockLog.error).not.toHaveBeenCalled();
             }).done(done);
         });
-        it('should create a Beeswax advertiser for an existing c6 advertiser', function (done) {
+        it('should create a Beeswax advertiser for a pre-existing c6 advertiser', function (done) {
           delete req.origObj.beeswaxIds;
           req.query.initBeeswax = 'true';
           mockBeeswax.advertisers.create.and.callFake(function() { return q(beesResp); });

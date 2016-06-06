@@ -117,7 +117,7 @@ module.exports = function(grunt) {
                     process.env[key] = cfgObj[key];
                 }
             }
-            
+
             grunt.log.writeln('Starting e2e tests' + (svc ? ' for ' + svc : '') + ':');
 
             var svcOpts = opts[svc.match(/^[^\.]+/)[0]];
@@ -141,10 +141,10 @@ module.exports = function(grunt) {
                                 args = args.concat(['--' + argName, argValue]);
                             }
                         });
-                        
+
                         return q.npost(grunt.util, 'spawn', [{
-                            cmd: scriptCfg.path,
-                            args: args,
+                            cmd: 'node',
+                            args: [scriptCfg.path].concat(args),
                             opts: {
                                 stdio: 'inherit'
                             }
