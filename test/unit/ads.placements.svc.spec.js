@@ -501,6 +501,10 @@ describe('ads-placements (UT)', function() {
                 hostApp: 'Mapsaurus',
                 network: 'http://foo.bar.com',
                 uuid: 'univuniqid',
+                ex: 'myExperiment',
+                vr: 'myVariant',
+                domain: 'everything',
+                branding: 'cinema7'
             };
         });
         
@@ -514,6 +518,10 @@ describe('ads-placements (UT)', function() {
             expect(url).toMatch('hostApp=Mapsaurus');
             expect(url).toMatch('network=http%3A%2F%2Ffoo.bar.com');
             expect(url).toMatch('extSessionId=univuniqid');
+            expect(url).toMatch('ex=myExperiment');
+            expect(url).toMatch('vr=myVariant');
+            expect(url).toMatch('branding=cinema7');
+            expect(url).toMatch('domain=everything');
             expect(url).toMatch('cb={{CACHEBUSTER}}');
         });
         
@@ -595,13 +603,13 @@ describe('ads-placements (UT)', function() {
         });
         
         it('should set the creative thumbnail if provided', function() {
-            var beesBodies = ['http://thumb.1', 'https://thumb.2', 'thumb.3'].map(function(thumbUrl) {
+            var beesBodies = ['http://thumb.1', 'https://thumb.2', '//thumb.3'].map(function(thumbUrl) {
                 req.body.thumbnail = thumbUrl;
                 return placeModule.formatBeeswaxBody(req);
             });
-            expect(beesBodies[0].creative_thumbnail_url).toBe('thumb.1');
-            expect(beesBodies[1].creative_thumbnail_url).toBe('thumb.2');
-            expect(beesBodies[2].creative_thumbnail_url).toBe('thumb.3');
+            expect(beesBodies[0].creative_thumbnail_url).toBe('//thumb.1');
+            expect(beesBodies[1].creative_thumbnail_url).toBe('//thumb.2');
+            expect(beesBodies[2].creative_thumbnail_url).toBe('//thumb.3');
         });
         
         it('should ensure the CLICK_URL macro is included on the body and in the tag', function() {

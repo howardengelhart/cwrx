@@ -215,7 +215,11 @@
         [
             { field: 'hostApp', qp: 'hostApp' },
             { field: 'network', qp: 'network' },
-            { field: 'uuid', qp: 'extSessionId' }
+            { field: 'uuid', qp: 'extSessionId' },
+            { field: 'ex', qp: 'ex' },
+            { field: 'vr', qp: 'vr' },
+            { field: 'branding', qp: 'branding' },
+            { field: 'domain', qp: 'domain' },
         ].forEach(function(obj) {
             var val;
             if (tagParams[obj.field]) {
@@ -280,7 +284,7 @@
              * DOES begin with http or https. However, trimming the protocol works, for some reason.
              * So this workaround should hopefully work for now, until they get their act together.
              */
-            beesBody.creative_thumbnail_url = req.body.thumbnail.replace(/^https?:\/\//, '');
+            beesBody.creative_thumbnail_url = req.body.thumbnail.replace(/^https?:\/\//, '//');
         }
         
         var templatePath = path.join(__dirname, '../templates/beeswaxCreatives/mraid.html'),

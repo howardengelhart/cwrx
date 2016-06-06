@@ -178,6 +178,10 @@ describe('ads placements endpoints (E2E):', function() {
         expect(pixelQuery.hostApp).toBe(placement.tagParams.hostApp);
         expect(pixelQuery.network).toBe(placement.tagParams.network);
         expect(pixelQuery.extSessionId).toBe(placement.tagParams.uuid);
+        expect(pixelQuery.branding).toBe(placement.tagParams.branding);
+        expect(pixelQuery.ex).toBe(placement.tagParams.ex);
+        expect(pixelQuery.vr).toBe(placement.tagParams.vr);
+        expect(pixelQuery.domain).toBe(placement.tagParams.domain);
         expect(pixelQuery.cb).toBe('{{CACHEBUSTER}}');
     }
     
@@ -878,7 +882,7 @@ describe('ads placements endpoints (E2E):', function() {
                     return beeswax.creatives.find(beesId);
                 }).then(function(resp) {
                     expect(resp.success).toBe(true);
-                    expect(resp.payload.creative_thumbnail_url).toBe('s3.amazonaws.com/c6.dev/e2e/sampleThumbs/sample1.jpg');
+                    expect(resp.payload.creative_thumbnail_url).toBe('//s3.amazonaws.com/c6.dev/e2e/sampleThumbs/sample1.jpg');
                 }).catch(function(error) {
                     expect(util.inspect(error)).not.toBeDefined();
                 }).done(done);
@@ -1013,6 +1017,37 @@ describe('ads placements endpoints (E2E):', function() {
                     expect(pixelUrl).toMatch('hostApp={{APP_BUNDLE}}');
                     expect(pixelUrl).toMatch('network={{INVENTORY_SOURCE}}');
                     expect(pixelUrl).toMatch('extSessionId={{IOS_ID}}');
+                }).catch(function(error) {
+                    expect(util.inspect(error)).not.toBeDefined();
+                }).done(done);
+            });
+            
+            it('should handle setting other props that will be set on the pixelUrl', function(done) {
+                options.json.tagParams.ex = 'myExperiment';
+                options.json.tagParams.vr = 'myVariant';
+                options.json.tagParams.branding = 'cinema7';
+                options.json.tagParams.domain = '{{DOMAIN}}';
+                var beesId, createdPlacement;
+                requestUtils.qRequest('post', options).then(function(resp) {
+                    expect(resp.response.statusCode).toBe(201);
+                    expect(resp.body.tagParams).toEqual(jasmine.objectContaining({
+                        ex          : 'myExperiment',
+                        vr          : 'myVariant',
+                        branding    : 'cinema7',
+                        domain      : '{{DOMAIN}}'
+                    }));
+                    createdPlacement = resp.body;
+                    beesId = resp.body.beeswaxIds.creative;
+
+                    // check that campaign created in Beeswax successfully
+                    return beeswax.creatives.find(beesId);
+                }).then(function(resp) {
+                    expect(resp.success).toBe(true);
+                    expect(resp.payload.creative_id).toBe(beesId);
+                    validateCreativePixel(resp.payload, createdPlacement);
+                    // check exact matches of string to ensure macros weren't url-encoded
+                    var pixelUrl = resp.payload.creative_content.ADDITIONAL_PIXELS[0].PIXEL_URL;
+                    expect(pixelUrl).toMatch('domain={{DOMAIN}}');
                 }).catch(function(error) {
                     expect(util.inspect(error)).not.toBeDefined();
                 }).done(done);
@@ -1480,7 +1515,7 @@ describe('ads placements endpoints (E2E):', function() {
                     expect(resp.payload.creative_id).toBe(beesId);
                     expect(resp.payload.alternative_id).toBe(createdPlacement.id);
                     expect(resp.payload.creative_name).toBe(nowStr + 'e2e placement - updated');
-                    expect(resp.payload.creative_thumbnail_url).toBe('s3.amazonaws.com/c6.dev/e2e/sampleThumbs/sample2.jpg');
+                    expect(resp.payload.creative_thumbnail_url).toBe('//s3.amazonaws.com/c6.dev/e2e/sampleThumbs/sample2.jpg');
                     validateCreativePixel(resp.payload, createdPlacement);
                     
                     var mraidOpts = getMraidOpts(resp.payload, createdPlacement);
