@@ -101,15 +101,14 @@
     advertModule.editBeeswaxAdvert = function(beeswax, req, next, done) {
         var log = logger.getLog(),
             c6Id = req.origObj.id,
-            beesId = ld.get(req.origObj, 'beeswaxIds.advertiser', null),
-            query = {};
+            beesId = ld.get(req.origObj, 'beeswaxIds.advertiser', null);
 
         //Create new advertiser in Beeswax if existing C6 advertiser
         if ((!(beesId)) && (req.query.initBeeswax === 'true')) {
-          if (!(req.body.name)) {
-            req.body.name = req.origObj.name
-          }
-          return advertModule.createBeeswaxAdvert(beeswax, req, next, done);
+            if (!(req.body.name)) {
+                req.body.name = req.origObj.name;
+            }
+            return advertModule.createBeeswaxAdvert(beeswax, req, next, done);
         }
         if (!beesId) {
             log.info('[%1] C6 advert %2 has no Beeswax advert', req.uuid, c6Id);
