@@ -106,13 +106,10 @@
     
     // Format campaign + externalCampaigns entry into a beeswax campaign body
     beesCamps.formatBeeswaxBody = function(campaign, extCampEntry, req) {
-        var impressionRatio = beesCamps.config.beeswax.impressionRatio;
-
         var beesBody = {
             advertiser_id: req.advertiser.beeswaxIds.advertiser,
             alternative_id: campaign.id,
-            campaign_name: campaign.name || 'Untitled (' + campaign.id + ')',
-            budget_type: 1
+            campaign_name: campaign.name || 'Untitled (' + campaign.id + ')'
         };
         
         beesBody.start_date = beesCamps.chooseStartDate(campaign);
@@ -121,39 +118,31 @@
         
         // If budgetImpressions is not undefined or null, use the Impressions props
         if (typeof extCampEntry.budgetImpressions === 'number') {
-            beesBody.campaign_budget = Math.max(extCampEntry.budgetImpressions, 1);
-            // allow daily_budget to be null, otherwise cap to budgetImpressions
-            beesBody.daily_budget = (typeof extCampEntry.dailyLimitImpressions !== 'number') ?
+            beesBody.budget_type = 1; // 1 = impressions count
+            
+            extCampEntry.budgetImpressions = Math.max(extCampEntry.budgetImpressions, 1);
+
+            // allow dailyLimitImpressions to be null, otherwise cap to budgetImpressions
+            extCampEntry.dailyLimitImpressions = (!extCampEntry.dailyLimitImpressions) ?
                 extCampEntry.dailyLimitImpressions :
                 Math.max(Math.min(extCampEntry.budgetImpressions,
                                   extCampEntry.dailyLimitImpressions), 1);
+            
+            beesBody.campaign_budget = extCampEntry.budgetImpressions;
+            beesBody.daily_budget = extCampEntry.dailyLimitImpressions;
         }
         else {
-            var campBudget = ld.get(campaign, 'pricing.budget', undefined),
-                campLimit = ld.get(campaign, 'pricing.dailyLimit', undefined),
-                cost = ld.get(campaign, 'pricing.cost', 1),
-                budget, dailyLimit;
+            beesBody.budget_type = 0; // 0 = spend
+
+            extCampEntry.budget = Math.max(extCampEntry.budget, 1);
+
+            // allow dailyLimit to be null, otherwise cap to budget
+            extCampEntry.dailyLimit = (!extCampEntry.dailyLimit) ?
+                extCampEntry.dailyLimit :
+                Math.max(Math.min(extCampEntry.budget, extCampEntry.dailyLimit), 1);
             
-            // cap budget to total camp budget, then convert $ amount to beeswax impressions
-            budget = Math.max(Math.min(extCampEntry.budget || Infinity, campBudget || 0), 1);
-            beesBody.campaign_budget = Math.round((budget / cost) * impressionRatio);
-            
-            // allow daily_budget to be null if no dailyLimit set on main camp or external camp
-            if (!campLimit && !extCampEntry.dailyLimit) {
-                beesBody.daily_budget = null;
-                dailyLimit = null;
-            } else {
-                // otherwise cap dailyLimit to camp's total dailyLimit + budget
-                dailyLimit = Math.max(Math.min(
-                    extCampEntry.dailyLimit || Infinity,
-                    campLimit || Infinity,
-                    budget
-                ), 1);
-                beesBody.daily_budget = Math.round((dailyLimit / cost) * impressionRatio);
-            }
-            
-            extCampEntry.budget = budget;
-            extCampEntry.dailyLimit = dailyLimit;
+            beesBody.campaign_budget = extCampEntry.budget;
+            beesBody.daily_budget = extCampEntry.dailyLimit;
         }
         
         return beesBody;

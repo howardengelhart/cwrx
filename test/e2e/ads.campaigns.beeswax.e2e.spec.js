@@ -17,8 +17,6 @@ var beeswax = new BeeswaxClient({
     }
 });
 
-var impressionRatio = 1.3333; // Update if this is changed in defaults/test env
-
 describe('ads - Beeswax external campaigns endpoints (E2E):', function() {
     var cookieJar, nonAdminJar, mockApp, appCreds, createdAdvert, mockCamps;
 
@@ -246,55 +244,27 @@ describe('ads - Beeswax external campaigns endpoints (E2E):', function() {
                     campaign_name   : 'E2E - Post beeswax camp 1',
                     start_date      : jasmine.any(String),
                     end_date        : null,
-                    budget_type     : 1,
+                    budget_type     : 0,
                     campaign_budget : jasmine.any(Number),
                     daily_budget    : jasmine.any(Number),
                     active          : false
                 }));
-                expect(resp.payload.campaign_budget).toEqual(Math.round((60000 * impressionRatio)));
-                expect(resp.payload.daily_budget).toEqual(Math.round((6000 * impressionRatio)));
+                expect(resp.payload.campaign_budget).toEqual(600);
+                expect(resp.payload.daily_budget).toEqual(60);
             }).catch(function(error) {
                 expect(error.message || util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
         
-        it('should cap the budget + dailyLimit to the campaign\'s totals', function(done) {
-            options.json.budget = 99999999;
-            options.json.dailyLimit = 99999999;
-            var beesId;
-            requestUtils.qRequest('post', options).then(function(resp) {
-                expect(resp.response.statusCode).toBe(201);
-                expect(resp.body).toEqual({
-                    externalId: jasmine.any(Number),
-                    budget: 1000,
-                    dailyLimit: 100,
-                    budgetImpressions: null,
-                    dailyLimitImpressions: null
-                });
-                beesId = resp.body.externalId;
-                beesCampIds.push(beesId);
-                return checkExternCampProp('cam-e2e-post-1', resp.body);
-            }).then(function() {
-                // check that campaign created in Beeswax successfully
-                return beeswax.campaigns.find(beesId);
-            }).then(function(resp) {
-                expect(resp.success).toBe(true);
-                expect(resp.payload.campaign_budget).toEqual(Math.round((100000 * impressionRatio)));
-                expect(resp.payload.daily_budget).toEqual(Math.round((10000 * impressionRatio)));
-            }).catch(function(error) {
-                expect(error.message || util.inspect(error)).not.toBeDefined();
-            }).done(done);
-        });
-        
-        it('should default the budget + dailyLimit if unset', function(done) {
+        it('should default the budget if unset', function(done) {
             options.json = {};
             var beesId;
             requestUtils.qRequest('post', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(201);
                 expect(resp.body).toEqual({
                     externalId: jasmine.any(Number),
-                    budget: 1000,
-                    dailyLimit: 100,
+                    budget: 1,
+                    dailyLimit: null,
                     budgetImpressions: null,
                     dailyLimitImpressions: null
                 });
@@ -306,8 +276,9 @@ describe('ads - Beeswax external campaigns endpoints (E2E):', function() {
                 return beeswax.campaigns.find(beesId);
             }).then(function(resp) {
                 expect(resp.success).toBe(true);
-                expect(resp.payload.campaign_budget).toEqual(Math.round((100000 * impressionRatio)));
-                expect(resp.payload.daily_budget).toEqual(Math.round((10000 * impressionRatio)));
+                expect(resp.payload.budget_type).toBe(0);
+                expect(resp.payload.campaign_budget).toEqual(1);
+                expect(resp.payload.daily_budget).toBe(null);
             }).catch(function(error) {
                 expect(error.message || util.inspect(error)).not.toBeDefined();
             }).done(done);
@@ -366,7 +337,7 @@ describe('ads - Beeswax external campaigns endpoints (E2E):', function() {
                 return beeswax.campaigns.find(beesId);
             }).then(function(resp) {
                 expect(resp.success).toBe(true);
-                expect(resp.payload.campaign_budget).toEqual(Math.round((60000 * impressionRatio)));
+                expect(resp.payload.campaign_budget).toEqual(600);
                 expect(resp.payload.daily_budget).toBe(null);
             }).catch(function(error) {
                 expect(error.message || util.inspect(error)).not.toBeDefined();
@@ -396,6 +367,7 @@ describe('ads - Beeswax external campaigns endpoints (E2E):', function() {
                 return beeswax.campaigns.find(beesId);
             }).then(function(resp) {
                 expect(resp.success).toBe(true);
+                expect(resp.payload.budget_type).toBe(1);
                 expect(resp.payload.campaign_budget).toEqual(666666);
                 expect(resp.payload.daily_budget).toEqual(55555);
             }).catch(function(error) {
@@ -434,6 +406,60 @@ describe('ads - Beeswax external campaigns endpoints (E2E):', function() {
             }).done(done);
         });
         
+        it('should cap the dailyLimit to the budget', function(done) {
+            options.json = {
+                budget: 1000,
+                dailyLimit: 2000
+            };
+            var beesId;
+            requestUtils.qRequest('post', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(201);
+                expect(resp.body).toEqual(jasmine.objectContaining({
+                    budget: 1000,
+                    dailyLimit: 1000,
+                }));
+                beesId = resp.body.externalId;
+                beesCampIds.push(beesId);
+                return checkExternCampProp('cam-e2e-post-1', resp.body);
+            }).then(function() {
+                // check that campaign created in Beeswax successfully
+                return beeswax.campaigns.find(beesId);
+            }).then(function(resp) {
+                expect(resp.success).toBe(true);
+                expect(resp.payload.campaign_budget).toEqual(1000);
+                expect(resp.payload.daily_budget).toEqual(1000);
+            }).catch(function(error) {
+                expect(error.message || util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should cap the dailyLimitImpressions to the budgetImpressions', function(done) {
+            options.json = {
+                budgetImpressions: 5555,
+                dailyLimitImpressions: 6666
+            };
+            var beesId;
+            requestUtils.qRequest('post', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(201);
+                expect(resp.body).toEqual(jasmine.objectContaining({
+                    budgetImpressions: 5555,
+                    dailyLimitImpressions: 5555,
+                }));
+                beesId = resp.body.externalId;
+                beesCampIds.push(beesId);
+                return checkExternCampProp('cam-e2e-post-1', resp.body);
+            }).then(function() {
+                // check that campaign created in Beeswax successfully
+                return beeswax.campaigns.find(beesId);
+            }).then(function(resp) {
+                expect(resp.success).toBe(true);
+                expect(resp.payload.campaign_budget).toEqual(5555);
+                expect(resp.payload.daily_budget).toEqual(5555);
+            }).catch(function(error) {
+                expect(error.message || util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
+        
         it('should prevent setting both dollar + impression budget/limit fields', function(done) {
             q.all([
                 { budget: 100, budgetImpressions: 1000 },
@@ -450,46 +476,15 @@ describe('ads - Beeswax external campaigns endpoints (E2E):', function() {
                 expect(error.message || util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
-        
-        it('should handle campaigns with no pricing config', function(done) {
-            options.url = config.adsUrl + '/campaigns/cam-e2e-admin-1/external/beeswax';
-            var beesId;
-            requestUtils.qRequest('post', options).then(function(resp) {
-                expect(resp.response.statusCode).toBe(201);
-                expect(resp.body).toEqual({
-                    externalId: jasmine.any(Number),
-                    budget: 1,
-                    dailyLimit: 1,
-                    budgetImpressions: null,
-                    dailyLimitImpressions: null
-                });
-                beesId = resp.body.externalId;
-                beesCampIds.push(beesId);
-                return checkExternCampProp('cam-e2e-admin-1', resp.body);
-            }).then(function() {
-                // check that campaign created in Beeswax successfully
-                return beeswax.campaigns.find(beesId);
-            }).then(function(resp) {
-                expect(resp.success).toBe(true);
-                expect(resp.payload.campaign_budget).toEqual(Math.round((1 * impressionRatio)));
-                expect(resp.payload.daily_budget).toEqual(Math.round((1 * impressionRatio)));
-            }).catch(function(error) {
-                expect(error.message || util.inspect(error)).not.toBeDefined();
-            }).done(done);
-        });
 
         it('should handle a campaign with no name', function(done) {
             options.url = config.adsUrl + '/campaigns/cam-e2e-nameless/external/beeswax';
             var beesId;
             requestUtils.qRequest('post', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(201);
-                expect(resp.body).toEqual({
+                expect(resp.body).toEqual(jasmine.objectContaining({
                     externalId: jasmine.any(Number),
-                    budget: 1,
-                    dailyLimit: 1,
-                    budgetImpressions: null,
-                    dailyLimitImpressions: null
-                });
+                }));
                 beesId = resp.body.externalId;
                 beesCampIds.push(beesId);
                 return checkExternCampProp('cam-e2e-nameless', resp.body);
@@ -499,8 +494,6 @@ describe('ads - Beeswax external campaigns endpoints (E2E):', function() {
             }).then(function(resp) {
                 expect(resp.success).toBe(true);
                 expect(resp.payload.campaign_name).toBe('Untitled (cam-e2e-nameless)');
-                expect(resp.payload.campaign_budget).toEqual(Math.round((1 * impressionRatio)));
-                expect(resp.payload.daily_budget).toEqual(Math.round((1 * impressionRatio)));
             }).catch(function(error) {
                 expect(error.message || util.inspect(error)).not.toBeDefined();
             }).done(done);
@@ -585,13 +578,13 @@ describe('ads - Beeswax external campaigns endpoints (E2E):', function() {
                     campaign_name   : 'E2E - Post beeswax camp 1',
                     start_date      : jasmine.any(String),
                     end_date        : null,
-                    budget_type     : 1,
+                    budget_type     : 0,
                     campaign_budget : jasmine.any(Number),
                     daily_budget    : jasmine.any(Number),
                     active          : false
                 }));
-                expect(resp.payload.campaign_budget).toEqual(Math.round((60000 * impressionRatio)));
-                expect(resp.payload.daily_budget).toEqual(Math.round((6000 * impressionRatio)));
+                expect(resp.payload.campaign_budget).toEqual(600);
+                expect(resp.payload.daily_budget).toEqual(60);
             }).catch(function(error) {
                 expect(error.message || util.inspect(error)).not.toBeDefined();
             }).done(done);
@@ -675,40 +668,12 @@ describe('ads - Beeswax external campaigns endpoints (E2E):', function() {
                         advertiser_id   : createdAdvert.beeswaxIds.advertiser,
                         alternative_id  : 'cam-e2e-post-1',
                         campaign_name   : 'E2E - Post beeswax camp 1',
+                        budget_type     : 0,
                         campaign_budget : jasmine.any(Number),
                         daily_budget    : jasmine.any(Number)
                     }));
-                    expect(resp.payload.campaign_budget).toEqual(Math.round((50000 * impressionRatio)));
-                    expect(resp.payload.daily_budget).toEqual(Math.round((5000 * impressionRatio)));
-                });
-            }).catch(function(error) {
-                expect(error.message || util.inspect(error)).not.toBeDefined();
-            }).done(done);
-        });
-        
-        it('should cap the budget + dailyLimit to the campaign\'s totals', function(done) {
-            options.json.budget = 99999999;
-            options.json.dailyLimit = 99999999;
-
-            createBeeswaxCampaign('cam-e2e-post-1', { budget: 600, dailyLimit: 60 })
-            .then(function(beesExtCamp) {
-                return requestUtils.qRequest('put', options).then(function(resp) {
-                    expect(resp.response.statusCode).toBe(200);
-                    expect(resp.body).toEqual({
-                        externalId: beesExtCamp.externalId,
-                        budget: 1000,
-                        dailyLimit: 100,
-                        budgetImpressions: null,
-                        dailyLimitImpressions: null
-                    });
-                    return checkExternCampProp('cam-e2e-post-1', resp.body);
-                }).then(function() {
-                    // check that campaign updated in Beeswax successfully
-                    return beeswax.campaigns.find(beesExtCamp.externalId);
-                }).then(function(resp) {
-                    expect(resp.success).toBe(true);
-                    expect(resp.payload.campaign_budget).toEqual(Math.round((100000 * impressionRatio)));
-                    expect(resp.payload.daily_budget).toEqual(Math.round((10000 * impressionRatio)));
+                    expect(resp.payload.campaign_budget).toEqual(500);
+                    expect(resp.payload.daily_budget).toEqual(50);
                 });
             }).catch(function(error) {
                 expect(error.message || util.inspect(error)).not.toBeDefined();
@@ -734,15 +699,16 @@ describe('ads - Beeswax external campaigns endpoints (E2E):', function() {
                     return beeswax.campaigns.find(beesExtCamp.externalId);
                 }).then(function(resp) {
                     expect(resp.success).toBe(true);
-                    expect(resp.payload.campaign_budget).toEqual(Math.round((60000 * impressionRatio)));
-                    expect(resp.payload.daily_budget).toEqual(Math.round((6000 * impressionRatio)));
+                    expect(resp.payload.budget_type).toBe(0);
+                    expect(resp.payload.campaign_budget).toEqual(600);
+                    expect(resp.payload.daily_budget).toEqual(60);
                 });
             }).catch(function(error) {
                 expect(error.message || util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
 
-        it('should allow setting a null dailyLimit if the campaign has no dailyLimit', function(done) {
+        it('should allow setting a null dailyLimit', function(done) {
             options.url = config.adsUrl + '/campaigns/cam-e2e-no-dl/external/beeswax';
             options.json = { budget: 600, dailyLimit: null };
 
@@ -764,7 +730,8 @@ describe('ads - Beeswax external campaigns endpoints (E2E):', function() {
                     return beeswax.campaigns.find(beesExtCamp.externalId);
                 }).then(function(resp) {
                     expect(resp.success).toBe(true);
-                    expect(resp.payload.campaign_budget).toEqual(Math.round((60000 * impressionRatio)));
+                    expect(resp.payload.budget_type).toBe(0);
+                    expect(resp.payload.campaign_budget).toEqual(600);
                     expect(resp.payload.daily_budget).toBe(null);
                 });
             }).catch(function(error) {
@@ -797,6 +764,7 @@ describe('ads - Beeswax external campaigns endpoints (E2E):', function() {
                     return beeswax.campaigns.find(beesExtCamp.externalId);
                 }).then(function(resp) {
                     expect(resp.success).toBe(true);
+                    expect(resp.payload.budget_type).toBe(1);
                     expect(resp.payload.campaign_budget).toEqual(666666);
                     expect(resp.payload.daily_budget).toEqual(55555);
                     
@@ -823,15 +791,16 @@ describe('ads - Beeswax external campaigns endpoints (E2E):', function() {
                     return beeswax.campaigns.find(beesExtCamp.externalId);
                 }).then(function(resp) {
                     expect(resp.success).toBe(true);
-                    expect(resp.payload.campaign_budget).toEqual(Math.round((50000 * impressionRatio)));
-                    expect(resp.payload.daily_budget).toEqual(Math.round((5000 * impressionRatio)));
+                    expect(resp.payload.budget_type).toBe(0);
+                    expect(resp.payload.campaign_budget).toEqual(500);
+                    expect(resp.payload.daily_budget).toEqual(50);
                 });
             }).catch(function(error) {
                 expect(error.message || util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
         
-        it('should allow setting a null dailyLimitImpressions if the campaign has no dailyLimit', function(done) {
+        it('should allow setting a null dailyLimitImpressions', function(done) {
             options.url = config.adsUrl + '/campaigns/cam-e2e-no-dl/external/beeswax';
             options.json = { budgetImpressions: 666666, dailyLimitImpressions: null };
 
@@ -853,6 +822,7 @@ describe('ads - Beeswax external campaigns endpoints (E2E):', function() {
                     return beeswax.campaigns.find(beesExtCamp.externalId);
                 }).then(function(resp) {
                     expect(resp.success).toBe(true);
+                    expect(resp.payload.budget_type).toBe(1);
                     expect(resp.payload.campaign_budget).toEqual(666666);
                     expect(resp.payload.daily_budget).toBe(null);
                 });
@@ -875,37 +845,6 @@ describe('ads - Beeswax external campaigns endpoints (E2E):', function() {
                     expect(results[0].body).toBe('Cannot set both budget + budgetImpressions');
                     expect(results[1].response.statusCode).toBe(400);
                     expect(results[1].body).toBe('Cannot set both dailyLimit + dailyLimitImpressions');
-                });
-            }).catch(function(error) {
-                expect(error.message || util.inspect(error)).not.toBeDefined();
-            }).done(done);
-        });
-        
-        it('should handle campaigns with no pricing config', function(done) {
-            options.url = config.adsUrl + '/campaigns/cam-e2e-admin-1/external/beeswax';
-            options.json = { budget: 1000, dailyLimit: 100 };
-
-            createBeeswaxCampaign('cam-e2e-admin-1', {})
-            .then(function(beesExtCamp) {
-                expect(beesExtCamp.budget).toBe(1);
-                expect(beesExtCamp.dailyLimit).toBe(null);
-                return requestUtils.qRequest('put', options).then(function(resp) {
-                    expect(resp.response.statusCode).toBe(200);
-                    expect(resp.body).toEqual({
-                        externalId: beesExtCamp.externalId,
-                        budget: 1,
-                        dailyLimit: 1,
-                        budgetImpressions: null,
-                        dailyLimitImpressions: null
-                    });
-                    return checkExternCampProp('cam-e2e-admin-1', resp.body);
-                }).then(function() {
-                    // check that campaign updated in Beeswax successfully
-                    return beeswax.campaigns.find(beesExtCamp.externalId);
-                }).then(function(resp) {
-                    expect(resp.success).toBe(true);
-                    expect(resp.payload.campaign_budget).toEqual(Math.round((1 * impressionRatio)));
-                    expect(resp.payload.daily_budget).toEqual(Math.round((1 * impressionRatio)));
                 });
             }).catch(function(error) {
                 expect(error.message || util.inspect(error)).not.toBeDefined();
@@ -980,11 +919,12 @@ describe('ads - Beeswax external campaigns endpoints (E2E):', function() {
                         advertiser_id   : createdAdvert.beeswaxIds.advertiser,
                         alternative_id  : 'cam-e2e-post-1',
                         campaign_name   : 'E2E - Post beeswax camp 1',
+                        budget_type     : 0,
                         campaign_budget : jasmine.any(Number),
                         daily_budget    : jasmine.any(Number)
                     }));
-                    expect(resp.payload.campaign_budget).toEqual(Math.round((50000 * impressionRatio)));
-                    expect(resp.payload.daily_budget).toEqual(Math.round((5000 * impressionRatio)));
+                    expect(resp.payload.campaign_budget).toEqual(500);
+                    expect(resp.payload.daily_budget).toEqual(50);
                 });
             }).catch(function(error) {
                 expect(error.message || util.inspect(error)).not.toBeDefined();
