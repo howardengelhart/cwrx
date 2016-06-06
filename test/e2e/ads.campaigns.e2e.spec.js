@@ -1997,6 +1997,8 @@ describe('ads campaigns endpoints (E2E):', function() {
                     expect(resp.body.externalCampaigns).toEqual({ beeswax: {
                         budget: 1000,
                         dailyLimit: 100,
+                        budgetImpressions: null,
+                        dailyLimitImpressions: null,
                         externalId: beesCampIds[0]
                     } });
                     
