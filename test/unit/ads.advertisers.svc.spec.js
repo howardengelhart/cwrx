@@ -21,14 +21,14 @@ describe('ads-advertisers (UT)', function() {
         };
         spyOn(logger, 'createLog').and.returnValue(mockLog);
         spyOn(logger, 'getLog').and.returnValue(mockLog);
-        
+
         mockBeeswax = { advertisers: {
             create: jasmine.createSpy('beeswax.advertisers.create()'),
             edit: jasmine.createSpy('beeswax.advertisers.edit()'),
         } };
-        
+
         req = { uuid: '1234' };
-        
+
         nextSpy = jasmine.createSpy('next');
         doneSpy = jasmine.createSpy('done');
         errorSpy = jasmine.createSpy('caught error');
@@ -41,7 +41,7 @@ describe('ads-advertisers (UT)', function() {
             [advertModule.createBeeswaxAdvert, advertModule.editBeeswaxAdvert].forEach(function(fn) {
                 spyOn(fn, 'bind').and.returnValue(fn);
             });
-            
+
             svc = advertModule.setupSvc(mockColl, mockBeeswax);
         });
 
@@ -56,18 +56,18 @@ describe('ads-advertisers (UT)', function() {
             expect(svc.model).toEqual(jasmine.any(Model));
             expect(svc.model.schema).toBe(advertModule.advertSchema);
         });
-        
+
         it('should create beeswax advertisers on create', function() {
             expect(svc._middleware.create).toContain(advertModule.createBeeswaxAdvert);
             expect(advertModule.createBeeswaxAdvert.bind).toHaveBeenCalledWith(advertModule, mockBeeswax);
         });
-        
+
         it('should edit beeswax advertisers on edit', function() {
             expect(svc._middleware.edit).toContain(advertModule.editBeeswaxAdvert);
             expect(advertModule.editBeeswaxAdvert.bind).toHaveBeenCalledWith(advertModule, mockBeeswax);
         });
     });
-    
+
     describe('advertiser validation', function() {
         var svc, newObj, origObj, requester;
         beforeEach(function() {
@@ -76,14 +76,14 @@ describe('ads-advertisers (UT)', function() {
             origObj = {};
             requester = { fieldValidation: { advertisers: {} } };
         });
-        
+
         describe('when handling name', function() {
             it('should fail if the field is not a string', function() {
                 newObj.name = 123;
                 expect(svc.model.validate('create', newObj, origObj, requester))
                     .toEqual({ isValid: false, reason: 'name must be in format: string' });
             });
-            
+
             it('should allow the field to be set on create', function() {
                 expect(svc.model.validate('create', newObj, origObj, requester))
                     .toEqual({ isValid: true, reason: undefined });
@@ -95,7 +95,7 @@ describe('ads-advertisers (UT)', function() {
                 expect(svc.model.validate('create', newObj, origObj, requester))
                     .toEqual({ isValid: false, reason: 'Missing required field: name' });
             });
-            
+
             it('should pass if the field was defined on the original object', function() {
                 delete newObj.name;
                 origObj.name = 'old org name';
@@ -111,7 +111,7 @@ describe('ads-advertisers (UT)', function() {
                 expect(newObj).toEqual({ name: 'test' });
             });
         });
-        
+
         ['defaultLinks', 'defaultLogos'].forEach(function(field) {
             describe('when handling ' + field, function() {
                 it('should fail if the field is not an object', function() {
@@ -119,7 +119,7 @@ describe('ads-advertisers (UT)', function() {
                     expect(svc.model.validate('create', newObj, origObj, requester))
                         .toEqual({ isValid: false, reason: field + ' must be in format: object' });
                 });
-                
+
                 it('should allow the field to be set', function() {
                     newObj[field] = { foo: 'bar' };
                     expect(svc.model.validate('create', newObj, origObj, requester))
@@ -136,7 +136,7 @@ describe('ads-advertisers (UT)', function() {
                     .toEqual({ isValid: true, reason: undefined });
                 expect(newObj.beeswaxIds).not.toBeDefined();
             });
-            
+
             it('should be able to allow some requesters to set the field', function() {
                 requester.fieldValidation.advertisers.beeswaxIds = { __allowed: true };
                 newObj.beeswaxIds = { advertiser: 1234 };
@@ -153,7 +153,7 @@ describe('ads-advertisers (UT)', function() {
             });
         });
     });
-    
+
     describe('handleNameInUse', function() {
         var cb, beesBody, beesResp;
         beforeEach(function() {
@@ -167,7 +167,7 @@ describe('ads-advertisers (UT)', function() {
             };
             cb = jasmine.createSpy('cb()').and.callFake(function() { return q(beesResp); });
         });
-        
+
         it('should normally call the callback and return its response', function(done) {
             advertModule.handleNameInUse(req, beesBody, cb).then(function(resp) {
                 expect(resp).toEqual({
@@ -184,7 +184,7 @@ describe('ads-advertisers (UT)', function() {
                 expect(error.toString()).not.toBeDefined();
             }).done(done);
         });
-        
+
         describe('if the cb fails with a "name in use" error', function() {
             var errorResp;
             beforeEach(function() {
@@ -201,7 +201,7 @@ describe('ads-advertisers (UT)', function() {
                     }
                 });
             });
-            
+
             it('should alter the name, retry the cb, and resolve if that resolves', function(done) {
                 advertModule.handleNameInUse(req, beesBody, cb).then(function(resp) {
                     expect(resp).toEqual({
@@ -218,7 +218,7 @@ describe('ads-advertisers (UT)', function() {
                     expect(error).not.toBeDefined();
                 }).done(done);
             });
-            
+
             it('should fail if the cb fails on the second try as well', function(done) {
                 beesResp = errorResp;
                 advertModule.handleNameInUse(req, beesBody, cb).then(function(resp) {
@@ -238,7 +238,7 @@ describe('ads-advertisers (UT)', function() {
                 }).done(done);
             });
         });
-        
+
         it('should reject if the cb fails with something besides a "name in use" error', function(done) {
             beesResp = q.reject({
                 statusCode: 406,
@@ -258,7 +258,7 @@ describe('ads-advertisers (UT)', function() {
             }).done(done);
         });
     });
-    
+
     describe('createBeeswaxAdvert', function() {
         var beesResp;
         beforeEach(function() {
@@ -279,7 +279,7 @@ describe('ads-advertisers (UT)', function() {
             });
             mockBeeswax.advertisers.create.and.callFake(function() { return q(beesResp); });
         });
-        
+
         it('should create a beeswax advertiser for the new advertiser', function(done) {
             advertModule.createBeeswaxAdvert(mockBeeswax, req, nextSpy, doneSpy).catch(errorSpy).finally(function() {
                 expect(nextSpy).toHaveBeenCalled();
@@ -297,7 +297,7 @@ describe('ads-advertisers (UT)', function() {
                 expect(mockLog.error).not.toHaveBeenCalled();
             }).done(done);
         });
-        
+
         it('should warn and return a 4xx if the beeswax request resolves with an unsuccessful response', function(done) {
             beesResp = { success: false, message: 'i cant do it' };
             advertModule.createBeeswaxAdvert(mockBeeswax, req, nextSpy, doneSpy).catch(errorSpy).finally(function() {
@@ -311,7 +311,7 @@ describe('ads-advertisers (UT)', function() {
                 expect(mockLog.error).not.toHaveBeenCalled();
             }).done(done);
         });
-        
+
         it('should reject if the beeswax request fails', function(done) {
             beesResp = q.reject('beeswax struggles');
             advertModule.createBeeswaxAdvert(mockBeeswax, req, nextSpy, doneSpy).catch(errorSpy).finally(function() {
@@ -326,7 +326,7 @@ describe('ads-advertisers (UT)', function() {
             }).done(done);
         });
     });
-    
+
     describe('editBeeswaxAdvert', function() {
         beforeEach(function() {
             req.body = {
@@ -338,6 +338,9 @@ describe('ads-advertisers (UT)', function() {
                 name: 'my advert',
                 beeswaxIds: { advertiser: 3456 }
             };
+            req.query = {
+
+            };
             beesResp = {
                 success: true,
                 payload: {
@@ -346,25 +349,45 @@ describe('ads-advertisers (UT)', function() {
                     foo: 'bar'
                 }
             };
+
             spyOn(advertModule, 'handleNameInUse').and.callFake(function(req, obj, cb) {
                 return cb();
             });
             mockBeeswax.advertisers.edit.and.callFake(function() { return q(beesResp); });
+            mockBeeswax.advertisers.create.and.callFake(function() { return q(beesResp); });
         });
-        
+
         it('should edit the beeswax advertiser for the C6 advertiser', function(done) {
             advertModule.editBeeswaxAdvert(mockBeeswax, req, nextSpy, doneSpy).catch(errorSpy).finally(function() {
                 expect(nextSpy).toHaveBeenCalled();
                 expect(doneSpy).not.toHaveBeenCalled();
                 expect(errorSpy).not.toHaveBeenCalled();
                 var beesBody = { alternative_id: 'a-1234', advertiser_name: 'my advert 1.1' };
+                expect(mockBeeswax.advertisers.create).not.toHaveBeenCalled();
                 expect(advertModule.handleNameInUse).toHaveBeenCalledWith(req, beesBody, jasmine.any(Function));
                 expect(mockBeeswax.advertisers.edit).toHaveBeenCalledWith(3456, beesBody);
                 expect(mockLog.warn).not.toHaveBeenCalled();
                 expect(mockLog.error).not.toHaveBeenCalled();
             }).done(done);
         });
-        
+        it('should create a Beeswax advertiser for a pre-existing c6 advertiser', function (done) {
+          delete req.origObj.beeswaxIds;
+          req.query.initBeeswax = 'true';
+          mockBeeswax.advertisers.create.and.callFake(function() { return q(beesResp); });
+          spyOn(advertModule, 'createBeeswaxAdvert').and.callThrough(mockBeeswax, req, nextSpy, doneSpy);
+          advertModule.editBeeswaxAdvert(mockBeeswax, req, nextSpy, doneSpy).catch(errorSpy).finally(function() {
+            expect(req.query.initBeeswax).toBeTruthy();
+            expect(req.origObj.beeswaxIds).toBeFalsy();
+            expect(nextSpy).toHaveBeenCalled();
+            expect(doneSpy).not.toHaveBeenCalled();
+            expect(errorSpy).not.toHaveBeenCalled();
+            expect(advertModule.createBeeswaxAdvert).toHaveBeenCalledWith(mockBeeswax, req, nextSpy, doneSpy);
+            expect(advertModule.handleNameInUse).toHaveBeenCalled();
+            expect(mockBeeswax.advertisers.edit).not.toHaveBeenCalled();
+            expect(mockLog.warn).not.toHaveBeenCalled();
+            expect(mockLog.error).not.toHaveBeenCalled();
+          }).done(done);
+        });
         it('should skip if the advertiser has no beeswax advertiser', function(done) {
             delete req.origObj.beeswaxIds;
             advertModule.editBeeswaxAdvert(mockBeeswax, req, nextSpy, doneSpy).catch(errorSpy).finally(function() {
@@ -377,7 +400,7 @@ describe('ads-advertisers (UT)', function() {
                 expect(mockLog.error).not.toHaveBeenCalled();
             }).done(done);
         });
-        
+
         it('should skip if the name is unchanged', function(done) {
             req.body.name = req.origObj.name;
             advertModule.editBeeswaxAdvert(mockBeeswax, req, nextSpy, doneSpy).catch(errorSpy).finally(function() {
@@ -390,7 +413,7 @@ describe('ads-advertisers (UT)', function() {
                 expect(mockLog.error).not.toHaveBeenCalled();
             }).done(done);
         });
-        
+
         it('should warn and return a 4xx if the beeswax request resolves with an unsuccessful response', function(done) {
             beesResp = { success: false, message: 'i cant do it' };
             advertModule.editBeeswaxAdvert(mockBeeswax, req, nextSpy, doneSpy).catch(errorSpy).finally(function() {
@@ -404,7 +427,7 @@ describe('ads-advertisers (UT)', function() {
                 expect(mockLog.error).not.toHaveBeenCalled();
             }).done(done);
         });
-        
+
         it('should reject if the beeswax request fails', function(done) {
             beesResp = q.reject('beeswax struggles');
             advertModule.editBeeswaxAdvert(mockBeeswax, req, nextSpy, doneSpy).catch(errorSpy).finally(function() {
