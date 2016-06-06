@@ -1,5 +1,8 @@
 # Content Service Changelog
 
+### 4.1.4 Mon Jun  6 11:30:15 EDT 2016
+* Update the version of metagetta that is used: [#926](https://github.com/cinema6/cwrx/pull/926)
+
 ### 4.1.3 Thu Mar 31 11:13:44 EDT 2016
 * In addition to the duration, set the default thumbnails of cards on POST or PUT: [#839](https://github.com/cinema6/cwrx/pull/839)
 * Extra deployment steps:
@@ -222,7 +225,7 @@
 
 ### 1.11.0: Wed Oct  8 14:59:44 EDT 2014
 * [FEATURE]: Add `/preview/:id` endpoint for generating full preview links: [#299](https://github.com/cinema6/cwrx/pull/299)
-* Extra deployment steps: 
+* Extra deployment steps:
     * Deploy new content cookbook with nginx config change
     * Ensure Cloudfront behaviors and new DNS records properly setup
 
