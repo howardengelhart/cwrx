@@ -1,6 +1,6 @@
 var flush = true;
 describe('orgSvc-payments (UT)', function() {
-    var payModule, orgModule, events, q, mockLog, mockLogger, logger, Model, mongoUtils, Scope, requestUtils, rcKinesis,
+    var payModule, orgModule, events, q, mockLog, mockLogger, logger, Model, mongoUtils, Scope, requestUtils, rcKinesis, braintree,
         CrudSvc, objUtils, util, mockDb, mockGateway, mockPayment, mockPaymentMethod, orgSvc, req, nextSpy, doneSpy, errorSpy;
 
     beforeEach(function() {
@@ -9,6 +9,7 @@ describe('orgSvc-payments (UT)', function() {
         q               = require('q');
         util            = require('util');
         rcKinesis       = require('rc-kinesis');
+        braintree       = require('braintree');
         payModule       = require('../../bin/orgSvc-payments');
         orgModule       = require('../../bin/orgSvc-orgs');
         logger          = require('../../lib/logger');
@@ -45,6 +46,7 @@ describe('orgSvc-payments (UT)', function() {
                 endpoint: '/api/account/users/'
             }
         };
+        payModule.config.noDuplicateMethods = false;
         payModule.config.minPayment = 1;
         payModule.config.kinesis = {
             region      : 'us-east-1',
@@ -93,6 +95,7 @@ describe('orgSvc-payments (UT)', function() {
             })
         };
         mockGateway = {
+            config: { environment: braintree.Environment.Sandbox },
             customer: {
                 find: jasmine.createSpy('gateway.customer.find()'),
                 create: jasmine.createSpy('gateway.customer.create()'),
@@ -1078,7 +1081,10 @@ describe('orgSvc-payments (UT)', function() {
                     firstName: 'Unit',
                     lastName: 'Tests',
                     email: 'unit@tests.com',
-                    paymentMethodNonce: 'thisislegit'
+                    paymentMethodNonce: 'thisislegit',
+                    creditCard: {
+                        options: { failOnDuplicatePaymentMethod: false }
+                    }
                 }, jasmine.any(Function));
                 expect(mongoUtils.editObject).toHaveBeenCalledWith({ collectionName: 'orgs' }, { braintreeCustomer: '123456' }, 'o-1');
                 expect(payModule.formatMethodOutput).toHaveBeenCalledWith({ token: 'asdf1234', cardType: 'visa' });
@@ -1112,11 +1118,29 @@ describe('orgSvc-payments (UT)', function() {
                     email: 'unit@tests.com',
                     paymentMethodNonce: 'thisislegit',
                     creditCard: {
-                        cardholderName: 'Johnny Testmonkey'
-                    }
+                        cardholderName: 'Johnny Testmonkey',
+                        options: { failOnDuplicatePaymentMethod: false }
+                    },
                 }, jasmine.any(Function));
                 expect(mongoUtils.editObject).toHaveBeenCalled();
                 expect(payModule.formatMethodOutput).toHaveBeenCalled();
+                expect(payModule.handlePaymentMethodErrors).not.toHaveBeenCalled();
+                expect(mockLog.error).not.toHaveBeenCalled();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should include the failOnDuplicatePaymentMethod in production', function(done) {
+            mockGateway.config.environment = braintree.Environment.Production;
+            payModule.createCustomerWithMethod(mockGateway, orgSvc, req).then(function(resp) {
+                expect(resp.code).toEqual(201);
+                expect(resp.body).toBeDefined();
+                expect(mockGateway.customer.create).toHaveBeenCalledWith(jasmine.objectContaining({
+                    creditCard: {
+                        options: { failOnDuplicatePaymentMethod: true }
+                    }
+                }), jasmine.any(Function));
                 expect(payModule.handlePaymentMethodErrors).not.toHaveBeenCalled();
                 expect(mockLog.error).not.toHaveBeenCalled();
             }).catch(function(error) {
@@ -1131,7 +1155,10 @@ describe('orgSvc-payments (UT)', function() {
                 expect(resp.body).toEqual(jasmine.objectContaining({ token: 'asdf1234' }));
                 expect(mockGateway.customer.create).toHaveBeenCalledWith({
                     company: 'org 1',
-                    paymentMethodNonce: 'thisislegit'
+                    paymentMethodNonce: 'thisislegit',
+                    creditCard: {
+                        options: { failOnDuplicatePaymentMethod: false }
+                    }
                 }, jasmine.any(Function));
                 expect(mongoUtils.editObject).toHaveBeenCalledWith({ collectionName: 'orgs' }, { braintreeCustomer: '123456' }, 'o-1');
                 expect(payModule.formatMethodOutput).toHaveBeenCalledWith({ token: 'asdf1234', cardType: 'visa' });
@@ -1152,7 +1179,10 @@ describe('orgSvc-payments (UT)', function() {
                     firstName: 'Unit',
                     lastName: 'Tests',
                     email: 'unit@tests.com',
-                    paymentMethodNonce: 'thisislegit'
+                    paymentMethodNonce: 'thisislegit',
+                    creditCard: {
+                        options: { failOnDuplicatePaymentMethod: false }
+                    }
                 }, jasmine.any(Function));
                 expect(payModule.handlePaymentMethodErrors).not.toHaveBeenCalled();
                 expect(mockLog.error).not.toHaveBeenCalled();
@@ -1257,7 +1287,8 @@ describe('orgSvc-payments (UT)', function() {
                     cardholderName: undefined,
                     paymentMethodNonce: 'thisislegit',
                     options: {
-                        makeDefault: true
+                        makeDefault: true,
+                        failOnDuplicatePaymentMethod: false
                     }
                 }, jasmine.any(Function));
                 expect(payModule.formatMethodOutput).toHaveBeenCalledWith({ token: 'asdf1234', cardType: 'visa' });
@@ -1279,7 +1310,8 @@ describe('orgSvc-payments (UT)', function() {
                     cardholderName: 'Johnny Testmonkey',
                     paymentMethodNonce: 'thisislegit',
                     options: {
-                        makeDefault: false
+                        makeDefault: false,
+                        failOnDuplicatePaymentMethod: false
                     }
                 }, jasmine.any(Function));
                 expect(payModule.formatMethodOutput).toHaveBeenCalled();
@@ -1334,6 +1366,27 @@ describe('orgSvc-payments (UT)', function() {
                 expect(orgSvc.customMethod).toHaveBeenCalled();
                 expect(mockGateway.paymentMethod.create).not.toHaveBeenCalled();
                 expect(payModule.createCustomerWithMethod).toHaveBeenCalledWith(mockGateway, orgSvc, req);
+                expect(payModule.handlePaymentMethodErrors).not.toHaveBeenCalled();
+                expect(mockLog.error).not.toHaveBeenCalled();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should include the failOnDuplicatePaymentMethod in production', function(done) {
+            mockGateway.config.environment = braintree.Environment.Production;
+            payModule.createPaymentMethod(mockGateway, orgSvc, req).then(function(resp) {
+                expect(resp.code).toEqual(201);
+                expect(resp.body).toBeDefined();
+                expect(mockGateway.paymentMethod.create).toHaveBeenCalledWith({
+                    customerId: '123456',
+                    cardholderName: undefined,
+                    paymentMethodNonce: 'thisislegit',
+                    options: {
+                        makeDefault: true,
+                        failOnDuplicatePaymentMethod: true
+                    }
+                }, jasmine.any(Function));
                 expect(payModule.handlePaymentMethodErrors).not.toHaveBeenCalled();
                 expect(mockLog.error).not.toHaveBeenCalled();
             }).catch(function(error) {

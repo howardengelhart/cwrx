@@ -6,6 +6,7 @@
         util            = require('util'),
         ld              = require('lodash'),
         express         = require('express'),
+        braintree       = require('braintree'),
         rcKinesis       = require('rc-kinesis'),
         Model           = require('../lib/model'),
         logger          = require('../lib/logger'),
@@ -355,17 +356,21 @@
      * createPaymentMethod() if the org has no existing braintree customer. Updates the org with
      * the new customer's id (direct edit bypassing permission checks). */
     payModule.createCustomerWithMethod = function(gateway, orgSvc, req) {
-        var log = logger.getLog();
+        var log = logger.getLog(),
+            failOnDup = gateway.config.environment === braintree.Environment.Production;
         
         var newCust = {
             company: req.org.name,
-            paymentMethodNonce: req.body.paymentMethodNonce
+            paymentMethodNonce: req.body.paymentMethodNonce,
+            creditCard: {
+                options: {
+                    failOnDuplicatePaymentMethod: failOnDup
+                }
+            }
         };
         
         if (req.body.cardholderName) {
-            newCust.creditCard = {
-                cardholderName: req.body.cardholderName
-            };
+            newCust.creditCard.cardholderName = req.body.cardholderName;
         }
         
         if (req.user.org === req.org.id) {
@@ -407,7 +412,8 @@
     // Create a new payment method for the org. Creates a new braintree customer if needed.
     payModule.createPaymentMethod = function(gateway, orgSvc, req) {
         var log = logger.getLog(),
-            cardName = req.body.cardholderName;
+            cardName = req.body.cardholderName,
+            failOnDup = gateway.config.environment === braintree.Environment.Production;
         
         if (!req.body.paymentMethodNonce) {
             log.info('[%1] Request has no paymentMethodNonce', req.uuid);
@@ -430,7 +436,8 @@
                 cardholderName: cardName || undefined,
                 paymentMethodNonce: req.body.paymentMethodNonce,
                 options: {
-                    makeDefault: !!req.body.makeDefault
+                    makeDefault: !!req.body.makeDefault,
+                    failOnDuplicatePaymentMethod: failOnDup
                 }
             }])
             .then(function(result) {
