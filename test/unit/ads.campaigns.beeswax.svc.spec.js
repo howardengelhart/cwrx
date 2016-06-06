@@ -164,7 +164,7 @@ describe('ads-externalCampaigns beeswax (UT)', function() {
             });
         });
         
-        ['budget', 'dailyLimit'].forEach(function(field) {
+        ['budget', 'dailyLimit', 'budgetImpressions', 'dailyLimitImpressions'].forEach(function(field) {
             describe('when handling ' + field, function() {
                 it('should fail if the field is not a number', function() {
                     newObj[field] = 'many dollars';
@@ -230,14 +230,15 @@ describe('ads-externalCampaigns beeswax (UT)', function() {
                     { id: 'rc-3', campaign: { startDate: '2016-04-10T23:00:34.012Z' } }
                 ],
                 pricing: {
-                    budget: 20000,
-                    dailyLimit: 2000
+                    budget: 200,
+                    dailyLimit: 20,
+                    cost: 0.01
                 }
             };
             extCampEntry = {
                 externalId: 5555,
-                budget: 10000,
-                dailyLimit: 1000
+                budget: 100,
+                dailyLimit: 10
             };
         });
         
@@ -266,122 +267,117 @@ describe('ads-externalCampaigns beeswax (UT)', function() {
             expect(beesBody.start_date).not.toBeDefined();
         });
         
-        describe('when setting the campaign_budget', function() {
-            it('should use the externalCampaigns entry budget, multiplied by an impression ratio', function() {
-                var beesBody = beesCamps.formatBeeswaxBody(campaign, extCampEntry, req);
-                expect(Number(beesBody.campaign_budget.toFixed(6))).toBe(13333);
+        describe('if budgetImpressions is defined', function() {
+            beforeEach(function() {
+                extCampEntry = {
+                    externalId: 5555,
+                    budgetImpressions: 10000,
+                    dailyLimitImpressions: 1000
+                };
             });
             
-            it('should cap the new budget to the campaign\'s budget', function() {
-                extCampEntry.budget = 66666;
+            it('should directly set the campaign_budget and daily_budget using the impression values', function() {
                 var beesBody = beesCamps.formatBeeswaxBody(campaign, extCampEntry, req);
-                expect(Number(beesBody.campaign_budget.toFixed(6))).toBe(26666);
+                expect(beesBody.campaign_budget).toBe(10000);
+                expect(beesBody.daily_budget).toBe(1000);
+                expect(extCampEntry.budget).not.toBeDefined();
+                expect(extCampEntry.dailyLimit).not.toBeDefined();
             });
             
-            it('should default the new budget to the campaign\'s budget', function() {
-                delete extCampEntry.budget;
+            it('should cap the daily_budget to the campaign_budget', function() {
+                extCampEntry.dailyLimitImpressions = 6666666;
                 var beesBody = beesCamps.formatBeeswaxBody(campaign, extCampEntry, req);
-                expect(Number(beesBody.campaign_budget.toFixed(6))).toBe(26666);
+                expect(beesBody.campaign_budget).toBe(10000);
+                expect(beesBody.daily_budget).toBe(10000);
             });
             
-            it('should ensure the the budget is set to some low value if the campaign does not have a budget', function() {
-                delete campaign.pricing;
+            it('should all the daily_budget to be set to null', function() {
+                extCampEntry.dailyLimitImpressions = null;
                 var beesBody = beesCamps.formatBeeswaxBody(campaign, extCampEntry, req);
-                expect(Number(beesBody.campaign_budget.toFixed(6))).toBe(1.33);
+                expect(beesBody.campaign_budget).toBe(10000);
+                expect(beesBody.daily_budget).toBe(null);
+            });
+            
+            it('should ensure a min value for campaign_budget', function() {
+                extCampEntry.budgetImpressions = 0;
+                var beesBody = beesCamps.formatBeeswaxBody(campaign, extCampEntry, req);
+                expect(beesBody.campaign_budget).toBe(1);
+                expect(beesBody.daily_budget).toBe(1);
             });
         });
         
-        describe('when setting the daily_budget', function() {
-            it('should use the externalCampaigns entry dailyLimit, multiplied by an impression ratio', function() {
-                var beesBody = beesCamps.formatBeeswaxBody(campaign, extCampEntry, req);
-                expect(Number(beesBody.daily_budget.toFixed(6))).toBe(1333.3);
-            });
-            
-            it('should cap the new dailyLimit to the campaign\'s dailyLimit', function() {
-                extCampEntry.dailyLimit = 6666;
-                var beesBody = beesCamps.formatBeeswaxBody(campaign, extCampEntry, req);
-                expect(Number(beesBody.daily_budget.toFixed(6))).toBe(2666.6);
-            });
-            
-            it('should default the new dailyLimit to the campaign\'s dailyLimit', function() {
-                delete extCampEntry.dailyLimit;
-                var beesBody = beesCamps.formatBeeswaxBody(campaign, extCampEntry, req);
-                expect(Number(beesBody.daily_budget.toFixed(6))).toBe(2666.6);
-            });
-            
-            it('should cap the dailyLimit to the campaign budget', function() {
-                extCampEntry.budget = 100;
-                var beesBody = beesCamps.formatBeeswaxBody(campaign, extCampEntry, req);
-                expect(Number(beesBody.campaign_budget.toFixed(6))).toBe(133.33);
-                expect(Number(beesBody.daily_budget.toFixed(6))).toBe(133.33);
-            });
-            
-            it('should permit setting the new dailyLimit to null if the dailyLimit on the campaign is null', function() {
-                extCampEntry.dailyLimit = null;
-                campaign.pricing.dailyLimit = null;
-                var beesBody = beesCamps.formatBeeswaxBody(campaign, extCampEntry, req);
-                expect(beesBody.daily_budget).toBe(null);
+        describe('if budgetImpressions is not defined', function() {
+            describe('when setting the campaign_budget', function() {
+                it('should use the externalCampaigns entry budget, multiplied by an impression ratio', function() {
+                    var beesBody = beesCamps.formatBeeswaxBody(campaign, extCampEntry, req);
+                    expect(beesBody.campaign_budget).toBe(13333);
+                    expect(extCampEntry.budget).toBe(100);
+                });
                 
-                delete campaign.pricing;
-                delete extCampEntry.dailyLimit;
-                var beesBody = beesCamps.formatBeeswaxBody(campaign, extCampEntry, req);
-                expect(beesBody.daily_budget).toBe(null);
-            });
-        });
-    });
-    
-    describe('updateExtCampPricing', function() {
-        var extCampEntry, beesBody;
-        beforeEach(function() {
-            extCampEntry = {
-                externalId: 1234,
-                budget: 1000,
-                dailyLimit: 100
-            };
-            beesBody = {
-                campaign_id: 1234,
-                campaign_budget: 2666.6,
-                daily_budget: 266.66
-            };
-        });
-        
-        it('should reset the budget + dailyLimit on the extCampEntry', function() {
-            beesCamps.updateExtCampPricing(extCampEntry, beesBody);
-            expect(extCampEntry).toEqual({
-                externalId: 1234,
-                budget: 2000,
-                dailyLimit: 200
-            });
-            expect(beesBody).toEqual({
-                campaign_id: 1234,
-                campaign_budget: 2666.6,
-                daily_budget: 266.66
-            });
-        });
-        
-        it('should handle null values', function() {
-            resps = [];
-            ['campaign_budget', 'daily_budget'].forEach(function(field) {
-                var newExtCampEntry = JSON.parse(JSON.stringify(extCampEntry)),
-                    newBeesBody = JSON.parse(JSON.stringify(beesBody));
-                    
-                newBeesBody[field] = null;
-                resps.push(newExtCampEntry);
-                beesCamps.updateExtCampPricing(newExtCampEntry, newBeesBody);
+                it('should cap the new budget to the campaign\'s budget', function() {
+                    extCampEntry.budget = 2000;
+                    var beesBody = beesCamps.formatBeeswaxBody(campaign, extCampEntry, req);
+                    expect(beesBody.campaign_budget).toBe(26666);
+                    expect(extCampEntry.budget).toBe(200);
+                });
+                
+                it('should default the new budget to the campaign\'s budget', function() {
+                    delete extCampEntry.budget;
+                    var beesBody = beesCamps.formatBeeswaxBody(campaign, extCampEntry, req);
+                    expect(beesBody.campaign_budget).toBe(26666);
+                    expect(extCampEntry.budget).toBe(200);
+                });
+                
+                it('should ensure the the budget is set to some low value if the campaign does not have a budget', function() {
+                    delete campaign.pricing;
+                    var beesBody = beesCamps.formatBeeswaxBody(campaign, extCampEntry, req);
+                    expect(beesBody.campaign_budget).toBe(1);
+                    expect(extCampEntry.budget).toBe(1);
+                });
             });
             
-            expect(resps[0]).toEqual({ externalId: 1234, budget: null, dailyLimit: 200 });
-            expect(resps[1]).toEqual({ externalId: 1234, budget: 2000, dailyLimit: null });
-        });
-        
-        it('should round away slight math errors', function() {
-            beesBody.campaign_budget = 2666.59999999;
-            beesBody.daily_budget = 266.660000001;
-            beesCamps.updateExtCampPricing(extCampEntry, beesBody);
-            expect(extCampEntry).toEqual({
-                externalId: 1234,
-                budget: 2000,
-                dailyLimit: 200
+            describe('when setting the daily_budget', function() {
+                it('should use the externalCampaigns entry dailyLimit, multiplied by an impression ratio', function() {
+                    var beesBody = beesCamps.formatBeeswaxBody(campaign, extCampEntry, req);
+                    expect(beesBody.daily_budget).toBe(1333);
+                    expect(extCampEntry.dailyLimit).toBe(10);
+                });
+                
+                it('should cap the new dailyLimit to the campaign\'s dailyLimit', function() {
+                    extCampEntry.dailyLimit = 6666;
+                    var beesBody = beesCamps.formatBeeswaxBody(campaign, extCampEntry, req);
+                    expect(beesBody.daily_budget).toBe(2667);
+                    expect(extCampEntry.dailyLimit).toBe(20);
+                });
+                
+                it('should default the new dailyLimit to the campaign\'s dailyLimit', function() {
+                    delete extCampEntry.dailyLimit;
+                    var beesBody = beesCamps.formatBeeswaxBody(campaign, extCampEntry, req);
+                    expect(beesBody.daily_budget).toBe(2667);
+                    expect(extCampEntry.dailyLimit).toBe(20);
+                });
+                
+                it('should cap the dailyLimit to the campaign budget', function() {
+                    extCampEntry.budget = 5;
+                    var beesBody = beesCamps.formatBeeswaxBody(campaign, extCampEntry, req);
+                    expect(beesBody.campaign_budget).toBe(667);
+                    expect(beesBody.daily_budget).toBe(667);
+                    expect(extCampEntry.dailyLimit).toBe(5);
+                });
+                
+                it('should permit setting the new dailyLimit to null if the dailyLimit on the campaign is null', function() {
+                    extCampEntry.dailyLimit = null;
+                    campaign.pricing.dailyLimit = null;
+                    var beesBody = beesCamps.formatBeeswaxBody(campaign, extCampEntry, req);
+                    expect(beesBody.daily_budget).toBe(null);
+                    expect(extCampEntry.dailyLimit).toBe(null);
+                    
+                    delete campaign.pricing;
+                    delete extCampEntry.dailyLimit;
+                    var beesBody = beesCamps.formatBeeswaxBody(campaign, extCampEntry, req);
+                    expect(beesBody.daily_budget).toBe(null);
+                    expect(extCampEntry.dailyLimit).toBe(null);
+                });
             });
         });
     });
@@ -442,7 +438,9 @@ describe('ads-externalCampaigns beeswax (UT)', function() {
             req.body = {
                 externalId: 1234,
                 budget: 1000,
-                dailyLimit: 100
+                dailyLimit: 100,
+                budgetImpressions: null,
+                dailyLimitImpressions: null,
             };
             req.campaign = {
                 id: 'cam-1',
@@ -455,7 +453,7 @@ describe('ads-externalCampaigns beeswax (UT)', function() {
             beesCamps.validateBody('create', req, nextSpy, doneSpy);
             expect(nextSpy).toHaveBeenCalled();
             expect(doneSpy).not.toHaveBeenCalled();
-            expect(req.body).toEqual({ budget: 1000, dailyLimit: 100 });
+            expect(req.body).toEqual({ budget: 1000, dailyLimit: 100, budgetImpressions: null, dailyLimitImpressions: null });
         });
         
         it('should pass in the old externalCampaigns entry if it exists', function() {
@@ -465,7 +463,7 @@ describe('ads-externalCampaigns beeswax (UT)', function() {
             beesCamps.validateBody('create', req, nextSpy, doneSpy);
             expect(nextSpy).toHaveBeenCalled();
             expect(doneSpy).not.toHaveBeenCalled();
-            expect(req.body).toEqual({ externalId: 5678, budget: 1000, dailyLimit: 100 });
+            expect(req.body).toEqual({ externalId: 5678, budget: 1000, dailyLimit: 100, budgetImpressions: null, dailyLimitImpressions: null });
         });
     
         it('should call done if the body is not valid', function() {
@@ -473,6 +471,20 @@ describe('ads-externalCampaigns beeswax (UT)', function() {
             beesCamps.validateBody('create', req, nextSpy, doneSpy);
             expect(nextSpy).not.toHaveBeenCalled();
             expect(doneSpy).toHaveBeenCalledWith({ code: 400, body: 'budget must be in format: number' });
+        });
+        
+        it('should call done if both budget and budgetImpressions are defined', function() {
+            req.body.budgetImpressions = 2000;
+            beesCamps.validateBody('create', req, nextSpy, doneSpy);
+            expect(nextSpy).not.toHaveBeenCalled();
+            expect(doneSpy).toHaveBeenCalledWith({ code: 400, body: 'Cannot set both budget + budgetImpressions' });
+        });
+        
+        it('should call done if both dailyLimit and dailyLimitImpressions are defined', function() {
+            req.body.dailyLimitImpressions = 2000;
+            beesCamps.validateBody('create', req, nextSpy, doneSpy);
+            expect(nextSpy).not.toHaveBeenCalled();
+            expect(doneSpy).toHaveBeenCalledWith({ code: 400, body: 'Cannot set both dailyLimit + dailyLimitImpressions' });
         });
     });
     
@@ -520,7 +532,7 @@ describe('ads-externalCampaigns beeswax (UT)', function() {
             beesCamps.createBeeswaxCamp(svc, req).then(function(resp) {
                 expect(resp).toEqual({
                     code: 201,
-                    body: { externalId: 1234, budget: 1000, dailyLimit: 100 }
+                    body: { externalId: 1234, budget: 6666, dailyLimit: 666, budgetImpressions: null, dailyLimitImpressions: null }
                 });
                 expect(svc.runAction).toHaveBeenCalledWith(req, 'create', jasmine.any(Function));
                 expect(beesCamps.formatBeeswaxBody).toHaveBeenCalledWith(req.campaign, jasmine.any(Object), req);
@@ -534,7 +546,7 @@ describe('ads-externalCampaigns beeswax (UT)', function() {
                 expect(mockColl.findOneAndUpdate).toHaveBeenCalledWith({ id: 'cam-1' }, jasmine.any(Object), jasmine.any(Object));
                 expect(mockColl.findOneAndUpdate.calls.mostRecent().args[1]).toEqual({ $set: {
                     lastUpdated: jasmine.any(Date),
-                    'externalCampaigns.beeswax': { externalId: 1234, budget: 1000, dailyLimit: 100 }
+                    'externalCampaigns.beeswax': { externalId: 1234, budget: 6666, dailyLimit: 666, budgetImpressions: null, dailyLimitImpressions: null }
                 } });
                 expect(mockColl.findOneAndUpdate.calls.mostRecent().args[2])
                     .toEqual({ w: 1, j: true, returnOriginal: false, sort: { id: 1 } });
@@ -550,7 +562,7 @@ describe('ads-externalCampaigns beeswax (UT)', function() {
             beesCamps.createBeeswaxCamp(svc, req).then(function(resp) {
                 expect(resp).toEqual({
                     code: 201,
-                    body: { externalId: 1234, budget: 1000, dailyLimit: 100 }
+                    body: { externalId: 1234, budget: 6666, dailyLimit: 666, budgetImpressions: null, dailyLimitImpressions: null }
                 });
                 expect(beesCamps.formatBeeswaxBody).toHaveBeenCalledWith(req.campaign, jasmine.any(Object), req);
                 expect(mockBeeswax.campaigns.create).toHaveBeenCalledWith({
@@ -568,7 +580,7 @@ describe('ads-externalCampaigns beeswax (UT)', function() {
         
         it('should skip if the campaign already has a beesax campaign', function(done) {
             req.campaign.externalCampaigns = {
-                beeswax: { externalId: 7890, budget: 123, dailyLimit: 45 }
+                beeswax: { externalId: 7890, budget: 123, dailyLimit: 45, budgetImpressions: null, dailyLimitImpressions: null }
             };
             beesCamps.createBeeswaxCamp(svc, req).then(function(resp) {
                 expect(resp).toEqual({
@@ -686,7 +698,7 @@ describe('ads-externalCampaigns beeswax (UT)', function() {
             beesCamps.editBeeswaxCamp(svc, req).then(function(resp) {
                 expect(resp).toEqual({
                     code: 200,
-                    body: { externalId: 7890, budget: 1000, dailyLimit: 100 }
+                    body: { externalId: 7890, budget: 6666, dailyLimit: 666, budgetImpressions: undefined, dailyLimitImpressions: undefined }
                 });
                 expect(svc.runAction).toHaveBeenCalledWith(req, 'edit', jasmine.any(Function));
                 expect(beesCamps.formatBeeswaxBody).toHaveBeenCalledWith(req.campaign, jasmine.any(Object), req);
@@ -695,7 +707,7 @@ describe('ads-externalCampaigns beeswax (UT)', function() {
                 expect(mockColl.findOneAndUpdate).toHaveBeenCalledWith({ id: 'cam-1' }, jasmine.any(Object), jasmine.any(Object));
                 expect(mockColl.findOneAndUpdate.calls.mostRecent().args[1]).toEqual({ $set: {
                     lastUpdated: jasmine.any(Date),
-                    'externalCampaigns.beeswax': { externalId: 7890, budget: 1000, dailyLimit: 100 }
+                    'externalCampaigns.beeswax': { externalId: 7890, budget: 6666, dailyLimit: 666, budgetImpressions: undefined, dailyLimitImpressions: undefined }
                 } });
                 expect(mockColl.findOneAndUpdate.calls.mostRecent().args[2])
                     .toEqual({ w: 1, j: true, returnOriginal: false, sort: { id: 1 } });
@@ -711,7 +723,7 @@ describe('ads-externalCampaigns beeswax (UT)', function() {
             beesCamps.editBeeswaxCamp(svc, req).then(function(resp) {
                 expect(resp).toEqual({
                     code: 200,
-                    body: { externalId: 7890, budget: 1000, dailyLimit: 100 }
+                    body: { externalId: 7890, budget: 20000, dailyLimit: 2000, budgetImpressions: undefined, dailyLimitImpressions: undefined }
                 });
                 expect(svc.runAction).toHaveBeenCalledWith(req, 'edit', jasmine.any(Function));
                 expect(beesCamps.formatBeeswaxBody).toHaveBeenCalledWith(req.campaign, jasmine.any(Object), req);
@@ -720,7 +732,7 @@ describe('ads-externalCampaigns beeswax (UT)', function() {
                 expect(mockColl.findOneAndUpdate).toHaveBeenCalledWith({ id: 'cam-1' }, jasmine.any(Object), jasmine.any(Object));
                 expect(mockColl.findOneAndUpdate.calls.mostRecent().args[1]).toEqual({ $set: {
                     lastUpdated: jasmine.any(Date),
-                    'externalCampaigns.beeswax': { externalId: 7890, budget: 1000, dailyLimit: 100 }
+                    'externalCampaigns.beeswax': { externalId: 7890, budget: 20000, dailyLimit: 2000, budgetImpressions: undefined, dailyLimitImpressions: undefined }
                 } });
                 expect(mockColl.findOneAndUpdate.calls.mostRecent().args[2])
                     .toEqual({ w: 1, j: true, returnOriginal: false, sort: { id: 1 } });
