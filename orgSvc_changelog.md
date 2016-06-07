@@ -1,5 +1,7 @@
 # Org Service Changelog
 
+* Fail when creating duplicate payment method in production: [#878](https://github.com/cinema6/cwrx/issues/878)
+* [FIX]: Handle gateway rejections when creating braintree transactions: [#924](https://github.com/cinema6/cwrx/issues/924)
 * Allow setting transaction `description` on body of `POST /api/payments` request: [#921](https://github.com/cinema6/cwrx/issues/921)
 
 ### 1.11.0: Mon May 23 17:37:12 EDT 2016

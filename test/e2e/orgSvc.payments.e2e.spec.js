@@ -1134,6 +1134,31 @@ describe('orgSvc payments (E2E):', function() {
             }).done(done);
         });
         
+        it('should fail on duplicate transactions', function(done) {
+            q.all([
+                requestUtils.qRequest('post', options),
+                requestUtils.qRequest('post', options)
+            ]).then(function(results) {
+                // handle potential timing conflicts - just care that 1 response succeeds + 1 fails
+                results.sort(function(a, b) { return a.response.statusCode - b.response.statusCode; });
+                expect(results[0].response.statusCode).toBe(201);
+                expect(results[0].body).toEqual(jasmine.objectContaining({
+                    id: jasmine.any(String),
+                    status: 'settling',
+                    amount: amount
+                }));
+                expect(results[1].response.statusCode).toBe(400);
+                expect(results[1].body).toEqual('Gateway Rejected: duplicate');
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+                done();
+            });
+            
+            mockman.on('paymentMade', function(record) {
+                done();
+            });
+        });
+        
         it('should return a 400 if the body is missing a required parameter', function(done) {
             q.all([{ amount: amount }, { paymentMethod: origCard.token }].map(function(body) {
                 options.json = body;
