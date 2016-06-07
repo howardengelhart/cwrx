@@ -1,5 +1,6 @@
 # Accountant Service Changelog
 
+### 1.3.1: Tue Jun  7 12:17:17 EDT 2016
 * Set max length on `description`: [#923](https://github.com/cinema6/cwrx/pull/923)
 
 ### 1.3.0: Mon May 16 09:02:34 EDT 2016
