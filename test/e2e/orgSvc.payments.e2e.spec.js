@@ -964,7 +964,27 @@ describe('orgSvc payments (E2E):', function() {
     });
     
     describe('POST /api/payments', function() {
-        var options, amount, expectedMethodOutput, mockman;
+        var options, amount, expectedMethodOutput, mockman, newCard;
+
+        // setup a new credit card, as duplicate transaction checking doesn't work for paypal
+        beforeEach(function(done) {
+            if (!!newCard) {
+                return done();
+            }
+
+            return q.npost(gateway.paymentMethod, 'create', [{
+                customerId: mockCusts[0].id,
+                paymentMethodNonce: 'fake-valid-amex-nonce',
+                cardholderName: 'Big Spender'
+            }]).then(function(result) {
+                if (!result.success) {
+                    return q.reject(result);
+                }
+                
+                newCard = result.paymentMethod;
+            }).then(done, done.fail);
+        });
+        
         beforeEach(function(done) {
             // randomize transaction amounts to avoid duplicate payment rejections when re-running tests
             amount = parseFloat(( Math.random() * 100 + 100 ).toFixed(2));
@@ -972,17 +992,16 @@ describe('orgSvc payments (E2E):', function() {
                 url: config.paymentUrl,
                 json: {
                     amount: parseFloat(amount),
-                    paymentMethod: origPaypal.token
+                    paymentMethod: newCard.token
                 },
                 jar: cookieJar
             };
 
-            expectedMethodOutput = {
-                token: origPaypal.token,
-                imageUrl: origPaypal.imageUrl,
-                type: 'paypal',
-                email: jasmine.any(String),
-            };
+            expectedMethodOutput = jasmine.objectContaining({
+                token: newCard.token,
+                imageUrl: newCard.imageUrl,
+                type: 'creditCard'
+            });
             
             mockman = new testUtils.Mockman();
             mockman.start().then(function() {
@@ -1001,7 +1020,7 @@ describe('orgSvc payments (E2E):', function() {
                 expect(resp.response.statusCode).toBe(201);
                 expect(resp.body).toEqual({
                     id: jasmine.any(String),
-                    status: 'settling',
+                    status: 'submitted_for_settlement',
                     type: 'sale',
                     amount: amount,
                     createdAt: jasmine.any(String),
@@ -1050,7 +1069,7 @@ describe('orgSvc payments (E2E):', function() {
                 expect(resp.response.statusCode).toBe(201);
                 expect(resp.body).toEqual({
                     id: jasmine.any(String),
-                    status: 'settling',
+                    status: 'submitted_for_settlement',
                     type: 'sale',
                     amount: amount,
                     createdAt: jasmine.any(String),
@@ -1144,7 +1163,7 @@ describe('orgSvc payments (E2E):', function() {
                 expect(results[0].response.statusCode).toBe(201);
                 expect(results[0].body).toEqual(jasmine.objectContaining({
                     id: jasmine.any(String),
-                    status: 'settling',
+                    status: 'submitted_for_settlement',
                     amount: amount
                 }));
                 expect(results[1].response.statusCode).toBe(400);
@@ -1275,7 +1294,7 @@ describe('orgSvc payments (E2E):', function() {
                 expect(resp.response.statusCode).toBe(201);
                 expect(resp.body).toEqual({
                     id: jasmine.any(String),
-                    status: 'settling',
+                    status: 'submitted_for_settlement',
                     type: 'sale',
                     amount: amount,
                     createdAt: jasmine.any(String),
