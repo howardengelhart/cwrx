@@ -1,6 +1,7 @@
 # Ads Service Changelog
 
-* [FEATURE]: Create beeswax representation for pre-existing user: [#920](https://github.com/cinema6/cwrx/issues/920)
+### 5.1.0: Tue Jun  7 12:17:17 EDT 2016
+* [FEATURE]: Allow creating beeswax advertiser for pre-existing advertiser: [#920](https://github.com/cinema6/cwrx/issues/920)
 * [FIX]: Fix handling of beeswax campaign budget + support `budgetImpressions` and `dailyLimitImpressions`: [#919](https://github.com/cinema6/cwrx/issues/919)
 * [FEATURE]: Create beeswax creatives for C6 placements: [#902](https://github.com/cinema6/cwrx/issues/902)
 * Extra deployment steps:
