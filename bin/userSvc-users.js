@@ -117,15 +117,15 @@
                 userModule.config.api[key].endpoint
             );
         });
-    
-    
+
+
         var opts = { userProp: false },
             userSvc = new CrudSvc(db.collection('users'), 'u', opts, userModule.userSchema);
 
         userSvc._db = db;
 
         streamUtils.createProducer(userModule.config.kinesis);
-        
+
         var hashPassword = userModule.hashProp.bind(userModule, 'password');
         var hashNewPassword = userModule.hashProp.bind(userModule, 'newPassword');
         var validateUniqueEmail = userSvc.validateUniqueProp.bind(userSvc, 'email', null);
@@ -226,7 +226,7 @@
             company = req.user.company || null,
             id = req.user.id,
             mutex = new CacheMutex(cache, 'confirmUser:' + id, 60 * 1000);
-            
+
         // Post a new entity of the given type
         function postEntity(entityName, opts) {
             return requestUtils.makeSignedRequest(appCreds, 'post', opts).then(function(resp) {
@@ -235,7 +235,7 @@
                     log.info('[%1] Created %2 %3 for user %4', req.uuid, entityName, createdId, id);
                     return q(createdId);
                 }
-                
+
                 return q.reject({ code: resp.response.statusCode, body: resp.body });
             })
             .catch(function(error) {
@@ -255,7 +255,7 @@
             var orgBody = {
                 name: (company ? company : 'newOrg') + ' (' + id + ')'
             };
-            
+
             if (!!req.user.referralCode) {
                 orgBody.referralCode = req.user.referralCode;
             }
@@ -263,14 +263,14 @@
             if (!!req.user.paymentPlanId) {
                 orgBody.paymentPlanId = req.user.paymentPlanId;
             }
-            
+
             return (!!req.user.org ? q(req.user.org) : postEntity('org', {
                 url: userModule.config.api.orgs.baseUrl,
                 json: orgBody
             }))
             .then(function(orgId) {
                 req.user.org = orgId;
-                
+
                 return postEntity('advertiser', {
                     url: userModule.config.api.advertisers.baseUrl,
                     json: {
@@ -328,7 +328,7 @@
         function matchOrg() {
             return req.user && req.user.org === obj.org;
         }
-        
+
         return !!( requester.permissions && requester.permissions.users &&
                    requester.permissions.users[verb] &&
              ( requester.permissions.users[verb] === Scope.All ||
@@ -359,7 +359,7 @@
         } else if (readScope === Scope.Org) {
             orClause = { $or: [ { id: userId }, { org: orgId } ] };
         }
-        
+
         mongoUtils.mergeORQuery(newQuery, orClause);
 
         return newQuery;
@@ -650,19 +650,27 @@
         if(!validity.isValid) {
             return q({ code: 400, body: validity.reason});
         }
-        
+
         return svc.customMethod(req, 'signupUser', function signup() {
             log.info('[%1] Creating new user with email %2', req.uuid, req.body.email);
-        
+
             return mongoUtils.createObject(svc._coll, req.body)
             .then(svc.transformMongoDoc)
             .then(function(obj) {
                 var formatted = svc.formatOutput(obj);
-                
+                var trackingCookie = null;
+                if(req.headers && req.headers.cookie) {
+                    var cookieMatch = req.headers.cookie.match(/hubspotutk=([^\s;]+)/);
+                    trackingCookie = cookieMatch ? cookieMatch[1] : null;
+                }
+
                 return streamUtils.produceEvent('accountCreated', {
                     target: req._target,
                     token: req.tempToken,
-                    user: formatted
+                    user: formatted,
+                    hubspot: {
+                        hutk: trackingCookie
+                    }
                 })
                 .then(function() {
                     log.info('[%1] Produced accountCreated event for user %2',
@@ -680,7 +688,7 @@
             });
         });
     };
-    
+
     userModule.confirmUser = function(svc, req, journal) {
         var log = logger.getLog();
         if(!req.body.token) {
@@ -768,7 +776,7 @@
 
     userModule.produceAccountActivated = function(req, resp) {
         var log = logger.getLog();
-        
+
         if(resp.code === 200 && typeof resp.body === 'object') {
             return streamUtils.produceEvent('accountActivated', {
                 target: req._target,
@@ -784,10 +792,10 @@
             return q(resp);
         }
     };
-    
+
     userModule.producePasswordChanged = function(req, resp) {
         var log = logger.getLog();
-        
+
         if(resp.code === 200) {
             return streamUtils.produceEvent('passwordChanged', {
                 target: req._target,
@@ -803,10 +811,10 @@
             return q(resp);
         }
     };
-    
+
     userModule.produceEmailChanged = function(req, resp){
         var log = logger.getLog();
-        
+
         if(resp.code === 200) {
             var oldEmail = req.body.email;
             var newEmail = req.body.newEmail;
@@ -843,9 +851,9 @@
             mountPath   = '/api/account/users?'; // prefix to all endpoints declared here
 
         router.use(jobManager.setJobTimeout.bind(jobManager));
-        
+
         var authMidware = authUtils.crudMidware('users', { allowApps: true });
-        
+
         var credsChecker = authUtils.userPassChecker();
         router.post('/email', credsChecker, audit, function(req, res) {
             var promise = userModule.changeEmail(svc, req)
