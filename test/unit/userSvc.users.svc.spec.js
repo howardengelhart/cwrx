@@ -164,13 +164,13 @@ describe('userSvc (UT)', function() {
             expect(result.model).toEqual(jasmine.any(Model));
             expect(result.model.schema).toBe(userModule.userSchema);
         });
-        
+
         it('should save some config locally', function() {
             expect(userModule.config).toEqual(mockConfig);
             expect(userModule.config.api.orgs.baseUrl).toBe('http://localhost/api/account/orgs/');
             expect(userModule.config.api.advertisers.baseUrl).toBe('http://localhost/api/account/advertisers/');
         });
-        
+
         it('should create a kinesis producer', function() {
             expect(streamUtils.createProducer).toHaveBeenCalledWith(userModule.config.kinesis);
         });
@@ -279,14 +279,14 @@ describe('userSvc (UT)', function() {
             origObj = {};
             requester = { fieldValidation: { users: {} } };
         });
-        
+
         describe('when handling company', function() {
             it('should fail if the field is not a string', function() {
                 newObj.company = 1234;
                 expect(svc.model.validate('create', newObj, origObj, requester))
                     .toEqual({ isValid: false, reason: 'company must be in format: string' });
             });
-            
+
             it('should allow the field to be set', function() {
                 newObj.company = 'Heinz';
                 expect(svc.model.validate('create', newObj, origObj, requester))
@@ -302,7 +302,7 @@ describe('userSvc (UT)', function() {
                     .toEqual({ isValid: true, reason: undefined });
                 expect(newObj.advertiser).not.toBeDefined();
             });
-            
+
             it('should be able to allow some requesters to set the field', function() {
                 requester.fieldValidation.users.advertiser = { __allowed: true };
                 newObj.advertiser = 'that guy';
@@ -450,7 +450,7 @@ describe('userSvc (UT)', function() {
                         .toEqual({ isValid: true, reason: undefined });
                     expect(newObj[field]).not.toBeDefined();
                 });
-                
+
                 it('should be able to allow some requesters to set the field', function() {
                     newObj[field] = '123456';
                     requester.fieldValidation.users[field] = { __allowed: true };
@@ -459,7 +459,7 @@ describe('userSvc (UT)', function() {
                         .toEqual({ isValid: true, reason: undefined });
                     expect(newObj[field]).toEqual('123456');
                 });
-                
+
                 it('should fail if the field is not a string', function() {
                     newObj[field] = 123456;
                     requester.fieldValidation.users[field] = { __allowed: true };
@@ -470,7 +470,7 @@ describe('userSvc (UT)', function() {
             });
         });
     });
-    
+
     describe('createSignupModel', function() {
         var svc;
         beforeEach(function() {
@@ -567,7 +567,7 @@ describe('userSvc (UT)', function() {
 
         describe('when the provided token does not match the stored activation token', function() {
             beforeEach(function(done) {
-                mockUser = { 
+                mockUser = {
                     status: 'new',
                     activationToken: {
                         expires: new Date(99999, 11, 25),
@@ -605,7 +605,7 @@ describe('userSvc (UT)', function() {
                 bcrypt.compare.and.callFake(function(val1, val2, cb) {
                     cb(null, true);
                 });
-                
+
                 userModule.checkValidToken(svc, req, nextSpy, doneSpy).done(done);
             });
 
@@ -650,14 +650,14 @@ describe('userSvc (UT)', function() {
                 });
             });
         });
-        
+
         it('should create an advertiser and org', function(done) {
             userModule.createLinkedEntities(mockCache, svc, appCreds, req, nextSpy, doneSpy).catch(errorSpy).finally(function() {
                 expect(nextSpy).toHaveBeenCalled();
                 expect(doneSpy).not.toHaveBeenCalled();
                 expect(errorSpy).not.toHaveBeenCalled();
                 expect(req.user.org).toBe('orgs-id-123');
-                
+
                 expect(CacheMutex.prototype._init).toHaveBeenCalledWith(mockCache, 'confirmUser:u-12345', 60000);
                 expect(CacheMutex.prototype.acquire).toHaveBeenCalled();
 
@@ -676,7 +676,7 @@ describe('userSvc (UT)', function() {
                 expect(CacheMutex.prototype.release).toHaveBeenCalled();
             }).done(done);
         });
-        
+
         it('should call done if it cannot acquire a mutex lock', function(done) {
             CacheMutex.prototype.acquire.and.returnValue(q(false));
             userModule.createLinkedEntities(mockCache, svc, appCreds, req, nextSpy, doneSpy).catch(errorSpy).finally(function() {
@@ -689,7 +689,7 @@ describe('userSvc (UT)', function() {
                 expect(CacheMutex.prototype.release).not.toHaveBeenCalled();
             }).done(done);
         });
-        
+
         describe('if the user already has an org', function() {
             beforeEach(function() {
                 req.user.org = 'o-existing';
@@ -717,7 +717,7 @@ describe('userSvc (UT)', function() {
                 }).done(done);
             });
         });
-        
+
         describe('if the user has a referralCode', function() {
             beforeEach(function() {
                 req.user.referralCode = 'asdf123456';
@@ -773,7 +773,7 @@ describe('userSvc (UT)', function() {
                 }).done(done);
             });
         });
-        
+
         ['4xx response', 'rejection'].forEach(function(failType) {
             function failRequestFor(entity, creds, method, opts) {
                 return function(creds, method, opts) {
@@ -800,7 +800,7 @@ describe('userSvc (UT)', function() {
                 beforeEach(function() {
                     requestUtils.makeSignedRequest.and.callFake(failRequestFor('org'));
                 });
-                
+
                 it('should reject without attempting to save the user', function(done) {
                     userModule.createLinkedEntities(mockCache, svc, appCreds, req, nextSpy, doneSpy).catch(errorSpy)
                     .finally(function() {
@@ -814,7 +814,7 @@ describe('userSvc (UT)', function() {
                             url: 'http://localhost/api/account/orgs/'
                         }));
                         expect(mongoUtils.editObject).not.toHaveBeenCalled();
-                        
+
                         expect(mockLog.error).toHaveBeenCalled();
                         expect(mockLog.error.calls.mostRecent().args).toContain('org');
                         if (/reject/.test(failType)) {
@@ -827,12 +827,12 @@ describe('userSvc (UT)', function() {
                     }).done(done);
                 });
             });
-            
+
             describe('if creating an advertiser fails with a ' + failType, function() {
                 beforeEach(function() {
                     requestUtils.makeSignedRequest.and.callFake(failRequestFor('advertiser'));
                 });
-                
+
                 it('should attempt to save the org id on the user', function(done) {
                     userModule.createLinkedEntities(mockCache, svc, appCreds, req, nextSpy, doneSpy).catch(errorSpy)
                     .finally(function() {
@@ -843,7 +843,7 @@ describe('userSvc (UT)', function() {
 
                         expect(requestUtils.makeSignedRequest.calls.count()).toBe(2);
                         expect(mongoUtils.editObject).toHaveBeenCalledWith('fakeColl', { org: 'orgs-id-123' }, 'u-12345');
-                        
+
                         expect(mockLog.error).toHaveBeenCalled();
                         expect(mockLog.error.calls.mostRecent().args).toContain('advertiser');
                         if (/reject/.test(failType)) {
@@ -881,7 +881,7 @@ describe('userSvc (UT)', function() {
             req.body = {};
             req._target = 'selfie';
         });
-        
+
         it('should setup a new selfie user', function() {
             userModule.setupSignupUser(svc, req, nextSpy, doneSpy);
             expect(req.body.id).toBe('u-1234567890abcdef');
@@ -894,7 +894,7 @@ describe('userSvc (UT)', function() {
             expect(nextSpy).toHaveBeenCalled();
             expect(doneSpy).not.toHaveBeenCalled();
         });
-        
+
         it('should setup a new showcase user', function() {
             req._target = 'showcase';
             userModule.setupSignupUser(svc, req, nextSpy, doneSpy);
@@ -1055,26 +1055,26 @@ describe('userSvc (UT)', function() {
 
         it('should sanity-check the requester permissions object', function() {
             var target = { id: 't-1' };
-            
+
             req.requester.permissions.users.read = '';
             expect(userModule.checkScope({}, target, 'read')).toBe(false);
 
             req.requester.permissions.users = {};
             req.requester.permissions.orgs = { read: Scope.All };
             expect(userModule.checkScope({}, target, 'read')).toBe(false);
-            
+
             req.requester.permissions = {};
             expect(userModule.checkScope({}, target, 'read')).toBe(false);
-            
+
             delete req.requester;
             expect(userModule.checkScope({}, target, 'read')).toBe(false);
         });
-        
+
         it('should handle a case where there is no req.user', function() {
             delete req.user;
             req.requester.id = 'app-1';
             req.application = { id: 'app-1', key: 'watchman' };
-            
+
             expect(users.filter(function(target) {
                 return userModule.checkScope(req, target, 'read');
             })).toEqual(users);
@@ -1143,18 +1143,18 @@ describe('userSvc (UT)', function() {
                 .toEqual({ org: 'o-1', status: { $ne: Status.Deleted }, $or: [ { id: 'u-1' } ] });
             expect(mockLog.warn).toHaveBeenCalled();
         });
-        
+
         it('should handle requests from apps instead of users', function() {
             delete req.user;
             req.requester.id = 'app-1';
             req.application = { id: 'app-1', key: 'watchman' };
-            
+
             req.requester.permissions.users.read = Scope.All;
             expect(userModule.userPermQuery(query, req)).toEqual({
                 org: 'o-1',
                 status: { $ne: Status.Deleted }
             });
-            
+
             req.requester.permissions.users.read = Scope.Own;
             expect(userModule.userPermQuery(query, req)).toEqual({
                 org: 'o-1',
@@ -1937,7 +1937,10 @@ describe('userSvc (UT)', function() {
                     foo: 'bar'
                 },
                 _target: 'selfie',
-                tempToken: 'unhashedToken'
+                tempToken: 'unhashedToken',
+                headers: {
+                    cookie: 'hubspotutk=chocolate-chip; c6Auth=token'
+                }
             };
             result = userModule.signupUser(svc, req);
         });
@@ -1974,7 +1977,7 @@ describe('userSvc (UT)', function() {
                     });
                     spyOn(streamUtils, 'produceEvent').and.returnValue(q());
                 });
-                
+
                 describe('when everything succeeds', function() {
                     beforeEach(function(done) {
                         callback().then(success, failure).finally(done);
@@ -1983,7 +1986,7 @@ describe('userSvc (UT)', function() {
                     it('should create an object in the mongo collection', function() {
                         expect(mongoUtils.createObject).toHaveBeenCalledWith('users', { foo: 'bar' });
                     });
-                    
+
                     it('should transform the mongo doc', function() {
                         expect(svc.transformMongoDoc).toHaveBeenCalledWith(req.body);
                     });
@@ -1992,7 +1995,10 @@ describe('userSvc (UT)', function() {
                         expect(streamUtils.produceEvent).toHaveBeenCalledWith('accountCreated', {
                             target: 'selfie',
                             token: 'unhashedToken',
-                            user: { foo: 'bar' }
+                            user: { foo: 'bar' },
+                            hubspot: {
+                                hutk: 'chocolate-chip'
+                            }
                         });
                     });
 
@@ -2000,16 +2006,16 @@ describe('userSvc (UT)', function() {
                         expect(success).toHaveBeenCalledWith({ code: 201, body: { foo: 'bar' } });
                         expect(failure).not.toHaveBeenCalled();
                     });
-                    
+
                     it('should not log an error', function() {
                         expect(mockLog.error).not.toHaveBeenCalled();
                     });
-                    
+
                     it('should delete the tempToken', function() {
                         expect(req.tempToken).not.toBeDefined();
                     });
                 });
-                
+
                 describe('when mongo fails', function() {
                     beforeEach(function(done) {
                         mongoUtils.createObject.and.returnValue(q.reject('MONGO GOT A PROBLEM'));
@@ -2019,17 +2025,17 @@ describe('userSvc (UT)', function() {
                     it('should not produce an accountCreated event', function() {
                         expect(streamUtils.produceEvent).not.toHaveBeenCalled();
                     });
-                    
+
                     it('should return a rejected promise', function() {
                         expect(success).not.toHaveBeenCalled();
                         expect(failure).toHaveBeenCalledWith('MONGO GOT A PROBLEM');
                     });
-                    
+
                     it('should delete the temp token', function() {
                         expect(req.tempToken).not.toBeDefined();
                     });
                 });
-                
+
                 describe('when producing a kinesis event fails', function() {
                     beforeEach(function(done) {
                         streamUtils.produceEvent.and.returnValue(q.reject('KINESIS GOT A PROBLEM'));
@@ -2040,12 +2046,12 @@ describe('userSvc (UT)', function() {
                         expect(success).not.toHaveBeenCalled();
                         expect(failure).toHaveBeenCalledWith('Failed producing accountCreated event');
                     });
-                    
+
                     it('should log an error', function() {
                         expect(mockLog.error).toHaveBeenCalled();
                         expect(mockLog.error.calls.mostRecent().args).toContain(util.inspect('KINESIS GOT A PROBLEM'));
                     });
-                    
+
                     it('should delete the temp token', function() {
                         expect(req.tempToken).not.toBeDefined();
                     });
@@ -2123,7 +2129,7 @@ describe('userSvc (UT)', function() {
             expect(svc.customMethod).toHaveBeenCalledWith(req, 'confirmUser', jasmine.any(Function));
             expect(result).toBe(customMethodDeferred.promise);
         });
-        
+
         it('should log an error if updating the user fails', function(done) {
             svc._coll.findOneAndUpdate.and.returnValue(q.reject('error'));
             var callback = svc.customMethod.calls.mostRecent().args[2];
@@ -2192,7 +2198,7 @@ describe('userSvc (UT)', function() {
             });
         });
     });
-    
+
     describe('resendActivation(svc, req)', function(done) {
         var svc, req;
         var mockUser, result;
@@ -2242,7 +2248,7 @@ describe('userSvc (UT)', function() {
                 done();
             });
         });
-        
+
         it('should return a 403 if the user does not exist', function(done) {
             mongoUtils.findObject.and.returnValue(q());
             userModule.resendActivation(svc, req).done(function(result) {
@@ -2253,7 +2259,7 @@ describe('userSvc (UT)', function() {
                 done();
             });
         });
-        
+
         it('should reject if finding the user fails', function(done) {
             mongoUtils.findObject.and.returnValue(q.reject('I GOT A PROBLEM'));
             userModule.resendActivation(svc, req).then(function(result) {
@@ -2306,12 +2312,12 @@ describe('userSvc (UT)', function() {
                     return cb();
                 });
             });
-            
+
             describe('if everything succeeds', function() {
                 beforeEach(function(done) {
                     userModule.resendActivation(svc, req).then(success, failure).done(done);
                 });
-            
+
                 it('should update the user with its new activation token', function() {
                     var expectedUpdates = {
                         lastUpdated: jasmine.any(Date),
@@ -2322,7 +2328,7 @@ describe('userSvc (UT)', function() {
                     };
                     expect(mongoUtils.editObject).toHaveBeenCalledWith(svc._coll, expectedUpdates, 'u-12345');
                 });
-                
+
                 it('should produce a resendActivation event', function() {
                     expect(streamUtils.produceEvent).toHaveBeenCalledWith('resendActivation', {
                         target: 'showcase',
@@ -2330,69 +2336,69 @@ describe('userSvc (UT)', function() {
                         user: mockUser
                     });
                 });
-                
+
                 it('should format the output properly', function() {
                     expect(svc.transformMongoDoc).toHaveBeenCalledWith(mockUser);
                     expect(svc.formatOutput).toHaveBeenCalledWith(mockUser);
                 });
-                
+
                 it('should return with a 204', function() {
                     expect(success).toHaveBeenCalledWith({ code: 204 });
                     expect(failure).not.toHaveBeenCalled();
                 });
-                
+
                 it('should clear the tempToken', function() {
                     expect(req.tempToken).not.toBeDefined();
                 });
             });
-            
+
             describe('if editing the user fails', function() {
                 beforeEach(function(done) {
                     mongoUtils.editObject.and.returnValue(q.reject('MONGO GOT PROBLEMS'));
                     userModule.resendActivation(svc, req).then(success, failure).done(done);
                 });
-                
+
                 it('should not produce a resendActivation event', function() {
                     expect(streamUtils.produceEvent).not.toHaveBeenCalled();
                 });
-                
+
                 it('should reject the promise', function() {
                     expect(failure).toHaveBeenCalledWith('MONGO GOT PROBLEMS');
                 });
-                
+
                 it('should clear the tempToken', function() {
                     expect(req.tempToken).not.toBeDefined();
                 });
             });
-            
+
             describe('if producing the event fails', function() {
                 beforeEach(function(done) {
                     streamUtils.produceEvent.and.returnValue(q.reject('KINESIS GOT PROBLEMS'));
                     userModule.resendActivation(svc, req).then(success, failure).done(done);
                 });
-                
+
                 it('should reject the promise', function() {
                     expect(failure).toHaveBeenCalledWith('Failed producing resendActivation event');
                 });
-                
+
                 it('should log an error', function() {
                     expect(mockLog.error).toHaveBeenCalled();
                     expect(mockLog.error.calls.mostRecent().args).toContain(util.inspect('KINESIS GOT PROBLEMS'));
                 });
-                
+
                 it('should clear the tempToken', function() {
                     expect(req.tempToken).not.toBeDefined();
                 });
             });
         });
     });
-    
+
     describe('produceAccountActivated', function() {
         beforeEach(function() {
             spyOn(streamUtils, 'produceEvent');
             req._target = 'showcase';
         });
-        
+
         it('should produce the accountActivated event', function(done) {
             streamUtils.produceEvent.and.returnValue(q());
             var mockResp = {
@@ -2412,7 +2418,7 @@ describe('userSvc (UT)', function() {
                 expect(resp).toEqual(mockResp);
             }).then(done, done.fail);
         });
-        
+
         it('should resolve and log an error if there was an error producing the event', function(done) {
             streamUtils.produceEvent.and.returnValue(q.reject('epic fail'));
             var mockResp = {
@@ -2427,7 +2433,7 @@ describe('userSvc (UT)', function() {
                 expect(resp).toEqual(mockResp);
             }).then(done, done.fail);
         });
-        
+
         it('should not produce if not given a successfull response', function(done) {
             q.all([{ code: 400, body: { } }, { code: 200, body: 'not an object' }].map(function(mockResp) {
                 return userModule.produceAccountActivated(req, mockResp).then(function(resp) {
@@ -2438,14 +2444,14 @@ describe('userSvc (UT)', function() {
             })).then(done, done.fail);
         });
     });
-    
+
     describe('producePasswordChanged', function() {
         beforeEach(function() {
             spyOn(streamUtils, 'produceEvent');
             req._target = 'selfie';
             req.user = 'user';
         });
-        
+
         it('should produce the passwordChanged event', function(done) {
             streamUtils.produceEvent.and.returnValue(q());
             var mockResp = {
@@ -2461,7 +2467,7 @@ describe('userSvc (UT)', function() {
                 expect(resp).toEqual(mockResp);
             }).then(done, done.fail);
         });
-        
+
         it('should resolve and log an error if there was an error producing the event', function(done) {
             streamUtils.produceEvent.and.returnValue(q.reject('epic fail'));
             var mockResp = {
@@ -2474,7 +2480,7 @@ describe('userSvc (UT)', function() {
                 expect(resp).toEqual(mockResp);
             }).then(done, done.fail);
         });
-        
+
         it('shoud not produce if not given a successfull response', function(done) {
             var mockResp = {
                 code: 400,
@@ -2487,7 +2493,7 @@ describe('userSvc (UT)', function() {
             }).then(done, done.fail);
         });
     });
-    
+
     describe('produceEmailChanged', function() {
         beforeEach(function() {
             spyOn(streamUtils, 'produceEvent');
@@ -2500,7 +2506,7 @@ describe('userSvc (UT)', function() {
             };
             req._target = 'selfie';
         });
-        
+
         it('should produce the emailChanged event twice', function(done) {
             streamUtils.produceEvent.and.returnValue(q());
             var mockResp = {
@@ -2529,7 +2535,7 @@ describe('userSvc (UT)', function() {
                 expect(resp).toEqual(mockResp);
             }).then(done, done.fail);
         });
-        
+
         it('should resolve and log an error for each failed attempt to produce the event', function(done) {
             streamUtils.produceEvent.and.returnValue(q.reject('epic fail'));
             var mockResp = {
@@ -2542,7 +2548,7 @@ describe('userSvc (UT)', function() {
                 expect(resp).toEqual(mockResp);
             }).then(done, done.fail);
         });
-        
+
         it('should not produce if not given a successfull response', function(done) {
             var mockResp = {
                 code: 400,
@@ -2645,21 +2651,21 @@ describe('userSvc (UT)', function() {
                     expect(success).toHaveBeenCalledWith({ code: 204 });
                 });
             });
-            
+
             describe('when logging own oneself', function() {
                 beforeEach(function(done) {
                     req.params.id = 'u-19fa31cb1a8e0f';
                     callback().then(success, failure).done(done);
                 });
-                
+
                 it('should not log an error', function() {
                     expect(mockLog.log).not.toHaveBeenCalled();
                 });
-                
+
                 it('should fulfill the promise', function() {
                     expect(success).toHaveBeenCalledWith({ code: 204 });
                 });
-                
+
                 it('should delete the session object off of the request', function() {
                     expect(req.session).not.toBeDefined();
                 });
