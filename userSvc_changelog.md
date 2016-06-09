@@ -1,5 +1,6 @@
 # User Service Changelog
 
+### 4.0.1: Thu Jun  9 11:47:12 EDT 2016
 * Produce Hubspot tracking cookie to watchman when an account is created: [#932](https://github.com/cinema6/cwrx/pull/932/files)
 
 ### 4.0.0: Mon May 16 09:07:44 EDT 2016
