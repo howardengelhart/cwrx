@@ -12,6 +12,7 @@
         journal         = require('../lib/journal'),
         pgUtils         = require('../lib/pgUtils'),
         authUtils       = require('../lib/authUtils'),
+        JobManager      = require('../lib/jobManager'),
         expressUtils    = require('../lib/expressUtils'),
         statsModule     = require('./accountant-stats'),
         transModule     = require('./accountant-transactions'),
@@ -64,6 +65,22 @@
                 poolIdleTimeout : 900000
             }
         },
+        pubsub: {
+            cacheCfg: {
+                port: 21211,
+                isPublisher: false
+            }
+        },
+        cache: {
+            timeouts: {},
+            servers: null
+        },
+        jobTimeouts: {
+            enabled: true,
+            urlPrefix: '/api/accounting/jobs',
+            timeout: 5*1000,
+            cacheTTL: 60*60*1000,
+        },
         kinesis: {
             streamName: 'devCwrxStream',
             region: 'us-east-1'
@@ -80,6 +97,7 @@
         log.info('Running as cluster worker, proceed with setting up web server.');
 
         var app          = express(),
+            jobManager   = new JobManager(state.cache, state.config.jobTimeouts),
             transSvc     = transModule.setupSvc(state.config),
             statsSvc     = statsModule.setupSvc(state.dbs.c6Db, state.config),
             auditJournal = new journal.AuditJournal(
@@ -111,10 +129,16 @@
             res.send(200, state.config.appVersion);
         });
 
+        app.get('/api/accounting/jobs?/:id', function(req, res) {
+            jobManager.getJobResult(req, res, req.params.id).catch(function(error) {
+                res.send(500, { error: 'Internal error', detail: error });
+            });
+        });
+
         app.use(bodyParser.json());
 
-        transModule.setupEndpoints(app, transSvc, state.sessions, audit);
-        statsModule.setupEndpoints(app, statsSvc, state.sessions, audit);
+        transModule.setupEndpoints(app, transSvc, state.sessions, audit, jobManager);
+        statsModule.setupEndpoints(app, statsSvc, state.sessions, audit, jobManager);
         
         app.use(expressUtils.errorHandler());
         
@@ -134,6 +158,8 @@
         .then(service.initMongo)
         .then(service.initSessions)
         .then(pgUtils.initConfig)
+        .then(service.initPubSubChannels)
+        .then(service.initCache)
         .then(accountant.main)
         .catch(function(err) {
             var log = logger.getLog();

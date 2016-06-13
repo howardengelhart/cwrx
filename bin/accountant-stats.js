@@ -18,8 +18,6 @@
 
         statsModule = { config: {} };
         
-    //TODO: should add in jobManager to all accountant endpoints
-        
     // Schema for validating body of credit check request
     statsModule.creditCheckSchema = {
         org: {
@@ -61,8 +59,6 @@
             objName: 'campaigns',
             idPath: ['body.campaign']
         }, statsModule.config.api);
-        
-        // svc.use('balanceStats', fetchOrg); //TODO
         
         svc.use('creditCheck', creditCheckModel.midWare.bind(creditCheckModel, 'create'));
         svc.use('creditCheck', fetchOrg);
@@ -128,8 +124,6 @@
         return pgUtils.query(statement.join('\n'), values)
         .then(function(result) {
             log.info('[%1] Successfuly got balance for %2 orgs', req.uuid, orgIds.length);
-            /*TODO: consider including log.trace() lines to log these partial calculations for each
-             * org?*/
             
             var respObj = {};
             
@@ -201,7 +195,7 @@
                 respObj[camp.org].totalBudget += budget;
             });
             
-            respObj.campaigns = campaigns; // TODO: still unsure about this vs. campaigns per org
+            respObj.campaigns = campaigns;
 
             return q(respObj);
         })
@@ -390,57 +384,68 @@
         });
     };
     
-    statsModule.setupEndpoints = function(app, svc, sessions, audit) {
+    statsModule.setupEndpoints = function(app, svc, sessions, audit, jobManager) {
         var authGetBal = authUtils.middlewarify({
             allowApps: true,
             permissions: { orgs: 'read' }
         });
+        
+        var setJobTimeout = jobManager.setJobTimeout.bind(jobManager);
 
-        app.get('/api/accounting/balances', sessions, authGetBal, audit, function(req, res) {
-            return statsModule.getBalanceStats(svc, req, true).then(function(resp) {
-                expressUtils.sendResponse(res, resp);
-            }).catch(function(error) {
-                expressUtils.sendResponse(res, {
-                    code: 500,
-                    body: {
-                        error: 'Error retrieving balances',
-                        detail: error
-                    }
+        app.get('/api/accounting/balances',
+            sessions, authGetBal, audit, setJobTimeout,
+            function(req, res) {
+                return statsModule.getBalanceStats(svc, req, true).then(function(resp) {
+                    expressUtils.sendResponse(res, resp);
+                }).catch(function(error) {
+                    expressUtils.sendResponse(res, {
+                        code: 500,
+                        body: {
+                            error: 'Error retrieving balances',
+                            detail: error
+                        }
+                    });
                 });
-            });
-        });
+            }
+        );
 
-        app.get('/api/accounting/balance', sessions, authGetBal, audit, function(req, res) {
-            return statsModule.getBalanceStats(svc, req, false).then(function(resp) {
-                expressUtils.sendResponse(res, resp);
-            }).catch(function(error) {
-                expressUtils.sendResponse(res, {
-                    code: 500,
-                    body: {
-                        error: 'Error retrieving balance',
-                        detail: error
-                    }
+        app.get('/api/accounting/balance',
+            sessions, authGetBal, audit, setJobTimeout,
+            function(req, res) {
+                return statsModule.getBalanceStats(svc, req, false).then(function(resp) {
+                    expressUtils.sendResponse(res, resp);
+                }).catch(function(error) {
+                    expressUtils.sendResponse(res, {
+                        code: 500,
+                        body: {
+                            error: 'Error retrieving balance',
+                            detail: error
+                        }
+                    });
                 });
-            });
-        });
+            }
+        );
 
         var authCredChk = authUtils.middlewarify({
             allowApps: true,
             permissions: { orgs: 'read', campaigns: 'read' }
         });
-        app.post('/api/accounting/credit-check', sessions, authCredChk, audit, function(req, res) {
-            return statsModule.creditCheck(svc, req).then(function(resp) {
-                expressUtils.sendResponse(res, resp);
-            }).catch(function(error) {
-                expressUtils.sendResponse(res, {
-                    code: 500,
-                    body: {
-                        error: 'Error checking credit',
-                        detail: error
-                    }
+        app.post('/api/accounting/credit-check',
+            sessions, authCredChk, audit, setJobTimeout,
+            function(req, res) {
+                return statsModule.creditCheck(svc, req).then(function(resp) {
+                    expressUtils.sendResponse(res, resp);
+                }).catch(function(error) {
+                    expressUtils.sendResponse(res, {
+                        code: 500,
+                        body: {
+                            error: 'Error checking credit',
+                            detail: error
+                        }
+                    });
                 });
-            });
-        });
+            }
+        );
     };
     
     module.exports = statsModule;
