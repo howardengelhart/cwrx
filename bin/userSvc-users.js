@@ -821,25 +821,18 @@
             var oldUser = req.user;
             var newUser = objUtils.extend({ email: newEmail }, oldUser);
 
-            return q.allSettled([oldUser, newUser].map(function(user) {
-                return streamUtils.produceEvent('emailChanged', {
-                    target: req._target,
-                    oldEmail: oldEmail,
-                    newEmail: newEmail,
-                    user: user
-                });
-            })).then(function(results) {
-                results.forEach(function(result) {
-                    if(result.state === 'fulfilled') {
-                        log.info('[%1] Produced emailChanged event for user %2', req.uuid,
-                            oldUser.id);
-                    } else {
-                        log.error('[%1] Error producing emailChanged event for user %2: %3',
-                            req.uuid, oldUser.id, inspect(result.reason));
-                    }
-                });
-                return resp;
-            });
+            return streamUtils.produceEvent('emailChanged', {
+                target: req._target,
+                oldEmail: oldEmail,
+                newEmail: newEmail,
+                user: newUser
+            }).then(function() {
+                log.info('[%1] Produced emailChanged event for user %2', req.uuid,
+                    oldUser.id);
+            }).catch(function(error) {
+                log.error('[%1] Error producing emailChanged event for user %2: %3',
+                    req.uuid, oldUser.id, inspect(error));
+            }).thenResolve(resp);
         } else {
             return q(resp);
         }
