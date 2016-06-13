@@ -1185,7 +1185,7 @@ describe('userSvc users (E2E):', function() {
     });
 
     describe('POST /api/account/users/email', function() {
-        var mockUser, reqBody, options, emailRecords;
+        var mockUser, reqBody, options;
         beforeEach(function(done) {
             mockUser = {
                 id: 'u-1',
@@ -1201,7 +1201,6 @@ describe('userSvc users (E2E):', function() {
                     password: 'password'
                 }
             };
-            emailRecords = {};
             testUtils.resetCollection('users', [mockRequester, mockAdmin, mockUser]).done(done);
         });
 
@@ -1275,25 +1274,16 @@ describe('userSvc users (E2E):', function() {
             });
 
             mockman.on('emailChanged', function(record) {
-                emailRecords[record.data.user.email] = record;
-                // wait for both events to be received
-                if (!emailRecords['c6e2etester@gmail.com'] || !emailRecords['c6e2etester2@gmail.com']) {
-                    return;
-                }
-
-                Object.keys(emailRecords).forEach(function(email) {
-                    var record = emailRecords[email];
-                    expect(new Date(record.data.date)).not.toBe(NaN);
-                    expect(record.data.target).toBe('selfie');
-                    expect(record.data.oldEmail).toBe('c6e2etester@gmail.com');
-                    expect(record.data.newEmail).toBe('c6e2etester2@gmail.com');
-                    expect(record.data.user.password).not.toBeDefined();
-                    expect(record.data.user).toEqual(jasmine.objectContaining({
-                        email: email,
-                        id: 'u-1',
-                        status: 'active'
-                    }));
-                });
+                expect(new Date(record.data.date)).not.toBe(NaN);
+                expect(record.data.target).toBe('selfie');
+                expect(record.data.oldEmail).toBe('c6e2etester@gmail.com');
+                expect(record.data.newEmail).toBe('c6e2etester2@gmail.com');
+                expect(record.data.user.password).not.toBeDefined();
+                expect(record.data.user).toEqual(jasmine.objectContaining({
+                    email: 'c6e2etester2@gmail.com',
+                    id: 'u-1',
+                    status: 'active'
+                }));
 
                 // test that logging in with new email works
                 return q.all(['c6e2etester@gmail.com', 'c6e2etester2@gmail.com'].map(function(email) {
@@ -1323,12 +1313,6 @@ describe('userSvc users (E2E):', function() {
             });
 
             mockman.on('emailChanged', function(record) {
-                emailRecords[record.data.user.email] = record;
-                // wait for both events to be received
-                if (!emailRecords['c6e2etester@gmail.com'] || !emailRecords['c6e2etester2@gmail.com']) {
-                    return;
-                }
-
                 // test that it wrote an entry to the audit collection
                 return testUtils.mongoFind('audit', {}, {$natural: -1}, 1, 0, {db: 'c6Journal'})
                 .then(function(results) {
@@ -1361,16 +1345,8 @@ describe('userSvc users (E2E):', function() {
             });
 
             mockman.on('emailChanged', function(record) {
-                emailRecords[record.data.user.email] = record;
-                // wait for both events to be received
-                if (!emailRecords['c6e2etester@gmail.com'] || !emailRecords['c6e2etester2@gmail.com']) {
-                    return;
-                }
-                Object.keys(emailRecords).forEach(function(email) {
-                    var record = emailRecords[email];
-                    expect(record.data.oldEmail).toBe('c6e2etester@gmail.com');
-                    expect(record.data.newEmail).toBe('c6e2etester2@gmail.com');
-                });
+                expect(record.data.oldEmail).toBe('c6e2etester@gmail.com');
+                expect(record.data.newEmail).toBe('c6e2etester2@gmail.com');
                 done();
             });
         });
@@ -1387,15 +1363,7 @@ describe('userSvc users (E2E):', function() {
             });
 
             mockman.on('emailChanged', function(record) {
-                emailRecords[record.data.user.email] = record;
-                // wait for both events to be received
-                if (!emailRecords['c6e2etester@gmail.com'] || !emailRecords['c6e2etester2@gmail.com']) {
-                    return;
-                }
-                Object.keys(emailRecords).forEach(function(email) {
-                    var record = emailRecords[email];
-                    expect(record.data.target).toBe('showcase');
-                });
+                expect(record.data.target).toBe('showcase');
                 done();
             });
         });

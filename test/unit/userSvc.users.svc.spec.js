@@ -2507,22 +2507,14 @@ describe('userSvc (UT)', function() {
             req._target = 'selfie';
         });
 
-        it('should produce the emailChanged event twice', function(done) {
+        it('should produce the emailChanged event once', function(done) {
             streamUtils.produceEvent.and.returnValue(q());
             var mockResp = {
                 code: 200,
                 body: 'email changed'
             };
             userModule.produceEmailChanged(req, mockResp).then(function(resp) {
-                expect(streamUtils.produceEvent.calls.count()).toBe(2);
-                expect(streamUtils.produceEvent).toHaveBeenCalledWith('emailChanged', {
-                    target: 'selfie',
-                    oldEmail: 'oldEmail@gmail.com',
-                    newEmail: 'newEmail@gmail.com',
-                    user: {
-                        email: 'oldEmail@gmail.com'
-                    }
-                });
+                expect(streamUtils.produceEvent.calls.count()).toBe(1);
                 expect(streamUtils.produceEvent).toHaveBeenCalledWith('emailChanged', {
                     target: 'selfie',
                     oldEmail: 'oldEmail@gmail.com',
@@ -2536,15 +2528,15 @@ describe('userSvc (UT)', function() {
             }).then(done, done.fail);
         });
 
-        it('should resolve and log an error for each failed attempt to produce the event', function(done) {
+        it('should resolve and log an error for a failed attempt to produce the event', function(done) {
             streamUtils.produceEvent.and.returnValue(q.reject('epic fail'));
             var mockResp = {
                 code: 200,
                 body: 'email changed'
             };
             userModule.produceEmailChanged(req, mockResp).then(function(resp) {
-                expect(streamUtils.produceEvent.calls.count()).toBe(2);
-                expect(mockLog.error.calls.count()).toBe(2);
+                expect(streamUtils.produceEvent.calls.count()).toBe(1);
+                expect(mockLog.error.calls.count()).toBe(1);
                 expect(resp).toEqual(mockResp);
             }).then(done, done.fail);
         });
