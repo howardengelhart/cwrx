@@ -668,7 +668,7 @@ describe('accountant (E2E):', function() {
                 options.jar = jar;
                 return requestUtils.qRequest('get', options);
             })).then(function(results) {
-                expect(results[0].response.statusCode).toBe(400);
+                expect(results[0].response.statusCode).toBe(404);
                 expect(results[0].body).toEqual('Cannot fetch this org');
                 expect(results[1].response.statusCode).toBe(200);
                 expect(results[1].body).toEqual({
@@ -713,12 +713,12 @@ describe('accountant (E2E):', function() {
             }).done(done); 
         });
         
-        it('should return a 400 if requesting the balance of a non-existent org', function(done) {
+        it('should return a 404 if requesting the balance of a non-existent org', function(done) {
             options.qs.org = 'o-faaaaaake';
             options.jar = adminJar;
 
             requestUtils.qRequest('get', options).then(function(resp) {
-                expect(resp.response.statusCode).toBe(400);
+                expect(resp.response.statusCode).toBe(404);
                 expect(resp.body).toEqual('Cannot fetch this org');
             }).catch(function(error) {
                 expect(util.inspect(error)).not.toBeDefined();
@@ -751,6 +751,10 @@ describe('accountant (E2E):', function() {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
+    });
+    
+    describe('GET /api/accounting/balances', function() { //TODO
+    
     });
     
     describe('POST /api/accounting/credit-check', function() {
