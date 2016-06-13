@@ -753,8 +753,138 @@ describe('accountant (E2E):', function() {
         });
     });
     
-    describe('GET /api/accounting/balances', function() { //TODO
-    
+    describe('GET /api/accounting/balances', function() {
+        var options;
+        beforeEach(function() {
+            options = {
+                url: config.accountantUrl + '/accounting/balances',
+                qs: { orgs: 'o-1234,o-5678,o-abcd,o-efgh' },
+                jar: adminJar
+            };
+        });
+        
+        it('should get the balance for multiple orgs', function(done) {
+            requestUtils.qRequest('get', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.body['o-1234']).toEqual({
+                    balance: 4177,
+                    outstandingBudget: 727,
+                    totalSpend: 823
+                });
+                expect(resp.body['o-5678']).toEqual({
+                    balance: 6316,
+                    outstandingBudget: 716,
+                    totalSpend: 7684
+                });
+                expect(resp.body['o-abcd']).toEqual({
+                    balance: 0,
+                    outstandingBudget: 0,
+                    totalSpend: 0
+                });
+                expect(resp.body['o-efgh']).toEqual({
+                    balance: 744,
+                    outstandingBudget: 0,
+                    totalSpend: 56
+                });
+                expect(Object.keys(resp.body).sort()).toEqual(['o-1234', 'o-5678', 'o-abcd', 'o-efgh']);
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
+
+        it('should write an entry to the audit collection', function(done) {
+            requestUtils.qRequest('get', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                return testUtils.mongoFind('audit', { service: 'accountant' }, {$natural: -1}, 1, 0, {db: 'c6Journal'});
+            }).then(function(results) {
+                expect(results[0].user).toBe('e2e-admin-user');
+                expect(results[0].created).toEqual(jasmine.any(Date));
+                expect(results[0].host).toEqual(jasmine.any(String));
+                expect(results[0].pid).toEqual(jasmine.any(Number));
+                expect(results[0].uuid).toEqual(jasmine.any(String));
+                expect(results[0].sessionID).toEqual(jasmine.any(String));
+                expect(results[0].service).toBe('accountant');
+                expect(results[0].version).toEqual(jasmine.any(String));
+                expect(results[0].data).toEqual({route: 'GET /api/accounting/balances',
+                                                 params: {}, query: { orgs: 'o-1234,o-5678,o-abcd,o-efgh' } });
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should only allow a non-admin to get the balance for their org', function(done) {
+            options.jar = cookieJar;
+            requestUtils.qRequest('get', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.body['o-1234']).toEqual({
+                    balance: 4177,
+                    outstandingBudget: 727,
+                    totalSpend: 823
+                });
+                expect(resp.body['o-5678']).toEqual(null);
+                expect(resp.body['o-abcd']).toEqual(null);
+                expect(resp.body['o-efgh']).toEqual(null);
+                expect(Object.keys(resp.body).sort()).toEqual(['o-1234', 'o-5678', 'o-abcd', 'o-efgh']);
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should default the list of orgs to the requester\'s org', function(done) {
+            delete options.qs.orgs;
+            requestUtils.qRequest('get', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.body).toEqual({ 'o-1234': {
+                    balance: 4177,
+                    outstandingBudget: 727,
+                    totalSpend: 823
+                } });
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should return null responses for non-existent orgs', function(done) {
+            options.qs.orgs = 'o-faaaake';
+            requestUtils.qRequest('get', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.body).toEqual({ 'o-faaaake': null });
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
+
+        it('should allow an app to get balances', function(done) {
+            delete options.jar;
+            options.qs.org = 'o-1234';
+
+            requestUtils.makeSignedRequest(appCreds, 'get', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.body['o-1234']).toEqual({
+                    balance: 4177,
+                    outstandingBudget: 727,
+                    totalSpend: 823
+                });
+                expect(resp.body['o-5678']).toEqual({
+                    balance: 6316,
+                    outstandingBudget: 716,
+                    totalSpend: 7684
+                });
+                expect(resp.body['o-abcd']).toEqual({
+                    balance: 0,
+                    outstandingBudget: 0,
+                    totalSpend: 0
+                });
+                expect(resp.body['o-efgh']).toEqual({
+                    balance: 744,
+                    outstandingBudget: 0,
+                    totalSpend: 56
+                });
+                expect(Object.keys(resp.body).sort()).toEqual(['o-1234', 'o-5678', 'o-abcd', 'o-efgh']);
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
     });
     
     describe('POST /api/accounting/credit-check', function() {
