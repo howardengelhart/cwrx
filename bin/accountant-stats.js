@@ -13,7 +13,6 @@
         authUtils       = require('../lib/authUtils'),
         Scope           = require('../lib/enums').Scope,
         Status          = require('../lib/enums').Status,
-        expressUtils    = require('../lib/expressUtils'),
         MiddleManager   = require('../lib/middleManager'),
 
         statsModule = { config: {} };
@@ -84,18 +83,22 @@
         next();
     };
 
-    // TODO: should this be used for credit check endpoint?
-    statsModule.fetchOrgs = function(c6Db, orgIds, req) { //TODO: test, comment
+    // Fetch multiple orgs, depending on requester's permissions. Used for /balance endpoints
+    statsModule.fetchOrgs = function(c6Db, orgIds, req) {
         var log = logger.getLog(),
             readScope = ld.get(req, 'requester.permissions.orgs.read', Scope.Own),
             ownOrg = ld.get(req, 'user.org', null);
-        
+            
+        // if requester doesn't have permissions.orgs.read = 'all', can only fetch own org
+        if (readScope !== Scope.All) {
+            orgIds = orgIds.filter(function(id) { return id === ownOrg; });
+        }
         if (!orgIds || orgIds.length === 0) {
             return q([]);
         }
         
         return q(c6Db.collection('orgs').find({
-            id: (readScope === Scope.All) ? { $in: orgIds } : ownOrg,
+            id: { $in: orgIds },
             status: { $ne: Status.Deleted }
         }).toArray())
         .then(function(orgs) {
@@ -194,6 +197,10 @@
                 
                 respObj[camp.org].totalBudget += budget;
             });
+
+            Object.keys(respObj).forEach(function(orgId) {
+                respObj[orgId].totalBudget = Math.round(respObj[orgId].totalBudget * 100) / 100;
+            });
             
             respObj.campaigns = campaigns;
 
@@ -265,24 +272,23 @@
         });
     };
     
-    // Get account balance + outstanding budget, for /api/accounting/balance endpoint
-    // TODO: update comment
+    /* Get account balance + outstanding budget. multiOrg should be false for
+     * /api/accounting/balance, and true for /api/accounting/balances */
     statsModule.getBalanceStats = function(svc, req, multiOrg) {
         var resp = { code: 200, body: {} },
             filteredIds = [],
             orgIds, errMsg;
-        //TODO: add more comments
 
+        // parse query params depending on whether this request is for single/multiple orgs
         if (!multiOrg) {
             req.query.org = req.query.org || (req.user && req.user.org);
-            orgIds = [ req.query.org ];
+            orgIds = [ String(req.query.org || '') ];
             errMsg = 'Must provide an org id';
         } else {
             req.query.orgs = req.query.orgs || (req.user && req.user.org) || '';
             orgIds = String(req.query.orgs).split(',');
             errMsg = 'Must provide a list of orgs';
         }
-        
         if (!orgIds[0]) {
             return q({ code: 400, body: errMsg });
         }
@@ -300,7 +306,7 @@
                 });
                 
                 if (filteredIds.length === 0) {
-                    if (!multiOrg) { //TODO: should this be in a done()? can it?
+                    if (!multiOrg) {
                         return q({ code: 404, body: 'Cannot fetch this org' });
                     } else {
                         return q(resp);
@@ -395,15 +401,11 @@
         app.get('/api/accounting/balances',
             sessions, authGetBal, audit, setJobTimeout,
             function(req, res) {
-                return statsModule.getBalanceStats(svc, req, true).then(function(resp) {
-                    expressUtils.sendResponse(res, resp);
-                }).catch(function(error) {
-                    expressUtils.sendResponse(res, {
-                        code: 500,
-                        body: {
-                            error: 'Error retrieving balances',
-                            detail: error
-                        }
+                var promise = statsModule.getBalanceStats(svc, req, true);
+                promise.finally(function() {
+                    jobManager.endJob(req, res, promise.inspect())
+                    .catch(function(error) {
+                        res.send(500, { error: 'Error retrieving balances', detail: error });
                     });
                 });
             }
@@ -412,15 +414,11 @@
         app.get('/api/accounting/balance',
             sessions, authGetBal, audit, setJobTimeout,
             function(req, res) {
-                return statsModule.getBalanceStats(svc, req, false).then(function(resp) {
-                    expressUtils.sendResponse(res, resp);
-                }).catch(function(error) {
-                    expressUtils.sendResponse(res, {
-                        code: 500,
-                        body: {
-                            error: 'Error retrieving balance',
-                            detail: error
-                        }
+                var promise = statsModule.getBalanceStats(svc, req, false);
+                promise.finally(function() {
+                    jobManager.endJob(req, res, promise.inspect())
+                    .catch(function(error) {
+                        res.send(500, { error: 'Error retrieving balance', detail: error });
                     });
                 });
             }
@@ -433,15 +431,11 @@
         app.post('/api/accounting/credit-check',
             sessions, authCredChk, audit, setJobTimeout,
             function(req, res) {
-                return statsModule.creditCheck(svc, req).then(function(resp) {
-                    expressUtils.sendResponse(res, resp);
-                }).catch(function(error) {
-                    expressUtils.sendResponse(res, {
-                        code: 500,
-                        body: {
-                            error: 'Error checking credit',
-                            detail: error
-                        }
+                var promise = statsModule.creditCheck(svc, req);
+                promise.finally(function() {
+                    jobManager.endJob(req, res, promise.inspect())
+                    .catch(function(error) {
+                        res.send(500, { error: 'Error checking credit', detail: error });
                     });
                 });
             }
