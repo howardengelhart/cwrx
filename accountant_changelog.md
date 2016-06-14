@@ -1,5 +1,9 @@
 # Accountant Service Changelog
 
+### 1.4.0: Tue Jun 14 15:28:12 EDT 2016
+* [FEATURE]: Add `GET /api/accounting/balances` endpoint for fetching multiple orgs' balances: [#938](https://github.com/cinema6/cwrx/issues/938)
+* [FIX]: Fetch orgs from mongo, not orgSvc, to ease load issues: [#938](https://github.com/cinema6/cwrx/issues/938)
+
 ### 1.3.1: Tue Jun  7 12:17:17 EDT 2016
 * Set max length on `description`: [#923](https://github.com/cinema6/cwrx/pull/923)
 
