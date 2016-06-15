@@ -211,7 +211,7 @@
                 price: app.formattedPrice,
                 rating: app.averageUserRating,
                 extID: app.trackId,
-                ratingCount = app.userRatingCount;
+                ratingCount : app.userRatingCount,
                 images: [].concat(
                     app.screenshotUrls.map(function(uri) {
                         return { uri: uri, type: 'screenshot', device: 'phone' };
@@ -312,8 +312,7 @@
     scraper.getMetadata = function(req, metagetta) {
 
         var uuid = req.uuid;
-        var log = logger.getLog(),
-            opts = {};
+        var log = logger.getLog();
 
         //log.trace('REQ QUERY IS : [%1] ', util.inspect(req.query));
 
