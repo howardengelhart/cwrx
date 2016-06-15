@@ -1831,6 +1831,7 @@ describe('collateralScrape-scraper (UT)', function() {
                         price: response.results[0].formattedPrice,
                         rating: response.results[0].averageUserRating,
                         extID: response.results[0].trackId,
+                        ratingCount: response.results[0].userRatingCount,
                         images: [].concat(
                             response.results[0].screenshotUrls.map(function(uri) {
                                 return {
@@ -2163,7 +2164,7 @@ describe('collateralScrape-scraper (UT)', function() {
         });
     });
 
-    fdescribe('getMetadata', function() {
+    describe('getMetadata', function() {
         var mockReq;
         var done = jasmine.createSpy('done()');
 
@@ -2197,7 +2198,6 @@ describe('collateralScrape-scraper (UT)', function() {
                 delete mockReq.query.uri;
                 delete mockReq.query.id;
                 collateralScrape.getMetadata(mockReq, metagetta).then(function(resp) {
-                    console.log(resp);
                     expect(mockLog.info).toHaveBeenCalled();
                     expect(resp.code).toEqual(400);
                     expect(resp.body).toEqual('Must specify either a URI or id.');
@@ -2237,18 +2237,6 @@ describe('collateralScrape-scraper (UT)', function() {
                 }).done(done);
             });
         });
-        // fdescribe('if not given facebookCreds', function() {
-        //     it ('should fail to get metadata for a video', function(done) {
-        //         metagetta.hasFacebookCreds=false;
-        //         collateralScrape.getMetadata(mockReq,metagetta).then(function(resp) {
-        //             expect(mockLog.warn).toHaveBeenCalled();
-        //             expect(resp.code).toEqual(400);
-        //             expect(resp.body).toBe('Error getting metadata');
-        //         }).catch(function(error) {
-        //             expect(error.toString()).not.toBeDefined();
-        //         }).done(done);
-        //     });
-        // });
         describe('if given googleKey', function() {
             it ('should get metadata for a youtube video', function(done) {
                 mockReq.query.uri  = 'youtube.com/video/123';
@@ -2270,31 +2258,6 @@ describe('collateralScrape-scraper (UT)', function() {
                 }).done(done);
             });
         });
-        // describe('if not given googleKey', function() {
-        //     it ('should get metadata for a youtube video', function(done) {
-        //         mockReq.query.uri  = 'youtube.com/video/123';
-        //         mockReq.query.type      = 'youtube';
-        //         metagetta.hasGoogleKey = false;
-        //         collateralScrape.getMetadata(mockReq,metagetta).then(function(resp) {
-        //             expect(mockLog.warn).toHaveBeenCalled();
-        //             expect(resp.code).toEqual(500);
-        //             expect(resp.body).toEqual('Cannot get youtube metadata without google credentials.');
-        //         }).catch(function(error) {
-        //             expect(error.toString()).not.toBeDefined();
-        //         }).done(done);
-        //     });
-    //     // });
-    //     describe('if given an unsupported video type', function() {
-    //         it('should throw an error',function(done){
-    //             mockReq.query.type = 'notavideo';
-    //             collateralScrape.getMetadata(mockReq,metagetta).then(function(resp) {
-    //                 expect(mockLog.info).toHaveBeenCalled();
-    //                 expect(resp.code).toEqual(400);
-    //                 expect(resp.body).toEqual('Not a valid video type.');
-    //             }).catch(function(error) {
-    //                 expect(error.toString()).not.toBeDefined();
-    //             }).done(done);
-    //         });
-    // });
+
     });
 });
