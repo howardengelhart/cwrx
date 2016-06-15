@@ -741,6 +741,14 @@ describe('collateral (E2E):', function() {
             });
             it ('should get metadata for a facebook video', function(done) {
                 requestUtils.qRequest('get', options).then(function(apiResponse) {
+                    expect(apiResponse.body).toEqual(jasmine.objectContaining({
+                        type: 'facebook',
+                        id: '1710824435853560',
+                        uri: 'https://www.facebook.com/reelc/videos/1710824435853560/',
+                        title: 'Get More Customers with Custom Video Ads',
+                        description: 'Want to reach a broader audience and get more customers? It\'s as easy as 1, 2, 3...',
+                        duration: 31.308
+                    }));
                     expect(apiResponse.response.statusCode).toBe(200);
                 }).catch(function(error) {
                     expect(error.toString()).not.toBeDefined();
@@ -755,6 +763,13 @@ describe('collateral (E2E):', function() {
             });
             it ('should get metadata for a youtube video', function(done) {
                 requestUtils.qRequest('get', options).then(function(apiResponse) {
+                    expect(apiResponse.body).toEqual(jasmine.objectContaining({
+                            id: 'v9grnO07aCE',
+                            uri: 'https://www.youtube.com/watch?v=v9grnO07aCE&feature=youtu.be',
+                            title: 'Easy Video Advertising',
+                            description: 'Promote your videos in rich engaging format and get more customers!\n\nhttp://goo.gl/CHL8lE',
+                            duration: 31
+                    }));
                     expect(apiResponse.response.statusCode).toBe(200);
                 }).catch(function(error) {
                     expect(error.toString()).not.toBeDefined();
@@ -786,6 +801,14 @@ describe('collateral (E2E):', function() {
             });
             it ('should still get metadata with valid uri', function(done) {
                 requestUtils.qRequest('get', options).then(function(apiResponse) {
+                    expect(apiResponse.body).toEqual(jasmine.objectContaining({
+                        type: 'facebook',
+                        id: '1710824435853560',
+                        uri: 'https://www.facebook.com/reelc/videos/1710824435853560/',
+                        title: 'Get More Customers with Custom Video Ads',
+                        description: 'Want to reach a broader audience and get more customers? It\'s as easy as 1, 2, 3...',
+                        duration: 31.308,
+                    }));
                     expect(apiResponse.response.statusCode).toBe(200);
                 }).catch(function(error) {
                     expect(error.toString()).not.toBeDefined();
@@ -800,7 +823,16 @@ describe('collateral (E2E):', function() {
             });
             it('should still get metadata with valid uri ',function(done){
                 requestUtils.qRequest('get', options).then(function(apiResponse) {
-                    expect(apiResponse.response.statusCode).toEqual(200);
+                    expect(apiResponse.body).toEqual(jasmine.objectContaining({
+                        type: 'facebook',
+                        id: '1710824435853560',
+                        uri: 'https://www.facebook.com/reelc/videos/1710824435853560/',
+                        title: 'Get More Customers with Custom Video Ads',
+                        description: 'Want to reach a broader audience and get more customers? It\'s as easy as 1, 2, 3...',
+                        duration: 31.308,
+
+                    }));
+                    expect(apiResponse.response.statusCode).toBe(200);
                 }).catch(function(error) {
                     expect(error.toString()).not.toBeDefined();
                 }).done(done);

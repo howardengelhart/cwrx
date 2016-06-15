@@ -7,6 +7,7 @@ describe('collateralScrape-scraper (UT)', function() {
     beforeAll(function() {
         for (var m in require.cache){ delete require.cache[m]; }
 
+        require('util');
         require('spidey.js');
         require('request-promise');
     });
@@ -2237,22 +2238,22 @@ describe('collateralScrape-scraper (UT)', function() {
                 }).done(done);
             });
         });
-        describe('if given googleKey', function() {
+        describe('if metagetta fails', function() {
+            beforeEach(function(){
+                metagetta = jasmine.createSpy('metagettaSpy').and.returnValue(
+                    q.reject( {
+                        code: 400,
+                        body: 'Error getting metadata',
+                    })
+                );
+            })
             it ('should get metadata for a youtube video', function(done) {
-                mockReq.query.uri  = 'youtube.com/video/123';
-                mockReq.query.type      = 'youtube';
+                mockReq.query.uri  = 'https://www.instagram.com/p/BGhQhO2HDyZ/?taken-by=prissy_pig';
+                mockReq.query.type      = 'instagram';
                 collateralScrape.getMetadata(mockReq,metagetta).then(function(resp) {
-                    expect(mockLog.info).toHaveBeenCalled();
-                    expect(mockLog.error).not.toHaveBeenCalled();
-                    expect(mockLog.warn).not.toHaveBeenCalled();
-                    expect(resp.code).toEqual(200);
-                    expect(resp.body).toEqual(jasmine.objectContaining({
-                        id: '1234',
-                        uri: 'www.suchvideo.com/muchuri=wow',
-                        type: 'wtvr',
-                        title: 'I is video',
-                        duration: '900'
-                    }));
+                    expect(mockLog.warn.calls.mostRecent().args[2]).toEqual('{ code: 400, body: \'Error getting metadata\' }');
+                    expect(resp.code).toEqual(400);
+                    expect(resp.body).toEqual('Error getting metadata');
                 }).catch(function(error) {
                     expect(error.toString()).not.toBeDefined();
                 }).done(done);
