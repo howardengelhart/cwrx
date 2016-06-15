@@ -211,6 +211,7 @@
                 price: app.formattedPrice,
                 rating: app.averageUserRating,
                 extID: app.trackId,
+                ratingCount : app.userRatingCount,
                 images: [].concat(
                     app.screenshotUrls.map(function(uri) {
                         return { uri: uri, type: 'screenshot', device: 'phone' };
@@ -279,6 +280,7 @@
             return scraper.productDataFrom[meta.type](meta.id, config, secrets);
         }).then(function createServiceReponse(data) {
             log.info('[%1] Successfully fetched product data.', uuid);
+
             return new ServiceResponse(200, data);
         }).catch(function handleFailure(reason) {
             log.info('[%1] Failed to get product data: %2', uuid, reason.message);
@@ -296,7 +298,34 @@
         });
     };
 
-    scraper.setupEndpoints = function setupEndpoints(app, state, audit, jobManager) {
+    scraper.getMetadata = function(req, metagetta) {
+
+        var uuid = req.uuid,
+            log = logger.getLog(),
+            opts = {
+                uri: req.query.uri,
+                type: req.query.type,
+                id: req.query.id
+            };
+
+
+        if (!req.query.uri && !req.query.id) {
+            log.info('[%1]- Must specify either a URI or id.', uuid);
+            return q(new ServiceResponse(400, 'Must specify either a URI or id.'));
+        }
+
+
+        return metagetta(opts)
+        .then(function (data) {
+                log.info('[%1] Successfully fetched metadata.', uuid);
+                return q(new ServiceResponse(200, data));
+            }).catch(function (error) {
+                log.warn('[%1] Failed to get metadata. [%2]', uuid, inspect(error));
+                return q(new ServiceResponse(400, 'Error getting metadata'));
+            });
+    };
+
+    scraper.setupEndpoints = function setupEndpoints(app, state, audit, jobManager, metagetta) {
         var setJobTimeout = jobManager.setJobTimeout.bind(jobManager);
         var requireAuth = authUtils.middlewarify({ allowApps: true });
 
@@ -329,6 +358,24 @@
                         .catch(function(error) {
                             res.send(500, {
                                 error: 'Error getting product data',
+                                detail: error
+                            });
+                        });
+                });
+            }
+        );
+
+        app.get(
+            '/api/collateral/video-data',
+            setJobTimeout, state.sessions, requireAuth, audit,
+            function(req, res) {
+                var promise = q.when(scraper.getMetadata(req, metagetta));
+
+                promise.finally(function() {
+                    return jobManager.endJob(req, res, promise.inspect())
+                        .catch(function(error) {
+                            res.send(500, {
+                                error: 'Error getting video metadata',
                                 detail: error
                             });
                         });
@@ -369,6 +416,8 @@
                     });
             });
         });
+
+
     };
 
     module.exports = scraper;
