@@ -793,24 +793,6 @@ describe('collateral (E2E):', function() {
             });
         });
 
-        describe ('if not logged in', function() {
-            beforeEach(function() {
-                options.qs.type = 'youtube';
-                options.qs.uri = 'https://www.facebook.com/reelc/videos/1710824435853560/';
-                delete options.jar;
-
-            });
-            it('should throw an error',function(done){
-                requestUtils.qRequest('get', options).then(function(apiResponse) {
-                    expect(apiResponse.response.statusCode).toBe(401);
-                    expect(apiResponse.response.body).toBe('Unauthorized');
-                }).catch(function(error) {
-                    expect(error.toString()).not.toBeDefined();
-                }).done(done);
-
-            });
-        });
-
         describe ('if given an unsupported video type', function() {
             beforeEach(function() {
                 options.qs.type = 'notavideo';
