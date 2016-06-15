@@ -93,6 +93,8 @@
         }
     };
 
+
+
     collateral.main = function(state) {
         var log = logger.getLog(),
             started = new Date();
@@ -116,11 +118,27 @@
         app.set('json spaces', 2);
 
         var audit = auditJournal.middleware.bind(auditJournal);
-
+        var metagetta = {};
         app.use(expressUtils.basicMiddleware());
         app.use(bodyParser.json());
 
-        scrapeModule.setupEndpoints(app, state, audit, jobManager);
+        var metaConfig = { };
+        if(state.secrets.googleKey) {
+            metaConfig.youtube = { key: state.secrets.googleKey};
+        }
+        if(state.secrets.facebook) {
+            metaConfig.facebook = {
+                key: state.secrets.facebook.appId,
+                secret: state.secrets.facebook.appSecret
+            };
+        }
+        metagetta = (Object.keys(metaConfig) === 0) ?
+            require('metagetta') :
+            require('metagetta').withConfig(metaConfig);
+        metagetta.hasGoogleKey = ('youtube' in metaConfig);
+        metagetta.hasFacebookCreds = ('facebook' in metaConfig);
+        //scrapeModule.metagetta = metagetta;
+        scrapeModule.setupEndpoints(app, state, audit, jobManager, metagetta);
         imagesModule.setupEndpoints(app, state, audit, jobManager);
 
         app.get('/api/collateral/job/:id', function(req, res) {

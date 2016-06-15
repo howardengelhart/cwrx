@@ -296,10 +296,83 @@
         });
     };
 
-    scraper.setupEndpoints = function setupEndpoints(app, state, audit, jobManager) {
+    // scraper.isVideo = function(req) {
+    //     return  (req.query.type === 'youtube') ||
+    //             (req.query.type === 'vimeo')   ||
+    //             (req.query.type === 'dailymotion')  ||
+    //             (req.query.type === 'vzaar')   ||
+    //             (req.query.type === 'wistia')  ||
+    //             (req.query.type === 'jwplayer')  ||
+    //             (req.query.type === 'facebook') ||
+    //             ((req.query.type === 'instagram') /*&& (req.query) && (req.data.type === 'video')*/);
+    // };
+
+    scraper.getMetadata = function(req, metagetta) {
+
+        var uuid = req.uuid;
+        var log = logger.getLog(),
+            opts = {};
+
+        //log.trace('REQ QUERY IS : [%1] ', util.inspect(req.query));
+
+        // if (!req.query.type) {
+        //     log.info('[%1] Must specify a video type.', req.uuid);
+        //     return q(new ServiceResponse(400, 'Must specify a video type'));
+        //     //return new ServiceResponse(400,'Must specify a video type.');
+        // }
+        if (!req.query.uri && !req.query.id) {
+            //console.log("In loop " + req.query.uri);
+            log.info('Must specify either a URI or id.');
+            return q(new ServiceResponse(400, 'Must specify either a URI or id.'));
+            //return q.reject('Must specify either a URI or id.');
+
+        }
+        // if (!scraper.isVideo(req)) {
+        //     log.info('[%1] - MetaData unsupported for videoType [%2].',req.uuid,req.query.type);
+        //     return q(new ServiceResponse(400, 'Not a valid video type.'));
+        //     //return new ServiceResponse(400,'Not a valid video type.');
+        // }
+
+        // opts.uri = req.query.uri;
+        // opts.type = req.query.type;
+        // opts.id = req.query.id;
+        //
+        // switch(req.query.type) {
+        // case 'youtube':
+        //     if (!metagetta.hasGoogleKey) {
+        //         log.warn('[%1] - Cannot get youtube metadata without google key.',
+        //             req.uuid);
+        //         return q(new ServiceResponse(500, 'Cannot get youtube metadata without google credentials.'));
+        //             //return new ServiceResponse(400,'Cannot get youtube metadata without google credentials.');
+        //     }
+        //     //opts.facebook.key = req.facebookCreds.key;
+        //     //opts.facebook.secret = req.facebookCreds.secret;
+        //     break;
+        // case 'facebook':
+        //     if (!metagetta.hasFacebookCreds) {
+        //         log.warn('[%1] - Cannot get facebook metadata without credentials.',
+        //             req.uuid);
+        //         return q(new ServiceResponse(500, 'Cannot get facebook metadata without facebook credentials.'));
+        //             //return new ServiceResponse(400,'Cannot get youtube metadata without facebook credentials.');
+        //     }
+        //     //opts.youtube.key= req.googleKey;
+        //     break;
+        // }
+        return metagetta(req.query)
+        .then(function (data) {
+            log.info('[%1] Successfully fetched metadata.', uuid);
+            return q(new ServiceResponse(200, data));
+        }).catch(function (error) {
+            log.warn('[%1] Failed to get metadata. [%2]', uuid, error);
+            return q(new ServiceResponse(400, 'Error getting metadata'));
+        });
+    };
+
+    scraper.setupEndpoints = function setupEndpoints(app, state, audit, jobManager, metagetta) {
         var setJobTimeout = jobManager.setJobTimeout.bind(jobManager);
         var requireAuth = authUtils.middlewarify({ allowApps: true });
 
+        //router handlers; get called in e2e test
         app.get(
             '/api/collateral/website-data',
             setJobTimeout, state.sessions, requireAuth, audit,
@@ -329,6 +402,24 @@
                         .catch(function(error) {
                             res.send(500, {
                                 error: 'Error getting product data',
+                                detail: error
+                            });
+                        });
+                });
+            }
+        );
+
+        app.get(
+            '/api/collateral/video-data',
+            setJobTimeout, state.sessions, requireAuth, audit,
+            function(req, res) {
+                var promise = q.when(scraper.getMetadata(req, metagetta));
+
+                promise.finally(function() {
+                    return jobManager.endJob(req, res, promise.inspect())
+                        .catch(function(error) {
+                            res.send(500, {
+                                error: 'Error getting video metadata',
                                 detail: error
                             });
                         });
@@ -369,6 +460,8 @@
                     });
             });
         });
+
+
     };
 
     module.exports = scraper;
