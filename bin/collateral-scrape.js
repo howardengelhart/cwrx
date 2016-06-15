@@ -211,6 +211,7 @@
                 price: app.formattedPrice,
                 rating: app.averageUserRating,
                 extID: app.trackId,
+                ratingCount = app.userRatingCount;
                 images: [].concat(
                     app.screenshotUrls.map(function(uri) {
                         return { uri: uri, type: 'screenshot', device: 'phone' };
@@ -279,6 +280,7 @@
             return scraper.productDataFrom[meta.type](meta.id, config, secrets);
         }).then(function createServiceReponse(data) {
             log.info('[%1] Successfully fetched product data.', uuid);
+
             return new ServiceResponse(200, data);
         }).catch(function handleFailure(reason) {
             log.info('[%1] Failed to get product data: %2', uuid, reason.message);
