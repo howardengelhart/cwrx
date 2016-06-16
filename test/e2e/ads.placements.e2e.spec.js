@@ -1,4 +1,5 @@
 var q               = require('q'),
+    path            = require('path'),
     urlUtils        = require('url'),
     util            = require('util'),
     ld              = require('lodash'),
@@ -23,7 +24,7 @@ describe('ads placements endpoints (E2E):', function() {
     var cookieJar, nonAdminJar, mockCons, mockCards, mockCamps, mockExps, createdAdvert, mockApp, appCreds;
 
     beforeEach(function() {
-        jasmine.DEFAULT_TIMEOUT_INTERVAL = 10000;
+        jasmine.DEFAULT_TIMEOUT_INTERVAL = 60000;
     });
     
     beforeAll(function(done) {
@@ -1779,6 +1780,7 @@ describe('ads placements endpoints (E2E):', function() {
             return q(beeswax.advertisers.delete(createdAdvert.beeswaxIds.advertiser));
         })
         .thenResolve()
+        .timeout(jasmine.DEFAULT_TIMEOUT_INTERVAL - 100, 'Timed out in afterAll of ' + path.basename(__filename))
         .then(done, done.fail);
     });
 
