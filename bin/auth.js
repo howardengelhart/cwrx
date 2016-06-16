@@ -250,16 +250,11 @@
         
         log.info('[%1] User %2 forgot their password, sending reset code', req.uuid, reqEmail);
         
-        return mongoUtils.findObject(users, { email: reqEmail })
+        return mongoUtils.findObject(users, { email: reqEmail, status: { $ne: Status.Deleted } })
         .then(function(account) {
             if (!account) {
-                log.info('[%1] No user with email %2 exists', req.uuid, reqEmail);
+                log.info('[%1] No non-deleted user with email %2 exists', req.uuid, reqEmail);
                 return q({code: 404, body: 'That user does not exist'});
-            }
-            
-            if (account.status !== Status.Active) {
-                log.info('[%1] User %2 not active', req.uuid, reqEmail);
-                return q({code: 403, body: 'Account not active'});
             }
 
             auditJournal.writeAuditEntry(req, account.id);
@@ -309,15 +304,11 @@
         
         log.info('[%1] User %2 attempting to reset their password', req.uuid, id);
         
-        return mongoUtils.findObject(users, { id: id })
+        return mongoUtils.findObject(users, { id: id, status: { $ne: Status.Deleted } })
         .then(function(account) {
             if (!account) {
-                log.info('[%1] No user with id %2 exists', req.uuid, id);
+                log.info('[%1] No non-deleted user with id %2 exists', req.uuid, id);
                 return q({code: 404, body: 'That user does not exist'});
-            }
-            if (account.status !== Status.Active) {
-                log.info('[%1] User %2 not active', req.uuid, id);
-                return q({code: 403, body: 'Account not active'});
             }
 
             auditJournal.writeAuditEntry(req, id);

@@ -556,7 +556,7 @@ describe('auth (UT)', function() {
             auth.forgotPassword(req, users, config, auditJournal).then(function(resp) {
                 expect(resp.code).toBe(200);
                 expect(resp.body).toBe('Successfully generated reset token');
-                expect(mongoUtils.findObject).toHaveBeenCalledWith(users, { email: 'user@c6.com' });
+                expect(mongoUtils.findObject).toHaveBeenCalledWith(users, { email: 'user@c6.com', status: { $ne: Status.Deleted } });
                 expect(crypto.randomBytes).toHaveBeenCalledWith(24, anyFunc);
                 expect(bcrypt.genSaltSync).toHaveBeenCalled();
                 expect(bcrypt.hash).toHaveBeenCalledWith('48454c4c4f', 'sodiumChloride', anyFunc);
@@ -575,7 +575,7 @@ describe('auth (UT)', function() {
             auth.forgotPassword(req, users, config, auditJournal).then(function(resp) {
                 expect(resp.code).toBe(200);
                 expect(resp.body).toBe('Successfully generated reset token');
-                expect(mongoUtils.findObject).toHaveBeenCalledWith(users, { email: 'user@c6.com' });
+                expect(mongoUtils.findObject).toHaveBeenCalledWith(users, { email: 'user@c6.com', status: { $ne: Status.Deleted } });
                 expect(mongoUtils.editObject).toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
@@ -607,16 +607,14 @@ describe('auth (UT)', function() {
             }).done(done);
         });
 
-        it('should fail with a 403 if the user is not active', function(done) {
-            origUser.status = Status.Inactive;
+        it('should still succeed if the user is not active', function(done) {
+            origUser.status = Status.New;
             auth.forgotPassword(req, users, config, auditJournal).then(function(resp) {
-                expect(resp.code).toBe(403);
-                expect(resp.body).toBe('Account not active');
-                expect(mongoUtils.findObject).toHaveBeenCalled();
-                expect(crypto.randomBytes).not.toHaveBeenCalled();
-                expect(mongoUtils.editObject).not.toHaveBeenCalled();
-                expect(auth.produceForgotPassword).not.toHaveBeenCalled();
-                expect(auditJournal.writeAuditEntry).not.toHaveBeenCalled();
+                expect(resp.code).toBe(200);
+                expect(resp.body).toBe('Successfully generated reset token');
+                expect(bcrypt.hash).toHaveBeenCalledWith('48454c4c4f', 'sodiumChloride', anyFunc);
+                expect(mongoUtils.editObject).toHaveBeenCalled();
+                expect(auditJournal.writeAuditEntry).toHaveBeenCalledWith(req, 'u-1');
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
             }).done(done);
@@ -786,7 +784,7 @@ describe('auth (UT)', function() {
             auth.resetPassword(req, users, config, auditJournal, sessions).then(function(resp) {
                 expect(resp.code).toBe(200);
                 expect(resp.body).toEqual({id: 'u-1', decorated: true});
-                expect(mongoUtils.findObject).toHaveBeenCalledWith(users, {id: 'u-1'});
+                expect(mongoUtils.findObject).toHaveBeenCalledWith(users, { id: 'u-1', status: { $ne: Status.Deleted } });
                 expect(bcrypt.compare).toHaveBeenCalledWith('qwer1234', 'hashed', anyFunc);
                 expect(bcrypt.genSaltSync).toHaveBeenCalled();
                 expect(bcrypt.hash).toHaveBeenCalledWith('newPass', 'sodiumChloride', anyFunc);
@@ -828,18 +826,16 @@ describe('auth (UT)', function() {
             }).done(done);
         });
 
-        it('should fail with a 403 if the user is not active', function(done) {
-            origUser.status = Status.Inactive;
+        it('should still succeed if the user is not active', function(done) {
+            origUser.status = Status.New;
             auth.resetPassword(req, users, config, auditJournal, sessions).then(function(resp) {
-                expect(resp.code).toBe(403);
-                expect(resp.body).toBe('Account not active');
-                expect(mongoUtils.findObject).toHaveBeenCalled();
-                expect(bcrypt.compare).not.toHaveBeenCalled();
-                expect(users.findOneAndUpdate).not.toHaveBeenCalled();
-                expect(req.session.regenerate).not.toHaveBeenCalled();
-                expect(auditJournal.writeAuditEntry).not.toHaveBeenCalled();
-                expect(authUtils.decorateUser).not.toHaveBeenCalled();
-                expect(auth.producePasswordChanged).not.toHaveBeenCalled();
+                expect(resp.code).toBe(200);
+                expect(resp.body).toEqual({id: 'u-1', decorated: true});
+                expect(bcrypt.hash).toHaveBeenCalledWith('newPass', 'sodiumChloride', anyFunc);
+                expect(users.findOneAndUpdate).toHaveBeenCalled();
+                expect(auth.producePasswordChanged).toHaveBeenCalledWith(req, { id: 'u-1', updated: true });
+                expect(req.session.user).toBe('u-1');
+                expect(auditJournal.writeAuditEntry).toHaveBeenCalledWith(req, 'u-1');
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
             }).done(done);
