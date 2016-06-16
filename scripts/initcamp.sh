@@ -43,6 +43,15 @@ CREATE TABLE rpt.unique_user_views_daily (
 ) WITH ( OIDS=FALSE);
 EOM
 
+read -r -d '' showcase_user_views_daily <<- EOM
+CREATE TABLE showcase_user_views_daily (
+    rec_date date NOT NULL,
+    campaign_id character varying(20) NOT NULL,
+    org_id character varying(20) NOT NULL,
+    uuid character varying(100) NOT NULL
+);
+EOM
+
 read -r -d '' campaign_summary_hourly <<- EOM
 CREATE TABLE rpt.campaign_summary_hourly
 (
@@ -113,6 +122,9 @@ configDb()
 
     psql -c "${unique_user_views_daily}" > /dev/null
     psql -c "GRANT SELECT ON TABLE rpt.unique_user_views_daily TO editor;" > /dev/null
+
+    psql -c "${showcase_user_views_daily}" > /dev/null
+    psql -c "GRANT SELECT ON TABLE rpt.showcase_user_views_daily TO editor;" > /dev/null
 
     psql -c "${unique_user_views_lifetime}" > /dev/null
     psql -c "GRANT SELECT ON TABLE rpt.unique_user_views TO editor;" > /dev/null
