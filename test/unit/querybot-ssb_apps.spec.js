@@ -97,6 +97,7 @@ describe('querybot-ssb: apps (UT)', function() {
             expect(lib.initializeResponseRecord('abc')).toEqual({ 
                 campaignId: 'abc',
                 summary: { clicks: 0, installs: 0, launches: 0, users: 0, views: 0 },
+                cycle: { clicks: 0, installs: 0, launches: 0, users: 0, views: 0 },
                 daily_7: [ 
                     {date:'2016-01-20',clicks:0,installs:0,launches:0,users:0,views:0},
                     {date:'2016-01-21',clicks:0,installs:0,launches:0,users:0,views:0},

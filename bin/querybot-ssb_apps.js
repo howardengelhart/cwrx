@@ -9,7 +9,8 @@ var _ut_            = (global.jasmine) ? true : false,
 lib.initializeResponseRecord = function(campaignId){
     var result = { campaignId : campaignId }, refDate, dt, i;
     
-    result.summary = { clicks: 0, installs: 0, launches: 0, users: 0, views: 0 };
+    result.summary  = { clicks: 0, installs: 0, launches: 0, users: 0, views: 0 };
+    result.cycle    = { clicks: 0, installs: 0, launches: 0, users: 0, views: 0 };
     result.daily_7  = [];
     result.daily_30 = [];
     result.today    = [];
@@ -122,6 +123,83 @@ lib.queryOverall = function(response){
         .then(function(result){
             result.rows.forEach(function(row){
                 lib.flattenOverallRecord( row,response[row.campaignId].summary);
+            });
+
+            return response;
+        });
+};
+
+
+lib.queryCycle = function(response){
+    var log = logger.getLog(), statement,
+        campaignIds = lib.getUncachedCampaignIds(response);
+
+
+    statement = [
+        'SELECT',
+        '    cs.campaign_id as "campaignId",',
+        '    CASE cs.event_type',
+        '        WHEN \'completedView\' THEN \'views\'',
+        '        WHEN \'link.Action\'   THEN \'clicks\'',
+        '        WHEN \'appInstall\'    THEN \'installs\'',
+        '        WHEN \'appLaunch\'     THEN \'launches\'',
+        '    END as "eventType",',
+        '    SUM(cs.events) as "eventCount"',
+        'FROM',
+        '    rpt.campaign_summary_hourly cs',
+        'INNER JOIN (',
+        '    select co.campaign_id,co.org_id,oc.latest_credit_date',
+        '    from (',
+        '        select b.org_id,max(b.transaction_ts) as latest_credit_date',
+        '        from fct.billing_transactions b',
+        '        where sign = 1 and description like \'%showcase%\'',
+        '        group by 1',
+        '    ) oc',
+        '    inner join (',
+        '        select campaign_id,org_id',
+        '        from fct.showcase_user_views_daily',
+        '        where campaign_id = ANY($1::text[])',
+        '        group by 1,2',
+        '    ) co ON oc.org_id = co.org_id',
+        ') oc ON  cs.campaign_id = oc.campaign_id AND cs.rec_ts >= oc.latest_credit_date::date',
+        'WHERE',
+        '    cs.event_type IN (\'completedView\',\'link.Action\',\'appInstall\',\'appLaunch\')',
+        '    AND cs.campaign_id = ANY($1::text[])',
+        'GROUP BY 1,2',
+        'UNION',
+        'select campaign_id as "campaignId",',
+        '    \'users\' as "eventType",',
+        '    count(*) as "eventCount"',
+        'from (',
+        '    select s.campaign_id,s.uuid',
+        '    from fct.showcase_user_views_daily s',
+        '    inner join (',
+        '        select co.campaign_id,co.org_id,oc.latest_credit_date',
+        '        from (',
+        '            select b.org_id,max(b.transaction_ts) as latest_credit_date',
+        '            from fct.billing_transactions b',
+        '            where sign = 1 and description like \'%showcase%\'',
+        '            group by 1',
+        '        ) oc',
+        '        inner join (',
+        '            select campaign_id,org_id',
+        '            from fct.showcase_user_views_daily',
+        '            where campaign_id = ANY($1::text[])',
+        '            group by 1,2',
+        '        ) co ON oc.org_id = co.org_id',
+        '    ) oc ON  s.campaign_id = oc.campaign_id AND',
+        '        s.rec_date >= oc.latest_credit_date::date',
+        '    where s.campaign_id = ANY($1::text[])',
+        '    group by 1,2',
+        ') u',
+        'group by 1,2'
+    ];
+
+    log.trace(statement.join('\n'));
+    return lib.pgUtils.query(statement.join('\n'), [campaignIds])
+        .then(function(result){
+            result.rows.forEach(function(row){
+                lib.flattenOverallRecord( row,response[row.campaignId].cycle);
             });
 
             return response;
@@ -314,6 +392,10 @@ lib.getAnalytics = function(req) {
             return lib.queryOverall(result);
         }
 
+        function getCycleData(result) {
+            return lib.queryCycle(result);
+        }
+
         function getDailyData(result) {
             return lib.queryDaily(result);
         }
@@ -323,6 +405,7 @@ lib.getAnalytics = function(req) {
         }
 
         return getSummaryData(result)
+        .then(getCycleData)
         .then(getDailyData)
         .then(getHourlyData);
     }
