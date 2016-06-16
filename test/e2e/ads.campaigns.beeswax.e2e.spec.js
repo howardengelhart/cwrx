@@ -1,4 +1,5 @@
 var q               = require('q'),
+    path            = require('path'),
     request         = require('request'),
     util            = require('util'),
     BeeswaxClient   = require('beeswax-client'),
@@ -21,7 +22,7 @@ describe('ads - Beeswax external campaigns endpoints (E2E):', function() {
     var cookieJar, nonAdminJar, mockApp, appCreds, createdAdvert, mockCamps;
 
     beforeEach(function() {
-        jasmine.DEFAULT_TIMEOUT_INTERVAL = 30000;
+        jasmine.DEFAULT_TIMEOUT_INTERVAL = 60000;
     });
 
     beforeAll(function(done) {
@@ -936,6 +937,7 @@ describe('ads - Beeswax external campaigns endpoints (E2E):', function() {
     // Note: this will actually fail if any campaigns are not cleaned up!
     afterAll(function(done) {
         beeswax.advertisers.delete(createdAdvert.beeswaxIds.advertiser)
+        .timeout(jasmine.DEFAULT_TIMEOUT_INTERVAL - 100, 'Timed out in afterAll of ' + path.basename(__filename))
         .then(done, done.fail);
     });
 

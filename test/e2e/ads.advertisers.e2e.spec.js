@@ -1,4 +1,5 @@
 var q               = require('q'),
+    path            = require('path'),
     util            = require('util'),
     ld              = require('lodash'),
     request         = require('request'),
@@ -23,7 +24,7 @@ describe('ads advertisers endpoints (E2E):', function() {
     var cookieJar, nonAdminJar, mockApp, appCreds;
 
     beforeEach(function(done) {
-        jasmine.DEFAULT_TIMEOUT_INTERVAL = 30000;
+        jasmine.DEFAULT_TIMEOUT_INTERVAL = 60000;
 
         if (cookieJar && nonAdminJar) {
             return done();
@@ -610,7 +611,9 @@ describe('ads advertisers endpoints (E2E):', function() {
                 return beeswax.advertisers.delete(beesId);
             })).then(function(results) {
                 done();
-            }).catch(done.fail);
+            })
+            .timeout(jasmine.DEFAULT_TIMEOUT_INTERVAL - 100, 'Timed out in afterAll of ' + path.basename(__filename))
+            .catch(done.fail);
         });
 
         beforeEach(function(done) {
