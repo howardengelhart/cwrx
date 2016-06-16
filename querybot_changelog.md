@@ -1,5 +1,8 @@
 # QueryBot Service Changelog
 
+### 1.6.0: Thu Jun 16 15:50:47 EDT 2016
+* [FEATURE]: Adding ability to pull data for current billing cycle.
+
 ### 1.5.2: Thu May 26 10:15:08 EDT 2016
 * [FEATURE]: Use memcache for ssb query results.
 * [FEATURE]: Added cloudwatch metrics for ssb query.

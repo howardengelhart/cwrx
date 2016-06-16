@@ -43,6 +43,15 @@ CREATE TABLE rpt.unique_user_views_daily (
 ) WITH ( OIDS=FALSE);
 EOM
 
+read -r -d '' showcase_user_views_daily <<- EOM
+CREATE TABLE fct.showcase_user_views_daily (
+    rec_date date NOT NULL,
+    campaign_id character varying(20) NOT NULL,
+    org_id character varying(20) NOT NULL,
+    uuid character varying(100) NOT NULL
+);
+EOM
+
 read -r -d '' campaign_summary_hourly <<- EOM
 CREATE TABLE rpt.campaign_summary_hourly
 (
@@ -123,6 +132,11 @@ configDb()
     psql -c "${billing_transactions}" > /dev/null
     psql -c "GRANT SELECT, INSERT ON TABLE fct.billing_transactions TO editor;" > /dev/null
     psql -c "GRANT USAGE, SELECT ON fct.billing_transactions_rec_key_seq TO editor;" > /dev/null
+    
+    psql -c "${showcase_user_views_daily}" > /dev/null
+    psql -c "GRANT SELECT, INSERT ON TABLE fct.showcase_user_views_daily TO editor;" > /dev/null
+    psql -c "GRANT SELECT ON TABLE fct.showcase_user_views_daily TO editor;" > /dev/null
+
 }
 
 echo "Check if init required."
