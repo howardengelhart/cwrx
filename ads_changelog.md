@@ -1,5 +1,8 @@
 # Ads Service Changelog
 
+### 5.2.0: Mon Jun 20 13:27:13 EDT 2016
+* [FIX]: Adding missing fields to the beeswax creative: [#934](https://github.com/cinema6/cwrx/issues/934)
+
 ### 5.1.0: Tue Jun  7 12:17:17 EDT 2016
 * [FEATURE]: Allow creating beeswax advertiser for pre-existing advertiser: [#920](https://github.com/cinema6/cwrx/issues/920)
 * [FIX]: Fix handling of beeswax campaign budget + support `budgetImpressions` and `dailyLimitImpressions`: [#919](https://github.com/cinema6/cwrx/issues/919)

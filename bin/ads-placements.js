@@ -8,6 +8,7 @@
         express         = require('express'),
         fs              = require('fs-extra'),
         querystring     = require('querystring'),
+        url             = require('url'),
         logger          = require('../lib/logger'),
         historian       = require('../lib/historian'),
         QueryCache      = require('../lib/queryCache'),
@@ -138,7 +139,7 @@
                 return q();
             }
             
-            log.trace('[%1] Fetching %2 %3', req.uuid, prop, req.body.tagParams[prop]);
+            log.trace('[%1] Fetching %2 %3', req.uuid, prop, ld.get(req, propPath, null));
             
             return mongoUtils.findObject(svc._db.collection(prop + 's'), query)
             .then(function(obj) {
@@ -215,7 +216,11 @@
         [
             { field: 'hostApp', qp: 'hostApp' },
             { field: 'network', qp: 'network' },
-            { field: 'uuid', qp: 'extSessionId' }
+            { field: 'uuid', qp: 'extSessionId' },
+            { field: 'ex', qp: 'ex' },
+            { field: 'vr', qp: 'vr' },
+            { field: 'branding', qp: 'branding' },
+            { field: 'domain', qp: 'domain' },
         ].forEach(function(obj) {
             var val;
             if (tagParams[obj.field]) {
@@ -244,7 +249,13 @@
             log.info('[%1] Can\'t create beeswax creative for tagType %2', req.uuid, tagType);
             return null;
         }
-        
+
+        if (!req.campaign) {
+            log.error('[%1] Can\'t create beeswax creative without campaign for placement %2',
+                req.uuid, c6Id);
+            return null;
+        }
+
         // Ensure that beeswax creative has {{CLICK_URL}} macro
         req.body.tagParams.clickUrls = req.body.tagParams.clickUrls || [];
         if (req.body.tagParams.clickUrls.indexOf('{{CLICK_URL}}') === -1) {
@@ -271,10 +282,34 @@
             creative_attributes: {
                 mobile: {
                     mraid_playable: [true]
+                },
+                technical : {
+                    banner_mime : ['application/javascript']
                 }
             }
-        };
+        }, adUri;
         
+        if (req.campaign.product && req.campaign.product.uri) {
+            adUri = url.parse(req.campaign.product.uri);
+            beesBody.creative_attributes.advertiser = {
+                advertiser_domain : [adUri.hostname ],
+                landing_page_url: [adUri.protocol + '//' + adUri.host + adUri.pathname]
+            };
+        } else {
+            log.warn('[%1] Placement %2, campaign %3 has no product, beeswax creative' +
+                ' will likely not be approved.', req.uuid, c6Id, req.campaign.id);
+        }
+
+
+//
+//     if (req.body.thumbnail) {
+//         /* Beeswax is dumb and returns "ERROR: URL must begin with HTTP or HTTPS" if the url
+//          * DOES begin with http or https. However, trimming the protocol works, for some reason.
+//          * So this workaround should hopefully work for now, until they get their act together.
+//          */
+//         beesBody.creative_thumbnail_url = req.body.thumbnail.replace(/^https?:\/\//, '//');
+//     }
+//        
         var templatePath = path.join(__dirname, '../templates/beeswaxCreatives/mraid.html'),
             tagHtml = fs.readFileSync(templatePath, 'utf8'),
             opts = { placement: c6Id };

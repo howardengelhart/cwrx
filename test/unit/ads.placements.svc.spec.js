@@ -501,6 +501,10 @@ describe('ads-placements (UT)', function() {
                 hostApp: 'Mapsaurus',
                 network: 'http://foo.bar.com',
                 uuid: 'univuniqid',
+                ex: 'myExperiment',
+                vr: 'myVariant',
+                domain: 'everything',
+                branding: 'cinema7'
             };
         });
         
@@ -514,6 +518,10 @@ describe('ads-placements (UT)', function() {
             expect(url).toMatch('hostApp=Mapsaurus');
             expect(url).toMatch('network=http%3A%2F%2Ffoo.bar.com');
             expect(url).toMatch('extSessionId=univuniqid');
+            expect(url).toMatch('ex=myExperiment');
+            expect(url).toMatch('vr=myVariant');
+            expect(url).toMatch('branding=cinema7');
+            expect(url).toMatch('domain=everything');
             expect(url).toMatch('cb={{CACHEBUSTER}}');
         });
         
@@ -552,6 +560,30 @@ describe('ads-placements (UT)', function() {
                 }
             };
             req.advertiser = { id: 'a-1', beeswaxIds: { advertiser: 9876 } };
+            req.campaign = {
+                id: 'cam-active',
+                product : {
+                    uri: 'https://itunes.apple.com/us/app/test/id1120916362?mt=8&uo=4',
+                    images : [
+                      {
+                        uri: 'http://a2.mzstatic.com/screen1136x1136.jpeg',
+                        type: 'screenshot', device: 'phone'
+                      },
+                      {
+                        uri: 'http://a5.mzstatic.com/screen1136x1136.jpeg',
+                        type: 'screenshot', device: 'phone'
+                      },
+                      {
+                        uri: 'http://a2.mzstatic.com/screen1136x1136.jpeg',
+                        type: 'screenshot', device: 'phone'
+                      },
+                      {
+                        uri: 'http://is1.mzstatic.com/image/thumb/512x512bb.jpg',
+                        type: 'thumbnail'
+                      }
+                    ]
+                }
+            };
             spyOn(fs, 'readFileSync').and.returnValue('window.c6mraid(%OPTIONS%)');
         });
         
@@ -573,11 +605,57 @@ describe('ads-placements (UT)', function() {
                     ADDITIONAL_PIXELS: [{ PIXEL_URL: jasmine.any(String) }]
                 },
                 creative_attributes: {
+                    advertiser : {
+                        advertiser_domain : ['itunes.apple.com' ],
+                        landing_page_url: ['https://itunes.apple.com/us/app/test/id1120916362']
+                    },
                     mobile: {
                         mraid_playable: [true]
+                    },
+                    technical : {
+                        banner_mime : ['application/javascript']
                     }
                 }
             });
+            expect(req.body.tagParams.clickUrls).toEqual(['{{CLICK_URL}}', 'click.me']);
+            expect(req.body.showInTag).toEqual({ clickUrls: true, hostApp: true, uuid: true, foo: true });
+            expect(beesBody.creative_content.TAG).toBe('window.c6mraid(' + JSON.stringify({
+                'placement': 'pl-1234',
+                'clickUrls': ['{{CLICK_URL}}', 'click.me'],
+                'hostApp': 'Mapsaurus',
+                'uuid': 'univuniqid',
+                'foo': 'bar'
+            }) + ')');
+        });
+        
+        it('should format and return a beeswax creative, if no product', function() {
+            delete req.campaign.product;
+            var beesBody = placeModule.formatBeeswaxBody(req);
+            expect(beesBody).toEqual({
+                advertiser_id: 9876,
+                alternative_id: 'pl-1234',
+                creative_name: 'da best placement',
+                creative_type: 0,
+                creative_template_id: 13,
+                sizeless: true,
+                secure: true,
+                active: true,
+                width: 320,
+                height: 480,
+                creative_content: {
+                    TAG: jasmine.any(String),
+                    ADDITIONAL_PIXELS: [{ PIXEL_URL: jasmine.any(String) }]
+                },
+                creative_attributes: {
+                    mobile: {
+                        mraid_playable: [true]
+                    },
+                    technical : {
+                        banner_mime : ['application/javascript']
+                    }
+                }
+            });
+            expect(mockLog.warn).toHaveBeenCalledWith('[%1] Placement %2, campaign %3 has no product, beeswax creative will likely not be approved.', '1234', 'pl-1234', 'cam-active');
             expect(req.body.tagParams.clickUrls).toEqual(['{{CLICK_URL}}', 'click.me']);
             expect(req.body.showInTag).toEqual({ clickUrls: true, hostApp: true, uuid: true, foo: true });
             expect(beesBody.creative_content.TAG).toBe('window.c6mraid(' + JSON.stringify({
@@ -594,6 +672,16 @@ describe('ads-placements (UT)', function() {
             expect(placeModule.formatBeeswaxBody(req)).toBe(null);
         });
         
+//        it('should set the creative thumbnail if provided', function() {
+//            var beesBodies = ['http://thumb.1', 'https://thumb.2', '//thumb.3'].map(function(thumbUrl) {
+//                req.body.thumbnail = thumbUrl;
+//                return placeModule.formatBeeswaxBody(req);
+//            });
+//            expect(beesBodies[0].creative_thumbnail_url).toBe('//thumb.1');
+//            expect(beesBodies[1].creative_thumbnail_url).toBe('//thumb.2');
+//            expect(beesBodies[2].creative_thumbnail_url).toBe('//thumb.3');
+//        });
+//        
         it('should ensure the CLICK_URL macro is included on the body and in the tag', function() {
             req.body.tagParams = { campaign: 'cam-active',container: 'beeswax' };
             req.body.showInTag = {};
