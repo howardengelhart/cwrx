@@ -7,6 +7,7 @@ describe('collateralScrape-scraper (UT)', function() {
     beforeAll(function() {
         for (var m in require.cache){ delete require.cache[m]; }
 
+        require('util');
         require('spidey.js');
         require('request-promise');
     });
@@ -1831,6 +1832,7 @@ describe('collateralScrape-scraper (UT)', function() {
                         price: response.results[0].formattedPrice,
                         rating: response.results[0].averageUserRating,
                         extID: response.results[0].trackId,
+                        ratingCount: response.results[0].userRatingCount,
                         images: [].concat(
                             response.results[0].screenshotUrls.map(function(uri) {
                                 return {
@@ -2161,5 +2163,102 @@ describe('collateralScrape-scraper (UT)', function() {
                 expect(mockLog.error).not.toHaveBeenCalled();
             });
         });
+    });
+
+    describe('getMetadata', function() {
+        var mockReq;
+        var done = jasmine.createSpy('done()');
+
+        beforeEach(function() {
+            mockReq = {
+                query : {
+                    id: '1234' ,
+                    uri: 'https://www.facebook.com/reelc/videos/1710824435853560/',
+                    type: 'facebook'
+                } ,
+                uuid : 'testid-0000'
+            };
+            mockDone = jasmine.createSpy('doneSpy');
+            metagetta = jasmine.createSpy('metagettaSpy').and.returnValue(
+                q.resolve( {
+                    id: '1234',
+                    uri: 'www.suchvideo.com/muchuri=wow',
+                    type: 'wtvr',
+                    title: 'I is video',
+                    duration: '900'
+                })
+            );
+
+            metagetta.hasFacebookCreds = true;
+            metagetta.hasGoogleKey = true;
+
+        });
+
+        describe('when no id or URI is given', function() {
+            it('should throw an error',function(done) {
+                delete mockReq.query.uri;
+                delete mockReq.query.id;
+                collateralScrape.getMetadata(mockReq, metagetta).then(function(resp) {
+                    expect(mockLog.info).toHaveBeenCalled();
+                    expect(resp.code).toEqual(400);
+                    expect(resp.body).toEqual('Must specify either a URI or id.');
+                }).catch(function(error) {
+                    expect(error.toString()).not.toBeDefined();
+                }).done(done);
+            });
+        });
+        describe('when no type is given', function() {
+            it ('should still get metadata if valid uri', function(done) {
+                delete mockReq.query.type;
+                collateralScrape.getMetadata(mockReq, metagetta).then(function(resp) {
+                    expect(mockLog.info).toHaveBeenCalled();
+                    expect(mockLog.warn).not.toHaveBeenCalled();
+                    expect(resp.code).toEqual(200);
+                }).catch(function(error) {
+                    expect(error.toString()).not.toBeDefined();
+                }).done(done);
+            });
+        });
+        describe('if given all required params', function() {
+            it ('should successfully get metadata for a video', function(done) {
+                collateralScrape.getMetadata(mockReq,metagetta).then(function(resp) {
+                    expect(mockLog.info).toHaveBeenCalled();
+                    expect(mockLog.error).not.toHaveBeenCalled();
+                    expect(mockLog.warn).not.toHaveBeenCalled();
+                    expect(resp.code).toEqual(200);
+                    expect(resp.body).toEqual(jasmine.objectContaining({
+                        id: '1234',
+                        uri: 'www.suchvideo.com/muchuri=wow',
+                        type: 'wtvr',
+                        title: 'I is video',
+                        duration: '900'
+                    }));
+                }).catch(function(error) {
+                    expect(error.toString()).not.toBeDefined();
+                }).done(done);
+            });
+        });
+        describe('if metagetta fails', function() {
+            beforeEach(function(){
+                metagetta = jasmine.createSpy('metagettaSpy').and.returnValue(
+                    q.reject( {
+                        code: 400,
+                        body: 'Error getting metadata',
+                    })
+                );
+            })
+            it ('should get metadata for a youtube video', function(done) {
+                mockReq.query.uri  = 'https://www.instagram.com/p/BGhQhO2HDyZ/?taken-by=prissy_pig';
+                mockReq.query.type      = 'instagram';
+                collateralScrape.getMetadata(mockReq,metagetta).then(function(resp) {
+                    expect(mockLog.warn.calls.mostRecent().args[2]).toEqual('{ code: 400, body: \'Error getting metadata\' }');
+                    expect(resp.code).toEqual(400);
+                    expect(resp.body).toEqual('Error getting metadata');
+                }).catch(function(error) {
+                    expect(error.toString()).not.toBeDefined();
+                }).done(done);
+            });
+        });
+
     });
 });

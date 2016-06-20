@@ -1,5 +1,8 @@
 # Collateral Service Changelog
 
+* [FEATURE]: Add `'[GET] /api/collateral/video-data`: [#942] (https://github.com/cinema6/cwrx/pull/942)
+* [FIX]: Provide the number of reviews when GETting app product-data: [#942](https://github.com/cinema6/cwrx/pull/942)
+
 ### 2.4.1: Tue May 24 15:00:42 EDT 2016
 * Set `Access-Control-Allow-Origin` to `'*'` on public endpoints: [#908](https://github.com/cinema6/cwrx/pull/908)
 * Extra deployment steps: None

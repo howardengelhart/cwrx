@@ -306,39 +306,33 @@
     };
 
     
-    transModule.setupEndpoints = function(app, svc, sessions, audit) {
+    transModule.setupEndpoints = function(app, svc, sessions, audit, jobManager) {
         var router      = express.Router(),
             mountPath   = '/api/transactions?'; // prefix to all endpoints declared here
+
+        router.use(jobManager.setJobTimeout.bind(jobManager));
         
         var authMidware = authUtils.crudMidware('transactions', { allowApps: true });
 
         router.get('/', sessions, authMidware.read, audit, function(req, res) {
-            return transModule.getTransactions(svc, req).then(function(resp) {
-                expressUtils.sendResponse(res, resp);
-            }).catch(function(error) {
-                expressUtils.sendResponse(res, {
-                    code: 500,
-                    body: {
-                        error: 'Error fetching transactions',
-                        detail: error
-                    }
+            var promise = transModule.getTransactions(svc, req);
+            promise.finally(function() {
+                jobManager.endJob(req, res, promise.inspect())
+                .catch(function(error) {
+                    res.send(500, { error: 'Error fetching transactions', detail: error });
                 });
             });
         });
 
         // No sessions middleware here so users cannot create transactions
         router.post('/', authMidware.create, audit, function(req, res) {
-            return transModule.createTransaction(svc, req).then(function(resp) {
+            var promise = transModule.createTransaction(svc, req).then(function(resp) {
                 return transModule.produceCreation(req, resp);
-            }).then(function(resp) {
-                expressUtils.sendResponse(res, resp);
-            }).catch(function(error) {
-                expressUtils.sendResponse(res, {
-                    code: 500,
-                    body: {
-                        error: 'Error creating transaction',
-                        detail: error
-                    }
+            });
+            promise.finally(function() {
+                jobManager.endJob(req, res, promise.inspect())
+                .catch(function(error) {
+                    res.send(500, { error: 'Error creating transaction', detail: error });
                 });
             });
         });

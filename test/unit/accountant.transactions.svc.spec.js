@@ -1,7 +1,7 @@
 var flush = true;
 describe('accountant-transactions (UT)', function() {
     var mockLog, Model, MiddleManager, logger, q, transModule, express, authUtils, uuid,
-        streamUtils, pgUtils, req, nextSpy, doneSpy, Scope;
+        JobManager, streamUtils, pgUtils, req, nextSpy, doneSpy, Scope;
 
     beforeEach(function() {
         if (flush) { for (var m in require.cache){ delete require.cache[m]; } flush = false; }
@@ -12,6 +12,7 @@ describe('accountant-transactions (UT)', function() {
         logger          = require('../../lib/logger');
         Model           = require('../../lib/model');
         MiddleManager   = require('../../lib/middleManager');
+        JobManager      = require('../../lib/jobManager');
         authUtils       = require('../../lib/authUtils');
         streamUtils     = require('../../lib/streamUtils');
         pgUtils         = require('../../lib/pgUtils');
@@ -764,7 +765,7 @@ describe('accountant-transactions (UT)', function() {
     });
     
     describe('setupEndpoints', function() {
-        var app, svc, sessions, audit, mockRouter, expressRoutes, authMidware, res;
+        var app, svc, sessions, audit, mockRouter, expressRoutes, authMidware, res, jobManager;
         beforeEach(function() {
             mockRouter = {};
             expressRoutes = {};
@@ -790,16 +791,21 @@ describe('accountant-transactions (UT)', function() {
             sessions = 'sessionsMidware';
             audit = 'auditMidware';
 
+            jobManager = new JobManager('fakeCache', {});
+            spyOn(jobManager.setJobTimeout, 'bind').and.returnValue(jobManager.setJobTimeout);
+            spyOn(jobManager, 'endJob').and.returnValue(q());
+
             res = {
                 send: jasmine.createSpy('res.send()'),
                 header: jasmine.createSpy('res.header()')
             };
             
-            transModule.setupEndpoints(app, svc, sessions, audit);
+            transModule.setupEndpoints(app, svc, sessions, audit, jobManager);
         });
         
         it('should create a router and attach it to the app', function() {
             expect(express.Router).toHaveBeenCalled();
+            expect(mockRouter.use).toHaveBeenCalledWith(jobManager.setJobTimeout);
             expect(app.use).toHaveBeenCalledWith('/api/transactions?', mockRouter);
         });
 
@@ -825,8 +831,11 @@ describe('accountant-transactions (UT)', function() {
                 
                 it('should call getTransactions and return the response', function(done) {
                     q(handler(req, res, nextSpy)).finally(function() {
-                        expect(res.send).toHaveBeenCalledWith(200, [{ id: 'pro-1' }]);
-                        expect(res.header).toHaveBeenCalledWith('content-range', 'items 2-3/5');
+                        expect(jobManager.endJob).toHaveBeenCalledWith(req, res, {
+                            state: 'fulfilled',
+                            value: { code: 200, body: [{ id: 'pro-1' }], headers: { 'content-range': 'items 2-3/5' } }
+                        });
+                        expect(res.send).not.toHaveBeenCalled();
                         expect(nextSpy).not.toHaveBeenCalled();
                         expect(transModule.getTransactions).toHaveBeenCalledWith(svc, req);
                     }).done(done);
@@ -835,8 +844,11 @@ describe('accountant-transactions (UT)', function() {
                 it('should handle errors from getTransactions', function(done) {
                     transModule.getTransactions.and.returnValue(q.reject('I GOT A PROBLEM'));
                     q(handler(req, res, nextSpy)).finally(function() {
-                        expect(res.send).toHaveBeenCalledWith(500, { error: 'Error fetching transactions', detail: 'I GOT A PROBLEM' });
-                        expect(res.header).not.toHaveBeenCalled();
+                        expect(jobManager.endJob).toHaveBeenCalledWith(req, res, {
+                            state: 'rejected',
+                            reason: 'I GOT A PROBLEM'
+                        });
+                        expect(res.send).not.toHaveBeenCalled();
                         expect(nextSpy).not.toHaveBeenCalled();
                     }).done(done);
                 });
@@ -860,19 +872,33 @@ describe('accountant-transactions (UT)', function() {
                 
                 it('should call createTransactions and return the response', function(done) {
                     q(handler(req, res, nextSpy)).finally(function() {
-                        expect(res.send).toHaveBeenCalledWith(400, 'i got a problem with YOU');
-                        expect(nextSpy).not.toHaveBeenCalled();
-                        expect(transModule.createTransaction).toHaveBeenCalledWith(svc, req);
-                        expect(transModule.produceCreation).toHaveBeenCalledWith(req, transModule.createTransaction.calls.mostRecent().returnValue.inspect().value);
-                    }).done(done);
+                        process.nextTick(function() {
+                            expect(jobManager.endJob).toHaveBeenCalledWith(req, res, {
+                                state: 'fulfilled',
+                                value: { code: 400, body: 'i got a problem with YOU' }
+                            });
+                            expect(res.send).not.toHaveBeenCalled();
+                            expect(nextSpy).not.toHaveBeenCalled();
+                            expect(transModule.createTransaction).toHaveBeenCalledWith(svc, req);
+                            expect(transModule.produceCreation).toHaveBeenCalledWith(req, transModule.createTransaction.calls.mostRecent().returnValue.inspect().value);
+                            done();
+                        });
+                    }).catch(done.fail);
                 });
                 
                 it('should handle errors from createTransactions', function(done) {
                     transModule.createTransaction.and.returnValue(q.reject('I GOT A PROBLEM'));
                     q(handler(req, res, nextSpy)).finally(function() {
-                    expect(res.send).toHaveBeenCalledWith(500, { error: 'Error creating transaction', detail: 'I GOT A PROBLEM' });
-                        expect(nextSpy).not.toHaveBeenCalled();
-                    }).done(done);
+                        process.nextTick(function() {
+                            expect(jobManager.endJob).toHaveBeenCalledWith(req, res, {
+                                state: 'rejected',
+                                reason: 'I GOT A PROBLEM'
+                            });
+                            expect(res.send).not.toHaveBeenCalled();
+                            expect(nextSpy).not.toHaveBeenCalled();
+                            done();
+                        });
+                    }).catch(done.fail);
                 });
             });
         });

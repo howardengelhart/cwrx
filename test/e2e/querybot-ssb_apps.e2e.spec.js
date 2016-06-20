@@ -4,6 +4,7 @@ var q               = require('q'),
     isArray         = require('util').isArray,
     requestUtils    = require('../../lib/requestUtils'),
     testUtils       = require('./testUtils'),
+    uuid            = require('rc-uuid'),
     host            = process.env.host || 'localhost',
     config = {
         querybotUrl : 'http://' + (host === 'localhost' ? host + ':4100' : host) +
@@ -17,7 +18,7 @@ describe('querybot ssb_apps (E2E)', function(){
         pgdata_unique_user_views_daily, pgdata_unique_user_views, 
         mockUser, mockCamps,
         cookieJar, options, camp1Data, camp2Data, camp5Data, 
-        noDataCampData, mockApp, appCreds;
+        noDataCampData, mockApp, appCreds ;
 
     beforeEach(function(done){
         pgconn = {
@@ -68,6 +69,13 @@ describe('querybot ssb_apps (E2E)', function(){
                 launches: 0,
                 users   : 0,
                 views   : 0
+            },
+            cycle : {
+                clicks :  0,
+                installs: 0,
+                launches: 0,
+                users   : 0,
+                views   : 0
             }
         });
 
@@ -79,6 +87,13 @@ describe('querybot ssb_apps (E2E)', function(){
                 launches: 6984,
                 users  : 310,
                 views  : 376
+            },
+            cycle : {
+                clicks :  26,
+                installs: 3,
+                launches: 3492,
+                users   : 318,
+                views   : 188
             }
         });
         camp1Data.daily_7[0].users = 348;
@@ -122,6 +137,13 @@ describe('querybot ssb_apps (E2E)', function(){
                 launches: 24,
                 users  : 694,
                 views  : 716
+            },
+            cycle : {
+                clicks :  0,
+                installs: 0,
+                launches: 0,
+                users   : 0,
+                views   : 0
             }
         });
 
@@ -168,6 +190,13 @@ describe('querybot ssb_apps (E2E)', function(){
                 clicks :  9,
                 launches: 0,
                 installs: 0
+            },
+            cycle : {
+                clicks :  0,
+                installs: 0,
+                launches: 0,
+                users   : 0,
+                views   : 0
             }
         });
  
@@ -331,6 +360,12 @@ describe('querybot ssb_apps (E2E)', function(){
                 })
                 .then(function(){
                     return testUtils.pgQuery('TRUNCATE TABLE rpt.unique_user_views_daily');
+                })
+                .then(function(){
+                    return testUtils.pgQuery('TRUNCATE TABLE fct.billing_transactions');
+                })
+                .then(function(){
+                    return testUtils.pgQuery('TRUNCATE TABLE fct.showcase_user_views_daily');
                 });
         }
 
@@ -341,6 +376,39 @@ describe('querybot ssb_apps (E2E)', function(){
                 })
                 .then(function(){
                     return testUtils.pgQuery(pgdata_unique_user_views_daily.join(' '));
+                })
+                .then(function(){
+                    return testUtils.pgQuery('SELECT * FROM rpt.unique_user_views_daily')
+                        .then(function(result){
+                            var records = [], record, i, org ;
+                            result.rows.forEach(function(row, i){
+                                for (i = 0; i < row.unique_user_views; i++) {
+                                    org = mockCamps.filter(function(c){
+                                        return c.id === row.campaign_id;
+                                    })[0].org;
+                                    records.push( '(' + 
+                                        '\'' + row.rec_date.toISOString().substr(0,10) + '\',' +
+                                        '\'' + row.campaign_id + '\',' +
+                                        '\'' + org + '\',' +
+                                        '\'' + uuid.createUuid() + '\')'
+                                    );
+                                }
+                            });
+                            return testUtils.pgQuery(
+                                'INSERT INTO fct.showcase_user_views_daily VALUES' +
+                                records.join(',\n') + ';'
+                            );
+                        });
+                })
+                .then(function(){
+                    var trans_date = today() + ' 12:00:00+00';
+                    var sql = [ 
+                        'INSERT INTO fct.billing_transactions VALUES (',
+                            '1, current_timestamp, \'t-000\',\'' + trans_date + '\',',
+                            '\'e2e-org\',1,1,1,null,null,null,\'{ "target": "showcase" }\');'
+                    ];
+
+                    return testUtils.pgQuery(sql.join(' '));
                 });
         }
 

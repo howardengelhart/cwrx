@@ -1,5 +1,11 @@
 # User Service Changelog
 
+### 4.1.0: Mon Jun 13 14:36:09 EDT 2016
+* Produce the emailChanged event only once: [#940](https://github.com/cinema6/cwrx/pull/940)
+
+### 4.0.1: Thu Jun  9 11:47:12 EDT 2016
+* Produce Hubspot tracking cookie to watchman when an account is created: [#932](https://github.com/cinema6/cwrx/pull/932/files)
+
 ### 4.0.0: Mon May 16 09:07:44 EDT 2016
 * [REMOVAL]: Users module will no longer send emails: [#887](https://github.com/cinema6/cwrx/issues/887)
 * Ensure `target` is set properly on all watchman notifications: [#887](https://github.com/cinema6/cwrx/issues/887)

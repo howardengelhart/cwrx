@@ -10,7 +10,7 @@
         logger          = require('../lib/logger'),
 
         advertModule = {};
-    
+
     advertModule.advertSchema = {
         name: {
             __allowed: true,
@@ -34,16 +34,16 @@
     advertModule.setupSvc = function(coll, beeswax) {
         var opts = { userProp: false },
             svc = new CrudSvc(coll, 'a', opts, advertModule.advertSchema);
-            
+
         svc.use('create', advertModule.createBeeswaxAdvert.bind(advertModule, beeswax));
 
         svc.use('edit', advertModule.editBeeswaxAdvert.bind(advertModule, beeswax));
-        
+
         return svc;
     };
-    
+
     /* jshint camelcase: false */
-    
+
     // Call a beeswax method, and if it returns a "name in use" error, change the name + retry
     advertModule.handleNameInUse = function(req, beesBody, cb) {
         var log = logger.getLog();
@@ -51,27 +51,27 @@
             if (!(/Advertiser name already in use/.test(errorObj.message))) {
                 return q.reject(errorObj);
             }
-            
+
             var newName = beesBody.advertiser_name + ' (' + beesBody.alternative_id + ')';
             log.info('[%1] Name %2 already used in Beeswax, trying name %3',
                      req.uuid, beesBody.advertiser_name, newName);
-            
+
             beesBody.advertiser_name = newName;
             return cb();
         });
     };
-    
+
     // Create an advertiser in Beeswax for our advertiser
     advertModule.createBeeswaxAdvert = function(beeswax, req, next, done) {
         var log = logger.getLog(),
             c6Id = req.body.id,
             beesId;
-        
+
         var beesBody = {
             alternative_id: c6Id,
             advertiser_name: req.body.name
         };
-        
+
         return advertModule.handleNameInUse(req, beesBody, function createAdvert() {
             return beeswax.advertisers.create(beesBody);
         })
@@ -86,7 +86,7 @@
 
             beesId = resp.payload.advertiser_id;
             log.info('[%1] Created Beeswax advertiser %2 for %3', req.uuid, beesId, c6Id);
-            
+
             req.body.beeswaxIds = { advertiser: beesId };
             return next();
         })
@@ -96,13 +96,20 @@
             return q.reject('Error creating Beeswax advertiser');
         });
     };
-    
+
     // Edit the advertiser in Beeswax if relevant fields have changed
     advertModule.editBeeswaxAdvert = function(beeswax, req, next, done) {
         var log = logger.getLog(),
             c6Id = req.origObj.id,
             beesId = ld.get(req.origObj, 'beeswaxIds.advertiser', null);
-        
+
+        //Create new advertiser in Beeswax if existing C6 advertiser
+        if ((!(beesId)) && (req.query.initBeeswax === 'true')) {
+            if (!(req.body.name)) {
+                req.body.name = req.origObj.name;
+            }
+            return advertModule.createBeeswaxAdvert(beeswax, req, next, done);
+        }
         if (!beesId) {
             log.info('[%1] C6 advert %2 has no Beeswax advert', req.uuid, c6Id);
             return q(next());
@@ -111,12 +118,12 @@
             log.trace('[%1] Name unchanged, not editing Beeswax advert', req.uuid);
             return q(next());
         }
-        
+
         var beesBody = {
             alternative_id: c6Id,
             advertiser_name: req.body.name
         };
-        
+
         return advertModule.handleNameInUse(req, beesBody, function editAdvert() {
             return beeswax.advertisers.edit(beesId, beesBody);
         })
@@ -140,15 +147,15 @@
     };
     /* jshint camelcase: true */
 
-    
+
     advertModule.setupEndpoints = function(app, svc, sessions, audit, jobManager) {
         var router      = express.Router(),
             mountPath   = '/api/account/advertisers?'; // prefix to all endpoints declared here
-        
+
         router.use(jobManager.setJobTimeout.bind(jobManager));
-        
+
         var authMidware = authUtils.crudMidware('advertisers', { allowApps: true });
-        
+
         router.get('/:id', sessions, authMidware.read, audit, function(req, res) {
             var promise = svc.getObjs({id: req.params.id}, req, false);
             promise.finally(function() {
@@ -179,7 +186,7 @@
                 });
             });
         });
-        
+
         router.post('/', sessions, authMidware.create, audit, function(req, res) {
             var promise = svc.createObj(req);
             promise.finally(function() {
@@ -209,9 +216,9 @@
                 });
             });
         });
-        
+
         app.use(mountPath, router);
     };
-    
+
     module.exports = advertModule;
 }());

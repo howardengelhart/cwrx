@@ -320,7 +320,7 @@ describe('userSvc users (E2E):', function() {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
-        
+
         it('should fail if an app uses the wrong secret to make a request', function(done) {
             delete options.jar;
             var badCreds = { key: mockApp.key, secret: 'WRONG' };
@@ -958,7 +958,7 @@ describe('userSvc users (E2E):', function() {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
-        
+
         it('should let a non-admin edit themselves with a modified user document', function(done) {
             requestUtils.qRequest('get', { url: config.authUrl + '/status', jar: cookieJar })
             .then(function(resp) {
@@ -966,11 +966,11 @@ describe('userSvc users (E2E):', function() {
                 var userDoc = resp.body;
                 userDoc.firstName = 'Jimmy';
                 userDoc.lastName = 'Testmonkey';
-                
+
                 options.url = config.usersUrl + '/' + userDoc.id;
                 options.json = userDoc;
                 options.jar = cookieJar;
-                
+
                 return requestUtils.qRequest('put', options);
             }).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
@@ -1185,7 +1185,7 @@ describe('userSvc users (E2E):', function() {
     });
 
     describe('POST /api/account/users/email', function() {
-        var mockUser, reqBody, options, emailRecords;
+        var mockUser, reqBody, options;
         beforeEach(function(done) {
             mockUser = {
                 id: 'u-1',
@@ -1201,7 +1201,6 @@ describe('userSvc users (E2E):', function() {
                     password: 'password'
                 }
             };
-            emailRecords = {};
             testUtils.resetCollection('users', [mockRequester, mockAdmin, mockUser]).done(done);
         });
 
@@ -1275,25 +1274,16 @@ describe('userSvc users (E2E):', function() {
             });
 
             mockman.on('emailChanged', function(record) {
-                emailRecords[record.data.user.email] = record;
-                // wait for both events to be received
-                if (!emailRecords['c6e2etester@gmail.com'] || !emailRecords['c6e2etester2@gmail.com']) {
-                    return;
-                }
-                
-                Object.keys(emailRecords).forEach(function(email) {
-                    var record = emailRecords[email];
-                    expect(new Date(record.data.date)).not.toBe(NaN);
-                    expect(record.data.target).toBe('selfie');
-                    expect(record.data.oldEmail).toBe('c6e2etester@gmail.com');
-                    expect(record.data.newEmail).toBe('c6e2etester2@gmail.com');
-                    expect(record.data.user.password).not.toBeDefined();
-                    expect(record.data.user).toEqual(jasmine.objectContaining({
-                        email: email,
-                        id: 'u-1',
-                        status: 'active'
-                    }));
-                });
+                expect(new Date(record.data.date)).not.toBe(NaN);
+                expect(record.data.target).toBe('selfie');
+                expect(record.data.oldEmail).toBe('c6e2etester@gmail.com');
+                expect(record.data.newEmail).toBe('c6e2etester2@gmail.com');
+                expect(record.data.user.password).not.toBeDefined();
+                expect(record.data.user).toEqual(jasmine.objectContaining({
+                    email: 'c6e2etester2@gmail.com',
+                    id: 'u-1',
+                    status: 'active'
+                }));
 
                 // test that logging in with new email works
                 return q.all(['c6e2etester@gmail.com', 'c6e2etester2@gmail.com'].map(function(email) {
@@ -1312,7 +1302,7 @@ describe('userSvc users (E2E):', function() {
                 }).done(done);
             });
         });
-        
+
         it('should write an entry to the audit collection', function(done) {
             requestUtils.qRequest('post', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
@@ -1323,12 +1313,6 @@ describe('userSvc users (E2E):', function() {
             });
 
             mockman.on('emailChanged', function(record) {
-                emailRecords[record.data.user.email] = record;
-                // wait for both events to be received
-                if (!emailRecords['c6e2etester@gmail.com'] || !emailRecords['c6e2etester2@gmail.com']) {
-                    return;
-                }
-                
                 // test that it wrote an entry to the audit collection
                 return testUtils.mongoFind('audit', {}, {$natural: -1}, 1, 0, {db: 'c6Journal'})
                 .then(function(results) {
@@ -1361,16 +1345,8 @@ describe('userSvc users (E2E):', function() {
             });
 
             mockman.on('emailChanged', function(record) {
-                emailRecords[record.data.user.email] = record;
-                // wait for both events to be received
-                if (!emailRecords['c6e2etester@gmail.com'] || !emailRecords['c6e2etester2@gmail.com']) {
-                    return;
-                }
-                Object.keys(emailRecords).forEach(function(email) {
-                    var record = emailRecords[email];
-                    expect(record.data.oldEmail).toBe('c6e2etester@gmail.com');
-                    expect(record.data.newEmail).toBe('c6e2etester2@gmail.com');
-                });
+                expect(record.data.oldEmail).toBe('c6e2etester@gmail.com');
+                expect(record.data.newEmail).toBe('c6e2etester2@gmail.com');
                 done();
             });
         });
@@ -1387,15 +1363,7 @@ describe('userSvc users (E2E):', function() {
             });
 
             mockman.on('emailChanged', function(record) {
-                emailRecords[record.data.user.email] = record;
-                // wait for both events to be received
-                if (!emailRecords['c6e2etester@gmail.com'] || !emailRecords['c6e2etester2@gmail.com']) {
-                    return;
-                }
-                Object.keys(emailRecords).forEach(function(email) {
-                    var record = emailRecords[email];
-                    expect(record.data.target).toBe('showcase');
-                });
+                expect(record.data.target).toBe('showcase');
                 done();
             });
         });
@@ -1660,6 +1628,8 @@ describe('userSvc users (E2E):', function() {
     describe('POST /api/account/users/signup', function() {
         var mockUser, mockRoles, mockPols, options;
         beforeEach(function(done) {
+            var cookie = request.cookie('hubspotutk=chocolate-chip');
+            cookieJar.setCookie(cookie, 'http://' +  host);
             mockUser = {
                 email: 'c6e2etester@gmail.com',
                 password: 'password',
@@ -1678,7 +1648,7 @@ describe('userSvc users (E2E):', function() {
                 { id: 'p-3', name: 'pol3', status: 'active', priority: 1 },
                 { id: 'p-4', name: 'newUserPolicy', status: 'active', priority: 1}
             ];
-            options = { url: config.usersUrl + '/signup', json: mockUser };
+            options = { url: config.usersUrl + '/signup', json: mockUser, jar: cookieJar };
             q.all([
                 testUtils.resetCollection('users', [mockRequester, mockAdmin]),
                 testUtils.resetCollection('roles', mockRoles),
@@ -1718,6 +1688,7 @@ describe('userSvc users (E2E):', function() {
                 expect(new Date(record.data.date)).not.toBe(NaN);
                 expect(record.data.user.password).not.toBeDefined();
                 expect(record.data.user).toEqual(createdUser);
+                expect(record.data.hubspot.hutk).toBe('chocolate-chip');
 
                 // test that activationToken prop set
                 return testUtils.mongoFind('users', { id: createdUser.id }).then(function(results) {
@@ -1729,7 +1700,7 @@ describe('userSvc users (E2E):', function() {
                 }).done(done);
             });
         });
-        
+
         it('should save a referralCode and promotion if set', function(done) {
             options.json.referralCode = 'asdf123456';
             options.json.promotion = 'pro-1';
@@ -1757,7 +1728,7 @@ describe('userSvc users (E2E):', function() {
             });
         });
 
-        it('should lowercase the new email', function(done) {       
+        it('should lowercase the new email', function(done) {
             options.json.email = 'c6E2ETester@gmail.com';
             var createdUser;
             requestUtils.qRequest('post', options).then(function(resp) {
@@ -1850,7 +1821,7 @@ describe('userSvc users (E2E):', function() {
                 mockman.once('accountCreated', function(record) {
                     expect(record).not.toBeDefined();
                 });
-                
+
                 requestUtils.qRequest('post', options).then(function(resp) {
                     expect(resp.response.statusCode).toBe(409);
                     expect(resp.body).toBe('An object with that email already exists');
@@ -1923,7 +1894,7 @@ describe('userSvc users (E2E):', function() {
                 testUtils.resetCollection('policies', mockPols.concat(testPolicies))
             ]).done(function() { done(); });
         });
-        
+
         // Delete any Beeswax advertisers that have been created
         afterEach(function(done) {
             testUtils.mongoFind('advertisers', { 'beeswaxIds.advertiser': { $exists: true } })
@@ -2042,7 +2013,7 @@ describe('userSvc users (E2E):', function() {
 
                     expect(resp.response.headers['set-cookie'].length).toBe(1);
                     expect(resp.response.headers['set-cookie'][0]).toMatch(/^c6Auth=.+/);
-                    
+
                     returnedUser = resp.body;
                 })
                 .catch(function(error) {
@@ -2153,7 +2124,7 @@ describe('userSvc users (E2E):', function() {
                             expect(advertResult).toEqual([jasmine.objectContaining({ name: 'e2e-tests-company' })]);
                         }).done(done);
                     });
-                    
+
                     requestUtils.qRequest('post', options)
                     .then(function(resp) {
                         expect(resp.response.statusCode).toBe(200);
@@ -2164,10 +2135,10 @@ describe('userSvc users (E2E):', function() {
                     .catch(function(error) {
                         expect(util.inspect(error)).not.toBeDefined();
                         done();
-                    }); 
+                    });
                 });
             });
-            
+
             describe('if the user has a referralCode', function() {
                 beforeEach(function(done) {
                     mockNewUser.referralCode = 'asdf123456';
@@ -2225,7 +2196,7 @@ describe('userSvc users (E2E):', function() {
                 });
             });
         });
-        
+
         it('should produce a record containing a token which works properly with /api/account/users/signup', function(done) {
             var userId;
             testUtils.resetCollection('users')
@@ -2258,12 +2229,12 @@ describe('userSvc users (E2E):', function() {
                     expect(data.user.status).toBe('active');
                     expect(data.user.org).toBeDefined();
                 }).then(done, done.fail);
-        });        
+        });
     });
 
     describe('POST /api/accounts/users/resendActivation', function() {
         var loginOpts, resendOpts, newUserCookieJar, newUser;
-        
+
         beforeEach(function(done) {
             newUserCookieJar = request.jar();
             loginOpts = { url: config.authUrl + '/login', json: { email: 'c6e2etester@gmail.com', password: 'password' }, jar: newUserCookieJar };
@@ -2283,7 +2254,7 @@ describe('userSvc users (E2E):', function() {
                 })
                 .done(done);
         });
-        
+
         it('should 401 if the user is not authenticated', function(done) {
             delete resendOpts.jar;
             requestUtils.qRequest('post', resendOpts)
@@ -2298,7 +2269,7 @@ describe('userSvc users (E2E):', function() {
                 expect(record).not.toBeDefined();
             });
         });
-        
+
         it('should 403 if the user status is not new', function(done) {
             resendOpts.jar = cookieJar;
             requestUtils.qRequest('post', resendOpts)
@@ -2313,7 +2284,7 @@ describe('userSvc users (E2E):', function() {
                 expect(record).not.toBeDefined();
             });
         });
-        
+
         it('should 403 if the user does not have an existing activation token', function(done) {
             delete newUser.activationToken;
             testUtils.resetCollection('users', [newUser, mockRequester, mockAdmin])
@@ -2331,7 +2302,7 @@ describe('userSvc users (E2E):', function() {
                 expect(record).not.toBeDefined();
             });
         });
-        
+
         it('should generate a new activation token and save it on the user', function(done) {
             requestUtils.qRequest('post', resendOpts)
                 .then(function(resp) {

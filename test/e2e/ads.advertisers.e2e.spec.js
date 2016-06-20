@@ -1,10 +1,12 @@
 var q               = require('q'),
+    path            = require('path'),
     util            = require('util'),
     ld              = require('lodash'),
     request         = require('request'),
     BeeswaxClient   = require('beeswax-client'),
     testUtils       = require('./testUtils'),
     requestUtils    = require('../../lib/requestUtils'),
+    uuid            = require('rc-uuid'),
     host            = process.env.host || 'localhost',
     config = {
         adsUrl  : 'http://' + (host === 'localhost' ? host + ':3900' : host) + '/api',
@@ -22,7 +24,7 @@ describe('ads advertisers endpoints (E2E):', function() {
     var cookieJar, nonAdminJar, mockApp, appCreds;
 
     beforeEach(function(done) {
-        jasmine.DEFAULT_TIMEOUT_INTERVAL = 30000;
+        jasmine.DEFAULT_TIMEOUT_INTERVAL = 60000;
 
         if (cookieJar && nonAdminJar) {
             return done();
@@ -81,7 +83,7 @@ describe('ads advertisers endpoints (E2E):', function() {
             {url: config.authUrl + '/login', json: {email: mockUser.email, password: 'password'}, jar: cookieJar},
             {url: config.authUrl + '/login', json: {email: nonAdmin.email, password: 'password'}, jar: nonAdminJar},
         ];
-        
+
         q.all([
             testUtils.resetCollection('users', [mockUser, nonAdmin]),
             testUtils.resetCollection('policies', testPolicies),
@@ -92,7 +94,7 @@ describe('ads advertisers endpoints (E2E):', function() {
             done();
         });
     });
-    
+
     describe('GET /api/account/advertisers/:id', function() {
         var options;
         beforeEach(function(done) {
@@ -117,7 +119,7 @@ describe('ads advertisers endpoints (E2E):', function() {
                 expect(error.message || util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
-        
+
         it('should write an entry to the audit collection', function(done) {
             requestUtils.qRequest('get', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
@@ -150,7 +152,7 @@ describe('ads advertisers endpoints (E2E):', function() {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
-        
+
         it('should allow a non-admin to only retrieve their advertisers', function(done) {
             options.jar = nonAdminJar;
             q.all(['e2e-a-1', 'e2e-a-2'].map(function(id) {
@@ -175,7 +177,7 @@ describe('ads advertisers endpoints (E2E):', function() {
                 expect(error.message || util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
-        
+
         it('should throw a 401 error if the user is not authenticated', function(done) {
             delete options.jar;
             requestUtils.qRequest('get', options).then(function(resp) {
@@ -205,7 +207,7 @@ describe('ads advertisers endpoints (E2E):', function() {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
-        
+
         it('should fail if an app uses the wrong secret to make a request', function(done) {
             delete options.jar;
             var badCreds = { key: mockApp.key, secret: 'WRONG' };
@@ -289,7 +291,7 @@ describe('ads advertisers endpoints (E2E):', function() {
                 expect(error.message || util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
-        
+
         it('should get advertisers by id list', function(done) {
             options.qs.ids = 'e2e-a-2,e2e-a-3';
             requestUtils.qRequest('get', options).then(function(resp) {
@@ -302,7 +304,7 @@ describe('ads advertisers endpoints (E2E):', function() {
                 expect(error.message || util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
-        
+
         it('should get advertisers by org', function(done) {
             options.qs.org = 'o-selfie';
             requestUtils.qRequest('get', options).then(function(resp) {
@@ -348,7 +350,7 @@ describe('ads advertisers endpoints (E2E):', function() {
                 expect(error.message || util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
-        
+
         it('should only show non-admins their own advertisers', function(done) {
             options.jar = nonAdminJar;
             requestUtils.qRequest('get', options).then(function(resp) {
@@ -408,7 +410,7 @@ describe('ads advertisers endpoints (E2E):', function() {
             };
             testUtils.resetCollection('advertisers').done(done);
         });
-        
+
         afterEach(function(done) {
             q.all(beesAdvertIds.map(function(id) {
                 return beeswax.advertisers.delete(id);
@@ -438,7 +440,7 @@ describe('ads advertisers endpoints (E2E):', function() {
                 createdAdvert = resp.body;
                 beesId = ld.get(resp.body, 'beeswaxIds.advertiser', null);
                 beesAdvertIds.push(beesId);
-                
+
                 // Check that advertiser created in Beeswax successfully
                 return beeswax.advertisers.find(beesId);
             }).then(function(resp) {
@@ -452,7 +454,7 @@ describe('ads advertisers endpoints (E2E):', function() {
                 expect(error.message || util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
-        
+
         it('should write an entry to the audit collection', function(done) {
             requestUtils.qRequest('post', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(201);
@@ -472,7 +474,7 @@ describe('ads advertisers endpoints (E2E):', function() {
                 expect(error.message || util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
-        
+
         it('should return a 400 if no name is provided', function(done) {
             delete options.json.name;
             requestUtils.qRequest('post', options).then(function(resp) {
@@ -482,7 +484,7 @@ describe('ads advertisers endpoints (E2E):', function() {
                 expect(error.message || util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
-        
+
         it('should handle naming conflicts in beeswax', function(done) {
             var createdAdverts = [];
             requestUtils.qRequest('post', options).then(function(resp) {
@@ -491,7 +493,7 @@ describe('ads advertisers endpoints (E2E):', function() {
                 expect(resp.body.beeswaxIds).toEqual({ advertiser: jasmine.any(Number) });
                 createdAdverts.push(resp.body);
                 beesAdvertIds.push(ld.get(resp.body, 'beeswaxIds.advertiser', null));
-                
+
                 return requestUtils.qRequest('post', options);
             }).then(function(resp) {
                 expect(resp.response.statusCode).toBe(201);
@@ -499,7 +501,7 @@ describe('ads advertisers endpoints (E2E):', function() {
                 expect(resp.body.name).toEqual(createdAdverts[0].name);
                 createdAdverts.push(resp.body);
                 beesAdvertIds.push(ld.get(resp.body, 'beeswaxIds.advertiser', null));
-                
+
                 return q.all(beesAdvertIds.map(function(id) {
                     return beeswax.advertisers.find(id);
                 }));
@@ -581,6 +583,7 @@ describe('ads advertisers endpoints (E2E):', function() {
     describe('PUT /api/account/advertisers/:id', function() {
         var createdAdverts, mockAdverts, options, nowStr;
         beforeAll(function(done) { // create new adverts with beeswax entities
+            createdAdverts = [];
             nowStr = String(Date.now()) + ' - ';
             q.all(['put advert 1', 'put advert 2'].map(function(nameSuffix) {
                 return requestUtils.qRequest('post', {
@@ -601,16 +604,18 @@ describe('ads advertisers endpoints (E2E):', function() {
                 done();
             }).catch(done.fail);
         });
-        
+
         afterAll(function(done) { // clean up created beeswax advertisers
             q.all(createdAdverts.map(function(advert) {
                 var beesId = advert.beeswaxIds.advertiser;
                 return beeswax.advertisers.delete(beesId);
             })).then(function(results) {
                 done();
-            }).catch(done.fail);
+            })
+            .timeout(jasmine.DEFAULT_TIMEOUT_INTERVAL - 100, 'Timed out in afterAll of ' + path.basename(__filename))
+            .catch(done.fail);
         });
-        
+
         beforeEach(function(done) {
             options = {
                 url: config.adsUrl + '/account/advertisers/e2e-a-1',
@@ -643,6 +648,24 @@ describe('ads advertisers endpoints (E2E):', function() {
             }).done(done);
         });
 
+        it('should create a beeswax representation for a pre-existing advertiser', function (done) {
+          options.qs = { initBeeswax: 'true' };
+          options.json.name = 'my advertiser-uuid' + uuid.createUuid();
+          requestUtils.qRequest('put', options).then(function(resp) {
+              beesId = resp.body.beeswaxIds.advertiser;
+              expect(beesId).toBeDefined();
+              expect(beesId).toEqual(jasmine.any(Number));
+              //console.log(resp.body.beeswaxIds.advertiser);
+              return beeswax.advertisers.find(beesId);
+            }).then(function(beesResp) {
+              expect(beesResp.success).toBeTruthy();
+              expect(beesResp.payload).toEqual(jasmine.objectContaining({
+                advertiser_id: beesId
+              }));
+                return beeswax.advertisers.delete(beesId);
+            }).done(done);
+         });
+
         it('should write an entry to the audit collection', function(done) {
             requestUtils.qRequest('put', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
@@ -662,7 +685,7 @@ describe('ads advertisers endpoints (E2E):', function() {
                 expect(error.message || util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
-        
+
         describe('if the advertiser has a beeswax representation', function() {
             beforeEach(function() {
                 options = {
@@ -671,13 +694,13 @@ describe('ads advertisers endpoints (E2E):', function() {
                     jar: cookieJar
                 };
             });
-            
+
             it('should be able to edit the entity in beeswax', function(done) {
                 requestUtils.qRequest('put', options).then(function(resp) {
                     expect(resp.response.statusCode).toBe(200);
                     expect(resp.body.name).toBe(nowStr + 'updated advert 1');
                     expect(resp.body.beeswaxIds).toEqual(createdAdverts[0].beeswaxIds);
-                    
+
                     // Check that advertiser updated in Beeswax successfully
                     return beeswax.advertisers.find(resp.body.beeswaxIds.advertiser);
                 }).then(function(resp) {
@@ -690,14 +713,14 @@ describe('ads advertisers endpoints (E2E):', function() {
                     expect(error.message || util.inspect(error)).not.toBeDefined();
                 }).done(done);
             });
-            
+
             it('should resolve unique name conflicts if necessary', function(done) {
                 options.json.name = createdAdverts[1].name;
                 requestUtils.qRequest('put', options).then(function(resp) {
                     expect(resp.response.statusCode).toBe(200);
                     expect(resp.body.name).toBe(createdAdverts[1].name);
                     expect(resp.body.beeswaxIds).toEqual(createdAdverts[0].beeswaxIds);
-                    
+
                     // Check that advertiser updated in Beeswax successfully
                     return beeswax.advertisers.find(resp.body.beeswaxIds.advertiser);
                 }).then(function(resp) {
@@ -711,7 +734,7 @@ describe('ads advertisers endpoints (E2E):', function() {
                 }).done(done);
             });
         });
-        
+
         it('should trim off forbidden fields', function(done) {
             options.json.id = 'a-fake';
             options.json._id = '_WEORIULSKJF';
@@ -728,7 +751,7 @@ describe('ads advertisers endpoints (E2E):', function() {
                 expect(error.message || util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
-        
+
         it('should only allow non-admins to edit their own advertisers', function(done) {
             options.jar = nonAdminJar;
             delete options.json.name;
@@ -740,14 +763,14 @@ describe('ads advertisers endpoints (E2E):', function() {
                 expect(results[0].body.id).toBe('e2e-a-1');
                 expect(results[0].body.name).toBe('advert 1');
                 expect(results[0].body.defaultLogos).toEqual({ square: 'rhombus.png' });
-                
+
                 expect(results[1].response.statusCode).toBe(403);
                 expect(results[1].body).toEqual('Not authorized to edit this');
             }).catch(function(error) {
                 expect(error.message || util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
-        
+
         it('should not edit an advertiser that has been deleted', function(done) {
             options.url = config.adsUrl + '/account/advertisers/e2e-a-deleted';
             requestUtils.qRequest('put', options).then(function(resp) {
@@ -757,7 +780,7 @@ describe('ads advertisers endpoints (E2E):', function() {
                 expect(error.message || util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
-        
+
         it('should not create an advertiser if they do not exist', function(done) {
             options.url = config.adsUrl + '/account/advertisers/e2e-a-fake';
             requestUtils.qRequest('put', options).then(function(resp) {
@@ -826,7 +849,7 @@ describe('ads advertisers endpoints (E2E):', function() {
             requestUtils.qRequest('delete', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(204);
                 expect(resp.body).toBe('');
-                
+
                 return testUtils.mongoFind('audit', {}, {$natural: -1}, 1, 0, {db: 'c6Journal'});
             }).then(function(results) {
                 expect(results[0].user).toBe('u-admin');
@@ -843,7 +866,7 @@ describe('ads advertisers endpoints (E2E):', function() {
                 expect(error.message || util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
-        
+
         it('should still return a 204 if the advertiser has been deleted', function(done) {
             options.url = config.adsUrl + '/account/advertisers/e2e-deleted';
             requestUtils.qRequest('delete', options).then(function(resp) {
@@ -853,7 +876,7 @@ describe('ads advertisers endpoints (E2E):', function() {
                 expect(error.message || util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
-        
+
         it('should still return a 204 if the advertiser does not exist', function(done) {
             options.url = config.adsUrl + '/account/advertisers/LDFJDKJFWOI';
             requestUtils.qRequest('delete', options).then(function(resp) {
@@ -872,7 +895,7 @@ describe('ads advertisers endpoints (E2E):', function() {
             })).then(function(results) {
                 expect(results[0].response.statusCode).toBe(204);
                 expect(results[0].body).toBe('');
-                
+
                 expect(results[1].response.statusCode).toBe(403);
                 expect(results[1].body).toEqual('Not authorized to delete this');
             }).catch(function(error) {

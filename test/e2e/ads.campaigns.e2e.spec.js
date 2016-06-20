@@ -1,4 +1,5 @@
 var q               = require('q'),
+    path            = require('path'),
     request         = require('request'),
     util            = require('util'),
     BeeswaxClient   = require('beeswax-client'),
@@ -1981,6 +1982,7 @@ describe('ads campaigns endpoints (E2E):', function() {
             
             afterAll(function(done) {
                 beeswax.advertisers.delete(createdAdvert.beeswaxIds.advertiser)
+                .timeout(jasmine.DEFAULT_TIMEOUT_INTERVAL - 100, 'Timed out in afterAll of ' + path.basename(__filename))
                 .then(done, done.fail);
             });
             
@@ -1997,6 +1999,8 @@ describe('ads campaigns endpoints (E2E):', function() {
                     expect(resp.body.externalCampaigns).toEqual({ beeswax: {
                         budget: 1000,
                         dailyLimit: 100,
+                        budgetImpressions: null,
+                        dailyLimitImpressions: null,
                         externalId: beesCampIds[0]
                     } });
                     

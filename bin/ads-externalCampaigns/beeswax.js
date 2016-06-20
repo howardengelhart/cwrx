@@ -30,6 +30,16 @@
             __allowed: true,
             __type: 'number',
             __min: 0
+        },
+        budgetImpressions: {
+            __allowed: true,
+            __type: 'number',
+            __min: 0
+        },
+        dailyLimitImpressions: {
+            __allowed: true,
+            __type: 'number',
+            __min: 0
         }
     };
 
@@ -79,10 +89,6 @@
         return svc;
     };
     
-    function round(num) {
-        return Number(num.toFixed(2));
-    }
-
     
     // Choose + return start date equal to earliest cards' startDate. 
     beesCamps.chooseStartDate = function(campaign) {
@@ -100,64 +106,46 @@
     
     // Format campaign + externalCampaigns entry into a beeswax campaign body
     beesCamps.formatBeeswaxBody = function(campaign, extCampEntry, req) {
-        var impressionRatio = beesCamps.config.beeswax.impressionRatio;
-
         var beesBody = {
             advertiser_id: req.advertiser.beeswaxIds.advertiser,
             alternative_id: campaign.id,
-            campaign_name: campaign.name || 'Untitled (' + campaign.id + ')',
-            budget_type: 1
+            campaign_name: campaign.name || 'Untitled (' + campaign.id + ')'
         };
         
         beesBody.start_date = beesCamps.chooseStartDate(campaign);
         /* Don't set end_date, as Beeswax may return errors if dates + budget/daily limit set such
          * that total budget won't be spent within timeframe */
         
-        var newVals = {};
-        ['budget', 'dailyLimit'].forEach(function(field) {
-            var campVal = ld.get(campaign, 'pricing.' + field, undefined);
-                
-            if (field === 'dailyLimit') {
-                // Allow dailyLimit to be set to null
-                if (!campVal && !extCampEntry[field]) {
-                    newVals[field] = null;
-                    return;
-                } else { // if campVal is null, treat it as infinite dailyLimit
-                    campVal = campVal || Infinity;
-                }
-            } else { // treat null/undefined budget as 0
-                campVal = campVal || 0;
-            }
+        // If budgetImpressions is not undefined or null, use the Impressions props
+        if (typeof extCampEntry.budgetImpressions === 'number') {
+            beesBody.budget_type = 1; // 1 = impressions count
+            
+            extCampEntry.budgetImpressions = Math.max(extCampEntry.budgetImpressions, 1);
 
-            // Set value as close to new val from extCampEntry as possible
-            newVals[field] = Math.max(Math.min(
-                ((typeof extCampEntry[field] === 'number') ? extCampEntry[field] : Infinity),
-                campVal
-            ), 1); // min of $1 as Beeswax will error on budget/limit of 0
-        });
-        // Ensure dailyLimit does not exceed budget
-        newVals.dailyLimit = !!newVals.dailyLimit ? Math.min(newVals.budget, newVals.dailyLimit)
-                                                  : newVals.dailyLimit;
+            // allow dailyLimitImpressions to be null, otherwise cap to budgetImpressions
+            extCampEntry.dailyLimitImpressions = (!extCampEntry.dailyLimitImpressions) ?
+                extCampEntry.dailyLimitImpressions :
+                Math.max(Math.min(extCampEntry.budgetImpressions,
+                                  extCampEntry.dailyLimitImpressions), 1);
+            
+            beesBody.campaign_budget = extCampEntry.budgetImpressions;
+            beesBody.daily_budget = extCampEntry.dailyLimitImpressions;
+        }
+        else {
+            beesBody.budget_type = 0; // 0 = spend
+
+            extCampEntry.budget = Math.max(extCampEntry.budget, 1);
+
+            // allow dailyLimit to be null, otherwise cap to budget
+            extCampEntry.dailyLimit = (!extCampEntry.dailyLimit) ?
+                extCampEntry.dailyLimit :
+                Math.max(Math.min(extCampEntry.budget, extCampEntry.dailyLimit), 1);
+            
+            beesBody.campaign_budget = extCampEntry.budget;
+            beesBody.daily_budget = extCampEntry.dailyLimit;
+        }
         
-        beesBody.campaign_budget = !!newVals.budget ? round(newVals.budget * impressionRatio)
-                                                    : newVals.budget;
-        beesBody.daily_budget = !!newVals.dailyLimit ? round(newVals.dailyLimit * impressionRatio)
-                                                     : newVals.dailyLimit;
         return beesBody;
-    };
-    
-    // Reset budget + dailyLimit on externalCampaigns entry based on returned beeswax campaign
-    beesCamps.updateExtCampPricing = function(extCampEntry, beeswaxCampaign) {
-        var impressionRatio = beesCamps.config.beeswax.impressionRatio;
-        
-        // Round to 6 decimal places to deal with JS math errors
-        extCampEntry.budget = !!beeswaxCampaign.campaign_budget ?
-            round(beeswaxCampaign.campaign_budget / impressionRatio) :
-            beeswaxCampaign.campaign_budget;
-
-        extCampEntry.dailyLimit = !!beeswaxCampaign.daily_budget ?
-            round(beeswaxCampaign.daily_budget / impressionRatio) :
-            beeswaxCampaign.daily_budget;
     };
     
     // Return 400 if campaign's advertiser does not have a beeswax advertiser
@@ -188,15 +176,28 @@
     
     // Validate request body using beesCamps.schema
     beesCamps.validateBody = function(action, req, next, done) {
-        var model = new Model('beeswaxCampaign', beesCamps.schema),
+        var log = logger.getLog(),
+            model = new Model('beeswaxCampaign', beesCamps.schema),
             origObj = ld.get(req.campaign, 'externalCampaigns.beeswax', {}),
             validateResp = model.validate(action, req.body, origObj, req.requester);
 
-        if (validateResp.isValid) {
-            next();
-        } else {
-            done({ code: 400, body: validateResp.reason });
+        if (!validateResp.isValid) {
+            return done({ code: 400, body: validateResp.reason });
         }
+        
+        function isSet(val) { return val !== undefined && val !== null; }
+        var msg;
+        if (isSet(req.body.budget) && isSet(req.body.budgetImpressions)) {
+            msg = 'Cannot set both budget + budgetImpressions';
+            log.info('[%1] %2', req.uuid, msg);
+            return done({ code: 400, body: msg });
+        } else if (isSet(req.body.dailyLimit) && isSet(req.body.dailyLimitImpressions)) {
+            msg = 'Cannot set both dailyLimit + dailyLimitImpressions';
+            log.info('[%1] %2', req.uuid, msg);
+            return done({ code: 400, body: msg });
+        }
+        
+        return next();
     };
 
     // Run action to create Beeswax campaign + update C6 campaign's externalCampaigns field
@@ -213,8 +214,10 @@
             }
             
             var extCampEntry = {
-                budget: req.body.budget,
-                dailyLimit: req.body.dailyLimit
+                budget: req.body.budget || null,
+                dailyLimit: req.body.dailyLimit || null,
+                budgetImpressions: req.body.budgetImpressions || null,
+                dailyLimitImpressions: req.body.dailyLimitImpressions || null,
             };
 
             var beesBody = beesCamps.formatBeeswaxBody(req.campaign, extCampEntry, req);
@@ -234,7 +237,6 @@
                 var beesId = resp.payload.campaign_id;
                 log.info('[%1] Created Beeswax campaign %2 for %3', req.uuid, beesId, c6Id);
 
-                beesCamps.updateExtCampPricing(extCampEntry, resp.payload);
                 extCampEntry.externalId = beesId;
                 
                 return q(svc._db.collection('campaigns').findOneAndUpdate(
@@ -269,7 +271,8 @@
             var beesId = extCampEntry.externalId;
             
             // update existing externCamp entry with body fields, if set
-            ['budget', 'dailyLimit'].forEach(function(field) {
+            ['budget', 'dailyLimit', 'budgetImpressions', 'dailyLimitImpressions']
+            .forEach(function(field) {
                 extCampEntry[field] = (req.body[field] !== undefined) ? req.body[field]
                                                                       : extCampEntry[field];
             });
@@ -289,8 +292,6 @@
                 }
                 log.info('[%1] Edited Beeswax campaign %2 for %3', req.uuid, beesId, c6Id);
 
-                beesCamps.updateExtCampPricing(extCampEntry, resp.payload);
-                
                 return q(svc._db.collection('campaigns').findOneAndUpdate(
                     { id: c6Id },
                     {$set: { 'externalCampaigns.beeswax': extCampEntry, lastUpdated: new Date() }},
