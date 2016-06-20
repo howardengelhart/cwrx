@@ -264,7 +264,7 @@ describe('geo (E2E):', function() {
         });
 
         it('should be able to sort and paginate the results', function(done) {
-            options.qs.zipcodes = '00401,00501,00544,02540';
+            options.qs.zipcodes = '00401,00501,24818,02540';
             options.qs.limit = 2;
             options.qs.sort = 'city,-1';
             options.qs.fields = 'zipcode,city';
@@ -279,8 +279,8 @@ describe('geo (E2E):', function() {
             }).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
                 expect(resp.body.length).toBe(2);
-                expect(resp.body[0]).toEqual({ zipcode: '00544', city: 'Holtsville' });
-                expect(resp.body[1]).toEqual({ zipcode: '02540', city: 'Falmouth' });
+                expect(resp.body[0]).toEqual({ zipcode: '02540', city: 'Falmouth' });
+                expect(resp.body[1]).toEqual({ zipcode: '24818', city: 'Brenton' });
                 expect(resp.response.headers['content-range']).toBe('items 3-4/4');
             }).catch(function(error) {
                 expect(error).not.toBeDefined();

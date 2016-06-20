@@ -101,7 +101,9 @@ testUtils._getDb = function(userCfg) {
         testUtils._dbCache[key] = q.defer();
         mongoUtils.connect(dbConfig.host,dbConfig.port,dbConfig.db,dbConfig.user,dbConfig.pass).then(function(db) {
             testUtils._dbCache[key].resolve(db);
-        });
+        })
+        .catch(testUtils._dbCache[key].reject);
+
         return testUtils._dbCache[key].promise;
     }
 };
