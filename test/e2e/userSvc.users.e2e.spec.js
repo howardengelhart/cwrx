@@ -1633,6 +1633,8 @@ describe('userSvc users (E2E):', function() {
             mockUser = {
                 email: 'c6e2etester@gmail.com',
                 password: 'password',
+                firstName: 'sally',
+                lastName: 'signup',
                 roles: ['role1', 'role2'],
                 policies: ['pol1', 'pol2']
             };
@@ -1668,6 +1670,8 @@ describe('userSvc users (E2E):', function() {
                     created: jasmine.any(String),
                     lastUpdated: jasmine.any(String),
                     email: 'c6e2etester@gmail.com',
+                    firstName: 'sally',
+                    lastName: 'signup',
                     roles: ['selfieUserRole'],
                     policies: ['selfieUserPolicy'],
                     external: true,
@@ -1760,6 +1764,8 @@ describe('userSvc users (E2E):', function() {
                     created: jasmine.any(String),
                     lastUpdated: jasmine.any(String),
                     email: 'c6e2etester@gmail.com',
+                    firstName: 'sally',
+                    lastName: 'signup',
                     roles: ['showcaseUserRole'],
                     policies: ['showcaseUserPolicy'],
                     external: true,
@@ -1782,19 +1788,17 @@ describe('userSvc users (E2E):', function() {
             });
         });
 
-        it('should return a 400 error if the body is missing the email or password', function(done) {
-            delete options.json.email;
-            requestUtils.qRequest('post', options).then(function(resp) {
-                expect(resp.response.statusCode).toBe(400);
-                expect(resp.body).toBe('Missing required field: email');
-
-                options.json.email = 'testpostuser';
-                delete options.json.password;
-                return requestUtils.qRequest('post', options);
-            }).then(function(resp) {
-                expect(resp.response.statusCode).toBe(400);
-                expect(resp.body).toBe('Missing required field: password');
-            }).catch(function(error) {
+        it('should return a 400 error if the body is missing required parameters', function(done) {
+            var origMockUser = JSON.parse(JSON.stringify(mockUser));
+            q.all(['email', 'password', 'firstName', 'lastName'].map(function(field) {
+                options.json = JSON.parse(JSON.stringify(origMockUser));
+                delete options.json[field];
+                return requestUtils.qRequest('post', options).then(function(resp) {
+                    expect(resp.response.statusCode).toBe(400);
+                    expect(resp.body).toBe('Missing required field: ' + field);
+                });
+            }))
+            .catch(function(error) {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
 
@@ -2201,7 +2205,15 @@ describe('userSvc users (E2E):', function() {
             var userId;
             testUtils.resetCollection('users')
                 .then(function() {
-                    var signupOptions = { url: config.usersUrl + '/signup', json: { email: 'c6e2etester@gmail.com', password: 'password' }};
+                    var signupOptions = {
+                        url: config.usersUrl + '/signup',
+                        json: {
+                            firstName: 'sally',
+                            lastName: 'signup',
+                            email: 'c6e2etester@gmail.com',
+                            password: 'password'
+                        }
+                    };
                     return requestUtils.qRequest('post', signupOptions);
                 })
                 .then(function(resp) {

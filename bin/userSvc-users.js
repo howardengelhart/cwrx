@@ -23,6 +23,14 @@
         userModule  = { config: {} };
 
     userModule.userSchema = {
+        firstName: {
+            __allowed: true,
+            __type: 'string'
+        },
+        lastName: {
+            __allowed: true,
+            __type: 'string'
+        },
         company: {
             __allowed: true,
             __type: 'string'
@@ -184,6 +192,8 @@
         signupSchema.referralCode.__allowed = true;
         signupSchema.paymentPlanId.__allowed = true;
         signupSchema.promotion.__allowed = true;
+        signupSchema.firstName.__required = true;
+        signupSchema.lastName.__required = true;
 
         return new Model('users', signupSchema);
     };

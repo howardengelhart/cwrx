@@ -280,18 +280,20 @@ describe('userSvc (UT)', function() {
             requester = { fieldValidation: { users: {} } };
         });
 
-        describe('when handling company', function() {
-            it('should fail if the field is not a string', function() {
-                newObj.company = 1234;
-                expect(svc.model.validate('create', newObj, origObj, requester))
-                    .toEqual({ isValid: false, reason: 'company must be in format: string' });
-            });
+        ['company', 'firstName', 'lastName'].forEach(function(field) {
+            describe('when handling ' + field, function() {
+                it('should fail if the field is not a string', function() {
+                    newObj[field] = 1234;
+                    expect(svc.model.validate('create', newObj, origObj, requester))
+                        .toEqual({ isValid: false, reason: field + ' must be in format: string' });
+                });
 
-            it('should allow the field to be set', function() {
-                newObj.company = 'Heinz';
-                expect(svc.model.validate('create', newObj, origObj, requester))
-                    .toEqual({ isValid: true, reason: undefined });
-                expect(newObj.company).toEqual('Heinz');
+                it('should allow the field to be set', function() {
+                    newObj[field] = 'Heinz';
+                    expect(svc.model.validate('create', newObj, origObj, requester))
+                        .toEqual({ isValid: true, reason: undefined });
+                    expect(newObj[field]).toEqual('Heinz');
+                });
             });
         });
 
@@ -490,10 +492,15 @@ describe('userSvc (UT)', function() {
 
             expect(newModel.schema.promotion.__allowed).toBe(true);
             expect(svc.model.schema.promotion.__allowed).toBe(false);
+            
+            expect(newModel.schema.firstName.__required).toBe(true);
+            expect(newModel.schema.lastName.__required).toBe(true);
 
             newModel.schema.referralCode.__allowed = false;
             newModel.schema.paymentPlanId.__allowed = false;
             newModel.schema.promotion.__allowed = false;
+            delete newModel.schema.firstName.__required;
+            delete newModel.schema.lastName.__required;
             expect(newModel.schema).toEqual(svc.model.schema);
         });
     });

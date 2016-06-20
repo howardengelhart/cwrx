@@ -1,5 +1,7 @@
 # User Service Changelog
 
+* Require `firstName` and `lastName` on signup: [#945](https://github.com/cinema6/cwrx/issues/945)
+
 ### 4.1.0: Mon Jun 13 14:36:09 EDT 2016
 * Produce the emailChanged event only once: [#940](https://github.com/cinema6/cwrx/pull/940)
 
