@@ -536,7 +536,22 @@ describe('ads-placements (UT)', function() {
             expect(url).toMatch('extSessionId={{IOS_ID}}');
         });
     });
-    
+   
+    describe('appStoreToIABCats', function() {
+        it('handles undefined',function(){
+            expect(placeModule.appStoreToIABCats()).toEqual([]);
+        });
+        
+        it('handles bogus arg',function(){
+            expect(placeModule.appStoreToIABCats(['aaa'])).toEqual(['IAB24']);
+        });
+
+        it('handles multiple args',function(){
+            expect(placeModule.appStoreToIABCats(['Books','Lifestyle']))
+                .toEqual(['IAB1_1','IAB9']);
+        });
+    });
+
     describe('formatBeeswaxBody', function() {
         beforeEach(function() {
             req.body = {
@@ -564,6 +579,7 @@ describe('ads-placements (UT)', function() {
                 id: 'cam-active',
                 product : {
                     uri: 'https://itunes.apple.com/us/app/test/id1120916362?mt=8&uo=4',
+                    categories: ['Education','Lifestyle'],
                     images : [
                       {
                         uri: 'http://a2.mzstatic.com/screen1136x1136.jpeg',
@@ -607,13 +623,14 @@ describe('ads-placements (UT)', function() {
                 creative_attributes: {
                     advertiser : {
                         advertiser_domain : ['itunes.apple.com' ],
-                        landing_page_url: ['https://itunes.apple.com/us/app/test/id1120916362']
+                        landing_page_url: ['https://itunes.apple.com/us/app/test/id1120916362'],
+                        advertiser_category : ['IAB5','IAB9']
                     },
                     mobile: {
                         mraid_playable: [true]
                     },
                     technical : {
-                        banner_mime : ['application/javascript']
+                        banner_mime : ['text/javascript','application/javascript']
                     }
                 }
             });
@@ -651,7 +668,7 @@ describe('ads-placements (UT)', function() {
                         mraid_playable: [true]
                     },
                     technical : {
-                        banner_mime : ['application/javascript']
+                        banner_mime : ['text/javascript','application/javascript']
                     }
                 }
             });

@@ -3,8 +3,8 @@ module.exports = function(grunt) {
         spawn   = require('child_process').spawn;
 
     var serviceDepends = {
-        accountant  : 'auth,monitor,ads,orgSvc',
-        ads         : 'accountant,auth,content,monitor,orgSvc,geo',
+        accountant  : 'auth,monitor,ads,orgSvc,c6postgres,c6postgres::admin',
+        ads         : 'accountant,auth,content,monitor,orgSvc,geo,c6postgres,c6postgres::admin',
         collateral  : 'auth,monitor',
         geo         : 'auth,monitor',
         content     : 'auth,monitor',
