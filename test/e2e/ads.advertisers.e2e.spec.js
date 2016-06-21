@@ -649,22 +649,37 @@ describe('ads advertisers endpoints (E2E):', function() {
         });
 
         it('should create a beeswax representation for a pre-existing advertiser', function (done) {
-          options.qs = { initBeeswax: 'true' };
-          options.json.name = 'my advertiser-uuid' + uuid.createUuid();
-          requestUtils.qRequest('put', options).then(function(resp) {
-              beesId = resp.body.beeswaxIds.advertiser;
-              expect(beesId).toBeDefined();
-              expect(beesId).toEqual(jasmine.any(Number));
-              //console.log(resp.body.beeswaxIds.advertiser);
-              return beeswax.advertisers.find(beesId);
+            var newId = uuid.createUuid(),
+                beesId;
+            // first update advert with unique name
+            options.json.name = 'my advertiser-' + newId;
+            requestUtils.qRequest('put', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.body.name).toBe('my advertiser-' + newId);
+                
+                // then use initBeeswax to create beeswax advert on PUT
+                options.json = {};
+                options.qs = { initBeeswax: 'true' };
+                return requestUtils.qRequest('put', options);
+            }).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.body.name).toBe('my advertiser-' + newId);
+
+                // check that beeswax advertiser created properly
+                beesId = resp.body.beeswaxIds.advertiser;
+                expect(beesId).toEqual(jasmine.any(Number));
+                return beeswax.advertisers.find(beesId);
             }).then(function(beesResp) {
-              expect(beesResp.success).toBeTruthy();
-              expect(beesResp.payload).toEqual(jasmine.objectContaining({
-                advertiser_id: beesId
-              }));
+                expect(beesResp.success).toBeTruthy();
+                expect(beesResp.payload).toEqual(jasmine.objectContaining({
+                    advertiser_id: beesId,
+                    advertiser_name: 'my advertiser-' + newId,
+                    alternative_id: 'e2e-a-1'
+                }));
+                // cleaup beeswax advertiser manually
                 return beeswax.advertisers.delete(beesId);
             }).done(done);
-         });
+        });
 
         it('should write an entry to the audit collection', function(done) {
             requestUtils.qRequest('put', options).then(function(resp) {

@@ -64,8 +64,9 @@
     // Create an advertiser in Beeswax for our advertiser
     advertModule.createBeeswaxAdvert = function(beeswax, req, next, done) {
         var log = logger.getLog(),
-            c6Id = req.body.id,
+            c6Id = req.body.id || ld.get(req, 'origObj.id', null),
             beesId;
+        req.body.name = req.body.name || ld.get(req, 'origObj.name', null);
 
         var beesBody = {
             alternative_id: c6Id,

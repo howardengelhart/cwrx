@@ -2,6 +2,7 @@
 
 ### 5.2.2: Tue Jun 21 10:58:49 EDT 2016
 * [FIX]: Fixed the advertiser domain value
+* [FIX]: Fix `initBeeswax` functionality to preserve advertiser id: [#950](https://github.com/cinema6/cwrx/pull/950)
 
 ### 5.2.1: Mon Jun 20 21:03:32 EDT 2016
 * [FIX]: Fixed the banner_mime values, add advertiser_category
