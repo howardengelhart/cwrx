@@ -297,6 +297,25 @@ describe('ads-advertisers (UT)', function() {
                 expect(mockLog.error).not.toHaveBeenCalled();
             }).done(done);
         });
+        
+        it('should be able to get the id and name from the origObj', function(done) {
+            req.body = {};
+            req.origObj = { id: 'a-4567', name: 'my old advert' };
+            advertModule.createBeeswaxAdvert(mockBeeswax, req, nextSpy, doneSpy).catch(errorSpy).finally(function() {
+                expect(nextSpy).toHaveBeenCalled();
+                expect(doneSpy).not.toHaveBeenCalled();
+                expect(errorSpy).not.toHaveBeenCalled();
+                expect(req.body).toEqual({
+                    name: 'my old advert',
+                    beeswaxIds: { advertiser: 3456 }
+                });
+                var beesBody = { alternative_id: 'a-4567', advertiser_name: 'my old advert' };
+                expect(advertModule.handleNameInUse).toHaveBeenCalledWith(req, beesBody, jasmine.any(Function));
+                expect(mockBeeswax.advertisers.create).toHaveBeenCalledWith(beesBody);
+                expect(mockLog.warn).not.toHaveBeenCalled();
+                expect(mockLog.error).not.toHaveBeenCalled();
+            }).done(done);
+        });
 
         it('should warn and return a 4xx if the beeswax request resolves with an unsuccessful response', function(done) {
             beesResp = { success: false, message: 'i cant do it' };
