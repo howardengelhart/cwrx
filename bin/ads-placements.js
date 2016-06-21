@@ -367,6 +367,18 @@
         
         return beesBody;
     };
+
+    placeModule.attachBeeswaxThumbail = function(beeswax, req, beesBody){
+        var log = logger.getLog(),
+            origObj = req.origObj,
+            c6Id = req.body.id || origObj.id;
+
+        if (!req.campaign) {
+            log.warn('[%1] Can\'t attach beeswax thumbnail without campaign for placement %2',
+                req.uuid, c6Id);
+            return q(beesBody);
+        }
+    };
     
     // Create a new Creative in Beeswax, if tagParams.container === 'beeswax'
     placeModule.createBeeswaxCreative = function(beeswax, req, next, done) {
