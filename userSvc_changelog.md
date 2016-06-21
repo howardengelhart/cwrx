@@ -1,5 +1,9 @@
 # User Service Changelog
 
+### 4.1.1: Tue Jun 21 10:37:56 EDT 2016
+* Require `firstName` and `lastName` on signup: [#945](https://github.com/cinema6/cwrx/issues/945)
+* Extra deployment steps: None
+
 ### 4.1.0: Mon Jun 13 14:36:09 EDT 2016
 * Produce the emailChanged event only once: [#940](https://github.com/cinema6/cwrx/pull/940)
 

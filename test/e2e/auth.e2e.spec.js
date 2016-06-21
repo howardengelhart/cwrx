@@ -685,6 +685,32 @@ describe('auth (E2E):', function() {
             });
         });
 
+        it('should still succeed if the user is not active', function(done) {
+            mockUser.status = Status.New;
+            testUtils.mongoUpsert('users', { id: mockUser.id }, mockUser).then(function() {
+                return requestUtils.qRequest('post', options);
+            }).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.body).toBe('Successfully generated reset token');
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+                done();
+            });
+
+            mockman.once('forgotPassword', function(record) {
+                expect(record.data.user.password).not.toBeDefined();
+                expect(record.data.target).toBe('selfie');
+                expect(record.data.user).toEqual(jasmine.objectContaining({
+                    id: 'u-1',
+                    status: Status.New,
+                    email: 'c6e2etester@gmail.com'
+                }));
+                expect(record.data.token).toEqual(jasmine.any(String));
+                expect(new Date(record.data.date)).not.toBe(NaN);
+                done();
+            });
+        });
+
         it('should write an entry to the audit collection', function(done) {
             requestUtils.qRequest('post', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
@@ -845,6 +871,37 @@ describe('auth (E2E):', function() {
                 }).catch(function(error) {
                     expect(util.inspect(error)).not.toBeDefined();
                 }).then(done, done.fail);
+            });
+        });
+
+        it('should still succeed if the user is not active', function(done) {
+            mockUser.status = Status.New;
+            testUtils.resetCollection('users', mockUser).then(function() {
+                return requestUtils.qRequest('post', options);
+            }).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.body).toEqual(jasmine.objectContaining({
+                    id: 'u-1',
+                    email: 'c6e2etester@gmail.com',
+                    status: Status.New,
+                }));
+                expect(resp.response.headers['set-cookie'].length).toBe(1);
+                expect(resp.response.headers['set-cookie'][0]).toMatch(/^c6Auth=.+/);
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+                done();
+            });
+
+            mockman.once('passwordChanged', function(record) {
+                expect(new Date(record.data.date)).not.toBe(NaN);
+                expect(record.data.target).toBe('selfie');
+                expect(record.data.user.password).not.toBeDefined();
+                expect(record.data.user).toEqual(jasmine.objectContaining({
+                    id: 'u-1',
+                    status: Status.New,
+                    email: 'c6e2etester@gmail.com'
+                }));
+                done();
             });
         });
 

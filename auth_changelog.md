@@ -1,5 +1,9 @@
 # Auth Service Changelog
 
+### 2.0.1: Tue Jun 21 10:37:56 EDT 2016
+* [FIX]: Allow users with `status === 'new'` to user forgot+reset password endpoints: [#918](https://github.com/cinema6/cwrx/issues/918)
+* Extra deployment steps: None
+
 ### 2.0.0: Mon May 16 09:04:45 EDT 2016
 * [REMOVAL]: Endpoints will no longer send emails: [#887](https://github.com/cinema6/cwrx/issues/887)
 * Ensure `target` is set properly on all watchman notifications: [#887](https://github.com/cinema6/cwrx/issues/887)
