@@ -1,5 +1,8 @@
 # Ads Service Changelog
 
+### 5.2.1: Mon Jun 20 21:03:32 EDT 2016
+* [FIX]: Fixed the banner_mime values, add advertiser_category
+
 ### 5.2.0: Mon Jun 20 13:27:13 EDT 2016
 * [FIX]: Adding missing fields to the beeswax creative: [#934](https://github.com/cinema6/cwrx/issues/934)
 
