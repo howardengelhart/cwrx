@@ -126,6 +126,7 @@ describe('ads placements endpoints (E2E):', function() {
             { id: 'cam-active', advertiserId: createdAdvert.id, status: 'active', cards: [{ id: 'rc-active' }], user: 'e2e-user', org: 'e2e-org',
               product : {   
                 uri: 'https://itunes.apple.com/us/app/count-coins/id595124272?mt=8&uo=4',
+                categories: ['Education','Lifestyle'],
                 images: [
                   {
                     uri: 'http://a1.mzstatic.com/us/r30/Purple/v4/c2/ec/6b/c2ec6b9a-d47b-20e4-d1f7-2f42fffcb58f/screen1136x1136.jpeg',
@@ -879,8 +880,10 @@ describe('ads placements endpoints (E2E):', function() {
                     expect(resp.payload.sizeless).toBe(true);
                     expect(ld.get(resp.payload, 'creative_attributes.advertiser.advertiser_domain', null)).toEqual(['itunes.apple.com']);
                     expect(ld.get(resp.payload, 'creative_attributes.advertiser.landing_page_url', null)).toEqual(['https://itunes.apple.com/us/app/count-coins/id595124272']);
+                    expect(ld.get(resp.payload, 'creative_attributes.advertiser.advertiser_category', null)).toEqual(['IAB5','IAB9']);
+
                     expect(ld.get(resp.payload, 'creative_attributes.mobile.mraid_playable', null)).toEqual([true]);
-                    expect(ld.get(resp.payload, 'creative_attributes.technical.banner_mime', null)).toEqual(['application/javascript']);
+                    expect(ld.get(resp.payload, 'creative_attributes.technical.banner_mime', null)).toEqual(['text/javascript','application/javascript']);
                     validateCreativePixel(resp.payload, createdPlacement);
                     
                     var mraidOpts = getMraidOpts(resp.payload, createdPlacement);

@@ -237,7 +237,35 @@
         
         return pixelUrl;
     };
-    
+   
+    placeModule.appStoreToIABCats = function(asCats){
+        return (asCats || []).map(function(cat){
+            if (cat === 'Books')			 { return 'IAB1_1'; }    // (Books & Literature)
+            if (cat === 'Business')			 { return 'IAB3_4'; }    // (Business Software)
+            if (cat === 'Catalogs')			 { return 'IAB22'; }     // (Shopping)
+            if (cat === 'Education')	     { return 'IAB5'; }      // (Education)
+            if (cat === 'Entertainment')     { return 'IAB1'; }      // (Arts &Entertainment)
+            if (cat === 'Finance')			 { return 'IAB13'; }     // (Personal Finance)
+            if (cat === 'Food & Drink')	     { return 'IAB8'; }      // (Food & Drink)
+            if (cat === 'Games')			 { return 'IAB9_30'; }   // (Video & Computer Games)
+            if (cat === 'Health & Fitness')  { return 'IAB7'; }      // (Health & Fitness)
+            if (cat === 'Lifestyle')	     { return 'IAB9'; }      // (Hobbies  & Interests)
+            if (cat === 'Medical')			 { return 'IAB7'; }      // (Health & Medicine)
+            if (cat === 'Music')			 { return 'IAB1_6'; }    // (Music)
+            if (cat === 'Navigation')	     { return 'IAB19'; }     // (Tech & Computing)
+            if (cat === 'News')			     { return 'IAB12'; }     // (News)
+            if (cat === 'Photo & Video')     { return 'IAB9_23'; }   // (Photography)
+            if (cat === 'Productivity')		 { return 'IAB3_4'; }    // (Business Software)
+            if (cat === 'Reference')		 { return 'IAB5'; }      // (Education)
+            if (cat === 'Social Networking') { return 'IAB24'; }     // (Uncategorized)
+            if (cat === 'Sports')			 { return 'IAB17'; }     // (Sports)
+            if (cat === 'Travel')			 { return 'IAB20'; }     // (Travel)
+            if (cat === 'Utilities')		 { return 'IAB19'; }     // (Tech & Computing)
+            if (cat === 'Weather')			 { return 'IAB14_10'; }  // (Science-Weather)
+            return 'IAB24';     // (Uncategorized)
+        });
+    };
+
     // Format + return beeswax creative body. Returns null if tagType is unsupported
     placeModule.formatBeeswaxBody = function(req) {
         var log = logger.getLog(),
@@ -284,17 +312,33 @@
                     mraid_playable: [true]
                 },
                 technical : {
-                    banner_mime : ['application/javascript']
+                    banner_mime : ['text/javascript','application/javascript']
                 }
             }
         }, adUri;
-        
-        if (req.campaign.product && req.campaign.product.uri) {
-            adUri = url.parse(req.campaign.product.uri);
-            beesBody.creative_attributes.advertiser = {
-                advertiser_domain : [adUri.hostname ],
-                landing_page_url: [adUri.protocol + '//' + adUri.host + adUri.pathname]
-            };
+
+        if ( req.campaign.product) {
+            if (req.campaign.product.uri) {
+                adUri = url.parse(req.campaign.product.uri);
+                beesBody.creative_attributes.advertiser = {
+                    advertiser_domain : [adUri.hostname ],
+                    landing_page_url: [adUri.protocol + '//' + adUri.host + adUri.pathname],
+                };
+            } else {
+                log.warn('[%1] Placement %2, campaign %3 has no product uri, beeswax creative' +
+                    ' will likely not be approved.', req.uuid, c6Id, req.campaign.id);
+            }
+
+            if (req.campaign.product.categories) {
+                if (!beesBody.creative_attributes.advertiser){
+                    beesBody.creative_attributes.advertiser = {};
+                }
+                beesBody.creative_attributes.advertiser.advertiser_category =
+                    placeModule.appStoreToIABCats(req.campaign.product.categories);
+            } else {
+                log.warn('[%1] Placement %2, campaign %3 has no categories, beeswax creative' +
+                    ' will likely not be approved on Mopub.', req.uuid, c6Id, req.campaign.id);
+            }
         } else {
             log.warn('[%1] Placement %2, campaign %3 has no product, beeswax creative' +
                 ' will likely not be approved.', req.uuid, c6Id, req.campaign.id);
