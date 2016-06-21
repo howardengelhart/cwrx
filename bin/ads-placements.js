@@ -321,7 +321,7 @@
             if (req.campaign.product.uri) {
                 adUri = url.parse(req.campaign.product.uri);
                 beesBody.creative_attributes.advertiser = {
-                    advertiser_domain : [adUri.hostname ],
+                    advertiser_domain : [adUri.protocol + '//' + adUri.hostname ],
                     landing_page_url: [adUri.protocol + '//' + adUri.host + adUri.pathname],
                 };
             } else {

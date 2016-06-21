@@ -878,7 +878,7 @@ describe('ads placements endpoints (E2E):', function() {
                     expect(resp.payload.secure).toBe(true);
                     expect(resp.payload.active).toBe(true);
                     expect(resp.payload.sizeless).toBe(true);
-                    expect(ld.get(resp.payload, 'creative_attributes.advertiser.advertiser_domain', null)).toEqual(['itunes.apple.com']);
+                    expect(ld.get(resp.payload, 'creative_attributes.advertiser.advertiser_domain', null)).toEqual(['https://itunes.apple.com']);
                     expect(ld.get(resp.payload, 'creative_attributes.advertiser.landing_page_url', null)).toEqual(['https://itunes.apple.com/us/app/count-coins/id595124272']);
                     expect(ld.get(resp.payload, 'creative_attributes.advertiser.advertiser_category', null)).toEqual(['IAB5','IAB9']);
 
