@@ -622,7 +622,7 @@ describe('ads-placements (UT)', function() {
                 },
                 creative_attributes: {
                     advertiser : {
-                        advertiser_domain : ['itunes.apple.com' ],
+                        advertiser_domain : ['https://itunes.apple.com' ],
                         landing_page_url: ['https://itunes.apple.com/us/app/test/id1120916362'],
                         advertiser_category : ['IAB5','IAB9']
                     },
