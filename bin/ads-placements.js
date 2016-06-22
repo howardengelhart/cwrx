@@ -361,7 +361,7 @@
     placeModule.attachBeeswaxThumbnail = function(beeswax, req, beesBody){
         var log = logger.getLog(),
             origObj = req.origObj,
-            c6Id = (req.body.id || origObj.id),
+            c6Id = (origObj || req.body).id,
             thumbnailUrl;
 
         if (!req.campaign) {
@@ -388,7 +388,7 @@
             return q(beesBody);
         }
 
-        if (thumbnailUrl === req.body.thumbnailSourceUrl){
+        if (thumbnailUrl === (origObj || req.body).thumbnailSourceUrl){
             return q(beesBody);
         }
 

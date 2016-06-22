@@ -898,6 +898,20 @@ describe('ads-placements (UT)', function() {
             .then(done,done.fail);
         });
 
+        it('returns without doing anything if orig thumbnail has not changed',function(done){
+            req.origObj = {
+                id : 'pl-6666',
+                thumbnailSourceUrl : 'http://is1.mzstatic.com/image/thumb/512x512bb.jpg'
+            };
+            placeModule.attachBeeswaxThumbnail(mockBeeswax,req,beesBody)
+            .then(function(bb){
+                expect(mockBeeswax.uploadCreativeAsset).not.toHaveBeenCalled();
+                expect(bb).toEqual({});
+                expect(req.body.thumbnailSourceUrl).not.toBeDefined();
+            })
+            .then(done,done.fail);
+        });
+
         it('logs a warning if uploadCreativeAsset fails with Error',function(done){
             mockBeeswax.uploadCreativeAsset.and.callFake(function(){
                 return q.reject(new Error('I failed.'));
