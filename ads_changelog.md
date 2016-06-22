@@ -1,5 +1,8 @@
 # Ads Service Changelog
 
+### 5.3.0: Wed Jun 22 11:56:45 EDT 2016
+* [FEATURE]: Add beeswax thumbnail upload
+
 ### 5.2.2: Tue Jun 21 10:58:49 EDT 2016
 * [FIX]: Fixed the advertiser domain value
 * [FIX]: Fix `initBeeswax` functionality to preserve advertiser id: [#950](https://github.com/cinema6/cwrx/pull/950)

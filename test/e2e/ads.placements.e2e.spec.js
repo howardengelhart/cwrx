@@ -848,6 +848,7 @@ describe('ads placements endpoints (E2E):', function() {
                         beeswaxIds : {
                             creative: jasmine.any(Number)
                         },
+                        thumbnailSourceUrl: 'http://is5.mzstatic.com/image/thumb/Purple/v4/ef/a0/f3/efa0f340-225e-e512-1616-8f223c6202ea/source/512x512bb.jpg',
                         tagParams : {
                             container   : 'beeswax',
                             campaign    : 'cam-active',
@@ -878,6 +879,7 @@ describe('ads placements endpoints (E2E):', function() {
                     expect(resp.payload.secure).toBe(true);
                     expect(resp.payload.active).toBe(true);
                     expect(resp.payload.sizeless).toBe(true);
+
                     expect(ld.get(resp.payload, 'creative_attributes.advertiser.advertiser_domain', null)).toEqual(['https://itunes.apple.com']);
                     expect(ld.get(resp.payload, 'creative_attributes.advertiser.landing_page_url', null)).toEqual(['https://itunes.apple.com/us/app/count-coins/id595124272']);
                     expect(ld.get(resp.payload, 'creative_attributes.advertiser.advertiser_category', null)).toEqual(['IAB5','IAB9']);
@@ -885,7 +887,7 @@ describe('ads placements endpoints (E2E):', function() {
                     expect(ld.get(resp.payload, 'creative_attributes.mobile.mraid_playable', null)).toEqual([true]);
                     expect(ld.get(resp.payload, 'creative_attributes.technical.banner_mime', null)).toEqual(['text/javascript','application/javascript']);
                     validateCreativePixel(resp.payload, createdPlacement);
-                    
+                   expect(ld.get(resp.payload,'creative_thumbnail_url',null)).toMatch(/512x512bb.jpg/);
                     var mraidOpts = getMraidOpts(resp.payload, createdPlacement);
                     expect(mraidOpts).toEqual({
                         placement: createdPlacement.id,
@@ -896,31 +898,6 @@ describe('ads placements endpoints (E2E):', function() {
                 }).done(done);
             });
 
-            xit('should set the creative thumbnail if provided', function(done) {
-                options.json.thumbnail = 'https://s3.amazonaws.com/c6.dev/e2e/sampleThumbs/sample1.jpg';
-                var beesId, createdPlacement;
-                requestUtils.qRequest('post', options).then(function(resp) {
-                    expect(resp.response.statusCode).toBe(201);
-                    expect(resp.body).toEqual(jasmine.objectContaining({
-                        id          : jasmine.any(String),
-                        beeswaxIds : {
-                            creative: jasmine.any(Number)
-                        },
-                        thumbnail: 'https://s3.amazonaws.com/c6.dev/e2e/sampleThumbs/sample1.jpg',
-                    }));
-                    createdPlacement = resp.body;
-                    beesId = resp.body.beeswaxIds.creative;
-
-                    // check that campaign created in Beeswax successfully
-                    return beeswax.creatives.find(beesId);
-                }).then(function(resp) {
-                    expect(resp.success).toBe(true);
-                    expect(resp.payload.creative_thumbnail_url).toBe('//s3.amazonaws.com/c6.dev/e2e/sampleThumbs/sample1.jpg');
-                }).catch(function(error) {
-                    expect(util.inspect(error)).not.toBeDefined();
-                }).done(done);
-            });
-            
             it('should handle setting additional parameters that will appear in the tag', function(done) {
                 options.json.tagParams.hostApp = 'Angry Birds';
                 options.json.tagParams.network = 'da internetz';

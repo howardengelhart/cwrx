@@ -1,5 +1,5 @@
 var flush = true;
-fdescribe('ads-placements (UT)', function() {
+describe('ads-placements (UT)', function() {
     var mockLog, CrudSvc, QueryCache, Model, Status, logger, q, placeModule, historian, mongoUtils,
         fs, util, mockDb, mockBeeswax, nextSpy, doneSpy, errorSpy, req;
 
@@ -765,7 +765,7 @@ fdescribe('ads-placements (UT)', function() {
         });
     });
     
-    xdescribe('attachBeeswaxThumbail', function() {
+    describe('attachBeeswaxThumbnail', function() {
         var beesBody, beesAsset;
         beforeEach(function() {
             req.body = {
@@ -844,52 +844,56 @@ fdescribe('ads-placements (UT)', function() {
 
         it('returns without uploading anything if there is no campaign',function(done){
             delete req.campaign;
-            placeModule.attachBeeswaxThumbail(mockBeeswax,req,beesBody)
-            .then(function(){
+            placeModule.attachBeeswaxThumbnail(mockBeeswax,req,beesBody)
+            .then(function(bb){
                 expect(mockLog.warn).toHaveBeenCalledWith(
                     '[%1] Can\'t attach beeswax thumbnail without campaign for placement %2',
                     '1234', 'pl-1234'
                 );
                 expect(mockBeeswax.uploadCreativeAsset).not.toHaveBeenCalled();
-                expect(beesBody).toEqual({});
+                expect(bb).toEqual({});
+                expect(req.body.thumbnailSourceUrl).not.toBeDefined();
             })
             .then(done,done.fail);
         });
         
         it('returns without uploading anything if it cannot find a product',function(done){
             delete req.campaign.product;
-            placeModule.attachBeeswaxThumbail(mockBeeswax,req,beesBody)
-            .then(function(){
+            placeModule.attachBeeswaxThumbnail(mockBeeswax,req,beesBody)
+            .then(function(bb){
                 expect(mockLog.warn).toHaveBeenCalledWith(
                     '[%1] Can\'t find product in campaign %2 on placement %3',
-                    '1234', 'active-cam', 'pl-1234'
+                    '1234', 'cam-active', 'pl-1234'
                 );
                 expect(mockBeeswax.uploadCreativeAsset).not.toHaveBeenCalled();
-                expect(beesBody).toEqual({});
+                expect(bb).toEqual({});
+                expect(req.body.thumbnailSourceUrl).not.toBeDefined();
             })
             .then(done,done.fail);
         });
 
         it('returns without uploading anything if it cannot find a thumbnail',function(done){
             req.campaign.product.images.pop();
-            placeModule.attachBeeswaxThumbail(mockBeeswax,req,beesBody)
-            .then(function(){
+            placeModule.attachBeeswaxThumbnail(mockBeeswax,req,beesBody)
+            .then(function(bb){
                 expect(mockLog.warn).toHaveBeenCalledWith(
                     '[%1] Can\'t find thumbnail in campaign %2 on placement %3',
-                    '1234', 'active-cam', 'pl-1234'
+                    '1234', 'cam-active', 'pl-1234'
                 );
                 expect(mockBeeswax.uploadCreativeAsset).not.toHaveBeenCalled();
-                expect(beesBody).toEqual({});
+                expect(bb).toEqual({});
+                expect(req.body.thumbnailSourceUrl).not.toBeDefined();
             })
             .then(done,done.fail);
         });
 
         it('returns without doing anything if thumbnail has not changed',function(done){
             req.body.thumbnailSourceUrl = 'http://is1.mzstatic.com/image/thumb/512x512bb.jpg';
-            placeModule.attachBeeswaxThumbail(mockBeeswax,req,beesBody)
-            .then(function(){
+            placeModule.attachBeeswaxThumbnail(mockBeeswax,req,beesBody)
+            .then(function(bb){
                 expect(mockBeeswax.uploadCreativeAsset).not.toHaveBeenCalled();
-                expect(beesBody).toEqual({});
+                expect(bb).toEqual({});
+                expect(req.body.thumbnailSourceUrl).toEqual('http://is1.mzstatic.com/image/thumb/512x512bb.jpg');
             })
             .then(done,done.fail);
         });
@@ -898,8 +902,8 @@ fdescribe('ads-placements (UT)', function() {
             mockBeeswax.uploadCreativeAsset.and.callFake(function(){
                 return q.reject(new Error('I failed.'));
             });
-            placeModule.attachBeeswaxThumbail(mockBeeswax,req,beesBody)
-            .then(function(){
+            placeModule.attachBeeswaxThumbnail(mockBeeswax,req,beesBody)
+            .then(function(bb){
                 expect(mockBeeswax.uploadCreativeAsset).toHaveBeenCalledWith({
                     sourceUrl : 'http://is1.mzstatic.com/image/thumb/512x512bb.jpg',
                     advertiser_id: 9876
@@ -908,7 +912,8 @@ fdescribe('ads-placements (UT)', function() {
                     '[%1] uploadCreativeAsset failed on placement %2 with: %3',
                     '1234', 'pl-1234', 'I failed.'
                 );
-                expect(beesBody).toEqual({});
+                expect(bb).toEqual({});
+                expect(req.body.thumbnailSourceUrl).not.toBeDefined();
             })
             .then(done,done.fail);
         });
@@ -917,17 +922,18 @@ fdescribe('ads-placements (UT)', function() {
             mockBeeswax.uploadCreativeAsset.and.callFake(function(){
                 return q.reject( { foo : 'bar' });
             });
-            placeModule.attachBeeswaxThumbail(mockBeeswax,req,beesBody)
-            .then(function(){
+            placeModule.attachBeeswaxThumbnail(mockBeeswax,req,beesBody)
+            .then(function(bb){
                 expect(mockBeeswax.uploadCreativeAsset).toHaveBeenCalledWith({
                     sourceUrl : 'http://is1.mzstatic.com/image/thumb/512x512bb.jpg',
                     advertiser_id: 9876
                 });
                 expect(mockLog.warn).toHaveBeenCalledWith(
                     '[%1] uploadCreativeAsset failed on placement %2 with: %3',
-                    '1234', 'pl-1234', '{ foo : \'bar\' }'
+                    '1234', 'pl-1234', '{ foo: \'bar\' }'
                 );
-                expect(beesBody).toEqual({});
+                expect(bb).toEqual({});
+                expect(req.body.thumbnailSourceUrl).not.toBeDefined();
             })
             .then(done,done.fail);
         });
@@ -936,29 +942,30 @@ fdescribe('ads-placements (UT)', function() {
             mockBeeswax.uploadCreativeAsset.and.callFake(function(){
                 return q.reject( 'I failed.');
             });
-            placeModule.attachBeeswaxThumbail(mockBeeswax,req,beesBody)
-            .then(function(){
+            placeModule.attachBeeswaxThumbnail(mockBeeswax,req,beesBody)
+            .then(function(bb){
                 expect(mockBeeswax.uploadCreativeAsset).toHaveBeenCalledWith({
                     sourceUrl : 'http://is1.mzstatic.com/image/thumb/512x512bb.jpg',
                     advertiser_id: 9876
                 });
                 expect(mockLog.warn).toHaveBeenCalledWith(
                     '[%1] uploadCreativeAsset failed on placement %2 with: %3',
-                    '1234', 'pl-1234', 'I failed.'
+                    '1234', 'pl-1234', '\'I failed.\''
                 );
-                expect(beesBody).toEqual({});
+                expect(bb).toEqual({});
+                expect(req.body.thumbnailSourceUrl).not.toBeDefined();
             })
             .then(done,done.fail);
         });
 
         it('updates the beesBody if uploadCreativeAsset succeeds', function(done){
-            placeModule.attachBeeswaxThumbail(mockBeeswax,req,beesBody)
-            .then(function(){
+            placeModule.attachBeeswaxThumbnail(mockBeeswax,req,beesBody)
+            .then(function(bb){
                 expect(mockBeeswax.uploadCreativeAsset).toHaveBeenCalledWith({
                     sourceUrl : 'http://is1.mzstatic.com/image/thumb/512x512bb.jpg',
                     advertiser_id: 9876
                 });
-               expect(beesBody).toEqual({
+               expect(bb).toEqual({
                    creative_thumbnail_url: 'stingersbx/83/27319/810_512x512bb.jpg'
                });
                expect(req.body.thumbnailSourceUrl).toEqual(
@@ -970,13 +977,13 @@ fdescribe('ads-placements (UT)', function() {
 
         it('updates the beesBody if diff thumb and uploadCreative succeeds', function(done){
             req.body.thumbnailSourceUrl = 'http://is1.mzstatic.com/image/thumb/old.jpg';
-            placeModule.attachBeeswaxThumbail(mockBeeswax,req,beesBody)
-            .then(function(){
+            placeModule.attachBeeswaxThumbnail(mockBeeswax,req,beesBody)
+            .then(function(bb){
                 expect(mockBeeswax.uploadCreativeAsset).toHaveBeenCalledWith({
                     sourceUrl : 'http://is1.mzstatic.com/image/thumb/512x512bb.jpg',
                     advertiser_id: 9876
                 });
-               expect(beesBody).toEqual({
+               expect(bb).toEqual({
                    creative_thumbnail_url: 'stingersbx/83/27319/810_512x512bb.jpg'
                });
                expect(req.body.thumbnailSourceUrl).toEqual(
@@ -1010,6 +1017,9 @@ fdescribe('ads-placements (UT)', function() {
                 }
             };
             spyOn(placeModule, 'formatBeeswaxBody').and.returnValue({ beeswax: 'yes' });
+            spyOn(placeModule, 'attachBeeswaxThumbnail').and.callFake(function(b,r,bb){
+                return q(bb);    
+            });
             mockBeeswax.creatives.create.and.callFake(function() { return q(beesResp); });
         });
         
@@ -1127,6 +1137,9 @@ fdescribe('ads-placements (UT)', function() {
                 }
             };
             spyOn(placeModule, 'formatBeeswaxBody').and.returnValue({ beeswax: 'yes' });
+            spyOn(placeModule, 'attachBeeswaxThumbnail').and.callFake(function(b,r,bb){
+                return q(bb);    
+            });
             mockBeeswax.creatives.edit.and.callFake(function() { return q(beesResp); });
         });
         

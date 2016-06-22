@@ -344,16 +344,6 @@
                 ' will likely not be approved.', req.uuid, c6Id, req.campaign.id);
         }
 
-
-//
-//     if (req.body.thumbnail) {
-//         /* Beeswax is dumb and returns "ERROR: URL must begin with HTTP or HTTPS" if the url
-//          * DOES begin with http or https. However, trimming the protocol works, for some reason.
-//          * So this workaround should hopefully work for now, until they get their act together.
-//          */
-//         beesBody.creative_thumbnail_url = req.body.thumbnail.replace(/^https?:\/\//, '//');
-//     }
-//        
         var templatePath = path.join(__dirname, '../templates/beeswaxCreatives/mraid.html'),
             tagHtml = fs.readFileSync(templatePath, 'utf8'),
             opts = { placement: c6Id };
@@ -368,16 +358,57 @@
         return beesBody;
     };
 
-    placeModule.attachBeeswaxThumbail = function(beeswax, req, beesBody){
+    placeModule.attachBeeswaxThumbnail = function(beeswax, req, beesBody){
         var log = logger.getLog(),
             origObj = req.origObj,
-            c6Id = req.body.id || origObj.id;
+            c6Id = (req.body.id || origObj.id),
+            thumbnailUrl;
 
         if (!req.campaign) {
             log.warn('[%1] Can\'t attach beeswax thumbnail without campaign for placement %2',
                 req.uuid, c6Id);
             return q(beesBody);
         }
+
+        if (!req.campaign.product){
+            log.warn('[%1] Can\'t find product in campaign %2 on placement %3',
+                req.uuid, req.campaign.id, c6Id);
+            return q(beesBody);
+        }
+
+        (req.campaign.product.images || []).forEach(function(img){
+            if (img.type === 'thumbnail') {
+                thumbnailUrl = img.uri;
+            }
+        });
+
+        if (!thumbnailUrl){
+            log.warn('[%1] Can\'t find thumbnail in campaign %2 on placement %3',
+                req.uuid, req.campaign.id, c6Id);
+            return q(beesBody);
+        }
+
+        if (thumbnailUrl === req.body.thumbnailSourceUrl){
+            return q(beesBody);
+        }
+
+        return beeswax.uploadCreativeAsset({
+            sourceUrl    : thumbnailUrl,
+            advertiser_id: req.advertiser.beeswaxIds.advertiser
+        })
+        .then(function(asset){
+            log.info('[%1] Created asset %2 for placement %3',
+                req.uuid, asset.path_to_asset, c6Id);
+            beesBody.creative_thumbnail_url = asset.path_to_asset;
+            req.body.thumbnailSourceUrl = thumbnailUrl;
+            return beesBody;
+        })
+        .catch(function(e){
+            log.warn('[%1] uploadCreativeAsset failed on placement %2 with: %3',
+               req.uuid, c6Id, (e.message  ? e.message : util.inspect(e)));
+            return beesBody;
+        });
+
     };
     
     // Create a new Creative in Beeswax, if tagParams.container === 'beeswax'
@@ -400,8 +431,9 @@
         if (!beesBody) {
             return q(next());
         }
-        
-        return beeswax.creatives.create(beesBody)
+    
+        return placeModule.attachBeeswaxThumbnail(beeswax, req, beesBody)
+        .then(beeswax.creatives.create)
         .then(function(resp) {
             if (!resp.success) {
                 log.warn('[%1] Creating beeswax creative failed: %2', req.uuid, resp.message);
@@ -443,7 +475,10 @@
             return q(next());
         }
         
-        return beeswax.creatives.edit(beesId, beesBody)
+        return placeModule.attachBeeswaxThumbnail(beeswax, req, beesBody)
+        .then(function(bb){
+            return beeswax.creatives.edit(beesId, bb);
+        })
         .then(function(resp) {
             if (!resp.success) {
                 log.warn('[%1] Editing beeswax creative %2 failed: %3',
