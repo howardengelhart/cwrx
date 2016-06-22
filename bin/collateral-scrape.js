@@ -212,6 +212,7 @@
                 rating: app.averageUserRating,
                 extID: app.trackId,
                 ratingCount : app.userRatingCount,
+                bundleId: app.bundleId,
                 images: [].concat(
                     app.screenshotUrls.map(function(uri) {
                         return { uri: uri, type: 'screenshot', device: 'phone' };
