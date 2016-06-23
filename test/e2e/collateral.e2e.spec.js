@@ -1038,7 +1038,8 @@ describe('collateral (E2E):', function() {
                         price: 'Free',
                         rating: jasmine.any(Number),
                         extID: 284882215,
-                        ratingCount: jasmine.any(Number),
+                        ratingCount: jasmine.any(Number),                        
+                        bundleId: jasmine.any(String),
                         images: jasmine.any(Array)
                     });
                     expect(apiResponse.body.images.length).toBeGreaterThan(0, 'App has no images.');

@@ -1833,6 +1833,7 @@ describe('collateralScrape-scraper (UT)', function() {
                         rating: response.results[0].averageUserRating,
                         extID: response.results[0].trackId,
                         ratingCount: response.results[0].userRatingCount,
+                        bundleId: response.results[0].bundleId,
                         images: [].concat(
                             response.results[0].screenshotUrls.map(function(uri) {
                                 return {
@@ -2246,8 +2247,9 @@ describe('collateralScrape-scraper (UT)', function() {
                         body: 'Error getting metadata',
                     })
                 );
-            })
-            it ('should get metadata for a youtube video', function(done) {
+            });
+
+            it ('should [400]', function(done) {
                 mockReq.query.uri  = 'https://www.instagram.com/p/BGhQhO2HDyZ/?taken-by=prissy_pig';
                 mockReq.query.type      = 'instagram';
                 collateralScrape.getMetadata(mockReq,metagetta).then(function(resp) {
