@@ -13,7 +13,7 @@
   "private": true,
   "dependencies": {
     "aws-sdk": "^2.0.0-rc12",
-    "bcrypt": "~0.7.7",
+    "bcrypt": "^0.8.7",
     "beeswax-client": "^0.2.0",
     "body-parser": "~1.12.4",
     "braintree": "^1.28.0",
@@ -33,7 +33,7 @@
     "imap": "~0.8.12",
     "lodash": "^4.0.0",
     "mailparser": "~0.4.4",
-    "memcached": "2.1.0",
+    "memcached": "2.2.2",
     "metagetta": "^0.4.1",
     "mongodb": "~2.0.53",
     "multer": "~0.1.8",
