@@ -21,7 +21,10 @@ Vagrant.configure("2") do |config|
   end
 
   config.vm.boot_timeout = 180
-  config.omnibus.chef_version = :latest
+
+  # The version of chef that we use on our servers
+  config.omnibus.chef_version = '11.10.4'
+
   config.berkshelf.enabled = true
 
   config.ssh.insert_key = false
@@ -110,17 +113,17 @@ Vagrant.configure("2") do |config|
         "recipe[auth]",
         "recipe[maint]"
     ]
-    
+
     svcs = [ 'ads', 'collateral', 'content', 'geo', 'monitor', 'orgSvc', 'player', 'search',
              'userSvc', 'vote', 'querybot', 'c6postgres', 'accountant', 'c6postgres::admin',
              'querybot::initcamp']
-    
+
     if ENV['CWRX_APP'] == 'all'
         chosen = svcs
     else
         chosen = (ENV['CWRX_APP'] || '').split(',').select { |svc| svcs.include?(svc) }
     end
-    
+
     chosen.each do |svc|
         if svc === "player"
             chef.run_list.push("recipe[player::mock_player]")
@@ -151,7 +154,7 @@ Vagrant.configure("2") do |config|
         if svc == 'vote'
             chef.json[svc][:mongo][:voteDb] = { :host => "127.0.0.1" }
         end
-        
+
         if svc == 'userSvc'
             chef.json[svc][:kinesis] = { :streamName => 'devCwrxStream-' + ENV['USER'] }
         end
@@ -159,7 +162,7 @@ Vagrant.configure("2") do |config|
         if svc == 'orgSvc'
             chef.json[svc][:kinesis] = { :streamName => 'devCwrxStream-' + ENV['USER'] }
         end
-        
+
         if svc == 'ads'
             chef.json[svc][:kinesis] = { :streamName => 'devCwrxStream-' + ENV['USER'] }
         end
@@ -184,7 +187,7 @@ Vagrant.configure("2") do |config|
                 }
             }
         end
-        
+
         if svc == 'accountant'
             chef.json[svc][:config] = {
                 "kinesis" => { :streamName => 'devCwrxStream-' + ENV['USER'] },
