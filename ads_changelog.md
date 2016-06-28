@@ -1,5 +1,8 @@
 # Ads Service Changelog
 
+### 5.3.1: Mon Jun 27 22:24:50 EDT 2016
+* [FIX]: Wrong IAB Code for Science-Weather causing creative to be rejected.
+
 ### 5.3.0: Wed Jun 22 11:56:45 EDT 2016
 * [FEATURE]: Add beeswax thumbnail upload
 

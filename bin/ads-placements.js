@@ -261,7 +261,7 @@
             if (cat === 'Sports')			 { return 'IAB17'; }     // (Sports)
             if (cat === 'Travel')			 { return 'IAB20'; }     // (Travel)
             if (cat === 'Utilities')		 { return 'IAB19'; }     // (Tech & Computing)
-            if (cat === 'Weather')			 { return 'IAB14_10'; }  // (Science-Weather)
+            if (cat === 'Weather')			 { return 'IAB15_10'; }  // (Science-Weather)
             return 'IAB24';     // (Uncategorized)
         });
     };
