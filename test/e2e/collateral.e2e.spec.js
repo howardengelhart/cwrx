@@ -1021,7 +1021,6 @@ describe('collateral (E2E):', function() {
             describe('with an App Store app URI', function() {
                 beforeEach(function(done) {
                     options.qs.uri = 'https://itunes.apple.com/us/app/facebook/id284882215?mt=8';
-
                     requestUtils.qRequest('get', options).then(success, failure).finally(done);
                 });
 
@@ -1038,7 +1037,7 @@ describe('collateral (E2E):', function() {
                         price: 'Free',
                         rating: jasmine.any(Number),
                         extID: 284882215,
-                        ratingCount: jasmine.any(Number),                        
+                        ratingCount: jasmine.any(Number),
                         bundleId: jasmine.any(String),
                         images: jasmine.any(Array)
                     });

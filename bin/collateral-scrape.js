@@ -182,6 +182,34 @@
             throw reason;
         });
     };
+
+    function getSizes(uris, type, device) {
+        var log = logger.getLog();
+
+        function makeReq(uri) {
+            var options = {
+                uri: uri,
+                method: 'HEAD'
+            };
+
+            return request(options).then(function getSize(response) {
+                //log.info('RESPONSE: [%1]', inspect(response));
+                if (response['content-length'])
+                    return parseInt(response['content-length']);
+                else
+                    throw new error('No content-length header');
+            });
+        }
+
+        return q.all(
+            uris.map(function getData (uri) {
+                return makeReq(uri).then(function setSize (size) {
+                    return { uri: uri, type: type, device: device, fileSize: size};
+                });
+            })
+        );
+    }
+
     scraper.productDataFrom[PRODUCT_TYPES.APP_STORE] = function getAppStoreData(
         id/*,
         config,
@@ -200,29 +228,35 @@
                 throw new InvalidError('URI is not for an app.');
             }
 
-            return {
-                type: 'app',
-                platform: 'iOS',
-                name: app.trackCensoredName,
-                description: app.description,
-                developer: app.artistName,
-                uri: app.trackViewUrl,
-                categories: app.genres,
-                price: app.formattedPrice,
-                rating: app.averageUserRating,
-                extID: app.trackId,
-                ratingCount : app.userRatingCount,
-                bundleId: app.bundleId,
-                images: [].concat(
-                    app.screenshotUrls.map(function(uri) {
-                        return { uri: uri, type: 'screenshot', device: 'phone' };
-                    }),
-                    app.ipadScreenshotUrls.map(function(uri) {
-                        return { uri: uri, type: 'screenshot', device: 'tablet' };
-                    }),
-                    [{ uri: app.artworkUrl512, type: 'thumbnail' }]
-                )
-            };
+            function getImages() {
+                return q.all([
+                    getSizes(app.screenshotUrls, 'screenshot', 'phone'),
+                    getSizes(app.ipadScreenshotUrls, 'screenshot', 'tablet'),
+                    getSizes([app.artworkUrl512], 'thumbnail')
+                ]).then(function sendImageArray(imageArrays) {
+                    return Array.prototype.concat.apply([], imageArrays);
+                }).catch(function(error){
+                    log.info(" [%1] Error getting images: %2 ", uuid, inspect(error));
+                });
+            }
+
+            return getImages().then(function(images) {
+                return {
+                    type: 'app',
+                    platform: 'iOS',
+                    name: app.trackCensoredName,
+                    description: app.description,
+                    developer: app.artistName,
+                    uri: app.trackViewUrl,
+                    categories: app.genres,
+                    price: app.formattedPrice,
+                    rating: app.averageUserRating,
+                    extID: app.trackId,
+                    ratingCount : app.userRatingCount,
+                    bundleId: app.bundleId,
+                    images: images
+                };
+            });
         });
     };
 
