@@ -61,6 +61,27 @@
             __allowed: true,
             __type: 'string',
             __length: 255
+        },
+        targetUsers: {
+            __allowed: true,
+            __type: 'number'
+        },
+        cycleEnd: {
+            __allowed: true,
+            __type: 'Date'
+        },
+        cycleStart: {
+            __allowed: true,
+            __type: 'Date'
+        },
+        paymentPlanId: {
+            __allowed: true,
+            __type: 'string'
+        },
+        application: {
+            __allowed: true,
+            __type: 'string',
+            __default: 'selfie'
         }
     };
 
@@ -89,7 +110,12 @@
         campaign        : 'campaign_id',
         braintreeId     : 'braintree_id',
         promotion       : 'promotion_id',
-        description     : 'description'
+        description     : 'description',
+        targetUsers     : 'view_target',
+        cycleEnd        : 'cycle_end',
+        cycleStart      : 'cycle_start',
+        paymentPlanId   : 'paymentplan_id',
+        application     : 'application'
     };
     
     // Format a transaction row as a JSON doc for returning to the client
@@ -100,9 +126,10 @@
         });
         
         retObj.amount = retObj.amount ? parseFloat(retObj.amount) : retObj.amount;
-        retObj.created = retObj.created ? new Date(retObj.created) : retObj.created;
-        retObj.transactionTS = retObj.transactionTS ? new Date(retObj.transactionTS)
-                                                    : retObj.transactionTS;
+        
+        ['created', 'transactionTS', 'cycleEnd', 'cycleStart'].forEach(function(field) {
+            retObj[field] = retObj[field] ? new Date(retObj[field]) : retObj[field];
+        });
         
         return retObj;
     };
@@ -180,6 +207,7 @@
         req.body.id = 't-' + uuid.createUuid();
         req.body.created = new Date();
         req.body.transactionTS = req.body.transactionTS || req.body.created;
+        req.body.cycleStart = req.body.cycleStart || req.body.created;
         
         // If no provided description, auto-generate based on amount + linked entities
         if (!req.body.description) {
@@ -258,8 +286,9 @@
             var statement = [
                 'INSERT INTO fct.billing_transactions ',
                 '    (rec_ts,transaction_id,transaction_ts,org_id,amount,sign,units,campaign_id,',
-                '     braintree_id,promotion_id,description)',
-                'VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)',
+                '     braintree_id,promotion_id,description,view_target,cycle_end,cycle_start,',
+                '     paymentplan_id,application)',
+                'VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)',
                 'RETURNING *'
             ];
             
@@ -274,7 +303,12 @@
                 req.body.campaign,
                 req.body.braintreeId,
                 req.body.promotion,
-                req.body.description
+                req.body.description,
+                req.body.targetUsers,
+                req.body.cycleEnd,
+                req.body.cycleStart,
+                req.body.paymentPlanId,
+                req.body.application
             ];
             
             return pgUtils.query(statement.join('\n'), values)

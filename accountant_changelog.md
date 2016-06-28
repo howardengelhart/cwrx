@@ -1,5 +1,9 @@
 # Accountant Service Changelog
 
+* Allow setting subscription-related properties on transactions: [#958](https://github.com/cinema6/cwrx/issues/958)
+* Extra deployment steps:
+    * Update deepthought + add columns to `fct.billing_transactions` schema
+
 ### 1.4.0: Tue Jun 14 15:28:12 EDT 2016
 * [FEATURE]: Add `GET /api/accounting/balances` endpoint for fetching multiple orgs' balances: [#938](https://github.com/cinema6/cwrx/issues/938)
 * [FIX]: Fetch orgs from mongo, not orgSvc, to ease load issues: [#938](https://github.com/cinema6/cwrx/issues/938)

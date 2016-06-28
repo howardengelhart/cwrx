@@ -53,20 +53,42 @@ testUtils.pgQuery = function(statement, params, userCfg) {
 };
 
 /* Truncate the given table, and then insert the data, if defined. data should be an array of
- * strings representing the rows to insert. */
-testUtils.resetPGTable = function(tableName, data, userCfg) {
+ * strings representing the rows to insert. Alternatively, an array of field names can be passed as
+ * the fields arg, and the strings in the data array need only contain those fields */
+testUtils.resetPGTable = function(tableName, data, userCfg, fields) {
     return testUtils.pgQuery('TRUNCATE TABLE ' + tableName, null, userCfg)
     .then(function() {
         if (!data || !(data instanceof Array)) {
             return q();
         }
+        var statement = 'INSERT INTO ' + tableName;
+
+        if (fields && fields.length > 0) {
+            statement += '(' + fields.join(',') + ')';
+        }
         
-        var statement = 'INSERT INTO ' + tableName + ' VALUES ' + data.join(', ') + ';';
+        statement += ' VALUES ' + data.join(', ') + ';';
         
         return testUtils.pgQuery(statement, null, userCfg);
     })
     .thenResolve();
 };
+
+/* Return a string of values representing a record that can be inserted into the data of resetPGTable.
+ * fields should be an in-order array of column names, and obj should be a hash containing values for each field. */
+testUtils.stringifyRecord = function(obj, fields) {
+    var str = '(';
+    fields.forEach(function(field) {
+        var val = (obj[field] !== undefined) ? obj[field] : null;
+        if (typeof val === 'string') {
+            str += '\'' + val + '\',';
+        } else {
+            str += val + ',';
+        }
+    });
+    str = str.replace(/,$/, '') + ')';
+    return str;
+}
 
 
 ///////////////////////////// Mongo Helper Methods /////////////////////////////

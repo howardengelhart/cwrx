@@ -16,6 +16,54 @@
         requestUtils    = require('../lib/requestUtils'),
         
         payModule = { config: {} };
+        
+    payModule.paymentSchema = { // used to validate POST /api/payments requests
+        amount: {
+            __allowed: true,
+            __type: 'number',
+            __required: true,
+            // __min is set to payModule.config.minPayment in extendSvc()
+            __locked: true
+        },
+        paymentMethod: {
+            __allowed: true,
+            __type: 'string',
+            __required: true,
+            __locked: true
+        },
+        description: { //TODO: deprecated, remove once clients no longer use
+            __allowed: true,
+            __type: 'string',
+            __length: 255
+        },
+        transaction: { // subfields of this affect the linked transaction entity
+            description: {
+                __allowed: true,
+                __type: 'string',
+                __length: 255
+            },
+            targetUsers: {
+                __allowed: true,
+                __type: 'number'
+            },
+            cycleEnd: {
+                __allowed: true,
+                __type: 'Date'
+            },
+            cycleStart: {
+                __allowed: true,
+                __type: 'Date'
+            },
+            paymentPlanId: {
+                __allowed: true,
+                __type: 'string'
+            },
+            application: {
+                __allowed: true,
+                __type: 'string'
+            }
+        }
+    };
 
     // Adds extra middleware to orgSvc for custom payment methods. gateway === braintree client
     payModule.extendSvc = function(orgSvc, gateway, config) {
@@ -30,6 +78,8 @@
                 payModule.config.api[key].endpoint
             );
         });
+        
+        payModule.paymentSchema.amount.__min = payModule.config.minPayment;
     
         var fetchAnyOrg = CrudSvc.fetchRelatedEntity.bind(CrudSvc, {
             objName: 'orgs',
@@ -203,28 +253,8 @@
 
     // Check that all parameters are set + valid for POSTing a new payment
     payModule.validatePaymentBody = function(req, next, done) {
-        var log = logger.getLog();
-        
-        var model = new Model('payments', {
-            amount: {
-                __allowed: true,
-                __type: 'number',
-                __required: true,
-                __min: payModule.config.minPayment,
-                __locked: true
-            },
-            paymentMethod: {
-                __allowed: true,
-                __type: 'string',
-                __required: true,
-                __locked: true
-            },
-            description: {
-                __allowed: true,
-                __type: 'string',
-                __length: 255
-            }
-        });
+        var log = logger.getLog(),
+            model = new Model('payments', payModule.paymentSchema);
 
         var validResp = model.validate('create', req.body, {}, req.requester);
         
@@ -739,14 +769,24 @@
                 log.info('[%1] Successfully created payment %2 for BT customer %3, org %4',
                          req.uuid, result.transaction.id, req.org.braintreeCustomer, req.org.id);
                 
+                var transBody = {
+                    amount      : req.body.amount,
+                    org         : req.org.id,
+                    braintreeId : result.transaction.id
+                };
+                req.body.transaction = req.body.transaction || {};
+                Object.keys(payModule.paymentSchema.transaction).forEach(function(subfield) {
+                    if (req.body.transaction[subfield] !== undefined) {
+                        transBody[subfield] = req.body.transaction[subfield];
+                    }
+                });
+
+                //TODO: deprecated, remove once clients no longer use
+                transBody.description = transBody.description || req.body.description;
+                
                 return requestUtils.makeSignedRequest(appCreds, 'post', {
                     url: payModule.config.api.transactions.baseUrl,
-                    json: {
-                        amount      : req.body.amount,
-                        org         : req.org.id,
-                        braintreeId : result.transaction.id,
-                        description : req.body.description
-                    }
+                    json: transBody
                 })
                 .then(function(resp) {
                     if (resp.response.statusCode !== 201) {

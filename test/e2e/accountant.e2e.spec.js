@@ -100,29 +100,45 @@ describe('accountant (E2E):', function() {
     
     // setup mock data for all tests
     beforeEach(function(done) {
-        var transCounter = 9999;
+        var transCounter = 9999,
+            transFields = ['rec_ts','transaction_id','transaction_ts','org_id','amount','sign',
+                           'units','campaign_id','braintree_id','promotion_id','description'];
         
         function creditRecord(org, amount, braintreeId, promotion, desc) {
             var recKey = transCounter++,
                 id = 't-e2e-' + String(recKey);
 
-            braintreeId = braintreeId || '';
-            promotion = promotion || '';
-            desc = desc || '';
-            
-            return '(' + recKey + ',\'2016-03-21T15:53:11.927Z\',\'' + id + '\',\'2016-03-21T15:53:11.927Z\',\'' +
-                   org + '\',' + amount + ',1,1,\'\',\'' + braintreeId + '\',\'' + promotion + '\',\'' + desc + '\')';
+            return testUtils.stringifyRecord({
+                rec_ts: '2016-03-21T15:53:11.927Z',
+                transaction_id: id,
+                transaction_ts: '2016-03-21T15:53:11.927Z',
+                org_id: org,
+                amount: amount,
+                sign: 1,
+                units: 1,
+                campaign_id: null,
+                braintree_id: braintreeId,
+                promotion_id: promotion,
+                description: desc
+            }, transFields);
         }
         function debitRecord(org, amount, units, campaign, desc) {
             var recKey = transCounter++,
                 id = 't-e2e-' + String(recKey);
 
-            units = units || 1;
-            campaign = campaign || '';
-            desc = desc || '';
-            
-            return '(' + recKey + ',\'2016-03-21T15:53:11.927Z\',\'' + id + '\',\'2016-03-21T15:53:11.927Z\',\'' +
-                   org + '\',' + amount + ',-1,' + units + ',\'' + campaign + '\',\'\',\'\',\'' + desc + '\')';
+            return testUtils.stringifyRecord({
+                rec_ts: '2016-03-21T15:53:11.927Z',
+                transaction_id: id,
+                transaction_ts: '2016-03-21T15:53:11.927Z',
+                org_id: org,
+                amount: amount,
+                sign: -1,
+                units: units || 1,
+                campaign_id: campaign,
+                braintree_id: null,
+                promotion_id: null,
+                description: desc
+            }, transFields);
         }
         
         var testOrgs = [
@@ -170,10 +186,10 @@ describe('accountant (E2E):', function() {
         return q.all([
             testUtils.resetCollection('orgs', testOrgs),
             testUtils.resetCollection('campaigns', testCamps),
-            testUtils.resetPGTable('fct.billing_transactions', testTransactions)
-        ]).done(function(results) {
+            testUtils.resetPGTable('fct.billing_transactions', testTransactions, null, transFields)
+        ]).then(function(results) {
             done();
-        });
+        }, done.fail);
     });
 
     afterEach(function() {
@@ -257,7 +273,7 @@ describe('accountant (E2E):', function() {
                 expect(resp.response.statusCode).toBe(200);
                 expect(resp.body.length).toBe(4);
                 expect(resp.body[0]).toEqual({ id: 't-e2e-9999', units: 1, amount: 2200, braintreeId: 'pay11' });
-                expect(resp.body[1]).toEqual({ id: 't-e2e-10000', units: 1, amount: 1500, braintreeId: '' });
+                expect(resp.body[1]).toEqual({ id: 't-e2e-10000', units: 1, amount: 1500, braintreeId: null });
                 expect(resp.body[2]).toEqual({ id: 't-e2e-10002', units: 1, amount: 800, braintreeId: 'pay13' });
                 expect(resp.body[3]).toEqual({ id: 't-e2e-10001', units: 1, amount: 500, braintreeId: 'pay12' });
                 expect(resp.response.headers['content-range']).toBe('items 1-4/4');
@@ -356,7 +372,12 @@ describe('accountant (E2E):', function() {
                     campaign        : null,
                     braintreeId     : 'payment1',
                     promotion       : null,
-                    description     : JSON.stringify({ eventType: 'credit', source: 'braintree' })
+                    description     : JSON.stringify({ eventType: 'credit', source: 'braintree' }),
+                    targetUsers     : null,
+                    cycleEnd        : null,
+                    cycleStart      : jasmine.any(String),
+                    paymentPlanId   : null,
+                    application     : 'selfie'
                 });
                 expect(new Date(resp.body.created).toString()).not.toBe('Invalid Date');
                 createdObj = resp.body;
@@ -376,7 +397,12 @@ describe('accountant (E2E):', function() {
                     campaign_id     : null,
                     braintree_id    : 'payment1',
                     promotion_id    : null,
-                    description     : JSON.stringify({ eventType: 'credit', source: 'braintree' })
+                    description     : JSON.stringify({ eventType: 'credit', source: 'braintree' }),
+                    view_target     : null,
+                    cycle_end       : null,
+                    cycle_start     : jasmine.any(Date),
+                    paymentplan_id  : null,
+                    application     : 'selfie'
                 }));
             }).catch(function(error) {
                 expect(util.inspect(error)).not.toBeDefined();
@@ -445,15 +471,26 @@ describe('accountant (E2E):', function() {
                     campaign        : null,
                     braintreeId     : null,
                     promotion       : 'pro-skillz',
-                    description     : JSON.stringify({ eventType: 'credit', source: 'promotion' })
+                    description     : JSON.stringify({ eventType: 'credit', source: 'promotion' }),
+                    targetUsers     : null,
+                    cycleEnd        : null,
+                    cycleStart      : jasmine.any(String),
+                    paymentPlanId   : null,
+                    application     : 'selfie'
                 });
             }).catch(function(error) {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
         
-        it('should be able to specify a custom transactionTS', function(done) {
+        it('should be able to specify extra fields', function(done) {
             options.json.transactionTS = new Date('2016-03-17T20:29:06.754Z');
+            options.json.description = 'here have a lil walkin around money man';
+            options.json.targetUsers = 1337;
+            options.json.cycleEnd = new Date('2016-06-28T14:39:23.274Z');
+            options.json.cycleStart = new Date('2015-05-15T14:39:23.274Z');
+            options.json.paymentPlanId = 'pp-faaake';
+            options.json.application = 'screenjack';
             requestUtils.makeSignedRequest(appCreds, 'post', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(201);
                 expect(resp.body).toEqual({
@@ -467,41 +504,12 @@ describe('accountant (E2E):', function() {
                     campaign        : null,
                     braintreeId     : 'payment1',
                     promotion       : null,
-                    description     : JSON.stringify({ eventType: 'credit', source: 'braintree' })
-                });
-            }).catch(function(error) {
-                expect(util.inspect(error)).not.toBeDefined();
-            }).done(done);
-        });
-        
-        it('should not allow creating unlinked transactions', function(done) {
-            delete options.json.braintreeId;
-            
-            requestUtils.makeSignedRequest(appCreds, 'post', options).then(function(resp) {
-                expect(resp.response.statusCode).toBe(400);
-                expect(resp.body).toEqual('Cannot create unlinked credit');
-            }).catch(function(error) {
-                expect(util.inspect(error)).not.toBeDefined();
-            }).done(done);
-        });
-        
-        it('should allow specifying a custom description', function(done) {
-            options.json.description = 'here have a lil walkin around money man';
-
-            requestUtils.makeSignedRequest(appCreds, 'post', options).then(function(resp) {
-                expect(resp.response.statusCode).toBe(201);
-                expect(resp.body).toEqual({
-                    id              : jasmine.any(String),
-                    created         : jasmine.any(String),
-                    transactionTS   : resp.body.created,
-                    amount          : 123.45,
-                    sign            : 1,
-                    units           : 1,
-                    org             : 'o-1234',
-                    campaign        : null,
-                    braintreeId     : 'payment1',
-                    promotion       : null,
-                    description     : 'here have a lil walkin around money man'
+                    description     : 'here have a lil walkin around money man',
+                    targetUsers     : 1337,
+                    cycleEnd        : '2016-06-28T14:39:23.274Z',
+                    cycleStart      : '2015-05-15T14:39:23.274Z',
+                    paymentPlanId   : 'pp-faaake',
+                    application     : 'screenjack'
                 });
             }).catch(function(error) {
                 expect(util.inspect(error)).not.toBeDefined();
@@ -513,6 +521,17 @@ describe('accountant (E2E):', function() {
             requestUtils.makeSignedRequest(appCreds, 'post', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(400);
                 expect(resp.body).toBe('description must have at most 255 characters');
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should not allow creating unlinked transactions', function(done) {
+            delete options.json.braintreeId;
+            
+            requestUtils.makeSignedRequest(appCreds, 'post', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(400);
+                expect(resp.body).toEqual('Cannot create unlinked credit');
             }).catch(function(error) {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
@@ -537,7 +556,12 @@ describe('accountant (E2E):', function() {
                     campaign        : null,
                     braintreeId     : 'payment1',
                     promotion       : null,
-                    description     : JSON.stringify({ eventType: 'credit', source: 'braintree' })
+                    description     : JSON.stringify({ eventType: 'credit', source: 'braintree' }),
+                    targetUsers     : null,
+                    cycleEnd        : null,
+                    cycleStart      : jasmine.any(String),
+                    paymentPlanId   : null,
+                    application     : 'selfie'
                 });
                 expect(resp.body.id).not.toEqual(options.json.id);
                 expect(resp.body.created).not.toEqual(options.json.created);

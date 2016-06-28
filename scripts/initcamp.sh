@@ -79,6 +79,11 @@ CREATE TABLE fct.billing_transactions
   braintree_id character varying(36),
   promotion_id character varying(20),
   description text,
+  view_target integer,
+  cycle_end timestamp with time zone,
+  cycle_start timestamp with time zone,
+  paymentplan_id character varying(20),
+  application character varying(20),
   CONSTRAINT pkey_billing_transactions PRIMARY KEY (rec_key),
   CONSTRAINT check_sign CHECK (sign = 1 OR sign = (-1))
 )
