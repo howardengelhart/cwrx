@@ -1,5 +1,8 @@
 # Ads Service Changelog
 
+### 5.3.2: Tue Jun 28 09:58:52 EDT 2016
+* [FIX]: Fix for an issue that could cause logging and some requests to fail
+
 ### 5.3.1: Mon Jun 27 22:24:50 EDT 2016
 * [FIX]: Wrong IAB Code for Science-Weather causing creative to be rejected.
 
