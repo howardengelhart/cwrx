@@ -1046,6 +1046,10 @@ describe('collateral (E2E):', function() {
                         expect(image.uri).toEqual(jasmine.any(String));
                         expect(image.type).toMatch(/^(screenshot|thumbnail)$/, 'Image is not a screenshot or thumbnail.');
                         expect(image.device).toMatch(/^(phone|tablet|undefined)$/, 'Image device is not "phone," "tablet" or undefined.');
+                        expect(image.dimensions).toEqual(jasmine.objectContaining({
+                            width: jasmine.any(Number),
+                            height: jasmine.any(Number)
+                        }));
                     });
                 });
             });

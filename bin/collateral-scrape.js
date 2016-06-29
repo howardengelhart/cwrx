@@ -10,6 +10,8 @@
     var request = require('request-promise').defaults({
         json: true
     });
+    var sizeOf = require('image-size');
+    var req = require('request');
     var inspect = util.inspect;
     var inherits = util.inherits;
     var ld = require('lodash');
@@ -192,7 +194,6 @@
             };
 
             return request(uri, options).then(function getSize(response) {
-                //log.info(inspect(response));
                 if (response['content-length']) {
                     return parseInt(response['content-length']);
                 }
@@ -202,10 +203,45 @@
             });
         }
 
+        function dimensions (uri) {
+            return new q.Promise(function(resolve) {
+                var buffer = new Buffer([]);
+                var rq = req.get(uri);
+
+                rq.on('data', function(chunk) {
+                        buffer = Buffer.concat([buffer, chunk]);
+                        if (buffer.length >= 3000) {
+                            rq.abort();
+                        }
+                    });
+
+                rq.on('end', function() {
+                    resolve({
+                        width: sizeOf(buffer).width,
+                        height: sizeOf(buffer).height
+                    });
+                });
+            });
+        }
+
+
         return q.all(
             uris.map(function getData (uri) {
-                return makeReq(uri).then(function setSize (size) {
-                    return { uri: uri, type: type, device: device, fileSize: size};
+                var dims;
+                return dimensions(uri).then(function(response) {
+                    dims = response;
+
+                    return makeReq(uri).then(function setSize (size) {
+                        return {
+                            uri: uri,
+                            type: type,
+                            device: device,
+                            fileSize: size,
+                            dimensions: dims
+                        };
+                    });
+                }).catch(function(error) {
+                    log.info('Error getting dimensions: %1', error);
                 });
             })
         );
@@ -257,7 +293,7 @@
                     extID: app.trackId,
                     ratingCount : app.userRatingCount,
                     bundleId: app.bundleId,
-                    images: images
+                    images: images,
                 };
             });
         });
