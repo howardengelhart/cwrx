@@ -1047,7 +1047,7 @@ describe('orgSvc payments (E2E):', function() {
                     description     : JSON.stringify({ eventType: 'credit', source: 'braintree' }),
                     view_target     : null,
                     cycle_end       : null,
-                    cycle_start     : jasmine.any(Date),
+                    cycle_start     : null,
                     paymentplan_id  : null,
                     application     : 'selfie'
                 }));
@@ -1370,7 +1370,7 @@ describe('orgSvc payments (E2E):', function() {
                     description     : JSON.stringify({ eventType: 'credit', source: 'braintree' }),
                     view_target     : null,
                     cycle_end       : null,
-                    cycle_start     : jasmine.any(Date),
+                    cycle_start     : null,
                     paymentplan_id  : null,
                     application     : 'selfie'
                 }));
