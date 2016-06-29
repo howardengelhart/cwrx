@@ -17,6 +17,7 @@
         payModule       = require('./orgSvc-payments'),
         refModule       = require('./orgSvc-referralCodes'),
         promModule      = require('./orgSvc-promotions'),
+        ppModule        = require('./orgSvc-paymentPlans'),
 
         state = {};
 
@@ -113,12 +114,13 @@
             privateKey  : state.secrets.braintree.privateKey
         });
             
-        var app          = express(),
-            orgSvc       = orgModule.setupSvc(state.dbs.c6Db, gateway),
-            refSvc       = refModule.setupSvc(state.dbs.c6Db),
-            promSvc       = promModule.setupSvc(state.dbs.c6Db, state.config),
-            jobManager   = new JobManager(state.cache, state.config.jobTimeouts),
-            auditJournal = new journal.AuditJournal(state.dbs.c6Journal.collection('audit'),
+        var app             = express(),
+            orgSvc          = orgModule.setupSvc(state.dbs.c6Db, gateway),
+            refSvc          = refModule.setupSvc(state.dbs.c6Db),
+            promSvc         = promModule.setupSvc(state.dbs.c6Db, state.config),
+            ppSvc           = ppModule.setupSvc(state.dbs.c6Db),
+            jobManager      = new JobManager(state.cache, state.config.jobTimeouts),
+            auditJournal    = new journal.AuditJournal(state.dbs.c6Journal.collection('audit'),
                                                     state.config.appVersion, state.config.appName);
         authUtils._db = state.dbs.c6Db;
         
@@ -157,6 +159,7 @@
         orgModule.setupEndpoints(app, orgSvc, state.sessions, audit, jobManager);
         refModule.setupEndpoints(app, refSvc, state.sessions, audit, jobManager);
         promModule.setupEndpoints(app, promSvc, state.sessions, audit, jobManager);
+        ppModule.setupEndpoints(app, ppSvc, state.sessions, audit, jobManager);
 
         app.use(expressUtils.errorHandler());
         
