@@ -184,7 +184,6 @@
     };
 
     function getSizes(uris, type, device) {
-        var log = logger.getLog();
 
         function makeReq(uri) {
             var options = {
@@ -193,11 +192,12 @@
             };
 
             return request(options).then(function getSize(response) {
-                //log.info('RESPONSE: [%1]', inspect(response));
-                if (response['content-length'])
+                if (response['content-length']) {
                     return parseInt(response['content-length']);
-                else
-                    throw new error('No content-length header');
+                }
+                else {
+                    throw new Error('No content-length header');
+                }
             });
         }
 
@@ -215,6 +215,8 @@
         config,
         secrets*/
     ) {
+        var log = logger.getLog();
+
         return q().then(function sendRequest() {
             return request('https://itunes.apple.com/lookup?id=' + id);
         }).then(function createData(response) {
@@ -236,7 +238,7 @@
                 ]).then(function sendImageArray(imageArrays) {
                     return Array.prototype.concat.apply([], imageArrays);
                 }).catch(function(error){
-                    log.info(" [%1] Error getting images: %2 ", uuid, inspect(error));
+                    log.info('Error getting images: %1 ', inspect(error));
                 });
             }
 
