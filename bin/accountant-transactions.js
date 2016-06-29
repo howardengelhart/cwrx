@@ -207,7 +207,6 @@
         req.body.id = 't-' + uuid.createUuid();
         req.body.created = new Date();
         req.body.transactionTS = req.body.transactionTS || req.body.created;
-        req.body.cycleStart = req.body.cycleStart || req.body.created;
         
         // If no provided description, auto-generate based on amount + linked entities
         if (!req.body.description) {

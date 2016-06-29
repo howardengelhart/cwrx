@@ -489,7 +489,6 @@ describe('accountant-transactions (UT)', function() {
                 sign            : 1,
                 org             : 'o-1',
                 braintreeId     : 'payment1',
-                cycleStart      : jasmine.any(Date),
                 description     : JSON.stringify({ eventType: 'credit', source: 'braintree' })
             });
         });
@@ -515,7 +514,6 @@ describe('accountant-transactions (UT)', function() {
                 sign            : 1,
                 org             : 'o-1',
                 promotion       : 'pro-1',
-                cycleStart      : jasmine.any(Date),
                 description     : JSON.stringify({ eventType: 'credit', source: 'promotion' })
             });
         });

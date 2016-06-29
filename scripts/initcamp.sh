@@ -83,7 +83,7 @@ CREATE TABLE fct.billing_transactions
   cycle_end timestamp with time zone,
   cycle_start timestamp with time zone,
   paymentplan_id character varying(20),
-  application character varying(20),
+  application character varying(50),
   CONSTRAINT pkey_billing_transactions PRIMARY KEY (rec_key),
   CONSTRAINT check_sign CHECK (sign = 1 OR sign = (-1))
 )
