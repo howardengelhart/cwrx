@@ -13,7 +13,7 @@ var beeswax = new BeeswaxClient({
 });
 
 function cleanCampaigns(advert) {
-    return beeswax.campaigns.query({ advertiser_id: advert.advertiser_id }).then(function(resp) {
+    return beeswax.campaigns.queryAll({ advertiser_id: advert.advertiser_id }).then(function(resp) {
         if (!resp.success) {
             return q.reject('Failed querying campaigns - ' + util.inspect(resp));
         }
@@ -36,7 +36,7 @@ function cleanCampaigns(advert) {
 }
 
 function cleanCreatives(advert) {
-    return beeswax.creatives.query({ advertiser_id: advert.advertiser_id }).then(function(resp) {
+    return beeswax.creatives.queryAll({ advertiser_id: advert.advertiser_id }).then(function(resp) {
         if (!resp.success) {
             return q.reject('Failed querying creatives - ' + util.inspect(resp));
         }
@@ -61,7 +61,7 @@ function cleanCreatives(advert) {
     });
 }
 
-beeswax.advertisers.query({}).then(function(resp) {
+beeswax.advertisers.queryAll({}).then(function(resp) {
     if (!resp.success) {
         return q.reject('Failed querying for advertisers - ' + util.inspect(resp));
     }
