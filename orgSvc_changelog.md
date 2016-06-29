@@ -1,5 +1,6 @@
 # Org Service Changelog
 
+### 1.12.0: Wed Jun 29 13:56:21 EDT 2016
 * Allow setting subscription-related properties on transactions in `POST /api/payments`: [#958](https://github.com/cinema6/cwrx/issues/958)
 * Allow setting transaction description as `transaction.description` on body of `POST /api/payments`: [#958](https://github.com/cinema6/cwrx/issues/958)
 * [DEPRECATION]: Clients should no longer attempt to set transaction description on top-level of body of `POST /api/payments`: [#958](https://github.com/cinema6/cwrx/issues/958)
