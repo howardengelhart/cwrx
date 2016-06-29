@@ -195,6 +195,7 @@ describe('orgSvc-payments (UT)', function() {
                 region: 'us-east-66',
                 streamName: 'devCwrxStream'
             });
+            expect(payModule.paymentSchema.amount.__min).toBe(50);
         });
         
         it('should initialize middleware for payment endpoints', function() {
@@ -244,6 +245,147 @@ describe('orgSvc-payments (UT)', function() {
 
         it('should add middleware to check entitlements when creating a payment', function() {
             expect(orgSvc._middleware.createPayment).toContain(payModule.checkPaymentEntitlement);
+        });
+    });
+    
+    describe('payment validation', function() {
+        var model, newObj, origObj, requester;
+        beforeEach(function() {
+            payModule.extendSvc(orgSvc, mockGateway, payModule.config);
+            model = new Model('payments', payModule.paymentSchema);
+            newObj = { amount: 10, paymentMethod: 'mo money' };
+            origObj = {};
+            requester = { fieldValidation: { payments: {} } };
+        });
+        
+        describe('when handling amount', function() {
+            it('should fail if the field is not a number', function() {
+                newObj.amount = 'SO MANY DOLLARS';
+                expect(model.validate('create', newObj, origObj, requester))
+                    .toEqual({ isValid: false, reason: 'amount must be in format: number' });
+            });
+            
+            it('should allow the field to be set on create', function() {
+                expect(model.validate('create', newObj, origObj, requester))
+                    .toEqual({ isValid: true, reason: undefined });
+                expect(newObj.amount).toEqual(10);
+            });
+
+            it('should fail if the field is not defined', function() {
+                delete newObj.amount;
+                expect(model.validate('create', newObj, origObj, requester))
+                    .toEqual({ isValid: false, reason: 'Missing required field: amount' });
+            });
+
+            it('should fail if the field does not match the limits', function() {
+                newObj.amount = -1234;
+                expect(model.validate('create', newObj, origObj, requester))
+                    .toEqual({ isValid: false, reason: 'amount must be greater than the min: 1' });
+            });
+        });
+        
+        describe('when handling paymentMethod', function() {
+            it('should fail if the field is not a string', function() {
+                newObj.paymentMethod = 1337;
+                expect(model.validate('create', newObj, origObj, requester))
+                    .toEqual({ isValid: false, reason: 'paymentMethod must be in format: string' });
+            });
+            
+            it('should allow the field to be set on create', function() {
+                expect(model.validate('create', newObj, origObj, requester))
+                    .toEqual({ isValid: true, reason: undefined });
+                expect(newObj.paymentMethod).toEqual('mo money');
+            });
+
+            it('should fail if the field is not defined', function() {
+                delete newObj.paymentMethod;
+                expect(model.validate('create', newObj, origObj, requester))
+                    .toEqual({ isValid: false, reason: 'Missing required field: paymentMethod' });
+            });
+        });
+        
+        describe('when handling transaction', function() {
+            beforeEach(function() {
+                newObj.transaction = {};
+                requester.fieldValidation.payments.transaction = {};
+            });
+            
+            describe('subfield description', function() {
+                it('should fail if the field is not a string', function() {
+                    newObj.transaction.description = { foo: 'bar' };
+                    expect(model.validate('create', newObj, origObj, requester))
+                        .toEqual({ isValid: false, reason: 'transaction.description must be in format: string' });
+                });
+                
+                it('should allow the field to be set on create', function() {
+                    newObj.transaction.description = 'foo';
+                    expect(model.validate('create', newObj, origObj, requester))
+                        .toEqual({ isValid: true, reason: undefined });
+                    expect(newObj.transaction.description).toEqual('foo');
+                });
+                
+                it('should fail if the field is too long', function() {
+                    newObj.transaction.description = new Array(300).join(',').split(',').map(function() { return 'a'; }).join('');
+                    expect(model.validate('create', newObj, origObj, requester))
+                        .toEqual({ isValid: false, reason: 'transaction.description must have at most 255 characters' });
+                });
+            });
+            
+            describe('subfield targetUsers', function() {
+                it('should fail if the field is not a number', function() {
+                    newObj.transaction.targetUsers = { foo: 'bar' };
+                    expect(model.validate('create', newObj, origObj, requester))
+                        .toEqual({ isValid: false, reason: 'transaction.targetUsers must be in format: number' });
+                });
+                
+                it('should allow the field to be set on create', function() {
+                    newObj.transaction.targetUsers = 1234;
+                    expect(model.validate('create', newObj, origObj, requester))
+                        .toEqual({ isValid: true, reason: undefined });
+                    expect(newObj.transaction.targetUsers).toEqual(1234);
+                });
+            });
+            
+            ['cycleEnd', 'cycleStart'].forEach(function(field) {
+                describe('subfield ' + field, function() {
+                    it('should fail if the field is not a Date', function() {
+                        newObj.transaction[field] = { foo: 'bar' };
+                        expect(model.validate('create', newObj, origObj, requester))
+                            .toEqual({ isValid: false, reason: 'transaction.' + field + ' must be in format: Date' });
+                    });
+                    
+                    it('should allow the field to be set on create', function() {
+                        newObj.transaction[field] = new Date('2016-06-28T18:39:27.191Z');
+                        expect(model.validate('create', newObj, origObj, requester))
+                            .toEqual({ isValid: true, reason: undefined });
+                        expect(newObj.transaction[field]).toEqual(new Date('2016-06-28T18:39:27.191Z'));
+                    });
+                    
+                    it('should parse a string date as a Date object', function() {
+                        newObj.transaction[field] = '2016-06-28T18:39:27.191Z';
+                        expect(model.validate('create', newObj, origObj, requester))
+                            .toEqual({ isValid: true, reason: undefined });
+                        expect(newObj.transaction[field]).toEqual(new Date('2016-06-28T18:39:27.191Z'));
+                    });
+                });
+            });
+
+            ['paymentPlanId', 'application'].forEach(function(field) {
+                describe('subfield ' + field, function() {
+                    it('should fail if the field is not a string', function() {
+                        newObj.transaction[field] = { foo: 'bar' };
+                        expect(model.validate('create', newObj, origObj, requester))
+                            .toEqual({ isValid: false, reason: 'transaction.' + field + ' must be in format: string' });
+                    });
+                    
+                    it('should allow the field to be set on create', function() {
+                        newObj.transaction[field] = 'foo';
+                        expect(model.validate('create', newObj, origObj, requester))
+                            .toEqual({ isValid: true, reason: undefined });
+                        expect(newObj.transaction[field]).toEqual('foo');
+                    });
+                });
+            });
         });
     });
     
@@ -543,53 +685,14 @@ describe('orgSvc-payments (UT)', function() {
             expect(doneSpy).not.toHaveBeenCalled();
         });
         
-        it('should call done if the body is missing required fields', function() {
-            [{ amount: 100 }, { paymentMethod: 'asdf1234' }].forEach(function(body) {
-                req.body = body;
-                payModule.validatePaymentBody(req, nextSpy, doneSpy);
-            });
-            expect(nextSpy).not.toHaveBeenCalled();
-            expect(doneSpy.calls.count()).toBe(2);
-            expect(doneSpy.calls.argsFor(0)).toEqual([{ code: 400, body: 'Missing required field: paymentMethod' }]);
-            expect(doneSpy.calls.argsFor(1)).toEqual([{ code: 400, body: 'Missing required field: amount' }]);
-        });
-        
-        it('should call done if the amount is too low', function() {
-            [-123, 0, 0.24].forEach(function(amount) {
-                req.body.amount = amount;
-                payModule.validatePaymentBody(req, nextSpy, doneSpy);
-            });
-            expect(nextSpy).not.toHaveBeenCalled();
-            expect(doneSpy.calls.count()).toBe(3);
-            doneSpy.calls.allArgs().forEach(function(args) {
-                expect(args).toEqual([{ code: 400, body: 'amount must be greater than the min: 1' }]);
-            });
-        });
-        
-        it('should call done if the description is too long', function() {
-            req.body.description = new Array(300).join(',').split(',').map(function() { return 'a'; }).join('');
+        it('should call done if the body is invalid', function() {
+            delete req.body.amount;
             payModule.validatePaymentBody(req, nextSpy, doneSpy);
             expect(nextSpy).not.toHaveBeenCalled();
-            expect(doneSpy).toHaveBeenCalledWith({ code: 400, body: 'description must have at most 255 characters' });
+            expect(doneSpy).toHaveBeenCalledWith({ code: 400, body: 'Missing required field: amount' });
         });
         
-        it('should call done if any field is the wrong type', function() {
-            [
-                { amount: 'many dollars', paymentMethod: 'asdf1234' },
-                { amount: 100, paymentMethod: 10 },
-                { amount: 100, paymentMethod: 'asdf1234', description: { eventType: 'credit' } }
-            ].forEach(function(body) {
-                req.body = body;
-                payModule.validatePaymentBody(req, nextSpy, doneSpy);
-            });
-            expect(nextSpy).not.toHaveBeenCalled();
-            expect(doneSpy.calls.count()).toBe(3);
-            expect(doneSpy.calls.argsFor(0)).toEqual([{ code: 400, body: 'amount must be in format: number' }]);
-            expect(doneSpy.calls.argsFor(1)).toEqual([{ code: 400, body: 'paymentMethod must be in format: string' }]);
-            expect(doneSpy.calls.argsFor(2)).toEqual([{ code: 400, body: 'description must be in format: string' }]);
-        });
-        
-        it('should not allow overriding the model through fieldValidation', function() {
+        it('should not allow overriding certain parts of the model through fieldValidation', function() {
             req.requester.fieldValidation = { payments: { amount: { __required: false } } };
             req.body = { paymentMethod: 'asdf1234' };
             payModule.validatePaymentBody(req, nextSpy, doneSpy);
@@ -1971,7 +2074,7 @@ describe('orgSvc-payments (UT)', function() {
         beforeEach(function() {
             appCreds = { key: 'cwrx', secret: 'omgsosecret' };
             req.org = { id: 'o-1', braintreeCustomer: 'cust1' };
-            req.body = { amount: 100, paymentMethod: 'method1', description: 'foobar' };
+            req.body = { amount: 100, paymentMethod: 'method1' };
 
             transResp = {
                 success: true,
@@ -2022,7 +2125,78 @@ describe('orgSvc-payments (UT)', function() {
                 }, jasmine.any(Function));
                 expect(requestUtils.makeSignedRequest).toHaveBeenCalledWith(appCreds, 'post', {
                     url: 'https://test.com/api/transactions/',
-                    json: { amount: 100, org: 'o-1', braintreeId: 'trans1', description: 'foobar' }
+                    json: { amount: 100, org: 'o-1', braintreeId: 'trans1', description: undefined }
+                });
+                expect(payModule.producePaymentEvent).toHaveBeenCalledWith(req, resp.body);
+                expect(mockLog.error).not.toHaveBeenCalled();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should allow setting additional properties on the transaction', function(done) {
+            req.body.transaction = {
+                description: 'best transaction',
+                targetUsers: 666,
+                cycleEnd: new Date('2016-06-28T19:25:43.413Z'),
+                cycleStart: new Date('2015-05-25T19:25:43.413Z'),
+                paymentPlanId: 'pp-fake',
+                application: 'heavy rain'
+            };
+            payModule.createPayment(mockGateway, orgSvc, appCreds, req).then(function(resp) {
+                expect(resp).toEqual({
+                    code: 201,
+                    body: jasmine.objectContaining({
+                        id: 'trans1',
+                    })
+                });
+                expect(orgSvc.customMethod).toHaveBeenCalledWith(req, 'createPayment', jasmine.any(Function));
+                expect(mockGateway.transaction.sale).toHaveBeenCalledWith(jasmine.objectContaining({
+                    amount: '100.00',
+                }), jasmine.any(Function));
+                expect(requestUtils.makeSignedRequest).toHaveBeenCalledWith(appCreds, 'post', {
+                    url: 'https://test.com/api/transactions/',
+                    json: {
+                        amount: 100,
+                        org: 'o-1',
+                        braintreeId: 'trans1',
+                        description: 'best transaction',
+                        targetUsers: 666,
+                        cycleEnd: new Date('2016-06-28T19:25:43.413Z'),
+                        cycleStart: new Date('2015-05-25T19:25:43.413Z'),
+                        paymentPlanId: 'pp-fake',
+                        application: 'heavy rain'
+                        
+                    }
+                });
+                expect(payModule.producePaymentEvent).toHaveBeenCalledWith(req, resp.body);
+                expect(mockLog.error).not.toHaveBeenCalled();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
+        });
+
+        //TODO: remove this test once deprecated functionality is removed
+        it('should allow setting the description on the top-level of the body', function(done) {
+            req.body.description = 'wealthy benefactor';
+            payModule.createPayment(mockGateway, orgSvc, appCreds, req).then(function(resp) {
+                expect(resp).toEqual({
+                    code: 201,
+                    body: jasmine.objectContaining({
+                        id: 'trans1',
+                    })
+                });
+                expect(orgSvc.customMethod).toHaveBeenCalledWith(req, 'createPayment', jasmine.any(Function));
+                expect(mockGateway.transaction.sale).toHaveBeenCalledWith(jasmine.objectContaining({
+                    amount: '100.00',
+                }), jasmine.any(Function));
+                expect(requestUtils.makeSignedRequest).toHaveBeenCalledWith(appCreds, 'post', {
+                    url: 'https://test.com/api/transactions/',
+                    json: jasmine.objectContaining({
+                        amount: 100,
+                        org: 'o-1',
+                        description: 'wealthy benefactor',
+                    })
                 });
                 expect(payModule.producePaymentEvent).toHaveBeenCalledWith(req, resp.body);
                 expect(mockLog.error).not.toHaveBeenCalled();

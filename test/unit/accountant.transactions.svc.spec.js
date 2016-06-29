@@ -109,14 +109,6 @@ describe('accountant-transactions (UT)', function() {
                 expect(model.validate('create', newObj, origObj, requester))
                     .toEqual({ isValid: false, reason: 'Missing required field: org' });
             });
-            
-            it('should pass if the field was defined on the original object', function() {
-                delete newObj.org;
-                origObj.org = 'o-2';
-                expect(model.validate('edit', newObj, origObj, requester))
-                    .toEqual({ isValid: true, reason: undefined });
-                expect(newObj.org).toEqual('o-2');
-            });
         });
         
         describe('when handling amount', function() {
@@ -142,14 +134,6 @@ describe('accountant-transactions (UT)', function() {
                 newObj.amount = -1234;
                 expect(model.validate('create', newObj, origObj, requester))
                     .toEqual({ isValid: false, reason: 'amount must be greater than the min: 0' });
-            });
-            
-            it('should pass if the field was defined on the original object', function() {
-                delete newObj.amount;
-                origObj.amount = 12345;
-                expect(model.validate('edit', newObj, origObj, requester))
-                    .toEqual({ isValid: true, reason: undefined });
-                expect(newObj.amount).toEqual(12345);
             });
         });
         
@@ -210,7 +194,7 @@ describe('accountant-transactions (UT)', function() {
             });
         });
         
-        ['braintreeId', 'promotion', 'campaign'].forEach(function(field) {
+        ['braintreeId', 'promotion', 'campaign', 'paymentPlanId'].forEach(function(field) {
             describe('when handling ' + field, function() {
                 it('should fail if the field is not a string', function() {
                     newObj[field] = { foo: 'bar' };
@@ -247,6 +231,67 @@ describe('accountant-transactions (UT)', function() {
                     .toEqual({ isValid: false, reason: 'description must have at most 255 characters' });
             });
         });
+
+        describe('when handling targetUsers', function() {
+            it('should fail if the field is not a number', function() {
+                newObj.targetUsers = { foo: 'bar' };
+                expect(model.validate('create', newObj, origObj, requester))
+                    .toEqual({ isValid: false, reason: 'targetUsers must be in format: number' });
+            });
+            
+            it('should allow the field to be set on create', function() {
+                newObj.targetUsers = 1234;
+                expect(model.validate('create', newObj, origObj, requester))
+                    .toEqual({ isValid: true, reason: undefined });
+                expect(newObj.targetUsers).toEqual(1234);
+            });
+        });
+
+        ['cycleEnd', 'cycleStart'].forEach(function(field) {
+            describe('when handling ' + field, function() {
+                it('should fail if the field is not a Date', function() {
+                    newObj[field] = { foo: 'bar' };
+                    expect(model.validate('create', newObj, origObj, requester))
+                        .toEqual({ isValid: false, reason: field + ' must be in format: Date' });
+                });
+                
+                it('should allow the field to be set on create', function() {
+                    newObj[field] = new Date('2016-06-28T18:39:27.191Z');
+                    expect(model.validate('create', newObj, origObj, requester))
+                        .toEqual({ isValid: true, reason: undefined });
+                    expect(newObj[field]).toEqual(new Date('2016-06-28T18:39:27.191Z'));
+                });
+                
+                it('should parse a string date as a Date object', function() {
+                    newObj[field] = '2016-06-28T18:39:27.191Z';
+                    expect(model.validate('create', newObj, origObj, requester))
+                        .toEqual({ isValid: true, reason: undefined });
+                    expect(newObj[field]).toEqual(new Date('2016-06-28T18:39:27.191Z'));
+                });
+            });
+        });
+
+        describe('when handling application', function() {
+            it('should fail if the field is not a string', function() {
+                newObj.application = { foo: 'bar' };
+                expect(model.validate('create', newObj, origObj, requester))
+                    .toEqual({ isValid: false, reason: 'application must be in format: string' });
+            });
+            
+            it('should allow the field to be set on create', function() {
+                newObj.application = 'foo';
+                expect(model.validate('create', newObj, origObj, requester))
+                    .toEqual({ isValid: true, reason: undefined });
+                expect(newObj.application).toEqual('foo');
+            });
+            
+            it('should default the field if unset', function() {
+                delete newObj.application;
+                expect(model.validate('create', newObj, origObj, requester))
+                    .toEqual({ isValid: true, reason: undefined });
+                expect(newObj.application).toEqual('selfie');
+            });
+        });
     });
     
     describe('formatTransOutput', function() {
@@ -264,7 +309,12 @@ describe('accountant-transactions (UT)', function() {
                 campaign_id     : 'cam-1',
                 braintree_id    : 'payment1',
                 promotion_id    : 'pro-1',
-                description     : 'i paid a lot of money'
+                description     : 'i paid a lot of money',
+                view_target     : 1337,
+                cycle_end       : '2012-02-02T20:29:06.754Z',
+                cycle_start     : '2011-01-01T20:29:06.754Z',
+                paymentplan_id  : 'pp-fake',
+                application     : 'screenjackinator'
             };
         });
 
@@ -280,7 +330,12 @@ describe('accountant-transactions (UT)', function() {
                 campaign        : 'cam-1',
                 braintreeId     : 'payment1',
                 promotion       : 'pro-1',
-                description     : 'i paid a lot of money'
+                description     : 'i paid a lot of money',
+                targetUsers     : 1337,
+                cycleEnd        : new Date('2012-02-02T20:29:06.754Z'),
+                cycleStart      : new Date('2011-01-01T20:29:06.754Z'),
+                paymentPlanId   : 'pp-fake',
+                application     : 'screenjackinator'
             });
         });
         
@@ -463,7 +518,9 @@ describe('accountant-transactions (UT)', function() {
             });
         });
 
-        it('should allow passing a custom transactionTS', function() {
+        it('should allow passing custom values for some fields', function() {
+            req.body.description = 'we fucked up this guys campaign';
+            req.body.cycleStart = new Date('2013-03-03T19:26:20.967Z');
             req.body.transactionTS = new Date('2016-04-11T19:26:20.967Z');
             
             transModule.setupTransaction(req, nextSpy, doneSpy);
@@ -471,18 +528,9 @@ describe('accountant-transactions (UT)', function() {
             expect(doneSpy).not.toHaveBeenCalled();
             expect(req.body).toEqual(jasmine.objectContaining({
                 created         : jasmine.any(Date),
+                cycleStart      : new Date('2013-03-03T19:26:20.967Z'),
                 transactionTS   : new Date('2016-04-11T19:26:20.967Z'),
-            }));
-        });
-        
-        it('should allow passing in a custom description', function() {
-            req.body.description = 'we fucked up this guys campaign';
-            transModule.setupTransaction(req, nextSpy, doneSpy);
-            expect(nextSpy).toHaveBeenCalled();
-            expect(doneSpy).not.toHaveBeenCalled();
-            expect(req.body).toEqual(jasmine.objectContaining({
-                braintreeId: 'payment1',
-                description: 'we fucked up this guys campaign'
+                description     : 'we fucked up this guys campaign'
             }));
         });
     });
@@ -606,7 +654,10 @@ describe('accountant-transactions (UT)', function() {
             req.body = {
                 amount: 123.12,
                 org: 'o-1',
-                braintreeId: 'payment1'
+                braintreeId: 'payment1',
+                application: 'minireelinator',
+                cycleStart: new Date('2016-06-28T19:53:34.108Z'),
+                targetUsers: 1337
             };
             
             spyOn(uuid, 'createUuid').and.returnValue('asdfqwerzxcv1234');
@@ -622,7 +673,12 @@ describe('accountant-transactions (UT)', function() {
                     campaign_id     : values[7],
                     braintree_id    : values[8],
                     promotion_id    : values[9],
-                    description     : values[10]
+                    description     : values[10],
+                    view_target     : values[11],
+                    cycle_end       : values[12],
+                    cycle_start     : values[13],
+                    paymentplan_id  : values[14],
+                    application     : values[15]
                 }]});
             });
             svc = transModule.setupSvc();
@@ -644,7 +700,12 @@ describe('accountant-transactions (UT)', function() {
                         campaign        : undefined,
                         braintreeId     : 'payment1',
                         promotion       : undefined,
-                        description     : JSON.stringify({ eventType: 'credit', source: 'braintree' })
+                        description     : JSON.stringify({ eventType: 'credit', source: 'braintree' }),
+                        targetUsers     : 1337,
+                        cycleEnd        : undefined,
+                        cycleStart      : new Date('2016-06-28T19:53:34.108Z'),
+                        paymentPlanId   : undefined,
+                        application     : 'minireelinator',
                     }
                 });
                 expect(svc.runAction).toHaveBeenCalledWith(req, 'create', jasmine.any(Function));

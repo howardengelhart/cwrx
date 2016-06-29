@@ -1044,7 +1044,12 @@ describe('orgSvc payments (E2E):', function() {
                     campaign_id     : null,
                     braintree_id    : createdTransaction.id,
                     promotion_id    : null,
-                    description     : JSON.stringify({ eventType: 'credit', source: 'braintree' })
+                    description     : JSON.stringify({ eventType: 'credit', source: 'braintree' }),
+                    view_target     : null,
+                    cycle_end       : null,
+                    cycle_start     : jasmine.any(Date),
+                    paymentplan_id  : null,
+                    application     : 'selfie'
                 }));
             }).catch(function(error) {
                 expect(util.inspect(error)).not.toBeDefined();
@@ -1112,8 +1117,18 @@ describe('orgSvc payments (E2E):', function() {
             });
         });
         
-        it('should allow setting the transaction description', function(done) {
-            options.json.description = JSON.stringify({ eventType: 'credit', source: 'wealthy benefactor', showcase: 'yes' });
+        it('should allow setting additional props on the transaction', function(done) {
+            var cycleEnd = new Date(Date.now() + 5*60*60*1000),
+                cycleStart = new Date(Date.now() + 1*60*60*1000);
+
+            options.json.transaction = {
+                description: JSON.stringify({ source: 'wealthy benefactor' }),
+                targetUsers: 9001,
+                cycleEnd: cycleEnd,
+                cycleStart: cycleStart,
+                paymentPlanId: 'pp-faaake',
+                application: 'proshop'
+            };
             var createdTransaction;
             requestUtils.qRequest('post', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(201);
@@ -1131,7 +1146,12 @@ describe('orgSvc payments (E2E):', function() {
                     org_id          : 'o-braintree1',
                     amount          : amount.toFixed(4),
                     sign            : 1,
-                    description     : JSON.stringify({ eventType: 'credit', source: 'wealthy benefactor', showcase: 'yes' })
+                    description     : JSON.stringify({ source: 'wealthy benefactor' }),
+                    view_target     : 9001,
+                    cycle_end       : cycleEnd,
+                    cycle_start     : cycleStart,
+                    paymentplan_id  : 'pp-faaake',
+                    application     : 'proshop'
                 }));
             }).catch(function(error) {
                 expect(util.inspect(error)).not.toBeDefined();
@@ -1144,13 +1164,42 @@ describe('orgSvc payments (E2E):', function() {
         });
 
         it('should fail if the description is too long', function(done) {
-            options.json.description = new Array(1000).join(',').split(',').map(function() { return 'a'; }).join('');
+            options.json.transaction = {
+                description: new Array(1000).join(',').split(',').map(function() { return 'a'; }).join('')
+            };
             requestUtils.qRequest('post', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(400);
-                expect(resp.body).toBe('description must have at most 255 characters');
+                expect(resp.body).toBe('transaction.description must have at most 255 characters');
             }).catch(function(error) {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
+        });
+        
+        //TODO: remove this test once deprecated functionality is removed
+        it('should allow setting the description on the top-level of the body', function(done) {
+            options.json.description = JSON.stringify({ source: 'wealthy benefactor' });
+            var createdTransaction;
+            requestUtils.qRequest('post', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(201);
+                expect(resp.body).toEqual(jasmine.objectContaining({
+                    id: jasmine.any(String),
+                    amount: amount,
+                    method: expectedMethodOutput
+                }));
+                createdTransaction = resp.body;
+                
+                return testUtils.pgQuery('SELECT * FROM fct.billing_transactions WHERE braintree_id = $1', [resp.body.id]);
+            }).then(function(results) {
+                expect(results.rows.length).toBe(1);
+                expect(results.rows[0].description).toBe(JSON.stringify({ source: 'wealthy benefactor' }));
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+                done();
+            });
+            
+            mockman.on('paymentMade', function(record) {
+                done();
+            });
         });
         
         it('should fail on duplicate transactions', function(done) {
@@ -1318,7 +1367,12 @@ describe('orgSvc payments (E2E):', function() {
                     campaign_id     : null,
                     braintree_id    : createdTransaction.id,
                     promotion_id    : null,
-                    description     : JSON.stringify({ eventType: 'credit', source: 'braintree' })
+                    description     : JSON.stringify({ eventType: 'credit', source: 'braintree' }),
+                    view_target     : null,
+                    cycle_end       : null,
+                    cycle_start     : jasmine.any(Date),
+                    paymentplan_id  : null,
+                    application     : 'selfie'
                 }));
             }).catch(function(error) {
                 expect(util.inspect(error)).not.toBeDefined();
