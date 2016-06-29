@@ -1,5 +1,6 @@
 # Accountant Service Changelog
 
+### 1.5.0: Wed Jun 29 13:56:21 EDT 2016
 * Allow setting subscription-related properties on transactions: [#958](https://github.com/cinema6/cwrx/issues/958)
 * Extra deployment steps:
     * Update deepthought + add columns to `fct.billing_transactions` schema
