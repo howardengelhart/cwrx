@@ -38,7 +38,11 @@ describe('collateralScrape-scraper (UT)', function() {
 
         requestDeferreds = {};
         spyOn(require('request-promise'), 'defaults').and.returnValue(jasmine.createSpy('request()').and.callFake(function(uri) {
-            return (requestDeferreds[uri] = q.defer()).promise;
+            var deferred = q.defer();
+
+            requestDeferreds[uri] = deferred;
+
+            return deferred.promise;
         }));
 
         delete require.cache[require.resolve('../../bin/collateral-scrape')];
@@ -1797,7 +1801,7 @@ describe('collateralScrape-scraper (UT)', function() {
                                 "artistName": "SEGA",
                                 "genres": ["Games", "Strategy", "Action"],
                                 "price": 0.00,
-                                "description": "Shape the land, build sprawling towns and recruit and train a powerful army. \nConquer new territories to expand your realm and defeat rival lords and other players in epic real-time battles. \n\nPlease note that iPhone 4s, iPad 2, iPad 3 and iPad mini 1 are not supported.\n\nFEATURES\n• Build and expand your Kingdom, with farms, quarries, blacksmiths and more.\n• Alter the land by creating rivers, lakes and mountains.\n• Command your army in large-scale battles.\n• Battle other players in real-time.\n• Cross-Platform - Play on Phones, Tablet, and PC, whenever you want, wherever you want. Actions in your Kingdom will carry over onto any device you play on.\n• From the creators of the award-winning Total War™ games.\n\nREQUIREMENTS\n• 4th generation iPad or above\n• iPad mini 2 or above\n• iPhone 5 or above\n• iPod Touch 6th generation or above\n• iOS 8 or above\n• An internet connection\n\n\nNEWS\nLike us on Facebook: https://www.facebook.com/totalwarbattles\nFollow us on Twitter: https://twitter.com/TotalWarBattles\nFollow us on Instagram: https://www.instagram.com/totalwarbattles\n\n\nPLEASE NOTE\nTotal War Battles: KINGDOM is free to download and play.\n\nAdditional Gold can be purchased using real money. More information on in-app purchases is available here: http://wiki.totalwar.com/w/Total_War_Battles_Kingdom_Information\n\nIf you do not want to use this feature, please disable in-app purchases in your device’s settings. Also, under our Terms of Service and Privacy Policy, you must be at least 13 years of age to play or download Total War Battles: KINGDOM.\n\n\n- - - - -\nEULA: http://www.sega.co.uk/Mobile_EULA\nTerms of Service: http://www.sega.co.uk/Account-Terms-of-Service\nPrivacy Policy: http://www.sega.co.uk/mprivacy\n\n© SEGA. Creative Assembly, the Creative Assembly logo, Total War, Total War Battles: Kingdom and the Total War Battles logo are either registered trademarks or trademarks of The Creative Assembly Limited. SEGA and the SEGA logo are either registered trademarks or trademarks of SEGA Holdings Co., Ltd. or its affiliates. All rights reserved. SEGA is registered in the U.S. Patent and Trademark Office. All other trademarks, logos and copyrights are property of their respective owners.",
+                                //"description": "Shape the land, build sprawling towns and recruit and train a powerful army. \nConquer new territories to expand your realm and defeat rival lords and other players in epic real-time battles. \n\nPlease note that iPhone 4s, iPad 2, iPad 3 and iPad mini 1 are not supported.\n\nFEATURES\n• Build and expand your Kingdom, with farms, quarries, blacksmiths and more.\n• Alter the land by creating rivers, lakes and mountains.\n• Command your army in large-scale battles.\n• Battle other players in real-time.\n• Cross-Platform - Play on Phones, Tablet, and PC, whenever you want, wherever you want. Actions in your Kingdom will carry over onto any device you play on.\n• From the creators of the award-winning Total War™ games.\n\nREQUIREMENTS\n• 4th generation iPad or above\n• iPad mini 2 or above\n• iPhone 5 or above\n• iPod Touch 6th generation or above\n• iOS 8 or above\n• An internet connection\n\n\nNEWS\nLike us on Facebook: https://www.facebook.com/totalwarbattles\nFollow us on Twitter: https://twitter.com/TotalWarBattles\nFollow us on Instagram: https://www.instagram.com/totalwarbattles\n\n\nPLEASE NOTE\nTotal War Battles: KINGDOM is free to download and play.\n\nAdditional Gold can be purchased using real money. More information on in-app purchases is available here: http://wiki.totalwar.com/w/Total_War_Battles_Kingdom_Information\n\nIf you do not want to use this feature, please disable in-app purchases in your device’s settings. Also, under our Terms of Service and Privacy Policy, you must be at least 13 years of age to play or download Total War Battles: KINGDOM.\n\n\n- - - - -\nEULA: http://www.sega.co.uk/Mobile_EULA\nTerms of Service: http://www.sega.co.uk/Account-Terms-of-Service\nPrivacy Policy: http://www.sega.co.uk/mprivacy\n\n© SEGA. Creative Assembly, the Creative Assembly logo, Total War, Total War Battles: Kingdom and the Total War Battles logo are either registered trademarks or trademarks of The Creative Assembly Limited. SEGA and the SEGA logo are either registered trademarks or trademarks of SEGA Holdings Co., Ltd. or its affiliates. All rights reserved. SEGA is registered in the U.S. Patent and Trademark Office. All other trademarks, logos and copyrights are property of their respective owners.",
                                 "trackName": "Total War Battles: KINGDOM",
                                 "trackId": 992140314,
                                 "releaseDate": "2016-03-21T15:05:58Z",
@@ -1820,44 +1824,84 @@ describe('collateralScrape-scraper (UT)', function() {
                     process.nextTick(done);
                 });
 
-                it('should fulfill with some data', function() {
-                    expect(success).toHaveBeenCalledWith({
-                        type: 'app',
-                        platform: 'iOS',
-                        name: response.results[0].trackCensoredName,
-                        description: response.results[0].description,
-                        developer: response.results[0].artistName,
-                        uri: response.results[0].trackViewUrl,
-                        categories: response.results[0].genres,
-                        price: response.results[0].formattedPrice,
-                        rating: response.results[0].averageUserRating,
-                        extID: response.results[0].trackId,
-                        ratingCount: response.results[0].userRatingCount,
-                        bundleId: response.results[0].bundleId,
-                        images: [].concat(
-                            response.results[0].screenshotUrls.map(function(uri) {
-                                return {
-                                    uri: uri,
-                                    type: 'screenshot',
-                                    device: 'phone'
-                                };
-                            }),
-                            response.results[0].ipadScreenshotUrls.map(function(uri) {
-                                return {
-                                    uri: uri,
-                                    type: 'screenshot',
-                                    device: 'tablet'
-                                };
-                            }),
-                            [
-                                {
-                                    uri: response.results[0].artworkUrl512,
-                                    type: 'thumbnail'
-                                }
-                            ]
-                        )
+                it('makes head requests for all the images', function() {
+                    var options = {
+                        method: 'HEAD'
+                    };
+                    response.results[0].screenshotUrls.forEach(function (uri) {
+                        expect(request).toHaveBeenCalledWith(uri, options);
+                    });
+                    response.results[0].ipadScreenshotUrls.forEach(function (uri) {
+                        expect(request).toHaveBeenCalledWith(uri, options);
+                    });
+                    expect(request).toHaveBeenCalledWith(response.results[0].artworkUrl512, options);
+                    });
+
+                describe('when all of the image requests are done', function() {
+                    beforeEach(function(done) {
+
+                        response.results[0].screenshotUrls.forEach(function (uri) {
+                            requestDeferreds[uri].resolve({
+                                'content-length': parseInt('200')
+                            });
+                        });
+                        response.results[0].ipadScreenshotUrls.forEach(function (uri) {
+                            requestDeferreds[uri].resolve({
+                                'content-length': parseInt('300')
+                            });
+                        });
+                        requestDeferreds[response.results[0].artworkUrl512].resolve({
+                            'content-length': parseInt('400')
+                        });
+
+                        process.nextTick(done);
+                    });
+
+                    it('should fulfill with some data', function() {
+                        expect(success).toHaveBeenCalledWith({
+                            type: 'app',
+                            platform: 'iOS',
+                            name: response.results[0].trackCensoredName,
+                            //description: response.results[0].description,
+                            developer: response.results[0].artistName,
+                            uri: response.results[0].trackViewUrl,
+                            categories: response.results[0].genres,
+                            price: response.results[0].formattedPrice,
+                            rating: response.results[0].averageUserRating,
+                            extID: response.results[0].trackId,
+                            ratingCount: response.results[0].userRatingCount,
+                            bundleId: response.results[0].bundleId,
+                            images: [].concat(
+                                response.results[0].screenshotUrls.map(function(uri) {
+                                    return {
+                                        uri: uri,
+                                        type: 'screenshot',
+                                        device: 'phone',
+                                        fileSize: 200
+                                    };
+                                }),
+                                response.results[0].ipadScreenshotUrls.map(function(uri) {
+                                    return {
+                                        uri: uri,
+                                        type: 'screenshot',
+                                        device: 'tablet',
+                                        fileSize: 300
+                                    };
+                                }),
+                                [
+                                    {
+                                        uri: response.results[0].artworkUrl512,
+                                        type: 'thumbnail',
+                                        device: undefined,
+                                        fileSize: 400
+                                    }
+                                ]
+                            )
+                        });
+                        // expect(failure).toHaveBeenCalledWith();
                     });
                 });
+
             });
 
             describe('if nothing is found', function() {

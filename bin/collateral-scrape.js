@@ -187,11 +187,10 @@
 
         function makeReq(uri) {
             var options = {
-                uri: uri,
                 method: 'HEAD'
             };
 
-            return request(options).then(function getSize(response) {
+            return request(uri, options).then(function getSize(response) {
                 if (response['content-length']) {
                     return parseInt(response['content-length']);
                 }
@@ -247,7 +246,7 @@
                     type: 'app',
                     platform: 'iOS',
                     name: app.trackCensoredName,
-                    description: app.description,
+                    //description: app.description,
                     developer: app.artistName,
                     uri: app.trackViewUrl,
                     categories: app.genres,
