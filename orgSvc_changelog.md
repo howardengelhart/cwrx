@@ -3,8 +3,11 @@
 * Allow setting subscription-related properties on transactions in `POST /api/payments`: [#958](https://github.com/cinema6/cwrx/issues/958)
 * Allow setting transaction description as `transaction.description` on body of `POST /api/payments`: [#958](https://github.com/cinema6/cwrx/issues/958)
 * [DEPRECATION]: Clients should no longer attempt to set transaction description on top-level of body of `POST /api/payments`: [#958](https://github.com/cinema6/cwrx/issues/958)
+* [FEATURE]: Add support for payment plan entities via
+  `/api/payment-plans`: [#966](https://github.com/cinema6/cwrx/pull/966)
 * Extra deployment steps:
     * Update deepthought + add columns to `fct.billing_transactions` schema
+    * Deploy `v1.4.0` of the `orgSvc` cookbook
 
 ### 1.11.1: Tue Jun  7 12:17:17 EDT 2016
 * Fail when creating duplicate payment method in production: [#878](https://github.com/cinema6/cwrx/issues/878)
