@@ -184,6 +184,7 @@
     };
 
     function getSizes(uris, type, device) {
+        var log = logger.getLog();
 
         function makeReq(uri) {
             var options = {
@@ -191,6 +192,7 @@
             };
 
             return request(uri, options).then(function getSize(response) {
+                //log.info(inspect(response));
                 if (response['content-length']) {
                     return parseInt(response['content-length']);
                 }
@@ -246,7 +248,7 @@
                     type: 'app',
                     platform: 'iOS',
                     name: app.trackCensoredName,
-                    //description: app.description,
+                    description: app.description,
                     developer: app.artistName,
                     uri: app.trackViewUrl,
                     categories: app.genres,
