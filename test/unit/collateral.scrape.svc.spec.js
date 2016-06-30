@@ -49,15 +49,7 @@ describe('collateralScrape-scraper (UT)', function() {
             return deferred.promise;
         }));
 
-        // x 1. Spy on request.get
-        // x 2. Have request.get return a mock EventEmitter with a fake abort() method
-        // x 3. Make you mock EventEmitter emit some fake "data"
-        // x 4. The fake "data" should be fake Buffers
-        // x 5. Make sizeOf spy return fake dimensions
-        // x 6. Make the mock EventEmitter emit an "end"
-
         spyOn(require('request'), 'get').and.returnValue(mockEvent);
-
 
         sizeOf = spyOn(require.cache[require.resolve('image-size')], 'exports').and.returnValue({
             width: 1300,
@@ -1887,7 +1879,7 @@ describe('collateralScrape-scraper (UT)', function() {
                         });
                         expect(request).toHaveBeenCalledWith(response.results[0].artworkUrl512, options);
                     });
-                    
+
                     describe('when all of the image requests are done', function() {
                         beforeEach(function(done) {
 
