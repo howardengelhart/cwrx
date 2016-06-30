@@ -209,12 +209,11 @@
                 var rq = req.get(uri);
 
                 rq.on('data', function(chunk) {
-                        buffer = Buffer.concat([buffer, chunk]);
-                        if (buffer.length >= 3000) {
-                            rq.abort();
-                        }
-                    });
-
+                    buffer = Buffer.concat([buffer, chunk]);
+                    if (buffer.length >= 3000) {
+                        rq.abort();
+                    }
+                });
                 rq.on('end', function() {
                     resolve({
                         width: sizeOf(buffer).width,
@@ -224,13 +223,9 @@
             });
         }
 
-
         return q.all(
             uris.map(function getData (uri) {
-                var dims;
-                return dimensions(uri).then(function(response) {
-                    dims = response;
-
+                return dimensions(uri).then(function(dims) {
                     return makeReq(uri).then(function setSize (size) {
                         return {
                             uri: uri,
@@ -293,7 +288,7 @@
                     extID: app.trackId,
                     ratingCount : app.userRatingCount,
                     bundleId: app.bundleId,
-                    images: images,
+                    images: images
                 };
             });
         });

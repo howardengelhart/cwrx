@@ -1,6 +1,6 @@
 describe('collateralScrape-scraper (UT)', function() {
     var q, logger, util, url, uuid, entities, getSymbolFromCurrency, RequestErrors;
-    var spidey, mockLog, request;
+    var spidey, mockLog, request, sizeOf;
     var requestDeferreds;
     var collateralScrape;
 
@@ -10,6 +10,7 @@ describe('collateralScrape-scraper (UT)', function() {
         require('util');
         require('spidey.js');
         require('request-promise');
+        require('image-size');
     });
 
     beforeEach(function() {
@@ -23,6 +24,9 @@ describe('collateralScrape-scraper (UT)', function() {
         entities = new HtmlEntities();
         getSymbolFromCurrency = require('currency-symbol-map').getSymbolFromCurrency;
         RequestErrors = require('request-promise/lib/errors');
+        EventEmitter = require('events').EventEmitter;
+        mockEvent = new EventEmitter();
+        mockEvent.setMaxListeners(50);
 
         mockLog = {
             trace : jasmine.createSpy('log_trace'),
@@ -44,6 +48,25 @@ describe('collateralScrape-scraper (UT)', function() {
 
             return deferred.promise;
         }));
+
+        // x 1. Spy on request.get
+        // x 2. Have request.get return a mock EventEmitter with a fake abort() method
+        // x 3. Make you mock EventEmitter emit some fake "data"
+        // x 4. The fake "data" should be fake Buffers
+        // x 5. Make sizeOf spy return fake dimensions
+        // x 6. Make the mock EventEmitter emit an "end"
+
+        spyOn(require('request'), 'get').and.returnValue(mockEvent);
+
+
+        sizeOf = spyOn(require.cache[require.resolve('image-size')], 'exports').and.returnValue({
+            width: 1300,
+            height: 600
+        });
+
+        mockEvent.abort = jasmine.createSpy().and.callFake(function() {
+            mockEvent.emit('end');
+        });
 
         delete require.cache[require.resolve('../../bin/collateral-scrape')];
         collateralScrape  = require('../../bin/collateral-scrape');
@@ -1727,6 +1750,7 @@ describe('collateralScrape-scraper (UT)', function() {
 
                 success = jasmine.createSpy('success()');
                 failure = jasmine.createSpy('failure()');
+                req = require('request');
 
                 collateralScrape.productDataFrom.APP_STORE(id, config).then(success, failure);
                 process.nextTick(done);
@@ -1736,7 +1760,7 @@ describe('collateralScrape-scraper (UT)', function() {
                 expect(request).toHaveBeenCalledWith('https://itunes.apple.com/lookup?id=' + id);
             });
 
-            describe('if the request succeeds', function() {
+            fdescribe('if the request succeeds', function() {
                 var response;
 
                 beforeEach(function(done) {
@@ -1824,83 +1848,122 @@ describe('collateralScrape-scraper (UT)', function() {
                     process.nextTick(done);
                 });
 
-                it('makes head requests for all the images', function() {
+                it('makes get requests for the images', function () {
                     var options = {
                         method: 'HEAD'
                     };
+
                     response.results[0].screenshotUrls.forEach(function (uri) {
-                        expect(request).toHaveBeenCalledWith(uri, options);
+                        expect(req.get).toHaveBeenCalledWith(uri);
                     });
                     response.results[0].ipadScreenshotUrls.forEach(function (uri) {
-                        expect(request).toHaveBeenCalledWith(uri, options);
+                        expect(req.get).toHaveBeenCalledWith(uri);
                     });
-                    expect(request).toHaveBeenCalledWith(response.results[0].artworkUrl512, options);
-                    });
+                    expect(req.get).toHaveBeenCalledWith(response.results[0].artworkUrl512);
+                });
 
-                describe('when all of the image requests are done', function() {
+                describe('when the images have been GETted', function() {
                     beforeEach(function(done) {
-
-                        response.results[0].screenshotUrls.forEach(function (uri) {
-                            requestDeferreds[uri].resolve({
-                                'content-length': parseInt('200')
-                            });
-                        });
-                        response.results[0].ipadScreenshotUrls.forEach(function (uri) {
-                            requestDeferreds[uri].resolve({
-                                'content-length': parseInt('300')
-                            });
-                        });
-                        requestDeferreds[response.results[0].artworkUrl512].resolve({
-                            'content-length': parseInt('400')
-                        });
+                        mockEvent.emit('data', new Buffer(1000));
+                        mockEvent.emit('data', new Buffer(2000));
 
                         process.nextTick(done);
                     });
 
-                    it('should fulfill with some data', function() {
-                        expect(success).toHaveBeenCalledWith({
-                            type: 'app',
-                            platform: 'iOS',
-                            name: response.results[0].trackCensoredName,
-                            description: response.results[0].description,
-                            developer: response.results[0].artistName,
-                            uri: response.results[0].trackViewUrl,
-                            categories: response.results[0].genres,
-                            price: response.results[0].formattedPrice,
-                            rating: response.results[0].averageUserRating,
-                            extID: response.results[0].trackId,
-                            ratingCount: response.results[0].userRatingCount,
-                            bundleId: response.results[0].bundleId,
-                            images: [].concat(
-                                response.results[0].screenshotUrls.map(function(uri) {
-                                    return {
-                                        uri: uri,
-                                        type: 'screenshot',
-                                        device: 'phone',
-                                        fileSize: 200
-                                    };
-                                }),
-                                response.results[0].ipadScreenshotUrls.map(function(uri) {
-                                    return {
-                                        uri: uri,
-                                        type: 'screenshot',
-                                        device: 'tablet',
-                                        fileSize: 300
-                                    };
-                                }),
-                                [
-                                    {
-                                        uri: response.results[0].artworkUrl512,
-                                        type: 'thumbnail',
-                                        device: undefined,
-                                        fileSize: 400
-                                    }
-                                ]
-                            )
+                    it ('should get the dimensions', function() {
+                        expect(mockEvent.abort).toHaveBeenCalled();
+                        expect(sizeOf).toHaveBeenCalled();
+                    });
+
+                    it('should make head requests for all the images', function() {
+                        var options = {
+                            method: 'HEAD'
+                        };
+                        response.results[0].screenshotUrls.forEach(function (uri) {
+                            expect(request).toHaveBeenCalledWith(uri, options);
+                        });
+                        response.results[0].ipadScreenshotUrls.forEach(function (uri) {
+                            expect(request).toHaveBeenCalledWith(uri, options);
+                        });
+                        expect(request).toHaveBeenCalledWith(response.results[0].artworkUrl512, options);
+                    });
+                    
+                    describe('when all of the image requests are done', function() {
+                        beforeEach(function(done) {
+
+                            response.results[0].screenshotUrls.forEach(function (uri) {
+                                requestDeferreds[uri].resolve({
+                                    'content-length': parseInt('200')
+                                });
+                            });
+                            response.results[0].ipadScreenshotUrls.forEach(function (uri) {
+                                requestDeferreds[uri].resolve({
+                                    'content-length': parseInt('300')
+                                });
+                            });
+                            requestDeferreds[response.results[0].artworkUrl512].resolve({
+                                'content-length': parseInt('400')
+                            });
+
+                            process.nextTick(done);
+                        });
+
+                        it('should fulfill with some data', function() {
+                            expect(success).toHaveBeenCalledWith({
+                                type: 'app',
+                                platform: 'iOS',
+                                name: response.results[0].trackCensoredName,
+                                description: response.results[0].description,
+                                developer: response.results[0].artistName,
+                                uri: response.results[0].trackViewUrl,
+                                categories: response.results[0].genres,
+                                price: response.results[0].formattedPrice,
+                                rating: response.results[0].averageUserRating,
+                                extID: response.results[0].trackId,
+                                ratingCount: response.results[0].userRatingCount,
+                                bundleId: response.results[0].bundleId,
+                                images: [].concat(
+                                    response.results[0].screenshotUrls.map(function(uri) {
+                                        return {
+                                            uri: uri,
+                                            type: 'screenshot',
+                                            device: 'phone',
+                                            fileSize: 200,
+                                            dimensions: {
+                                                width: 1300,
+                                                height: 600
+                                            }
+                                        };
+                                    }),
+                                    response.results[0].ipadScreenshotUrls.map(function(uri) {
+                                        return {
+                                            uri: uri,
+                                            type: 'screenshot',
+                                            device: 'tablet',
+                                            fileSize: 300,
+                                            dimensions: {
+                                                width: 1300,
+                                                height: 600
+                                            }
+                                        };
+                                    }),
+                                    [
+                                        {
+                                            uri: response.results[0].artworkUrl512,
+                                            type: 'thumbnail',
+                                            device: undefined,
+                                            fileSize: 400,
+                                            dimensions: {
+                                                width: 1300,
+                                                height: 600
+                                            }
+                                        }
+                                    ]
+                                )
+                            });
                         });
                     });
                 });
-
             });
 
             describe('if nothing is found', function() {
