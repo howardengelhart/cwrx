@@ -818,6 +818,7 @@ describe('ads placements endpoints (E2E):', function() {
             var nowStr;
             beforeEach(function() {
                 nowStr = Date.now() + ' - ';
+                delete options.qs;
                 options.json = {
                     label: nowStr + 'e2e beeswax placement',
                     tagType: 'mraid',
@@ -835,6 +836,33 @@ describe('ads placements endpoints (E2E):', function() {
                 };
             });
             // Note: created creatives are cleaned up in afterAll at end of file
+            it('should not create a creative in beeswax with ext=false', function(done) {
+
+                options.qs = { ext : false };
+                options.json.label= nowStr + 'e2e beeswax placement, ext=false';
+                requestUtils.qRequest('post', options).then(function(resp) {
+                    expect(resp.response.statusCode).toBe(201);
+                    expect(resp.body).toEqual(jasmine.objectContaining({
+                        id          : jasmine.any(String),
+                        status      : 'active',
+                        label       : nowStr + 'e2e beeswax placement, ext=false',
+                        tagType     : 'mraid',
+                        tagParams : {
+                            container   : 'beeswax',
+                            campaign    : 'cam-active',
+                            type        : 'full',
+                            clickUrls: [
+                                '{{CLICK_URL}}'
+                            ]
+                        },
+                        showInTag: {
+                            clickUrls: true
+                        }
+                    }));
+                    expect(resp.body.beeswaxIds).not.toBeDefined();
+                    expect(resp.body.thumbnailSourceUrl).not.toBeDefined();
+                }).then(done,done.fail);
+            });
 
             it('should also create a creative in beeswax', function(done) {
                 var beesId, createdPlacement;
