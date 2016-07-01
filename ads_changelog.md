@@ -1,5 +1,8 @@
 # Ads Service Changelog
 
+### 5.4.0: Fri Jul  1 10:55:47 EDT 2016
+* [FEATURE]: Adding ext query param for ads placements, to turn of default behavior of creating external Beeswax placements.
+
 ### 5.3.2: Tue Jun 28 09:58:52 EDT 2016
 * [FIX]: Fix for an issue that could cause logging and some requests to fail
 

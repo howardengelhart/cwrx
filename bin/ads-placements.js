@@ -415,7 +415,15 @@
     placeModule.createBeeswaxCreative = function(beeswax, req, next, done) {
         var log = logger.getLog(),
             c6Id = req.body.id;
-        
+      
+        if (((req.query !== undefined) && (req.query.ext !== undefined)) &&
+            ( (req.query.ext === 0) ||
+              (req.query.ext.toLowerCase && req.query.ext.toLowerCase() === 'off') )){
+            log.info('[%1] Advert %2 set ext=%3, not creating creative',
+                     req.uuid, req.advertiser.id, req.query.ext);
+            return q(next());
+        }
+
         if (req.body.tagParams.container !== 'beeswax') {
             log.trace('[%1] Not setting up beeswax creative for %2 placement',
                       req.uuid, req.body.tagParams.container);

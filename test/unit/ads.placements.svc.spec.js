@@ -1021,6 +1021,7 @@ describe('ads-placements (UT)', function() {
                     campaign: 'cam-1'
                 }
             };
+            req.params = {};
             req.advertiser = { id: 'a-1', beeswaxIds: { advertiser: 9876 } };
             beesResp = {
                 success: true,
@@ -1054,6 +1055,32 @@ describe('ads-placements (UT)', function() {
                 });
                 expect(placeModule.formatBeeswaxBody).toHaveBeenCalledWith(req);
                 expect(mockBeeswax.creatives.create).toHaveBeenCalledWith({ beeswax: 'yes' });
+                expect(mockLog.warn).not.toHaveBeenCalled();
+                expect(mockLog.error).not.toHaveBeenCalled();
+            }).done(done);
+        });
+
+        it('should skip if the placement has ext=0 param set',function(done){
+            req.query = { ext : 0 };
+            placeModule.createBeeswaxCreative(mockBeeswax, req, nextSpy, doneSpy).catch(errorSpy).finally(function() {
+                expect(nextSpy).toHaveBeenCalled();
+                expect(doneSpy).not.toHaveBeenCalled();
+                expect(errorSpy).not.toHaveBeenCalled();
+                expect(req.body.beeswaxIds).not.toBeDefined();
+                expect(mockBeeswax.creatives.create).not.toHaveBeenCalled();
+                expect(mockLog.warn).not.toHaveBeenCalled();
+                expect(mockLog.error).not.toHaveBeenCalled();
+            }).done(done);
+        });
+        
+        it('should skip if the placement has ext=off param set',function(done){
+            req.query = { ext : 'oFf' };
+            placeModule.createBeeswaxCreative(mockBeeswax, req, nextSpy, doneSpy).catch(errorSpy).finally(function() {
+                expect(nextSpy).toHaveBeenCalled();
+                expect(doneSpy).not.toHaveBeenCalled();
+                expect(errorSpy).not.toHaveBeenCalled();
+                expect(req.body.beeswaxIds).not.toBeDefined();
+                expect(mockBeeswax.creatives.create).not.toHaveBeenCalled();
                 expect(mockLog.warn).not.toHaveBeenCalled();
                 expect(mockLog.error).not.toHaveBeenCalled();
             }).done(done);
