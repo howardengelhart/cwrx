@@ -1752,7 +1752,7 @@ describe('collateralScrape-scraper (UT)', function() {
                 expect(request).toHaveBeenCalledWith('https://itunes.apple.com/lookup?id=' + id);
             });
 
-            fdescribe('if the request succeeds', function() {
+            describe('if the request succeeds', function() {
                 var response;
 
                 beforeEach(function(done) {

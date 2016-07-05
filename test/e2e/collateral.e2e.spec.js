@@ -1018,7 +1018,7 @@ describe('collateral (E2E):', function() {
                 });
             });
 
-            fdescribe('with an App Store app URI', function() {
+            describe('with an App Store app URI', function() {
                 beforeEach(function(done) {
                     options.qs.uri = 'https://itunes.apple.com/us/app/facebook/id284882215?mt=8';
                     requestUtils.qRequest('get', options).then(success, failure).finally(done);
