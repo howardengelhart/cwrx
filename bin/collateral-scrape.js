@@ -10,7 +10,6 @@
     var request = require('request-promise').defaults({
         json: true
     });
-    var extend = require('extend');
     var sizeOf = require('image-size');
     var req = require('request');
     var inspect = util.inspect;
@@ -221,7 +220,7 @@
         return q.all(
             uris.map(function (uri) {
                 return getData(uri).then(function (data) {
-                    return extend({
+                    return ld.assign({
                         uri: uri,
                         type: type,
                         device: device
