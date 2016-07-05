@@ -10,6 +10,7 @@
     var request = require('request-promise').defaults({
         json: true
     });
+    var extend = require('extend');
     var sizeOf = require('image-size');
     var req = require('request');
     var inspect = util.inspect;
@@ -185,56 +186,46 @@
         });
     };
 
-    function getSizes(uris, type, device) {
-        var log = logger.getLog();
+    function getData (uri) {
+        return new q.Promise(function(resolve) {
+            var buffer = new Buffer([]);
+            var rq = req.get(uri);
+            var size;
 
-        function makeReq(uri) {
-            var options = {
-                method: 'HEAD'
-            };
-
-            return request(uri, options).then(function getSize(response) {
-                if (response['content-length']) {
-                    return parseInt(response['content-length']);
-                }
-                else {
-                    throw new Error('No content-length header');
+            rq.on('data', function(chunk) {
+                buffer = Buffer.concat([buffer, chunk]);
+                if (buffer.length >= 3000) {
+                    rq.abort();
                 }
             });
-        }
 
-        function dimensions (uri) {
-            return new q.Promise(function(resolve) {
-                var buffer = new Buffer([]);
-                var rq = req.get(uri);
+            rq.on('response', function(response) {
+                size = parseInt(response.headers['content-length']);
+            });
 
-                rq.on('data', function(chunk) {
-                    buffer = Buffer.concat([buffer, chunk]);
-                    if (buffer.length >= 3000) {
-                        rq.abort();
-                    }
-                });
-                rq.on('end', function() {
-                    resolve({
+            rq.on('end', function() {
+                resolve({
+                    fileSize: size,
+                    dimensions: {
                         width: sizeOf(buffer).width,
                         height: sizeOf(buffer).height
-                    });
+                    }
                 });
             });
-        }
+        });
+    }
+
+    function getSizes(uris, type, device) {
+        var log = logger.getLog;
 
         return q.all(
-            uris.map(function getData (uri) {
-                return dimensions(uri).then(function(dims) {
-                    return makeReq(uri).then(function setSize (size) {
-                        return {
-                            uri: uri,
-                            type: type,
-                            device: device,
-                            fileSize: size,
-                            dimensions: dims
-                        };
-                    });
+            uris.map(function (uri) {
+                return getData(uri).then(function (data) {
+                    return extend({
+                        uri: uri,
+                        type: type,
+                        device: device
+                    }, data);
                 }).catch(function(error) {
                     log.info('Error getting dimensions: %1', error);
                 });
@@ -247,7 +238,6 @@
         config,
         secrets*/
     ) {
-        var log = logger.getLog();
 
         return q().then(function sendRequest() {
             return request('https://itunes.apple.com/lookup?id=' + id);
@@ -267,10 +257,8 @@
                     getSizes(app.screenshotUrls, 'screenshot', 'phone'),
                     getSizes(app.ipadScreenshotUrls, 'screenshot', 'tablet'),
                     getSizes([app.artworkUrl512], 'thumbnail')
-                ]).then(function sendImageArray(imageArrays) {
+                ]).then(function (imageArrays) {
                     return Array.prototype.concat.apply([], imageArrays);
-                }).catch(function(error){
-                    log.info('Error getting images: %1 ', inspect(error));
                 });
             }
 

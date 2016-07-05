@@ -1018,7 +1018,7 @@ describe('collateral (E2E):', function() {
                 });
             });
 
-            describe('with an App Store app URI', function() {
+            fdescribe('with an App Store app URI', function() {
                 beforeEach(function(done) {
                     options.qs.uri = 'https://itunes.apple.com/us/app/facebook/id284882215?mt=8';
                     requestUtils.qRequest('get', options).then(success, failure).finally(done);
@@ -1044,6 +1044,7 @@ describe('collateral (E2E):', function() {
                     expect(apiResponse.body.images.length).toBeGreaterThan(0, 'App has no images.');
                     apiResponse.body.images.forEach(function(image) {
                         expect(image.uri).toEqual(jasmine.any(String));
+                        expect(image.fileSize).toEqual(jasmine.any(Number));
                         expect(image.type).toMatch(/^(screenshot|thumbnail)$/, 'Image is not a screenshot or thumbnail.');
                         expect(image.device).toMatch(/^(phone|tablet|undefined)$/, 'Image device is not "phone," "tablet" or undefined.');
                         expect(image.dimensions).toEqual(jasmine.objectContaining({

@@ -1841,10 +1841,6 @@ describe('collateralScrape-scraper (UT)', function() {
                 });
 
                 it('makes get requests for the images', function () {
-                    var options = {
-                        method: 'HEAD'
-                    };
-
                     response.results[0].screenshotUrls.forEach(function (uri) {
                         expect(req.get).toHaveBeenCalledWith(uri);
                     });
@@ -1856,6 +1852,18 @@ describe('collateralScrape-scraper (UT)', function() {
 
                 describe('when the images have been GETted', function() {
                     beforeEach(function(done) {
+                        mockEvent.emit('response', {
+                            headers:
+                              { 'last-modified': 'Thu, 28 Jan 2016 12:40:53 GMT',
+                                etag: '"e4cff-52a643ab1e1d5"',
+                                'content-length': '937215',
+                                'x-server': 'nk11p00it-web013',
+                                'access-control-allow-origin': '*',
+                                'content-type': 'image/jpeg',
+                                'cache-control': 'public, max-age=2592000',
+                                date: 'Tue, 05 Jul 2016 14:10:58 GMT',
+                                connection: 'keep-alive' }
+                        });
                         mockEvent.emit('data', new Buffer(1000));
                         mockEvent.emit('data', new Buffer(2000));
 
@@ -1867,36 +1875,8 @@ describe('collateralScrape-scraper (UT)', function() {
                         expect(sizeOf).toHaveBeenCalled();
                     });
 
-                    it('should make head requests for all the images', function() {
-                        var options = {
-                            method: 'HEAD'
-                        };
-                        response.results[0].screenshotUrls.forEach(function (uri) {
-                            expect(request).toHaveBeenCalledWith(uri, options);
-                        });
-                        response.results[0].ipadScreenshotUrls.forEach(function (uri) {
-                            expect(request).toHaveBeenCalledWith(uri, options);
-                        });
-                        expect(request).toHaveBeenCalledWith(response.results[0].artworkUrl512, options);
-                    });
-
                     describe('when all of the image requests are done', function() {
                         beforeEach(function(done) {
-
-                            response.results[0].screenshotUrls.forEach(function (uri) {
-                                requestDeferreds[uri].resolve({
-                                    'content-length': parseInt('200')
-                                });
-                            });
-                            response.results[0].ipadScreenshotUrls.forEach(function (uri) {
-                                requestDeferreds[uri].resolve({
-                                    'content-length': parseInt('300')
-                                });
-                            });
-                            requestDeferreds[response.results[0].artworkUrl512].resolve({
-                                'content-length': parseInt('400')
-                            });
-
                             process.nextTick(done);
                         });
 
@@ -1920,7 +1900,7 @@ describe('collateralScrape-scraper (UT)', function() {
                                             uri: uri,
                                             type: 'screenshot',
                                             device: 'phone',
-                                            fileSize: 200,
+                                            fileSize: 937215,
                                             dimensions: {
                                                 width: 1300,
                                                 height: 600
@@ -1932,7 +1912,7 @@ describe('collateralScrape-scraper (UT)', function() {
                                             uri: uri,
                                             type: 'screenshot',
                                             device: 'tablet',
-                                            fileSize: 300,
+                                            fileSize: 937215,
                                             dimensions: {
                                                 width: 1300,
                                                 height: 600
@@ -1944,7 +1924,7 @@ describe('collateralScrape-scraper (UT)', function() {
                                             uri: response.results[0].artworkUrl512,
                                             type: 'thumbnail',
                                             device: undefined,
-                                            fileSize: 400,
+                                            fileSize: 937215,
                                             dimensions: {
                                                 width: 1300,
                                                 height: 600
