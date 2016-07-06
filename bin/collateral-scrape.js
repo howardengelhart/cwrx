@@ -186,7 +186,8 @@
     };
 
     function getImageMetadata (uri) {
-        return new q.Promise(function(resolve) {
+        var log = logger.getLog();
+        return new q.Promise(function(resolve, reject) {
             var buffer = new Buffer([]);
             var rq = req.get(uri);
             var size;
@@ -199,23 +200,33 @@
             });
 
             rq.on('response', function(response) {
+                if (response.statusCode !== 200) {
+                    log.warn('Error GETting image metadata.');
+                    return reject(new Error('Error GETting image metadata.'));
+                }
                 size = parseInt(response.headers['content-length']);
             });
 
             rq.on('end', function() {
+                var dims = sizeOf(buffer);
                 resolve({
                     fileSize: size,
                     dimensions: {
-                        width: sizeOf(buffer).width,
-                        height: sizeOf(buffer).height
+                        width: dims.width,
+                        height: dims.height
                     }
                 });
+            });
+
+            rq.on('error', function(error) {
+                log.warn('Error requesting image metadata: %1', inspect(error));
+                return reject(new Error('Error getting image metadata.'));
             });
         });
     }
 
     function getSizes(uris, type, device) {
-        var log = logger.getLog;
+        var log = logger.getLog();
 
         return q.all(
             uris.map(function (uri) {
@@ -225,9 +236,6 @@
                         type: type,
                         device: device
                     }, data);
-                }).catch(function(error) {
-                    log.warn('Error getting dimensions: %1', error);
-                    throw new Error(inspect(error));
                 });
             })
         );

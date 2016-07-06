@@ -1850,9 +1850,10 @@ describe('collateralScrape-scraper (UT)', function() {
                     expect(req.get).toHaveBeenCalledWith(response.results[0].artworkUrl512);
                 });
 
-                describe('when the images have been GETted', function() {
+                describe('if GETting the image metadata is successful', function() {
                     beforeEach(function(done) {
                         mockEvent.emit('response', {
+                            statusCode: 200,
                             headers:
                               { 'last-modified': 'Thu, 28 Jan 2016 12:40:53 GMT',
                                 etag: '"e4cff-52a643ab1e1d5"',
@@ -1934,6 +1935,30 @@ describe('collateralScrape-scraper (UT)', function() {
                                 )
                             });
                         });
+                    });
+                });
+
+                describe('if there is an error with the request', function() {
+
+                    beforeEach(function(done) {
+                        mockEvent.emit('error',new Error('Unexpected error'));
+                        process.nextTick(done);
+                    });
+                    it ('should throw an Error', function() {
+                        expect(mockLog.warn).toHaveBeenCalled();
+                        expect(failure).toHaveBeenCalledWith(new Error('Error getting image metadata.'));
+                    });
+                });
+
+                describe('if the GET request fails', function() {
+                    beforeEach(function (done) {
+                        mockEvent.emit('response', {statusCode: 500});
+                        process.nextTick(done);
+                    });
+
+                    it('should reject the promise', function() {
+                        expect(mockLog.warn).toHaveBeenCalled();
+                        expect(failure).toHaveBeenCalledWith(new Error('Error GETting image metadata.'));
                     });
                 });
             });
