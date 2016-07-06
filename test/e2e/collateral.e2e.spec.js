@@ -1021,7 +1021,6 @@ describe('collateral (E2E):', function() {
             describe('with an App Store app URI', function() {
                 beforeEach(function(done) {
                     options.qs.uri = 'https://itunes.apple.com/us/app/facebook/id284882215?mt=8';
-
                     requestUtils.qRequest('get', options).then(success, failure).finally(done);
                 });
 
@@ -1038,15 +1037,20 @@ describe('collateral (E2E):', function() {
                         price: 'Free',
                         rating: jasmine.any(Number),
                         extID: 284882215,
-                        ratingCount: jasmine.any(Number),                        
+                        ratingCount: jasmine.any(Number),
                         bundleId: jasmine.any(String),
                         images: jasmine.any(Array)
                     });
                     expect(apiResponse.body.images.length).toBeGreaterThan(0, 'App has no images.');
                     apiResponse.body.images.forEach(function(image) {
                         expect(image.uri).toEqual(jasmine.any(String));
+                        expect(image.fileSize).toEqual(jasmine.any(Number));
                         expect(image.type).toMatch(/^(screenshot|thumbnail)$/, 'Image is not a screenshot or thumbnail.');
                         expect(image.device).toMatch(/^(phone|tablet|undefined)$/, 'Image device is not "phone," "tablet" or undefined.');
+                        expect(image.dimensions).toEqual(jasmine.objectContaining({
+                            width: jasmine.any(Number),
+                            height: jasmine.any(Number)
+                        }));
                     });
                 });
             });

@@ -1,6 +1,6 @@
 describe('collateralScrape-scraper (UT)', function() {
     var q, logger, util, url, uuid, entities, getSymbolFromCurrency, RequestErrors;
-    var spidey, mockLog, request;
+    var spidey, mockLog, request, sizeOf;
     var requestDeferreds;
     var collateralScrape;
 
@@ -10,6 +10,7 @@ describe('collateralScrape-scraper (UT)', function() {
         require('util');
         require('spidey.js');
         require('request-promise');
+        require('image-size');
     });
 
     beforeEach(function() {
@@ -23,6 +24,9 @@ describe('collateralScrape-scraper (UT)', function() {
         entities = new HtmlEntities();
         getSymbolFromCurrency = require('currency-symbol-map').getSymbolFromCurrency;
         RequestErrors = require('request-promise/lib/errors');
+        EventEmitter = require('events').EventEmitter;
+        mockEvent = new EventEmitter();
+        mockEvent.setMaxListeners(50);
 
         mockLog = {
             trace : jasmine.createSpy('log_trace'),
@@ -38,8 +42,23 @@ describe('collateralScrape-scraper (UT)', function() {
 
         requestDeferreds = {};
         spyOn(require('request-promise'), 'defaults').and.returnValue(jasmine.createSpy('request()').and.callFake(function(uri) {
-            return (requestDeferreds[uri] = q.defer()).promise;
+            var deferred = q.defer();
+
+            requestDeferreds[uri] = deferred;
+
+            return deferred.promise;
         }));
+
+        spyOn(require('request'), 'get').and.returnValue(mockEvent);
+
+        sizeOf = spyOn(require.cache[require.resolve('image-size')], 'exports').and.returnValue({
+            width: 1300,
+            height: 600
+        });
+
+        mockEvent.abort = jasmine.createSpy().and.callFake(function() {
+            mockEvent.emit('end');
+        });
 
         delete require.cache[require.resolve('../../bin/collateral-scrape')];
         collateralScrape  = require('../../bin/collateral-scrape');
@@ -1723,6 +1742,7 @@ describe('collateralScrape-scraper (UT)', function() {
 
                 success = jasmine.createSpy('success()');
                 failure = jasmine.createSpy('failure()');
+                req = require('request');
 
                 collateralScrape.productDataFrom.APP_STORE(id, config).then(success, failure);
                 process.nextTick(done);
@@ -1820,42 +1840,125 @@ describe('collateralScrape-scraper (UT)', function() {
                     process.nextTick(done);
                 });
 
-                it('should fulfill with some data', function() {
-                    expect(success).toHaveBeenCalledWith({
-                        type: 'app',
-                        platform: 'iOS',
-                        name: response.results[0].trackCensoredName,
-                        description: response.results[0].description,
-                        developer: response.results[0].artistName,
-                        uri: response.results[0].trackViewUrl,
-                        categories: response.results[0].genres,
-                        price: response.results[0].formattedPrice,
-                        rating: response.results[0].averageUserRating,
-                        extID: response.results[0].trackId,
-                        ratingCount: response.results[0].userRatingCount,
-                        bundleId: response.results[0].bundleId,
-                        images: [].concat(
-                            response.results[0].screenshotUrls.map(function(uri) {
-                                return {
-                                    uri: uri,
-                                    type: 'screenshot',
-                                    device: 'phone'
-                                };
-                            }),
-                            response.results[0].ipadScreenshotUrls.map(function(uri) {
-                                return {
-                                    uri: uri,
-                                    type: 'screenshot',
-                                    device: 'tablet'
-                                };
-                            }),
-                            [
-                                {
-                                    uri: response.results[0].artworkUrl512,
-                                    type: 'thumbnail'
-                                }
-                            ]
-                        )
+                it('makes get requests for the images', function () {
+                    response.results[0].screenshotUrls.forEach(function (uri) {
+                        expect(req.get).toHaveBeenCalledWith(uri);
+                    });
+                    response.results[0].ipadScreenshotUrls.forEach(function (uri) {
+                        expect(req.get).toHaveBeenCalledWith(uri);
+                    });
+                    expect(req.get).toHaveBeenCalledWith(response.results[0].artworkUrl512);
+                });
+
+                describe('if GETting the image metadata is successful', function() {
+                    beforeEach(function(done) {
+                        mockEvent.emit('response', {
+                            statusCode: 200,
+                            headers:
+                              { 'last-modified': 'Thu, 28 Jan 2016 12:40:53 GMT',
+                                etag: '"e4cff-52a643ab1e1d5"',
+                                'content-length': '937215',
+                                'x-server': 'nk11p00it-web013',
+                                'access-control-allow-origin': '*',
+                                'content-type': 'image/jpeg',
+                                'cache-control': 'public, max-age=2592000',
+                                date: 'Tue, 05 Jul 2016 14:10:58 GMT',
+                                connection: 'keep-alive' }
+                        });
+                        mockEvent.emit('data', new Buffer(1000));
+                        mockEvent.emit('data', new Buffer(2000));
+
+                        process.nextTick(done);
+                    });
+
+                    it ('should get the dimensions', function() {
+                        expect(mockEvent.abort).toHaveBeenCalled();
+                        expect(sizeOf).toHaveBeenCalled();
+                    });
+
+                    describe('when all of the image requests are done', function() {
+                        beforeEach(function(done) {
+                            process.nextTick(done);
+                        });
+
+                        it('should fulfill with some data', function() {
+                            expect(success).toHaveBeenCalledWith({
+                                type: 'app',
+                                platform: 'iOS',
+                                name: response.results[0].trackCensoredName,
+                                description: response.results[0].description,
+                                developer: response.results[0].artistName,
+                                uri: response.results[0].trackViewUrl,
+                                categories: response.results[0].genres,
+                                price: response.results[0].formattedPrice,
+                                rating: response.results[0].averageUserRating,
+                                extID: response.results[0].trackId,
+                                ratingCount: response.results[0].userRatingCount,
+                                bundleId: response.results[0].bundleId,
+                                images: [].concat(
+                                    response.results[0].screenshotUrls.map(function(uri) {
+                                        return {
+                                            uri: uri,
+                                            type: 'screenshot',
+                                            device: 'phone',
+                                            fileSize: 937215,
+                                            dimensions: {
+                                                width: 1300,
+                                                height: 600
+                                            }
+                                        };
+                                    }),
+                                    response.results[0].ipadScreenshotUrls.map(function(uri) {
+                                        return {
+                                            uri: uri,
+                                            type: 'screenshot',
+                                            device: 'tablet',
+                                            fileSize: 937215,
+                                            dimensions: {
+                                                width: 1300,
+                                                height: 600
+                                            }
+                                        };
+                                    }),
+                                    [
+                                        {
+                                            uri: response.results[0].artworkUrl512,
+                                            type: 'thumbnail',
+                                            device: undefined,
+                                            fileSize: 937215,
+                                            dimensions: {
+                                                width: 1300,
+                                                height: 600
+                                            }
+                                        }
+                                    ]
+                                )
+                            });
+                        });
+                    });
+                });
+
+                describe('if there is an error with the request', function() {
+
+                    beforeEach(function(done) {
+                        mockEvent.emit('error',new Error('Unexpected error'));
+                        process.nextTick(done);
+                    });
+                    it ('should throw an Error', function() {
+                        expect(mockLog.warn).toHaveBeenCalled();
+                        expect(failure).toHaveBeenCalledWith(new Error('Error getting image metadata.'));
+                    });
+                });
+
+                describe('if the GET request fails', function() {
+                    beforeEach(function (done) {
+                        mockEvent.emit('response', {statusCode: 500});
+                        process.nextTick(done);
+                    });
+
+                    it('should reject the promise', function() {
+                        expect(mockLog.warn).toHaveBeenCalled();
+                        expect(failure).toHaveBeenCalledWith(new Error('Error GETting image metadata.'));
                     });
                 });
             });

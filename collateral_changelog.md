@@ -1,5 +1,6 @@
 # Collateral Service Changelog
 
+* [FEATURE]: Add additional image metadata to App product data : [#963] (https://github.com/cinema6/cwrx/pull/963)
 * [FEATURE]: Add `'[GET] /api/collateral/video-data`: [#942] (https://github.com/cinema6/cwrx/pull/942)
 * [FIX]: Provide the number of reviews when GETting app product-data: [#942](https://github.com/cinema6/cwrx/pull/942)
 
@@ -23,7 +24,7 @@
     * Deploy `v1.2.0` of the collateral cookbook
 
 ### 2.2.3: Thu Mar 24 14:13:05 EDT 2016
-* [FIX]: Handle non-existant server addresses more gracefully when
+* [FIX]: Handle non-existent server addresses more gracefully when
   scraping social links: [#829](https://github.com/cinema6/cwrx/pull/829)
 * Extra deployment steps: None
 

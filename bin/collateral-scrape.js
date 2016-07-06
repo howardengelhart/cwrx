@@ -10,6 +10,8 @@
     var request = require('request-promise').defaults({
         json: true
     });
+    var sizeOf = require('image-size');
+    var req = require('request');
     var inspect = util.inspect;
     var inherits = util.inherits;
     var ld = require('lodash');
@@ -182,11 +184,68 @@
             throw reason;
         });
     };
+
+    function getImageMetadata (uri) {
+        var log = logger.getLog();
+        return new q.Promise(function(resolve, reject) {
+            var buffer = new Buffer([]);
+            var rq = req.get(uri);
+            var size;
+
+            rq.on('data', function(chunk) {
+                buffer = Buffer.concat([buffer, chunk]);
+                if (buffer.length >= 3000) {
+                    rq.abort();
+                }
+            });
+
+            rq.on('response', function(response) {
+                if (response.statusCode !== 200) {
+                    log.warn('Error GETting image metadata. [%1]', response.statusCode);
+                    return reject(new Error('Error GETting image metadata.'));
+                }
+                size = parseInt(response.headers['content-length']);
+            });
+
+            rq.on('end', function() {
+                var dims = sizeOf(buffer);
+                resolve({
+                    fileSize: size,
+                    dimensions: {
+                        width: dims.width,
+                        height: dims.height
+                    }
+                });
+            });
+
+            rq.on('error', function(error) {
+                log.warn('Error requesting image metadata: %1', inspect(error));
+                return reject(new Error('Error getting image metadata.'));
+            });
+        });
+    }
+
+    function getSizes(uris, type, device) {
+
+        return q.all(
+            uris.map(function (uri) {
+                return getImageMetadata(uri).then(function (data) {
+                    return ld.assign({
+                        uri: uri,
+                        type: type,
+                        device: device
+                    }, data);
+                });
+            })
+        );
+    }
+
     scraper.productDataFrom[PRODUCT_TYPES.APP_STORE] = function getAppStoreData(
         id/*,
         config,
         secrets*/
     ) {
+
         return q().then(function sendRequest() {
             return request('https://itunes.apple.com/lookup?id=' + id);
         }).then(function createData(response) {
@@ -200,29 +259,33 @@
                 throw new InvalidError('URI is not for an app.');
             }
 
-            return {
-                type: 'app',
-                platform: 'iOS',
-                name: app.trackCensoredName,
-                description: app.description,
-                developer: app.artistName,
-                uri: app.trackViewUrl,
-                categories: app.genres,
-                price: app.formattedPrice,
-                rating: app.averageUserRating,
-                extID: app.trackId,
-                ratingCount : app.userRatingCount,
-                bundleId: app.bundleId,
-                images: [].concat(
-                    app.screenshotUrls.map(function(uri) {
-                        return { uri: uri, type: 'screenshot', device: 'phone' };
-                    }),
-                    app.ipadScreenshotUrls.map(function(uri) {
-                        return { uri: uri, type: 'screenshot', device: 'tablet' };
-                    }),
-                    [{ uri: app.artworkUrl512, type: 'thumbnail' }]
-                )
-            };
+            function getImages() {
+                return q.all([
+                    getSizes(app.screenshotUrls, 'screenshot', 'phone'),
+                    getSizes(app.ipadScreenshotUrls, 'screenshot', 'tablet'),
+                    getSizes([app.artworkUrl512], 'thumbnail')
+                ]).then(function (imageArrays) {
+                    return Array.prototype.concat.apply([], imageArrays);
+                });
+            }
+
+            return getImages().then(function(images) {
+                return {
+                    type: 'app',
+                    platform: 'iOS',
+                    name: app.trackCensoredName,
+                    description: app.description,
+                    developer: app.artistName,
+                    uri: app.trackViewUrl,
+                    categories: app.genres,
+                    price: app.formattedPrice,
+                    rating: app.averageUserRating,
+                    extID: app.trackId,
+                    ratingCount : app.userRatingCount,
+                    bundleId: app.bundleId,
+                    images: images
+                };
+            });
         });
     };
 
