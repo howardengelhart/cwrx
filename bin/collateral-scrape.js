@@ -201,7 +201,7 @@
 
             rq.on('response', function(response) {
                 if (response.statusCode !== 200) {
-                    log.warn('Error GETting image metadata.');
+                    log.warn('Error GETting image metadata. [%1]', response.statusCode);
                     return reject(new Error('Error GETting image metadata.'));
                 }
                 size = parseInt(response.headers['content-length']);
@@ -226,7 +226,6 @@
     }
 
     function getSizes(uris, type, device) {
-        var log = logger.getLog();
 
         return q.all(
             uris.map(function (uri) {
