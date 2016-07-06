@@ -226,7 +226,8 @@
                         device: device
                     }, data);
                 }).catch(function(error) {
-                    log.info('Error getting dimensions: %1', error);
+                    log.warn('Error getting dimensions: %1', error);
+                    throw new Error(inspect(error));
                 });
             })
         );
