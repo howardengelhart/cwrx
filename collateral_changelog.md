@@ -1,7 +1,6 @@
 # Collateral Service Changelog
 
-* [FEATURE]: Add additional image metadata to App product data : [#953] (https://github.com/cinema6/cwrx/issues/953)
-
+* [FEATURE]: Add additional image metadata to App product data : [#963] (https://github.com/cinema6/cwrx/pull/963)
 * [FEATURE]: Add `'[GET] /api/collateral/video-data`: [#942] (https://github.com/cinema6/cwrx/pull/942)
 * [FIX]: Provide the number of reviews when GETting app product-data: [#942](https://github.com/cinema6/cwrx/pull/942)
 
