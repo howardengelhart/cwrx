@@ -185,7 +185,7 @@
         });
     };
 
-    function getData (uri) {
+    function getImageMetadata (uri) {
         return new q.Promise(function(resolve) {
             var buffer = new Buffer([]);
             var rq = req.get(uri);
@@ -219,7 +219,7 @@
 
         return q.all(
             uris.map(function (uri) {
-                return getData(uri).then(function (data) {
+                return getImageMetadata(uri).then(function (data) {
                     return ld.assign({
                         uri: uri,
                         type: type,
