@@ -18,7 +18,7 @@ describe('querybot ssb_apps (E2E)', function(){
         pgdata_unique_user_views_daily, pgdata_unique_user_views, 
         mockUser, mockCamps,
         cookieJar, options, camp1Data, camp2Data, camp5Data, 
-        noDataCampData, mockApp, appCreds ;
+        noDataCampData, mockApp, appCreds, today ;
 
     beforeEach(function(done){
         pgconn = {
@@ -28,7 +28,7 @@ describe('querybot ssb_apps (E2E)', function(){
             host    : process.env.mongo ? JSON.parse(process.env.mongo).host : '33.33.33.100'
         };
         
-        var today = function(offset) {
+        today = function(offset) {
             var dt = new Date(((new Date()).toISOString()).substr(0,10) + 'T00:00:00.000Z');
             return (new Date(dt.valueOf() + (86400000 * (offset || 0)))).toISOString().substr(0,10);
         };
@@ -403,9 +403,12 @@ describe('querybot ssb_apps (E2E)', function(){
                 .then(function(){
                     var trans_date = today() + ' 12:00:00+00';
                     var sql = [ 
-                        'INSERT INTO fct.billing_transactions VALUES (',
+                        'INSERT INTO fct.billing_transactions(',
+                            'rec_key,rec_ts,transaction_id,transaction_ts,',
+                            'org_id,amount,sign,units,application)',
+                            'VALUES (',
                             '1, current_timestamp, \'t-000\',\'' + trans_date + '\',',
-                            '\'e2e-org\',1,1,1,null,null,null,\'{ "target": "showcase" }\');'
+                            '\'e2e-org\',1,1,1,\'showcase\');'
                     ];
 
                     return testUtils.pgQuery(sql.join(' '));
@@ -417,7 +420,7 @@ describe('querybot ssb_apps (E2E)', function(){
                 testUtils.resetCollection('users', mockUser),
                 testUtils.resetCollection('campaigns', mockCamps),
                 testUtils.mongoUpsert('applications', { key: mockApp.key }, mockApp)
-            ]).thenResolve();
+            ]);
         }
 
         pgTruncate().then(pgInsert).then(mongoInsert).then(done,done.fail);
@@ -448,79 +451,108 @@ describe('querybot ssb_apps (E2E)', function(){
     });
 
     describe('GET /api/analytics/campaigns/showcase/apps/:id', function() {
-        it('requires authentication',function(done){
-            delete options.jar;
-            options.url += '/cam-1757d5cd13e383';
-            requestUtils.qRequest('get', options)
-            .then(function(resp) {
-                expect(resp.response.statusCode).toEqual(401);
-                expect(resp.response.body).toEqual('Unauthorized');
-            })
-            .then(done,done.fail);
+        describe('using transaction application to identify showcase',function(){
+            it('requires authentication',function(done){
+                delete options.jar;
+                options.url += '/cam-1757d5cd13e383';
+                requestUtils.qRequest('get', options)
+                .then(function(resp) {
+                    expect(resp.response.statusCode).toEqual(401);
+                    expect(resp.response.body).toEqual('Unauthorized');
+                })
+                .then(done,done.fail);
 
-        });
+            });
 
-        // Uncomment when we support lookups with the campaignId in the query params
-        //it('returns a 400 error if there is no campaignID',function(done){
-        //    requestUtils.qRequest('get', options)
-        //    .then(function(resp) {
-        //        expect(resp.response.statusCode).toEqual(400);
-        //        expect(resp.response.body).toEqual('At least one campaignId is required.');
-        //    })
-        //    .then(done,done.fail);
-        //});
+            // Uncomment when we support lookups with the campaignId in the query params
+            //it('returns a 400 error if there is no campaignID',function(done){
+            //    requestUtils.qRequest('get', options)
+            //    .then(function(resp) {
+            //        expect(resp.response.statusCode).toEqual(400);
+            //        expect(resp.response.body).toEqual('At least one campaignId is required.');
+            //    })
+            //    .then(done,done.fail);
+            //});
 
-        it('returns a 404 if the campaignId is not found',function(done){
-            options.url += '/cam-278b8150021c68';
-            requestUtils.qRequest('get', options)
-            .then(function(resp) {
-                expect(resp.response.statusCode).toEqual(404);
-                expect(resp.response.body).toEqual('Not Found');
-            })
-            .then(done,done.fail);
-        });
+            it('returns a 404 if the campaignId is not found',function(done){
+                options.url += '/cam-278b8150021c68';
+                requestUtils.qRequest('get', options)
+                .then(function(resp) {
+                    expect(resp.response.statusCode).toEqual(404);
+                    expect(resp.response.body).toEqual('Not Found');
+                })
+                .then(done,done.fail);
+            });
 
-        it('returns single doc with all data if the campaigns GET is singular',function(done){
-            options.url += '/cam-1757d5cd13e383';
-            requestUtils.qRequest('get', options)
-            .then(function(resp) {
-                expect(resp.response.statusCode).toEqual(200);
-                expect(resp.body).toEqual(camp1Data);
-            })
-            .then(done,done.fail);
+            it('returns single doc with all data if the campaigns GET is singular',function(done){
+                options.url += '/cam-1757d5cd13e383';
+                requestUtils.qRequest('get', options)
+                .then(function(resp) {
+                    expect(resp.response.statusCode).toEqual(200);
+                    expect(resp.body).toEqual(camp1Data);
+                })
+                .then(done,done.fail);
+            });
+            
+            it('should allow an app to get stats', function(done) {
+                delete options.jar;
+                options.url += '/cam-1757d5cd13e383';
+                requestUtils.makeSignedRequest(appCreds, 'get', options).then(function(resp) {
+                    expect(resp.response.statusCode).toBe(200);
+                    expect(resp.body).toEqual(camp1Data);
+                }).catch(function(error) {
+                    expect(util.inspect(error)).not.toBeDefined();
+                }).done(done);
+            });
+            
+            it('should fail if an app uses the wrong secret to make a request', function(done) {
+                delete options.jar;
+                options.url += '/cam-1757d5cd13e383';
+                var badCreds = { key: mockApp.key, secret: 'WRONG' };
+                requestUtils.makeSignedRequest(badCreds, 'get', options).then(function(resp) {
+                    expect(resp.response.statusCode).toBe(401);
+                    expect(resp.body).toBe('Unauthorized');
+                }).catch(function(error) {
+                    expect(util.inspect(error)).not.toBeDefined();
+                }).done(done);
+            });
+            
+            it('returns single doc with all data set to 0 if campaign has no data',function(done){
+                options.url += '/cam-99999999999999';
+                requestUtils.qRequest('get', options)
+                .then(function(resp) {
+                    expect(resp.response.statusCode).toEqual(200);
+                    expect(resp.body).toEqual(noDataCampData);
+                })
+                .then(done,done.fail);
+            });
         });
         
-        it('should allow an app to get stats', function(done) {
-            delete options.jar;
-            options.url += '/cam-1757d5cd13e383';
-            requestUtils.makeSignedRequest(appCreds, 'get', options).then(function(resp) {
-                expect(resp.response.statusCode).toBe(200);
-                expect(resp.body).toEqual(camp1Data);
-            }).catch(function(error) {
-                expect(util.inspect(error)).not.toBeDefined();
-            }).done(done);
-        });
-        
-        it('should fail if an app uses the wrong secret to make a request', function(done) {
-            delete options.jar;
-            options.url += '/cam-1757d5cd13e383';
-            var badCreds = { key: mockApp.key, secret: 'WRONG' };
-            requestUtils.makeSignedRequest(badCreds, 'get', options).then(function(resp) {
-                expect(resp.response.statusCode).toBe(401);
-                expect(resp.body).toBe('Unauthorized');
-            }).catch(function(error) {
-                expect(util.inspect(error)).not.toBeDefined();
-            }).done(done);
-        });
-        
-        it('returns single doc with all data set to 0 if campaign has no data',function(done){
-            options.url += '/cam-99999999999999';
-            requestUtils.qRequest('get', options)
-            .then(function(resp) {
-                expect(resp.response.statusCode).toEqual(200);
-                expect(resp.body).toEqual(noDataCampData);
-            })
-            .then(done,done.fail);
+        describe('using transaction description to identify showcase',function(){
+            beforeEach(function(done){
+                return testUtils.pgQuery('TRUNCATE TABLE fct.billing_transactions')
+                .then(function(){
+                    var trans_date = today() + ' 12:00:00+00';
+                    var sql = [ 
+                        'INSERT INTO fct.billing_transactions VALUES (',
+                            '1, current_timestamp, \'t-000\',\'' + trans_date + '\',',
+                            '\'e2e-org\',1,1,1,null,null,null,\'{ "target": "showcase" }\');'
+                    ];
+
+                    return testUtils.pgQuery(sql.join(' '));
+                })
+                .then(done,done.fail);
+            });
+            
+            it('returns single doc with all data if the campaigns GET is singular',function(done){
+                options.url += '/cam-1757d5cd13e383';
+                requestUtils.qRequest('get', options)
+                .then(function(resp) {
+                    expect(resp.response.statusCode).toEqual(200);
+                    expect(resp.body).toEqual(camp1Data);
+                })
+                .then(done,done.fail);
+            });
         });
     });
 });

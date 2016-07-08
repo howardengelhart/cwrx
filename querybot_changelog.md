@@ -1,5 +1,8 @@
 # QueryBot Service Changelog
 
+### 1.6.1: Fri Jul  8 14:07:03 EDT 2016
+* [FIX]: Use description or new application field in billing_transactions to identify showcase apps payments for billing cycle logic. [#970](https://github.com/cinema6/cwrx/issues/970)
+
 ### 1.6.0: Thu Jun 16 15:50:47 EDT 2016
 * [FEATURE]: Adding ability to pull data for current billing cycle.
 
