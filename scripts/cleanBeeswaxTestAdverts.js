@@ -6,6 +6,7 @@ var q = require('q'),
 var regex = /(^e2e-advertiser--|^\d+ - placements.e2e)/;
     
 var beeswax = new BeeswaxClient({
+    apiRoot : "https://stingersbx.api.beeswax.com",
     creds: {
         email: 'ops@cinema6.com',
         password: '07743763902206f2b511bead2d2bf12292e2af82'
