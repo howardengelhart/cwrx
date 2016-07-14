@@ -18,7 +18,7 @@ var helpers = {
             func.apply(null,args)
             .then(
                 function(result){
-                    return deferred.resolve(result); 
+                    return deferred.resolve(result);
                 },
                 function(err){
                     if (!deferred.promise.isPending()){
@@ -31,7 +31,7 @@ var helpers = {
                         wait = Math.max(Math.min(minInterval - (now.valueOf() - lastCall.valueOf()),
                                 minInterval),0);
                     setTimeout(function(){
-                        callAsync();    
+                        callAsync();
                     }, wait);
                 }
             );
@@ -59,7 +59,7 @@ var helpers = {
             if (!data || !data.Snapshots) {
                 return deferred.reject('Incomplete information from describeSnapshots');
             }
-            
+
             if (data.Snapshots[0].State !== opts.state) {
                 iters++;
                 if (iters >= opts.maxIters) {
@@ -72,7 +72,7 @@ var helpers = {
         });
         return deferred.promise;
     },
-    
+
     // tags should be an array of the form [ { Key: '...', Value: '...' } ]
     tagSnapshot: function(id, tags, ec2) {
         var deferred = q.defer();
@@ -98,7 +98,7 @@ var helpers = {
             if (!data || !data.Reservations) {
                 return deferred.reject('Incomplete information from describeInstances');
             }
-            
+
             data.Reservations.forEach(function(reserv) {
                 reserv.Instances.forEach(function(instance) {
                     if (instance.State.Name === opts.state) {
@@ -108,7 +108,7 @@ var helpers = {
                     }
                 });
             });
-            
+
             if (notReady) {
                 iters++;
                 if (iters >= opts.maxIters) {
@@ -141,7 +141,7 @@ var helpers = {
 
     checkSSH: function(ip) {
         var deferred = q.defer();
-            
+
         grunt.util.spawn({cmd: 'nc', args: ['-zv', ip, 22]}, function(error,result,code) {
             if (error) {
                 return deferred.reject(error);
@@ -151,7 +151,7 @@ var helpers = {
         });
         return deferred.promise;
     },
-   
+
     checkHttp: function(params) {
         var deferred = q.defer(), server, opts, req;
         opts = {
@@ -187,7 +187,7 @@ var helpers = {
                     return;
                 }
 
-                if ((res.headers['content-type'] && 
+                if ((res.headers['content-type'] &&
                     res.headers['content-type'].match('application\/json'))){
                     data = JSON.parse(data);
                 }
