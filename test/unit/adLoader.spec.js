@@ -1304,7 +1304,7 @@ describe('AdLoader()', function() {
                                 ex: meta.ex,
                                 vr: meta.vr,
                                 event: 'play'
-                            }) + '&sw={screenWidth}&sh={screenHeight}&pw={playerWidth}&ph={playerHeight}&c={context}&d={delay}&cb={cachebreaker}');
+                            }) + '&sw={screenWidth}&sh={screenHeight}&pw={playerWidth}&ph={playerHeight}&hitX={screenX}&hitY={screenY}&c={context}&d={delay}&cb={cachebreaker}');
                         });
 
                         describe('if there is no trackingPixel', function() {
@@ -1342,7 +1342,7 @@ describe('AdLoader()', function() {
                                     ex: meta.ex,
                                     vr: meta.vr,
                                     event: 'q1'
-                                }) + '&sw={screenWidth}&sh={screenHeight}&pw={playerWidth}&ph={playerHeight}&c={context}&d={delay}&cb={cachebreaker}');
+                                }) + '&sw={screenWidth}&sh={screenHeight}&pw={playerWidth}&ph={playerHeight}&hitX={screenX}&hitY={screenY}&c={context}&d={delay}&cb={cachebreaker}');
                             });
                         });
                     });

@@ -1,5 +1,8 @@
 # Player Service Changelog
 
+### 2.8.0: Thu Jul 14 10:08:17 EDT 2016
+* [FEATURE]: Add support for tracking coordinates of clickthroughs: [#972](https://github.com/cinema6/cwrx/pull/972)
+
 ### 2.7.3: Tue Mar 15 19:44:01 EDT 2016
 * [FIX]: Fix characters of uuids to be url-safe: [#822](https://github.com/cinema6/cwrx/pull/822)
 * [FIX]: Log signal + exit code when worker dies unexpectedly: [#821](https://github.com/cinema6/cwrx/pull/821)

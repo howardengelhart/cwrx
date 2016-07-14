@@ -372,6 +372,8 @@ describe('player service', function() {
                                         event: item.event,
                                         sw: '{screenWidth}',
                                         sh: '{screenHeight}',
+                                        hitX: '{screenX}',
+                                        hitY: '{screenY}',
                                         pw: '{playerWidth}',
                                         ph: '{playerHeight}',
                                         c: '{context}',
@@ -405,6 +407,8 @@ describe('player service', function() {
                                         event: 'link.' + type,
                                         sw: '{screenWidth}',
                                         sh: '{screenHeight}',
+                                        hitX: '{screenX}',
+                                        hitY: '{screenY}',
                                         pw: '{playerWidth}',
                                         ph: '{playerHeight}',
                                         c: '{context}',
@@ -438,6 +442,8 @@ describe('player service', function() {
                                         event: 'shareLink.' + type,
                                         sw: '{screenWidth}',
                                         sh: '{screenHeight}',
+                                        hitX: '{screenX}',
+                                        hitY: '{screenY}',
                                         pw: '{playerWidth}',
                                         ph: '{playerHeight}',
                                         c: '{context}',
@@ -582,6 +588,8 @@ describe('player service', function() {
                                         event: item.event,
                                         sw: '{screenWidth}',
                                         sh: '{screenHeight}',
+                                        hitX: '{screenX}',
+                                        hitY: '{screenY}',
                                         pw: '{playerWidth}',
                                         ph: '{playerHeight}',
                                         c: '{context}',
@@ -615,6 +623,8 @@ describe('player service', function() {
                                         event: 'link.' + type,
                                         sw: '{screenWidth}',
                                         sh: '{screenHeight}',
+                                        hitX: '{screenX}',
+                                        hitY: '{screenY}',
                                         pw: '{playerWidth}',
                                         ph: '{playerHeight}',
                                         c: '{context}',
@@ -648,6 +658,8 @@ describe('player service', function() {
                                         event: 'shareLink.' + type,
                                         sw: '{screenWidth}',
                                         sh: '{screenHeight}',
+                                        hitX: '{screenX}',
+                                        hitY: '{screenY}',
                                         pw: '{playerWidth}',
                                         ph: '{playerHeight}',
                                         c: '{context}',
@@ -978,6 +990,8 @@ describe('player service', function() {
                                 event: item.event,
                                 sw: '{screenWidth}',
                                 sh: '{screenHeight}',
+                                hitX: '{screenX}',
+                                hitY: '{screenY}',
                                 pw: '{playerWidth}',
                                 ph: '{playerHeight}',
                                 c: '{context}',
@@ -1011,6 +1025,8 @@ describe('player service', function() {
                                 event: 'link.' + type,
                                 sw: '{screenWidth}',
                                 sh: '{screenHeight}',
+                                hitX: '{screenX}',
+                                hitY: '{screenY}',
                                 pw: '{playerWidth}',
                                 ph: '{playerHeight}',
                                 c: '{context}',
@@ -1044,6 +1060,8 @@ describe('player service', function() {
                                 event: 'shareLink.' + type,
                                 sw: '{screenWidth}',
                                 sh: '{screenHeight}',
+                                hitX: '{screenX}',
+                                hitY: '{screenY}',
                                 pw: '{playerWidth}',
                                 ph: '{playerHeight}',
                                 c: '{context}',
@@ -1459,7 +1477,7 @@ describe('player service', function() {
                                         ex: undefined,
                                         vr: undefined,
                                         event: 'impression'
-                                    }) + '&sw={screenWidth}&sh={screenHeight}&pw={playerWidth}&ph={playerHeight}&c={context}&d={delay}&cb={cachebreaker}'
+                                    }) + '&sw={screenWidth}&sh={screenHeight}&pw={playerWidth}&ph={playerHeight}&hitX={screenX}&hitY={screenY}&c={context}&d={delay}&cb={cachebreaker}'
                                 }
                             ],
                             creatives: [
@@ -1680,7 +1698,7 @@ describe('player service', function() {
                                         ex: undefined,
                                         vr: undefined,
                                         event: 'impression'
-                                    }) + '&sw={screenWidth}&sh={screenHeight}&pw={playerWidth}&ph={playerHeight}&c={context}&d={delay}&cb={cachebreaker}'
+                                    }) + '&sw={screenWidth}&sh={screenHeight}&pw={playerWidth}&ph={playerHeight}&hitX={screenX}&hitY={screenY}&c={context}&d={delay}&cb={cachebreaker}'
                                 }
                             ],
                             creatives: [
