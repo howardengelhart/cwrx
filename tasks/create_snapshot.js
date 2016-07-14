@@ -5,21 +5,21 @@ module.exports = function(grunt) {
     grunt.registerTask('create_snapshot', 'create a snapshot of an EBS volume', function(volumeId) {
         var settings = grunt.config.get('settings'),
             auth     = settings.awsAuth,
-            interval = grunt.config.get('create_snapshot.pollingInterval') * 1000,
-            maxIters = grunt.config.get('create_snapshot.maxIters'),
+            interval = (grunt.option('pollingInterval') || grunt.config.get('create_snapshot.pollingInterval')) * 1000,
+            maxIters = grunt.option('maxIters') || grunt.config.get('create_snapshot.maxIters'),
             nameTag  = grunt.option('name') || 'db-backup',
             desc     = grunt.option('description') ||
                            'Created from ' + volumeId + ' on ' + new Date().toString();
-        
+
         if (!volumeId) {
             grunt.log.errorlns('Need to provide a volumeId');
             return false;
         }
-        
+
         var done = this.async();
         aws.config.loadFromPath(auth);
         var ec2 = new aws.EC2();
-        
+
         grunt.log.writelns('Creating snapshot of volume ' + volumeId);
         ec2.createSnapshot({VolumeId: volumeId, Description: desc}, function(err, data) {
             if (err) {
