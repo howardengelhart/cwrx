@@ -277,6 +277,60 @@
         });
     };
 
+    // Fetch the latest payment for a given org.
+    transModule.getCurrentPayment = function(svc, req) {
+        var log = logger.getLog();
+
+        // Default query org to user's org; 400 if an app is requesting without an org
+        req.query.org = req.query.org || (req.user && req.user.org);
+        if (!req.query.org || typeof req.query.org !== 'string') {
+            return q({
+                code: 400,
+                body: 'Must provide an org id'
+            });
+        }
+
+        return svc.runAction(req, 'read', function() {
+            log.info('[%1] Requester %2 getting payment for %3',
+                     req.uuid, req.requester.id, req.query.org);
+
+            var statement = [
+                'SELECT application, transaction_id as "transactionId",',
+                '   transaction_ts as "transactionTs", org_id as "orgId",',
+                '   amount, braintree_id as "braintreeId", promotion_id as "promotionId",',
+                '   paymentplan_id as "paymentPlanId", view_target as viewTarget,',
+                '   cycle_start as "cycleStart", cycle_end as "cycleEnd"',
+                'FROM  fct.billing_transactions',
+                'WHERE org_id = $1 AND sign=1 AND cycle_end > current_timestamp',
+                '   ((application = \'showcase\') OR (description like \'%showcase%\'))',
+                '   AND NOT paymentplan_id is NULL',
+                'ORDER BY cycle_end desc',
+                'LIMIT 1'
+            ];
+            
+            var values = [
+                req.query.org
+            ];
+
+            return pgUtils.query(statement.join('\n'), values)
+            .then(function(result) {
+                var resp = {};
+                log.info('[%1] Fetched %2 records', req.uuid, result.rows.length);
+            
+                if (result.rows.length > 0 ) {
+                    resp.code = 200;
+                    resp.body = result.rows[0];
+                } else {
+                    resp.code = 404;
+                    resp.body = 'Unable to locate currentPayment.' ;
+                }
+                
+                return q(resp);
+            });
+        });
+    };
+
+
     // Insert a new transaction record into the database
     transModule.createTransaction = function(svc, req) {
         var log = logger.getLog();
