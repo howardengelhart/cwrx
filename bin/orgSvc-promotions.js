@@ -3,6 +3,7 @@
 
     var q               = require('q'),
         util            = require('util'),
+        _               = require('lodash'),
         express         = require('express'),
         Model           = require('../lib/model'),
         logger          = require('../lib/logger'),
@@ -10,7 +11,7 @@
         authUtils       = require('../lib/authUtils'),
         QueryCache      = require('../lib/queryCache'),
         Status          = require('../lib/enums').Status,
-        
+
         promModule = { config: {}, schemas: {} };
         
     promModule.schemas.promotions = { // schema for all promotion objects
@@ -45,13 +46,19 @@
         trialLength: {
             __allowed: true,
             __type: 'number',
-            __required: true,
+            __required: false,
             __min: 0
         },
         paymentMethodRequired: {
             __allowed: true,
             __type: 'boolean',
             __default: true
+        },
+        targetUsers: {
+            __allowed: true,
+            __type: 'number',
+            __required: true,
+            __min: 0
         }
     };
     
@@ -81,15 +88,39 @@
         var type        = req.body.type || (req.origObj && req.origObj.type),
             dataSchema  = promModule.schemas[type],
             dataModel   = new Model('promotions.data', dataSchema),
-            action      = (req.method.toLowerCase() === 'PUT') ? 'edit' : 'create',
-            origData    = (req.origObj && req.origObj.data) || {};
-            
-        var validResp = dataModel.validate(action, req.body.data, origData);
-        
-        if (validResp.isValid) {
-            next();
-        } else {
-            done({ code: 400, body: validResp.reason });
+            action      = (req.method.toUpperCase() === 'PUT') ? 'edit' : 'create';
+
+        switch (type) {
+        case 'freeTrial':
+            return (function() {
+                var invalid = _(req.body.data)
+                    .pickBy(_.isObjectLike) // Only validate sub-objects
+                    .map(function(data, id) {
+                        var origData = _.get(req, 'origObj.data[' + id + ']', {});
+
+                        return dataModel.validate(action, data, origData);
+                    })
+                    .find(function(validation) {
+                        return !validation.isValid;
+                    });
+
+                if (invalid) {
+                    done({ code: 400, body: invalid.reason });
+                } else {
+                    next();
+                }
+            }());
+        default:
+            return (function() {
+                var origData = (req.origObj && req.origObj.data) || {};
+                var validResp = dataModel.validate(action, req.body.data, origData);
+
+                if (validResp.isValid) {
+                    next();
+                } else {
+                    done({ code: 400, body: validResp.reason });
+                }
+            }());
         }
     };
 

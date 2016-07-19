@@ -15,7 +15,7 @@ describe('orgSvc-orgs (UT)', function() {
         JobManager      = require('../../lib/jobManager');
         authUtils       = require('../../lib/authUtils');
         Status          = require('../../lib/enums').Status;
-        
+
         mockLog = {
             trace : jasmine.createSpy('log_trace'),
             error : jasmine.createSpy('log_error'),
@@ -43,14 +43,14 @@ describe('orgSvc-orgs (UT)', function() {
         nextSpy = jasmine.createSpy('next()');
         doneSpy = jasmine.createSpy('done()');
         errorSpy = jasmine.createSpy('caught error');
-        
+
         mockDb = {
             collection: jasmine.createSpy('db.collection()').and.callFake(function(objName) {
                 return { collectionName: objName };
             })
         };
     });
-    
+
     describe('setupSvc', function() {
         var svc, config;
         beforeEach(function() {
@@ -61,7 +61,7 @@ describe('orgSvc-orgs (UT)', function() {
             spyOn(promModule.getPublicPromotion, 'bind').and.returnValue(promModule.getPublicPromotion);
             svc = promModule.setupSvc(mockDb, config);
         });
-        
+
         it('should return a CrudSvc', function() {
             expect(svc).toEqual(jasmine.any(CrudSvc));
             expect(svc._coll).toEqual({ collectionName: 'promotions' });
@@ -86,13 +86,13 @@ describe('orgSvc-orgs (UT)', function() {
             expect(cache.maxTTL).toBe(40*60*1000);
             expect(cache._coll).toEqual({ collectionName: 'promotions' });
         });
-        
+
         it('should validate the data on create and edit', function() {
             expect(svc._middleware.create).toContain(promModule.validateData);
             expect(svc._middleware.edit).toContain(promModule.validateData);
         });
     });
-    
+
     describe('promotion validation', function() {
         var svc, newObj, origObj, requester;
         beforeEach(function() {
@@ -108,7 +108,7 @@ describe('orgSvc-orgs (UT)', function() {
                 expect(svc.model.validate('create', newObj, origObj, requester))
                     .toEqual({ isValid: false, reason: 'name must be in format: string' });
             });
-            
+
             it('should allow the field to be set', function() {
                 newObj.name = 'boris';
                 expect(svc.model.validate('create', newObj, origObj, requester))
@@ -116,14 +116,14 @@ describe('orgSvc-orgs (UT)', function() {
                 expect(newObj.name).toEqual('boris');
             });
         });
-        
+
         describe('when handling type', function() {
             it('should fail if the field is not a string', function() {
                 newObj.type = 123;
                 expect(svc.model.validate('create', newObj, origObj, requester))
                     .toEqual({ isValid: false, reason: 'type must be in format: string' });
             });
-            
+
             it('should allow the field to be set and changed', function() {
                 expect(svc.model.validate('create', newObj, origObj, requester))
                     .toEqual({ isValid: true, reason: undefined });
@@ -140,7 +140,7 @@ describe('orgSvc-orgs (UT)', function() {
                 expect(svc.model.validate('create', newObj, origObj, requester))
                     .toEqual({ isValid: false, reason: 'Missing required field: type' });
             });
-            
+
             it('should pass if the field was defined on the original object', function() {
                 delete newObj.type;
                 origObj.type = 'signupReward';
@@ -155,7 +155,7 @@ describe('orgSvc-orgs (UT)', function() {
                     .toEqual({ isValid: false, reason: 'type is UNACCEPTABLE! acceptable values are: [signupReward,freeTrial]' });
             });
         });
-        
+
         describe('when handling data', function() {
             it('should default to an empty object', function() {
                 delete newObj.data;
@@ -163,14 +163,14 @@ describe('orgSvc-orgs (UT)', function() {
                     .toEqual({ isValid: true, reason: undefined });
                 expect(newObj.data).toEqual({});
             });
-            
+
             it('should prevent users from unsetting the field', function() {
                 newObj.data = null;
                 expect(svc.model.validate('create', newObj, origObj, requester))
                     .toEqual({ isValid: true, reason: undefined });
                 expect(newObj.data).toEqual({});
             });
-            
+
             it('should fail if the field is not an object', function() {
                 newObj.data = 'foo';
                 expect(svc.model.validate('create', newObj, origObj, requester))
@@ -178,7 +178,7 @@ describe('orgSvc-orgs (UT)', function() {
             });
         });
     });
-    
+
     describe('validateData', function() {
         beforeEach(function() {
             req.body = { data: {} };
@@ -190,33 +190,33 @@ describe('orgSvc-orgs (UT)', function() {
                 req.body.type = 'signupReward';
                 req.body.data.rewardAmount = 50;
             });
-            
+
             it('should call next if the body is valid', function() {
                 promModule.validateData(req, nextSpy, doneSpy);
                 expect(nextSpy).toHaveBeenCalled();
                 expect(doneSpy).not.toHaveBeenCalled();
                 expect(req.body).toEqual({ type: 'signupReward', data: { rewardAmount: 50 } });
             });
-            
+
             it('should call done if the rewardAmount is not defined', function() {
                 delete req.body.data.rewardAmount;
                 promModule.validateData(req, nextSpy, doneSpy);
                 expect(nextSpy).not.toHaveBeenCalled();
                 expect(doneSpy).toHaveBeenCalledWith({ code: 400, body: 'Missing required field: data.rewardAmount' });
             });
-            
+
             it('should call done if the rewardAmount is not valid', function() {
                 req.body.data.rewardAmount = -123;
                 promModule.validateData(req, nextSpy, doneSpy);
                 expect(doneSpy).toHaveBeenCalledWith({ code: 400, body: 'data.rewardAmount must be greater than the min: 0' });
-                
+
                 req.body.data.rewardAmount = 'soooo many dollars';
                 promModule.validateData(req, nextSpy, doneSpy);
                 expect(doneSpy).toHaveBeenCalledWith({ code: 400, body: 'data.rewardAmount must be in format: number' });
-                
+
                 expect(nextSpy).not.toHaveBeenCalled();
             });
-            
+
             it('should be able to read the type from the origObj', function() {
                 req.origObj = { type: 'signupReward', data: { rewardAmount: 2000 } };
                 req.body.data.rewardAmount = -10;
@@ -226,13 +226,30 @@ describe('orgSvc-orgs (UT)', function() {
                 expect(doneSpy).toHaveBeenCalledWith({ code: 400, body: 'data.rewardAmount must be greater than the min: 0' });
             });
         });
-        
+
         describe('if the type is freeTrial', function() {
             beforeEach(function() {
                 req.body.type = 'freeTrial';
-                req.body.data.trialLength = 14;
+                req.body.data = {
+                    trialLength: 14,
+                    paymentMethodRequired: true,
+                    targetUsers: 1000,
+                    'pp-0Ek4650bm6NiBrea': {
+                        trialLength: 14,
+                        paymentMethodRequired: true,
+                        targetUsers: 1000,
+                    },
+                    'pp-0Ek46V0bm6UJDzmG': {
+                        paymentMethodRequired: true,
+                        targetUsers: 2000,
+                    },
+                    'pp-0Ek47P0bm6-uEUH6': {
+                        paymentMethodRequired: true,
+                        targetUsers: 4000,
+                    }
+                };
             });
-            
+
             it('should call next if the body is valid', function() {
                 promModule.validateData(req, nextSpy, doneSpy);
                 expect(nextSpy).toHaveBeenCalled();
@@ -241,32 +258,51 @@ describe('orgSvc-orgs (UT)', function() {
                     type: 'freeTrial',
                     data: {
                         trialLength: 14,
-                        paymentMethodRequired: true
+                        paymentMethodRequired: true,
+                        targetUsers: 1000,
+                        'pp-0Ek4650bm6NiBrea': {
+                            trialLength: 14,
+                            paymentMethodRequired: true,
+                            targetUsers: 1000,
+                        },
+                        'pp-0Ek46V0bm6UJDzmG': {
+                            paymentMethodRequired: true,
+                            targetUsers: 2000,
+                        },
+                        'pp-0Ek47P0bm6-uEUH6': {
+                            paymentMethodRequired: true,
+                            targetUsers: 4000,
+                        }
                     }
                 });
             });
-            
-            it('should call done if the trialLength is not defined', function() {
-                delete req.body.data.trialLength;
-                promModule.validateData(req, nextSpy, doneSpy);
-                expect(nextSpy).not.toHaveBeenCalled();
-                expect(doneSpy).toHaveBeenCalledWith({ code: 400, body: 'Missing required field: data.trialLength' });
-            });
-            
+
             it('should call done if the trialLength is not valid', function() {
-                req.body.data.trialLength = -123;
+                req.body.data['pp-0Ek4650bm6NiBrea'].trialLength = -123;
                 promModule.validateData(req, nextSpy, doneSpy);
                 expect(doneSpy).toHaveBeenCalledWith({ code: 400, body: 'data.trialLength must be greater than the min: 0' });
-                
-                req.body.data.trialLength = 'soooo many dollars';
+
+                req.body.data['pp-0Ek4650bm6NiBrea'].trialLength = 'soooo many dollars';
                 promModule.validateData(req, nextSpy, doneSpy);
                 expect(doneSpy).toHaveBeenCalledWith({ code: 400, body: 'data.trialLength must be in format: number' });
-                
+
+                expect(nextSpy).not.toHaveBeenCalled();
+            });
+
+            it('should call done if the targetUsers is not valid', function() {
+                req.body.data['pp-0Ek47P0bm6-uEUH6'].targetUsers = -123;
+                promModule.validateData(req, nextSpy, doneSpy);
+                expect(doneSpy).toHaveBeenCalledWith({ code: 400, body: 'data.targetUsers must be greater than the min: 0' });
+
+                req.body.data['pp-0Ek47P0bm6-uEUH6'].targetUsers = 'soooo many users';
+                promModule.validateData(req, nextSpy, doneSpy);
+                expect(doneSpy).toHaveBeenCalledWith({ code: 400, body: 'data.targetUsers must be in format: number' });
+
                 expect(nextSpy).not.toHaveBeenCalled();
             });
 
             it('should allow setting paymentMethodRequired to false', function() {
-                req.body.data.paymentMethodRequired = false;
+                req.body.data['pp-0Ek46V0bm6UJDzmG'].paymentMethodRequired = false;
                 promModule.validateData(req, nextSpy, doneSpy);
                 expect(nextSpy).toHaveBeenCalled();
                 expect(doneSpy).not.toHaveBeenCalled();
@@ -274,13 +310,27 @@ describe('orgSvc-orgs (UT)', function() {
                     type: 'freeTrial',
                     data: {
                         trialLength: 14,
-                        paymentMethodRequired: false
+                        paymentMethodRequired: true,
+                        targetUsers: 1000,
+                        'pp-0Ek4650bm6NiBrea': {
+                            trialLength: 14,
+                            paymentMethodRequired: true,
+                            targetUsers: 1000,
+                        },
+                        'pp-0Ek46V0bm6UJDzmG': {
+                            paymentMethodRequired: false,
+                            targetUsers: 2000,
+                        },
+                        'pp-0Ek47P0bm6-uEUH6': {
+                            paymentMethodRequired: true,
+                            targetUsers: 4000,
+                        }
                     }
                 });
             });
-            
+
             it('should call done if the paymentMethodRequired is not valid', function() {
-                req.body.data.paymentMethodRequired = 'trust me, its fine';
+                req.body.data['pp-0Ek46V0bm6UJDzmG'].paymentMethodRequired = 'trust me, its fine';
                 promModule.validateData(req, nextSpy, doneSpy);
                 expect(nextSpy).not.toHaveBeenCalled();
                 expect(doneSpy).toHaveBeenCalledWith({ code: 400, body: 'data.paymentMethodRequired must be in format: boolean' });
@@ -306,7 +356,7 @@ describe('orgSvc-orgs (UT)', function() {
                 formatOutput: spyOn(CrudSvc.prototype, 'formatOutput').and.callThrough()
             };
         });
-        
+
         it('should retrieve and format a promotion from the cache', function(done) {
             promModule.getPublicPromotion(svc, cache, 'pro-1', req).then(function(resp) {
                 expect(resp).toEqual({
@@ -323,7 +373,7 @@ describe('orgSvc-orgs (UT)', function() {
                 expect(error.toString()).not.toBeDefined();
             }).done(done);
         });
-        
+
         it('should return nothing if the promotion is not found', function(done) {
             mockPromotion = undefined;
             promModule.getPublicPromotion(svc, cache, 'pro-1', req).then(function(resp) {
@@ -335,7 +385,7 @@ describe('orgSvc-orgs (UT)', function() {
                 expect(error.toString()).not.toBeDefined();
             }).done(done);
         });
-        
+
         it('should return nothing if the found promotion is not active', function(done) {
             mockPromotion.status = Status.Inactive;
             promModule.getPublicPromotion(svc, cache, 'pro-1', req).then(function(resp) {
@@ -347,7 +397,7 @@ describe('orgSvc-orgs (UT)', function() {
                 expect(error.toString()).not.toBeDefined();
             }).done(done);
         });
-        
+
         it('should reject if the cache returns an error', function(done) {
             cache.getPromise.and.returnValue(q.reject('I GOT A PROBLEM'));
             promModule.getPublicPromotion(svc, cache, 'pro-1', req).then(function(resp) {
@@ -360,7 +410,7 @@ describe('orgSvc-orgs (UT)', function() {
             }).done(done);
         });
     });
-    
+
     describe('handlePublicGet', function() {
         var svc, res;
         beforeEach(function() {
@@ -375,7 +425,7 @@ describe('orgSvc-orgs (UT)', function() {
             };
             req.query = {};
         });
-        
+
         it('should set the cache-control and return a 200 if the promotion is found', function(done) {
             promModule.handlePublicGet(req, res, svc).then(function(resp) {
                 expect(resp).toEqual({ code: 200, body: { id: 'pro-1', tagParams: { foo: 'bar' } } });
@@ -411,7 +461,7 @@ describe('orgSvc-orgs (UT)', function() {
                     expect(error.toString()).not.toBeDefined();
                 }).done(done);
             });
-            
+
             it('should not alter non-200 responses', function(done) {
                 svc.getPublicPromotion.and.returnValue(q());
                 promModule.handlePublicGet(req, res, svc).then(function(resp) {
@@ -423,7 +473,7 @@ describe('orgSvc-orgs (UT)', function() {
                 }).done(done);
             });
         });
-        
+
         describe('if the request is in preview mode', function() {
             beforeEach(function() {
                 req.query.preview = true;
@@ -439,7 +489,7 @@ describe('orgSvc-orgs (UT)', function() {
                 }).done(done);
             });
         });
-        
+
         it('should set the cache-control and return a 500 if an error is returned', function(done) {
             svc.getPublicPromotion.and.returnValue(q.reject('I GOT A PROBLEM'));
             promModule.handlePublicGet(req, res, svc).then(function(resp) {
@@ -451,12 +501,12 @@ describe('orgSvc-orgs (UT)', function() {
             }).done(done);
         });
     });
-    
+
     describe('setupEndpoints', function() {
         var app, svc, sessions, audit, jobManager, mockRouter, expressRoutes, authMidware, res;
         beforeEach(function() {
-            mockRouter = {}, app = {}, expressRoutes = {};
-            
+            mockRouter = {}; app = {}; expressRoutes = {};
+
             ['get', 'post', 'put', 'delete'].forEach(function(verb) {
                 function routeSpyFunc(route/*, middleware...*/) {
                     var middleware = Array.prototype.slice.call(arguments, 1);
@@ -471,7 +521,7 @@ describe('orgSvc-orgs (UT)', function() {
             mockRouter.use = jasmine.createSpy('router.use()');
             app.use = jasmine.createSpy('app.use()');
             spyOn(express, 'Router').and.returnValue(mockRouter);
-            
+
             var authMidware = {
                 read: 'fakeReadMidware',
                 create: 'fakeCreateMidware',
@@ -497,7 +547,7 @@ describe('orgSvc-orgs (UT)', function() {
 
             promModule.setupEndpoints(app, svc, sessions, audit, jobManager);
         });
-        
+
         it('should create a router and attach it to the app', function() {
             expect(express.Router).toHaveBeenCalled();
             expect(mockRouter.use).toHaveBeenCalledWith(jobManager.setJobTimeout);
@@ -507,12 +557,12 @@ describe('orgSvc-orgs (UT)', function() {
         it('should call authUtils.crudMidware to get a set of auth middleware', function() {
             expect(authUtils.crudMidware).toHaveBeenCalledWith('promotions', { allowApps: true });
         });
-        
+
         describe('creates a handler for GET /api/public/promotions/:id that', function() {
             it('should exist and include necessary middleware', function() {
                 expect(app.get).toHaveBeenCalledWith('/api/public/promotions?/:id([^.]+).?:ext?', jasmine.any(Function));
             });
-            
+
             describe('when called', function() {
                 var handler, routeStr;
                 beforeEach(function() {
@@ -520,7 +570,7 @@ describe('orgSvc-orgs (UT)', function() {
                     handler = expressRoutes.get[routeStr][expressRoutes.get[routeStr].length - 1];
                     spyOn(promModule, 'handlePublicGet').and.returnValue(q({ code: 200, body: { id: 'pro-1' } }));
                 });
-                
+
                 it('should call promModule.handlePublicGet and return the response', function(done) {
                     q(handler(req, res, nextSpy)).finally(function() {
                         expect(res.send).toHaveBeenCalledWith(200, { id: 'pro-1' });
@@ -530,12 +580,12 @@ describe('orgSvc-orgs (UT)', function() {
                 });
             });
         });
-        
+
         describe('creates a handler for GET /api/promotions/:id that', function() {
             it('should exist and include necessary middleware', function() {
                 expect(mockRouter.get).toHaveBeenCalledWith('/:id', sessions, 'fakeReadMidware', audit, jasmine.any(Function));
             });
-            
+
             describe('when called', function() {
                 var handler;
                 beforeEach(function() {
@@ -543,7 +593,7 @@ describe('orgSvc-orgs (UT)', function() {
                     handler = expressRoutes.get['/:id'][expressRoutes.get['/:id'].length - 1];
                     svc.getObjs.and.returnValue(q({ code: 400, body: 'i got a problem with YOU' }));
                 });
-                
+
                 it('should call svc.getObjs and return the response', function(done) {
                     q(handler(req, res, nextSpy)).finally(function() {
                         expect(jobManager.endJob).toHaveBeenCalledWith(req, res,
@@ -553,7 +603,7 @@ describe('orgSvc-orgs (UT)', function() {
                         expect(svc.getObjs).toHaveBeenCalledWith({ id: 'pro-1' }, req, false);
                     }).done(done);
                 });
-                
+
                 it('should handle errors from svc.getObjs', function(done) {
                     svc.getObjs.and.returnValue(q.reject('I GOT A PROBLEM'));
                     q(handler(req, res, nextSpy)).finally(function() {
@@ -573,7 +623,7 @@ describe('orgSvc-orgs (UT)', function() {
                 handler = expressRoutes.get['/'][expressRoutes.get['/'].length - 1];
                 svc.getObjs.and.returnValue(q({ code: 200, body: [{ id: 'pro-1' }] }));
             });
-            
+
             it('should call svc.getObjs and return the response', function(done) {
                 q(handler(req, res, nextSpy)).finally(function() {
                     expect(jobManager.endJob).toHaveBeenCalledWith(req, res,
@@ -600,7 +650,7 @@ describe('orgSvc-orgs (UT)', function() {
                         { id: ['pro-1', 'pro-2', 'pro-3'], name: 'Best Promotion', type: 'signupReward' }, req, true);
                 }).done(done);
             });
-            
+
             it('should handle invalid query param values', function(done) {
                 q.all([
                     { name: { $gt: '' } },
@@ -619,7 +669,7 @@ describe('orgSvc-orgs (UT)', function() {
                     expect(svc.getObjs).toHaveBeenCalledWith({ id: ['foo', '', '', 'bar'] }, jasmine.any(Object), true);
                 }).done(done);
             });
-            
+
             it('should handle errors from svc.getObjs', function(done) {
                 svc.getObjs.and.returnValue(q.reject('I GOT A PROBLEM'));
                 q(handler(req, res, nextSpy)).finally(function() {
@@ -635,14 +685,14 @@ describe('orgSvc-orgs (UT)', function() {
             it('should exist and include necessary middleware', function() {
                 expect(mockRouter.post).toHaveBeenCalledWith('/', sessions, 'fakeCreateMidware', audit, jasmine.any(Function));
             });
-            
+
             describe('when called', function() {
                 var handler;
                 beforeEach(function() {
                     handler = expressRoutes.post['/'][expressRoutes.post['/'].length - 1];
                     svc.createObj.and.returnValue(q({ code: 400, body: 'i got a problem with YOU' }));
                 });
-                
+
                 it('should call svc.getObjs and return the response', function(done) {
                     q(handler(req, res, nextSpy)).finally(function() {
                         expect(jobManager.endJob).toHaveBeenCalledWith(req, res,
@@ -652,7 +702,7 @@ describe('orgSvc-orgs (UT)', function() {
                         expect(svc.createObj).toHaveBeenCalledWith(req);
                     }).done(done);
                 });
-                
+
                 it('should handle errors from svc.getObjs', function(done) {
                     svc.createObj.and.returnValue(q.reject('I GOT A PROBLEM'));
                     q(handler(req, res, nextSpy)).finally(function() {
@@ -669,14 +719,14 @@ describe('orgSvc-orgs (UT)', function() {
             it('should exist and include necessary middleware', function() {
                 expect(mockRouter.put).toHaveBeenCalledWith('/:id', sessions, 'fakeEditMidware', audit, jasmine.any(Function));
             });
-            
+
             describe('when called', function() {
                 var handler;
                 beforeEach(function() {
                     handler = expressRoutes.put['/:id'][expressRoutes.put['/:id'].length - 1];
                     svc.editObj.and.returnValue(q({ code: 400, body: 'i got a problem with YOU' }));
                 });
-                
+
                 it('should call svc.getObjs and return the response', function(done) {
                     q(handler(req, res, nextSpy)).finally(function() {
                         expect(jobManager.endJob).toHaveBeenCalledWith(req, res,
@@ -686,7 +736,7 @@ describe('orgSvc-orgs (UT)', function() {
                         expect(svc.editObj).toHaveBeenCalledWith(req);
                     }).done(done);
                 });
-                
+
                 it('should handle errors from svc.getObjs', function(done) {
                     svc.editObj.and.returnValue(q.reject('I GOT A PROBLEM'));
                     q(handler(req, res, nextSpy)).finally(function() {
@@ -703,14 +753,14 @@ describe('orgSvc-orgs (UT)', function() {
             it('should exist and include necessary middleware', function() {
                 expect(mockRouter.delete).toHaveBeenCalledWith('/:id', sessions, 'fakeDeleteMidware', audit, jasmine.any(Function));
             });
-            
+
             describe('when called', function() {
                 var handler;
                 beforeEach(function() {
                     handler = expressRoutes.delete['/:id'][expressRoutes.delete['/:id'].length - 1];
                     svc.deleteObj.and.returnValue(q({ code: 400, body: 'i got a problem with YOU' }));
                 });
-                
+
                 it('should call svc.getObjs and return the response', function(done) {
                     q(handler(req, res, nextSpy)).finally(function() {
                         expect(jobManager.endJob).toHaveBeenCalledWith(req, res,
@@ -720,7 +770,7 @@ describe('orgSvc-orgs (UT)', function() {
                         expect(svc.deleteObj).toHaveBeenCalledWith(req);
                     }).done(done);
                 });
-                
+
                 it('should handle errors from svc.getObjs', function(done) {
                     svc.deleteObj.and.returnValue(q.reject('I GOT A PROBLEM'));
                     q(handler(req, res, nextSpy)).finally(function() {
