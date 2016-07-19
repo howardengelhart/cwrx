@@ -295,19 +295,34 @@
                      req.uuid, req.requester.id, req.query.org);
 
             var statement = [
-                'SELECT application, transaction_id as "transactionId",',
-                '   transaction_ts as "transactionTs", org_id as "orgId",',
-                '   amount, braintree_id as "braintreeId", promotion_id as "promotionId",',
-                '   paymentplan_id as "paymentPlanId", view_target as viewTarget,',
-                '   cycle_start as "cycleStart", cycle_end as "cycleEnd"',
-                'FROM  fct.billing_transactions',
-                'WHERE org_id = $1 AND sign=1 AND cycle_end > current_timestamp',
-                '   ((application = \'showcase\') OR (description like \'%showcase%\'))',
-                '   AND NOT paymentplan_id is NULL',
-                'ORDER BY cycle_end desc',
-                'LIMIT 1'
+                'SELECT p.application, p.transaction_id as "transactionId",',
+                '   p.transaction_ts as "transactionTimestamp", p.org_id as "orgId",',
+                '   p.amount, p.braintree_id as "braintreeId", ',
+                '   p.promotion_id as "promotionId", p.paymentplan_id as "paymentPlanId",',
+                '   p.cycle_start as "cycleStart", p.cycle_end as "cycleEnd",',
+                '   p.view_target::integer as "planViews", ',
+                '   sum(coalesce(b.view_target,0))::integer as "bonusViews",',
+                '   (p.view_target + sum(coalesce(b.view_target,0)))::integer as "totalViews"',
+                'FROM  (',
+                '   SELECT application, transaction_id,transaction_ts,org_id,amount,',
+                '       braintree_id,promotion_id,paymentplan_id,view_target,',
+                '       cycle_start,cycle_end',
+                '   FROM fct.billing_transactions',
+                '   WHERE org_id = $1 AND sign=1 AND cycle_end > current_timestamp',
+                '           AND application = \'showcase\' AND NOT paymentplan_id is NULL',
+                '   ORDER BY cycle_end desc ',
+                '   LIMIT 1',
+                ') p',
+                'LEFT JOIN (',
+                '   SELECT org_id,transaction_ts,view_target',
+                '   FROM fct.billing_transactions',
+                '   WHERE org_id = $1 and paymentplan_id is null and ',
+                '       sign = 1 and application = \'showcase\'',
+                ')b on p.org_id = b.org_id AND ',
+                '   b.transaction_ts between p.cycle_start and p.cycle_end',
+                'GROUP BY 1,2,3,4,5,6,7,8,9,10,11'
             ];
-            
+
             var values = [
                 req.query.org
             ];
@@ -400,6 +415,17 @@
         router.use(jobManager.setJobTimeout.bind(jobManager));
         
         var authMidware = authUtils.crudMidware('transactions', { allowApps: true });
+
+        router.get('/showcase/current_payment',
+                sessions, authMidware.read, audit, function(req, res) {
+            var promise = transModule.getCurrentPayment(svc, req);
+            promise.finally(function() {
+                jobManager.endJob(req, res, promise.inspect())
+                .catch(function(error) {
+                    res.send(500, { error: 'Error fetching transactions', detail: error });
+                });
+            });
+        });
 
         router.get('/', sessions, authMidware.read, audit, function(req, res) {
             var promise = transModule.getTransactions(svc, req);

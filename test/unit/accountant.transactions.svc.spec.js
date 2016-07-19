@@ -1,5 +1,5 @@
 var flush = true;
-fdescribe('accountant-transactions (UT)', function() {
+describe('accountant-transactions (UT)', function() {
     var mockLog, Model, MiddleManager, logger, q, transModule, express, authUtils, uuid,
         JobManager, streamUtils, pgUtils, req, nextSpy, doneSpy, Scope;
 
@@ -658,7 +658,7 @@ fdescribe('accountant-transactions (UT)', function() {
         });
     });
 
-    fdescribe('latestPayment',function(){
+    describe('currentPayment',function(){
         var pgResp, svc;
         
         beforeEach(function() {

@@ -10,15 +10,16 @@ var q               = require('q'),
     };
 
 describe('accountant (E2E):', function() {
-    var cookieJar, adminJar, mockRequester, mockAdmin, testPolicies, mockApp, appCreds, mockman;
+    var cookieJar, showcaseCookieJar, adminJar, mockRequester, mockShowcaseRequester, mockAdmin, testPolicies, mockApp, appCreds, mockman;
 
     beforeEach(function(done) {
         jasmine.DEFAULT_TIMEOUT_INTERVAL = 10000;
 
-        if (cookieJar && adminJar) {
+        if (showcaseCookieJar && cookieJar && adminJar) {
             return done();
         }
         cookieJar = require('request').jar();
+        showcaseCookieJar = require('request').jar();
         adminJar = require('request').jar();
         mockRequester = {
             id: 'e2e-user',
@@ -35,6 +36,14 @@ describe('accountant (E2E):', function() {
             password : '$2a$10$XomlyDak6mGSgrC/g1L7FO.4kMRkj4UturtKSzy6mFeL8QWOBmIWq', // hash of 'password'
             org: 'o-1234',
             policies: ['e2eAdmin']
+        };
+        mockShowcaseRequester = {
+            id: 'e2e-showcase-user',
+            status: 'active',
+            email : 'showcaseuser',
+            password : '$2a$10$XomlyDak6mGSgrC/g1L7FO.4kMRkj4UturtKSzy6mFeL8QWOBmIWq', // hash of 'password'
+            org: 'o-apps1',
+            policies: ['e2eGetOrgData']
         };
         testPolicies = [
             {
@@ -76,11 +85,13 @@ describe('accountant (E2E):', function() {
 
         var logins = [
             { url: config.authUrl + '/login', json: { email: 'accountantuser', password: 'password' }, jar: cookieJar },
+            { url: config.authUrl + '/login', json: { email: 'showcaseuser', password: 'password' }, jar: showcaseCookieJar },
             { url: config.authUrl + '/login', json: { email: 'adminuser', password: 'password' }, jar: adminJar }
         ];
             
         q.all([
-            testUtils.resetCollection('users', [mockRequester, mockAdmin]),
+            testUtils.resetCollection('users', 
+                [mockRequester, mockShowcaseRequester, mockAdmin]),
             testUtils.resetCollection('policies', testPolicies),
             testUtils.mongoUpsert('applications', { key: mockApp.key }, mockApp)
         ]).then(function(resp) {
@@ -102,7 +113,9 @@ describe('accountant (E2E):', function() {
     beforeEach(function(done) {
         var transCounter = 9999,
             transFields = ['rec_ts','transaction_id','transaction_ts','org_id','amount','sign',
-                           'units','campaign_id','braintree_id','promotion_id','description'];
+                           'units','campaign_id','braintree_id','promotion_id','description',
+                           'view_target','paymentplan_id','application',
+                           'cycle_start','cycle_end'];
         
         function creditRecord(org, amount, braintreeId, promotion, desc) {
             var recKey = transCounter++,
@@ -121,6 +134,32 @@ describe('accountant (E2E):', function() {
                 promotion_id: promotion,
                 description: desc
             }, transFields);
+        }
+
+        function creditRecordShowcase(org, amount, braintreeId, promotion, desc, 
+                viewTarget,paymentPlan, app, transTs, cycleStart, cycleEnd ) {
+            var recKey = transCounter++,
+                id = 't-e2e-' + String(recKey);
+
+            var s =  testUtils.stringifyRecord({
+                rec_ts: transTs,
+                transaction_id: id,
+                transaction_ts: transTs,
+                org_id: org,
+                amount: amount,
+                sign: 1,
+                units: 1,
+                campaign_id: null,
+                braintree_id: braintreeId,
+                promotion_id: promotion,
+                description: desc,
+                view_target : viewTarget,
+                paymentplan_id : paymentPlan,
+                application: app,
+                cycle_start: cycleStart,
+                cycle_end: cycleEnd
+            }, transFields);
+            return s;
         }
         function debitRecord(org, amount, units, campaign, desc) {
             var recKey = transCounter++,
@@ -146,6 +185,7 @@ describe('accountant (E2E):', function() {
             { id: 'o-5678', name: 'org 2', status: 'active' },
             { id: 'o-abcd', name: 'org 3', status: 'active' },
             { id: 'o-efgh', name: 'org 4', status: 'active' },
+            { id: 'o-apps1', name: 'org apps 1', status: 'active' }
         ];
         var testCamps = [
             { id: 'cam-o1-active', status: 'active', org: 'o-1234', pricing: { budget: 1000 } },
@@ -181,6 +221,25 @@ describe('accountant (E2E):', function() {
             creditRecord('o-efgh', 400, null, 'pro-31'),
             creditRecord('o-efgh', 400, 'pay31'),
             debitRecord('o-efgh', 56, 1),
+            
+            creditRecordShowcase('o-apps1', 49.99, 'pay13',null,null,2000,'plan9','showcase',
+                    'current_timestamp - \'30 days\'::interval',
+                    'current_timestamp - \'30 days\'::interval',
+                    'current_timestamp'),
+            creditRecordShowcase('o-apps1', 59.99, 'pay14',null,null,3000,'plan9','showcase',
+                    'current_timestamp','current_timestamp',
+                    'current_timestamp + \'30 days\'::interval'),
+            creditRecordShowcase('o-apps1', 59.99, 'pay14','promo1',null,400,null,'showcase',
+                    'current_timestamp - \'10 days\'::interval'),
+            creditRecordShowcase('o-apps1', 59.99, 'pay14','promo1',null,500,null,'showcase',
+                    'current_timestamp + \'10 days\'::interval'),
+            creditRecordShowcase('o-apps1', 59.99, 'pay14','promo1',null,600,null,'showcase',
+                    'current_timestamp + \'15 days\'::interval'),
+            creditRecordShowcase('o-apps2', 69.99, 'pay14',null,null,3000,'plan9','showcase',
+                    'current_timestamp','current_timestamp',
+                    'current_timestamp + \'30 days\'::interval'),
+            creditRecordShowcase('o-apps2', 59.99, 'pay14','promo1',null,500,null,'showcase',
+                    'current_timestamp + \'10 days\'::interval')
         ];
         
         return q.all([
@@ -195,7 +254,102 @@ describe('accountant (E2E):', function() {
     afterEach(function() {
         mockman.removeAllListeners();
     });
-    
+   
+    describe('GET /api/transactions/showcase/current_payment', function(){
+        var options;
+        beforeEach(function() {
+            options = {
+                url: config.accountantUrl + '/transactions/showcase/current_payment',
+                jar: showcaseCookieJar,
+                qs : {}
+            };
+        });
+
+        it('should get transaction records from the requester\'s org', function(done) {
+            requestUtils.qRequest('get', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.body).toEqual(jasmine.objectContaining({
+                    amount : '59.9900',
+                    braintreeId : 'pay14',
+                    paymentPlanId: 'plan9',
+                    planViews: 3000,
+                    bonusViews: 1100,
+                    totalViews: 4100
+                }));
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
+
+        it('should get transaction records from the requester\'s org without bonus views', function(done) {
+
+            testUtils.pgQuery('delete from fct.billing_transactions where org_id = \'o-apps1\' and paymentplan_id is null').then(function(){
+                return requestUtils.qRequest('get', options);
+            }).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.body).toEqual(jasmine.objectContaining({
+                    amount : '59.9900',
+                    braintreeId : 'pay14',
+                    paymentPlanId: 'plan9',
+                    planViews: 3000,
+                    bonusViews: 0,
+                    totalViews: 3000
+                }));
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
+
+        it('should write an entry to the audit collection', function(done) {
+            requestUtils.qRequest('get', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                return testUtils.mongoFind('audit', { service: 'accountant' }, {$natural: -1}, 1, 0, {db: 'c6Journal'});
+            }).then(function(results) {
+                expect(results[0].user).toBe('e2e-showcase-user');
+                expect(results[0].created).toEqual(jasmine.any(Date));
+                expect(results[0].host).toEqual(jasmine.any(String));
+                expect(results[0].pid).toEqual(jasmine.any(Number));
+                expect(results[0].uuid).toEqual(jasmine.any(String));
+                expect(results[0].sessionID).toEqual(jasmine.any(String));
+                expect(results[0].service).toBe('accountant');
+                expect(results[0].version).toEqual(jasmine.any(String));
+                expect(results[0].data).toEqual({
+                    route: 'GET /api/transactions/showcase/current_payment',
+                    params: {},
+                    query: {}
+                });
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should only allow an admin to specify another org', function(done) {
+            q.all([cookieJar, adminJar].map(function(jar) {
+                options.jar = jar;
+                options.qs.org = 'o-apps1';
+                return requestUtils.qRequest('get', options);
+            })).then(function(results) {
+                expect(results[0].response.statusCode).toBe(403);
+                expect(results[0].body).toBe('Not authorized to get transactions for this org');
+                expect(results[1].response.statusCode).toBe(200);
+                expect(results[1].body).toEqual(jasmine.any(Object));
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should return a 404 if nothing is found', function(done) {
+            options.jar = adminJar;
+            options.qs.org = 'o-1234';
+            requestUtils.qRequest('get', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(404);
+                expect(resp.body).toEqual('Unable to locate currentPayment.');
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
+    });
+
     describe('GET /api/transactions', function() {
         var options;
         beforeEach(function() {
