@@ -433,30 +433,33 @@ describe('orgSvc promotions endpoints (E2E):', function() {
             beforeEach(function() {
                 options.json.type = 'freeTrial';
                 options.json.data = {
-                    trialLength: 7
+                    'pp-0Ek47P0bm6-uEUH6': {
+                        trialLength: 7,
+                        targetUsers: 100
+                    }
                 };
             });
 
-            it('should return a 400 if no trialLength is provided', function(done) {
-                delete options.json.data.trialLength;
+            it('should return a 400 if no targetUsers is provided', function(done) {
+                delete options.json.data['pp-0Ek47P0bm6-uEUH6'].targetUsers;
                 requestUtils.qRequest('post', options).then(function(resp) {
                     expect(resp.response.statusCode).toBe(400);
-                    expect(resp.body).toBe('Missing required field: data.trialLength');
+                    expect(resp.body).toBe('Missing required field: data.targetUsers');
                 }).catch(function(error) {
                     expect(util.inspect(error)).not.toBeDefined();
                 }).done(done);
             });
             
-            it('should return a 400 if the trialLength is invalid', function(done) {
+            it('should return a 400 if the targetUsers is invalid', function(done) {
                 q.all(['many days', -20].map(function(amount) {
-                    options.json.data.trialLength = amount;
+                    options.json.data['pp-0Ek47P0bm6-uEUH6'].targetUsers = amount;
                     return requestUtils.qRequest('post', options);
                 }))
                 .then(function(results) {
                     expect(results[0].response.statusCode).toBe(400);
-                    expect(results[0].body).toBe('data.trialLength must be in format: number');
+                    expect(results[0].body).toBe('data.targetUsers must be in format: number');
                     expect(results[1].response.statusCode).toBe(400);
-                    expect(results[1].body).toBe('data.trialLength must be greater than the min: 0');
+                    expect(results[1].body).toBe('data.targetUsers must be greater than the min: 0');
                 })
                 .catch(function(error) {
                     expect(util.inspect(error)).not.toBeDefined();
@@ -513,7 +516,7 @@ describe('orgSvc promotions endpoints (E2E):', function() {
         beforeEach(function(done) {
             mockProms = [
                 { id: 'e2e-pro-1', status: 'active', name: 'prom 1', type: 'signupReward', data: { rewardAmount: 50 } },
-                { id: 'e2e-pro-2', status: 'active', name: 'prom 2', type: 'freeTrial', data: { trialLength: 7, paymentMethodRequired: true } },
+                { id: 'e2e-pro-2', status: 'active', name: 'prom 2', type: 'freeTrial', data: { 'pp-0Ek5uY0bmnUkm8dS': { trialLength: 7, paymentMethodRequired: true, targetUsers: 500 } } },
                 { id: 'e2e-pro-deleted', status: 'deleted', name: 'deleted refCode', type: 'signupReward', data: {} }
             ];
             options = {
@@ -610,49 +613,58 @@ describe('orgSvc promotions endpoints (E2E):', function() {
             });
         });
         
-        describe('when editing a signupReward promotion', function(done) {
+        describe('when editing a freeTrial promotion', function(done) {
             beforeEach(function() {
                 options.url = config.promUrl + '/e2e-pro-2';
                 options.json.data = {
-                    trialLength: 18,
-                    paymentMethodRequired: false
+                    'pp-0Ek5uY0bmnUkm8dS': {
+                        trialLength: 18,
+                        paymentMethodRequired: false,
+                        targetUsers: 1000
+                    }
                 };
             });
             
-            it('should allow changing the trialLength and paymentMethodRequired', function(done) {
+            it('should allow changing the targetUsers and paymentMethodRequired', function(done) {
                 requestUtils.qRequest('put', options).then(function(resp) {
                     expect(resp.response.statusCode).toBe(200);
                     expect(resp.body.id).toBe('e2e-pro-2');
                     expect(resp.body.name).toBe('new name');
                     expect(resp.body.type).toBe('freeTrial');
                     expect(resp.body.data).toEqual({
-                        trialLength: 18,
-                        paymentMethodRequired: false
+                        'pp-0Ek5uY0bmnUkm8dS': {
+                            trialLength: 18,
+                            paymentMethodRequired: false,
+                            targetUsers: 1000
+                        }
                     });
                 }).catch(function(error) {
                     expect(util.inspect(error)).not.toBeDefined();
                 }).done(done);
             });
 
-            it('should not allow unsetting the trialLength', function(done) {
-                delete options.json.data.trialLength;
+            it('should not allow unsetting the targetUsers', function(done) {
+                delete options.json.data['pp-0Ek5uY0bmnUkm8dS'].targetUsers;
                 requestUtils.qRequest('put', options).then(function(resp) {
                     expect(resp.response.statusCode).toBe(200);
                     expect(resp.body.id).toBe('e2e-pro-2');
                     expect(resp.body.name).toBe('new name');
                     expect(resp.body.type).toBe('freeTrial');
                     expect(resp.body.data).toEqual({
-                        trialLength: 7,
-                        paymentMethodRequired: false
+                        'pp-0Ek5uY0bmnUkm8dS': {
+                            trialLength: 18,
+                            paymentMethodRequired: false,
+                            targetUsers: 500
+                        }
                     });
                 }).catch(function(error) {
                     expect(util.inspect(error)).not.toBeDefined();
                 }).done(done);
             });
             
-            it('should return a 400 if the trialLength is invalid', function(done) {
+            it('should return a 400 if the targetUsers is invalid', function(done) {
                 q.all(['many dollars', -20].map(function(amount) {
-                    options.json.data = { trialLength: amount };
+                    options.json.data['pp-0Ek5uY0bmnUkm8dS'] = { trialLength: amount };
                     return requestUtils.qRequest('put', options);
                 }))
                 .then(function(results) {

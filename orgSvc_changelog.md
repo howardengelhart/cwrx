@@ -1,5 +1,9 @@
 # Org Service Changelog
 
+### 1.14.0: Tue Jul 19 13:59:37 EDT 2016
+* Support validating new `freeTrial` promotion format (where config is
+  keyed by a payment plan id.): [#975](https://github.com/cinema6/cwrx/pull/975)
+
 ### 1.13.0: Thu Jun 30 08:59:38 EDT 2016
 * [FEATURE]: Add support for payment plan entities via
   `/api/payment-plans`: [#966](https://github.com/cinema6/cwrx/pull/966)
