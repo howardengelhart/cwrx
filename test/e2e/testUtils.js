@@ -80,7 +80,7 @@ testUtils.stringifyRecord = function(obj, fields) {
     var str = '(';
     fields.forEach(function(field) {
         var val = (obj[field] !== undefined) ? obj[field] : null;
-        if (typeof val === 'string') {
+        if ((typeof val === 'string') && (!val.match(/current_timestamp/))) {
             str += '\'' + val + '\',';
         } else {
             str += val + ',';

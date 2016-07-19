@@ -3,6 +3,16 @@ describe('accountant-transactions (UT)', function() {
     var mockLog, Model, MiddleManager, logger, q, transModule, express, authUtils, uuid,
         JobManager, streamUtils, pgUtils, req, nextSpy, doneSpy, Scope;
 
+    beforeEach(function(){
+        jasmine.clock().install();
+        //Wed Jan 27 2016 16:22:47 GMT-0500 (EST)
+        jasmine.clock().mockDate(new Date(1453929767464)); 
+    });
+    
+    afterEach(function() {
+        jasmine.clock().uninstall();
+    });
+
     beforeEach(function() {
         if (flush) { for (var m in require.cache){ delete require.cache[m]; } flush = false; }
         q               = require('q');
@@ -645,6 +655,79 @@ describe('accountant-transactions (UT)', function() {
             }).catch(function(error) {
                 expect(error).toBe('I GOT A PROBLEM');
             }).done(done);
+        });
+    });
+
+    describe('currentPayment',function(){
+        var pgResp, svc;
+        
+        beforeEach(function() {
+            req.requester.permissions = { transactions: { read: Scope.All } };
+            req.query = {
+                org : 'o-2'
+            };
+            pgResp = { rows: [
+                {
+                    application : 'showcase',
+                    transactionId: 't-1', 
+                    transactionTs: new Date('2016-07-16T14:35:20Z'),
+                    orgId: 'o-2',
+                    amount: '49.99',
+                    braintreeId: null,
+                    promotionId:  'promo1',
+                    paymentPlanId : 'plan1',
+                    viewTarget : 1000,
+                    cycleStart : new Date('2016-07-16T00:00:00Z'),
+                    cycleEnd   : new Date('2016-07-31T23:59:59Z')
+                }
+            ] };
+            spyOn(pgUtils, 'query').and.callFake(function() { return q(pgResp); });
+            svc = transModule.setupSvc();
+            spyOn(svc, 'runAction').and.callFake(function(req, action, cb) { return cb(); });
+        });
+
+        it('gets the latest payment',function(done){
+            transModule.getCurrentPayment(svc, req)
+            .then(function(resp){
+                expect(resp.code).toBe(200);
+                expect(resp.body).toEqual(
+                    jasmine.objectContaining({ 
+                        transactionId: 't-1', amount: '49.99', braintreeId:  null,
+                        paymentPlanId : 'plan1'
+                    })
+                );
+            })
+            .then(done,done.fail);
+        });
+        
+        it('should default the query org to the requester\'s org', function(done) {
+            transModule.getCurrentPayment(svc, req).then(function(resp) {
+                expect(resp).toEqual({ code: 200, body: jasmine.any(Object) });
+                expect(pgUtils.query.calls.argsFor(0)[1]).toEqual(['o-2']);
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
+        });
+
+        it('should return a 400 if the requester is an app and does not specify an org', function(done) {
+            delete req.user;
+            delete req.query.org;
+            transModule.getCurrentPayment(svc, req).then(function(resp) {
+                expect(resp).toEqual({ code: 400, body: 'Must provide an org id' });
+                expect(pgUtils.query).not.toHaveBeenCalled();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
+        });
+
+        it('should return a 404 if unable to locate a record',function(done){
+            pgResp = { rows: [ ] };
+            transModule.getCurrentPayment(svc, req)
+            .then(function(resp){
+                expect(resp.code).toBe(404);
+                expect(resp.body).toEqual('Unable to locate currentPayment.');
+            })
+            .then(done,done.fail);
         });
     });
 
