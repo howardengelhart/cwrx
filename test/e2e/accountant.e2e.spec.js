@@ -255,11 +255,11 @@ describe('accountant (E2E):', function() {
         mockman.removeAllListeners();
     });
    
-    describe('GET /api/transactions/showcase/current_payment', function(){
+    describe('GET /api/transactions/showcase/current-payment', function(){
         var options;
         beforeEach(function() {
             options = {
-                url: config.accountantUrl + '/transactions/showcase/current_payment',
+                url: config.accountantUrl + '/transactions/showcase/current-payment',
                 jar: showcaseCookieJar,
                 qs : {}
             };
@@ -314,7 +314,7 @@ describe('accountant (E2E):', function() {
                 expect(results[0].service).toBe('accountant');
                 expect(results[0].version).toEqual(jasmine.any(String));
                 expect(results[0].data).toEqual({
-                    route: 'GET /api/transactions/showcase/current_payment',
+                    route: 'GET /api/transactions/showcase/current-payment',
                     params: {},
                     query: {}
                 });

@@ -416,7 +416,7 @@
         
         var authMidware = authUtils.crudMidware('transactions', { allowApps: true });
 
-        router.get('/showcase/current_payment',
+        router.get('/showcase/current-payment',
                 sessions, authMidware.read, audit, function(req, res) {
             var promise = transModule.getCurrentPayment(svc, req);
             promise.finally(function() {
