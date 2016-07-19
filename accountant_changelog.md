@@ -1,7 +1,7 @@
 # Accountant Service Changelog
 
 ### 1.6.0: Tue Jul 19 12:27:19 EDT 2016
-* [FEATURE]: Add `GET /api/transactions/showcase/current_payment`
+* [FEATURE]: Add `GET /api/transactions/showcase/current-payment`
 
 ### 1.5.0: Wed Jun 29 13:56:21 EDT 2016
 * Allow setting subscription-related properties on transactions: [#958](https://github.com/cinema6/cwrx/issues/958)
