@@ -4,6 +4,7 @@ var q               = require('q'),
     request         = require('request'),
     testUtils       = require('./testUtils'),
     requestUtils    = require('../../lib/requestUtils'),
+    uuid            = require('rc-uuid'),
     host            = process.env.host || 'localhost',
     config = {
         orgSvcUrl   : 'http://' + (host === 'localhost' ? host + ':3700' : host) + '/api/account/orgs',
@@ -15,10 +16,10 @@ var q               = require('q'),
         publicKey   : 'jpqghw7xgc5jh8tf',
         privateKey  : '32de5ae191d10ffdc374b3232520ef7c'
     });
-    
+
 describe('orgSvc orgs (E2E):', function() {
     var cookieJar, nonAdminJar, mockRequester, nonAdminUser, testPolicies, mockApp, appCreds;
-    
+
     beforeEach(function(done) {
         jasmine.DEFAULT_TIMEOUT_INTERVAL = 30000;
 
@@ -84,7 +85,7 @@ describe('orgSvc orgs (E2E):', function() {
             {url: config.authUrl + '/login', json: {email: 'orgsvce2euser', password: 'password'}, jar: cookieJar},
             {url: config.authUrl + '/login', json: {email: 'orgsvce2enonadminuser', password: 'password'}, jar: nonAdminJar},
         ];
-        
+
         q.all([
             testUtils.resetCollection('users', [mockRequester, nonAdminUser]),
             testUtils.resetCollection('policies', testPolicies),
@@ -95,7 +96,7 @@ describe('orgSvc orgs (E2E):', function() {
             done();
         });
     });
-    
+
 
     describe('GET /api/account/orgs/:id', function() {
         var mockOrgs, options;
@@ -108,7 +109,7 @@ describe('orgSvc orgs (E2E):', function() {
             options = { url: config.orgSvcUrl + '/o-1234', jar: cookieJar };
             testUtils.resetCollection('orgs', mockOrgs).done(done);
         });
-        
+
         it('should get an org by id', function(done) {
             requestUtils.qRequest('get', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
@@ -166,7 +167,7 @@ describe('orgSvc orgs (E2E):', function() {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
-        
+
         it('should return a 404 if the requester cannot see the org', function(done) {
             options.url = config.orgSvcUrl + '/o-4567';
             options.jar = nonAdminJar;
@@ -177,7 +178,7 @@ describe('orgSvc orgs (E2E):', function() {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
-        
+
         it('should allow an admin to get other orgs besides their own', function(done) {
             options.url = config.orgSvcUrl + '/o-4567';
             requestUtils.qRequest('get', options).then(function(resp) {
@@ -192,7 +193,7 @@ describe('orgSvc orgs (E2E):', function() {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
-        
+
         it('should return a 404 if nothing is found', function(done) {
             options.url = config.orgSvcUrl + '/e2e-fake1';
             requestUtils.qRequest('get', options)
@@ -203,7 +204,7 @@ describe('orgSvc orgs (E2E):', function() {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
-        
+
         it('should return a 401 error if the user is not authenticated', function(done) {
             var options = { url: config.orgSvcUrl + '/e2e-fake1' };
             requestUtils.qRequest('get', options).then(function(resp) {
@@ -227,7 +228,7 @@ describe('orgSvc orgs (E2E):', function() {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
-        
+
         it('should fail if an app uses the wrong secret to make a request', function(done) {
             var badCreds = { key: mockApp.key, secret: 'WRONG' };
             requestUtils.makeSignedRequest(badCreds, 'get', options).then(function(resp) {
@@ -251,7 +252,7 @@ describe('orgSvc orgs (E2E):', function() {
             options = { url: config.orgSvcUrl + '/', qs: { sort: 'id,1' }, jar: cookieJar };
             testUtils.resetCollection('orgs', mockOrgs).done(done);
         });
-        
+
         it('should get orgs', function(done) {
             requestUtils.qRequest('get', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
@@ -285,7 +286,7 @@ describe('orgSvc orgs (E2E):', function() {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
-        
+
         it('should allow a user to specify which fields to return', function(done) {
             options.qs.fields = 'name';
             requestUtils.qRequest('get', options).then(function(resp) {
@@ -313,7 +314,7 @@ describe('orgSvc orgs (E2E):', function() {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
-        
+
         it('should get no orgs if the ids param is empty', function(done) {
             options.qs.ids = '';
             requestUtils.qRequest('get', options).then(function(resp) {
@@ -336,7 +337,7 @@ describe('orgSvc orgs (E2E):', function() {
                 expect(resp.response.headers['content-range']).toBe('items 1-2/2');
             }).then(done, done.fail);
         });
-        
+
         it('should get orgs with a given promotion', function(done) {
             testUtils.resetCollection('orgs', [
                 { id: 'o-1', status: 'active', promotions: [{ id: 'pro-1' }, { id: 'pro-2' }] },
@@ -365,7 +366,7 @@ describe('orgSvc orgs (E2E):', function() {
                 expect(resp.response.headers['content-range']).toBe('items 1-1/1');
             }).then(done, done.fail);
         });
-        
+
         it('should be able to sort and paginate the results', function(done) {
             options.qs.sort = 'name,1';
             options.qs.limit = 1;
@@ -394,7 +395,7 @@ describe('orgSvc orgs (E2E):', function() {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
-        
+
         it('should allow non-admins to see their own org', function(done) {
             options.jar = nonAdminJar;
             requestUtils.qRequest('get', options).then(function(resp) {
@@ -442,7 +443,7 @@ describe('orgSvc orgs (E2E):', function() {
             };
             testUtils.resetCollection('orgs').done(done);
         });
-        
+
         it('should be able to create an org', function(done) {
             requestUtils.qRequest('post', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(201);
@@ -629,7 +630,7 @@ describe('orgSvc orgs (E2E):', function() {
             };
             testUtils.resetCollection('orgs', mockOrgs).done(done);
         });
-        
+
         it('should successfully update an org', function(done) {
             requestUtils.qRequest('put', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
@@ -668,7 +669,7 @@ describe('orgSvc orgs (E2E):', function() {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
-        
+
         it('should return a 404 if the org does not exist', function(done) {
             options.url = config.orgSvcUrl + '/org-fake';
             requestUtils.qRequest('put', options).then(function(resp) {
@@ -678,7 +679,7 @@ describe('orgSvc orgs (E2E):', function() {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
-        
+
         it('should return a 403 if the requester is not authorized to edit the org', function(done) {
             options.url = config.orgSvcUrl + '/o-4567';
             options.jar = nonAdminJar;
@@ -710,7 +711,7 @@ describe('orgSvc orgs (E2E):', function() {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
-        
+
         it('should return a 409 if an org exists with the new name', function(done) {
             options.json = { name: 'e2e-put2' };
             requestUtils.qRequest('put', options).then(function(resp) {
@@ -742,7 +743,7 @@ describe('orgSvc orgs (E2E):', function() {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
-    
+
         it('should return a 401 error if the user is not authenticated', function(done) {
             delete options.jar;
             requestUtils.qRequest('put', options).then(function(resp) {
@@ -784,7 +785,7 @@ describe('orgSvc orgs (E2E):', function() {
                 testUtils.resetCollection('campaigns')
             ]).done(function() { done(); });
         });
-        
+
         it('should successfully mark an org as deleted', function(done) {
             requestUtils.qRequest('delete', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(204);
@@ -819,7 +820,7 @@ describe('orgSvc orgs (E2E):', function() {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
-        
+
         it('should still succeed if the org does not exist', function(done) {
             options.url = config.orgSvcUrl + '/org-fake';
             requestUtils.qRequest('delete', options).then(function(resp) {
@@ -829,7 +830,7 @@ describe('orgSvc orgs (E2E):', function() {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
-        
+
         it('should still succeed if the org has already been deleted', function(done) {
             requestUtils.qRequest('delete', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(204);
@@ -842,7 +843,7 @@ describe('orgSvc orgs (E2E):', function() {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
-        
+
         describe('if the org has a braintreeCustomer', function() {
             var mockCust, mockOrg;
             beforeEach(function(done) {
@@ -852,28 +853,28 @@ describe('orgSvc orgs (E2E):', function() {
                         return q.reject(result);
                     }
                     mockCust = result.customer;
-                    
+
                     mockOrg = {
                         id: 'o-braintree1',
                         status: 'active',
                         name: 'org w/ cust',
                         braintreeCustomer: mockCust.id
                     };
-                    
+
                     return testUtils.resetCollection('orgs', mockOrg);
                 }).done(done);
             });
-            
+
             afterEach(function(done) {
                 if (!mockCust || !mockCust.id) {
                     return done();
                 }
-                
+
                 q.npost(gateway.customer, 'delete', [mockCust.id]).done(function() {
                     done();
                 });
             });
-            
+
             it('should also delete the braintree customer', function(done) {
                 requestUtils.qRequest('delete', options).then(function(resp) {
                     expect(resp.response.statusCode).toBe(204);
@@ -896,7 +897,7 @@ describe('orgSvc orgs (E2E):', function() {
                     expect(util.inspect(error)).not.toBeDefined();
                 }).done(done);
             });
-            
+
             it('should not fail if the braintree customer is non-existent', function(done) {
                 mockOrg.braintreeCustomer = 'asdf1234';
                 testUtils.resetCollection('orgs', mockOrg).then(function() {
@@ -914,7 +915,7 @@ describe('orgSvc orgs (E2E):', function() {
                 }).done(done);
             });
         });
-        
+
         it('should not allow a user to delete their own org', function(done) {
             options.url = config.orgSvcUrl + '/o-1234';
             requestUtils.qRequest('delete', options).then(function(resp) {
@@ -929,7 +930,7 @@ describe('orgSvc orgs (E2E):', function() {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
-        
+
         it('should return a 403 if the requester is not authorized to delete the org', function(done) {
             options.jar = nonAdminJar;
             requestUtils.qRequest('delete', options).then(function(resp) {
@@ -939,7 +940,7 @@ describe('orgSvc orgs (E2E):', function() {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
-        
+
         it('should prevent deleting an org with active users', function(done) {
             var org = {id: 'o-del-1', status: 'active'},
                 user = {id: 'u-del-1', status: 'active', org: 'o-del-1'},
@@ -960,7 +961,7 @@ describe('orgSvc orgs (E2E):', function() {
                 expect(error).not.toBeDefined();
             }).done(done);
         });
-        
+
         it('should allow deleting an org with inactive users', function(done) {
             var org = {id: 'o-del-1', status: 'active'},
                 user = {id: 'u-del-1', status: 'deleted', org: 'o-del-1'},
@@ -981,7 +982,7 @@ describe('orgSvc orgs (E2E):', function() {
                 expect(error).not.toBeDefined();
             }).done(done);
         });
-        
+
         it('should prevent deleting an org with unfinished campaigns', function(done) {
             var camps = [
                 { id: 'cam-e2e-1', status: 'active', org: 'org1' },
@@ -994,7 +995,7 @@ describe('orgSvc orgs (E2E):', function() {
             }).then(function(resp) {
                 expect(resp.response.statusCode).toBe(400);
                 expect(resp.body).toBe('Org still has unfinished campaigns');
-                
+
                 options.url = config.orgSvcUrl + '/org2';
                 return requestUtils.qRequest('delete', options);
             }).then(function(resp) {
@@ -1004,7 +1005,7 @@ describe('orgSvc orgs (E2E):', function() {
                 expect(error).not.toBeDefined();
             }).done(done);
         });
-    
+
         it('should return a 401 error if the user is not authenticated', function(done) {
             delete options.jar;
             requestUtils.qRequest('delete', options).then(function(resp) {
@@ -1023,6 +1024,49 @@ describe('orgSvc orgs (E2E):', function() {
             }).catch(function(error) {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
+        });
+    });
+
+    describe('GET /api/account/orgs/:id/payment-plan', function() {
+        beforeEach(function() {
+            this.mockOrg = {
+                id: 'o-' + uuid.createUuid(),
+                name: 'e2e-org',
+                status: 'active',
+                paymentPlanId: 'pp' + uuid.createUuid(),
+                nextPaymentPlanId: 'pp' + uuid.createUuid()
+            };
+            this.options = {
+                url: config.orgSvcUrl + '/' + this.mockOrg.id + '/payment-plan',
+                jar: cookieJar
+            };
+        });
+
+        it('should be able to get payment plans', function(done) {
+            var self = this;
+            testUtils.resetCollection('orgs', [self.mockOrg]).then(function() {
+                return requestUtils.qRequest('get', self.options);
+            }).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.body).toEqual({
+                    id: self.mockOrg.id,
+                    paymentPlanId: self.mockOrg.paymentPlanId,
+                    nextPaymentPlanId: self.mockOrg.nextPaymentPlanId
+                });
+            }).then(done, function(error) {
+                done.fail(util.inspect(error));
+            });
+        });
+
+        it('should not get payment plans for deleted orgs', function(done) {
+            var self = this;
+            self.mockOrg.status = 'deleted';
+            testUtils.resetCollection('orgs', [self.mockOrg]).then(function() {
+                return requestUtils.qRequest('get', self.options);
+            }).then(function(resp) {
+                expect(resp.response.statusCode).toBe(404);
+                expect(resp.body).toBe('Object not found');
+            }).then(done, done.fail);
         });
     });
 

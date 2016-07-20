@@ -9,11 +9,12 @@
         objUtils        = require('../lib/objUtils'),
         authUtils       = require('../lib/authUtils'),
         enums           = require('../lib/enums'),
+        ld              = require('lodash'),
         Status          = enums.Status,
         Scope           = enums.Scope,
-        
+
         orgModule = {}; // for exporting functions to unit tests
-        
+
     orgModule.orgSchema = {
         name: {
             __allowed: true,
@@ -75,23 +76,23 @@
     orgModule.setupSvc = function(db, gateway) {
         var opts = { userProp: false, orgProp: false, ownedByUser: false },
             svc = new CrudSvc(db.collection('orgs'), 'o', opts, orgModule.orgSchema);
-            
+
         svc._db = db;
-        
+
         svc.use('create', orgModule.createPermCheck);
         svc.use('create', svc.validateUniqueProp.bind(svc, 'name', null));
         svc.use('create', orgModule.setupConfig);
 
         svc.use('edit', svc.validateUniqueProp.bind(svc, 'name', null));
-        
+
         svc.use('delete', orgModule.deletePermCheck);
         svc.use('delete', orgModule.activeUserCheck.bind(orgModule, svc));
         svc.use('delete', orgModule.runningCampaignCheck.bind(orgModule, svc));
         svc.use('delete', orgModule.deleteBraintreeCustomer.bind(orgModule, gateway));
-        
+
         return svc;
     };
-    
+
     // Only allow creating org if requester has admin priviledges
     orgModule.createPermCheck = function(req, next, done) {
         var log = logger.getLog();
@@ -114,19 +115,19 @@
         if (!req.body.waterfalls) {
             req.body.waterfalls = {};
         }
-        
+
         objUtils.extend(req.body.waterfalls, {
             video: ['cinema6'],
             display: ['cinema6']
         });
-        
+
         return q(next());
     };
-    
+
     // Only allow org to be deleted if not requester's org + they have admin priviledges
     orgModule.deletePermCheck = function(req, next, done) {
         var log = logger.getLog();
-        
+
         if (req.user && req.params.id === req.user.org) {
             log.info('[%1] User %2 tried to delete their own org', req.uuid, req.requester.id);
             return q(done({ code: 400, body: 'You cannot delete your own org' }));
@@ -139,7 +140,7 @@
 
         return q(next());
     };
-    
+
     // Only allow org to be deleted if it has no active users
     orgModule.activeUserCheck = function(svc, req, next, done) {
         var log = logger.getLog(),
@@ -152,7 +153,7 @@
                          req.uuid, req.params.id, count);
                 return done({ code: 400, body: 'Org still has active users' });
             }
-            
+
             return q(next());
         })
         .catch(function(error) {
@@ -168,7 +169,7 @@
                 org: req.params.id,
                 status: { $in: [Status.Active, Status.Paused] }
             };
-            
+
         return q(orgSvc._db.collection('campaigns').count(query))
         .then(function(campCount) {
             if (campCount > 0) {
@@ -177,7 +178,7 @@
 
                 return done({ code: 400, body: 'Org still has unfinished campaigns' });
             }
-            
+
             next();
         })
         .catch(function(error) {
@@ -189,12 +190,12 @@
     // Delete the org's braintreeCustomer, if it exists
     orgModule.deleteBraintreeCustomer = function(gateway, req, next/*, done*/) {
         var log = logger.getLog();
-        
+
         if (!req.origObj.braintreeCustomer) {
             log.trace('[%1] No braintreeCustomer on org %2', req.uuid, req.origObj.id);
             return q(next());
         }
-        
+
         return q.npost(gateway.customer, 'delete', [req.origObj.braintreeCustomer])
         .then(function() {
             log.info(
@@ -228,13 +229,24 @@
         });
     };
 
-    
+    orgModule.getPaymentPlan = function(svc, req) {
+        return svc.getObjs({
+            id: req.params.id
+        }, ld.set(req, 'query', {
+            fields: ['paymentPlanId','nextPaymentPlanId'].join(',')
+        }), false).then(function(result) {
+            return ld.update(result, 'body', function(body) {
+                return ld.isArray(body) ? body[0] : body;
+            });
+        });
+    };
+
     orgModule.setupEndpoints = function(app, svc, sessions, audit, jobManager) {
         var router      = express.Router(),
             mountPath   = '/api/account/orgs?'; // prefix to all endpoints declared here
-            
+
         router.use(jobManager.setJobTimeout.bind(jobManager));
-        
+
         var authMidware = authUtils.crudMidware('orgs', { allowApps: true });
 
         router.get('/:id', sessions, authMidware.read, audit, function(req, res) {
@@ -301,9 +313,18 @@
             });
         });
 
+        router.get('/:id/payment-plan', sessions, authMidware.read, audit, function(req, res) {
+            var promise = orgModule.getPaymentPlan(svc, req);
+            promise.finally(function() {
+                jobManager.endJob(req, res, promise.inspect())
+                .catch(function(error) {
+                    res.send(500, { error: 'Error getting org payment plan', detail: error });
+                });
+            });
+        });
+
         app.use(mountPath, router);
     };
 
     module.exports = orgModule;
 }());
-
