@@ -20,6 +20,7 @@
     var HtmlEntities = require('html-entities').AllHtmlEntities;
     var html = new HtmlEntities();
     var getSymbolFromCurrency = require('currency-symbol-map').getSymbolFromCurrency;
+    var cheerio = require('cheerio');
 
     var PRODUCT_TYPES = {
         APP_STORE: 'APP_STORE',
@@ -269,7 +270,20 @@
                 });
             }
 
-            return getImages().then(function(images) {
+            function getWebsites() {
+                return request(app.trackViewUrl, { json: false }).then(function scrape(html) {
+                    var $ = cheerio.load(html.toString());
+
+                    return $('.app-links a').map(function(index, element) {
+                        return $(element).attr('href');
+                    }).get();
+                });
+            }
+
+            return q.all([
+                getImages(),
+                getWebsites()
+            ]).spread(function(images, websites) {
                 return {
                     type: 'app',
                     platform: 'iOS',
@@ -283,7 +297,8 @@
                     extID: app.trackId,
                     ratingCount : app.userRatingCount,
                     bundleId: app.bundleId,
-                    images: images
+                    images: images,
+                    websites: websites
                 };
             });
         });
