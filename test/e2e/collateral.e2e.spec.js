@@ -1039,7 +1039,8 @@ describe('collateral (E2E):', function() {
                         extID: 284882215,
                         ratingCount: jasmine.any(Number),
                         bundleId: jasmine.any(String),
-                        images: jasmine.any(Array)
+                        images: jasmine.any(Array),
+                        websites: jasmine.any(Array)
                     });
                     expect(apiResponse.body.images.length).toBeGreaterThan(0, 'App has no images.');
                     apiResponse.body.images.forEach(function(image) {
@@ -1051,6 +1052,10 @@ describe('collateral (E2E):', function() {
                             width: jasmine.any(Number),
                             height: jasmine.any(Number)
                         }));
+                    });
+                    expect(apiResponse.body.websites.length).toBeGreaterThan(0);
+                    apiResponse.body.websites.forEach(function(website) {
+                        expect(website).toEqual(jasmine.any(String));
                     });
                 });
             });
