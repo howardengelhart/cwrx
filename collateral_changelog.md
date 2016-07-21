@@ -1,5 +1,8 @@
 # Collateral Service Changelog
 
+### 2.6.0: Thu Jul 21 13:23:15 EDT 2016
+* [FEATURE]: Add `websites` to app product data: [#977](https://github.com/cinema6/cwrx/pull/977)
+
 ### 2.5.0: Tue Jul 19 14:11:46 EDT 2016
 * [FEATURE]: Add additional image metadata to App product data : [#963] (https://github.com/cinema6/cwrx/pull/963)
 * [FEATURE]: Add `'[GET] /api/collateral/video-data`: [#942] (https://github.com/cinema6/cwrx/pull/942)

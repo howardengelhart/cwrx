@@ -1,5 +1,5 @@
 describe('collateralScrape-scraper (UT)', function() {
-    var q, logger, util, url, uuid, entities, getSymbolFromCurrency, RequestErrors;
+    var q, logger, util, url, uuid, entities, getSymbolFromCurrency, RequestErrors, fs, path;
     var spidey, mockLog, request, sizeOf;
     var requestDeferreds;
     var collateralScrape;
@@ -27,6 +27,8 @@ describe('collateralScrape-scraper (UT)', function() {
         EventEmitter = require('events').EventEmitter;
         mockEvent = new EventEmitter();
         mockEvent.setMaxListeners(50);
+        fs = require('fs-extra');
+        path = require('path');
 
         mockLog = {
             trace : jasmine.createSpy('log_trace'),
@@ -1838,6 +1840,14 @@ describe('collateralScrape-scraper (UT)', function() {
 
                     requestDeferreds[request.calls.mostRecent().args[0]].fulfill(response);
                     process.nextTick(done);
+
+                    request.calls.reset();
+                });
+
+                it('should make a request for the app store page', function() {
+                    expect(request).toHaveBeenCalledWith(response.results[0].trackViewUrl, {
+                        json: false
+                    });
                 });
 
                 it('makes get requests for the images', function () {
@@ -1876,8 +1886,9 @@ describe('collateralScrape-scraper (UT)', function() {
                         expect(sizeOf).toHaveBeenCalled();
                     });
 
-                    describe('when all of the image requests are done', function() {
+                    describe('when all of the image requests and app store request are done', function() {
                         beforeEach(function(done) {
+                            requestDeferreds[request.calls.mostRecent().args[0]].fulfill(fs.readFileSync(path.resolve(__dirname, './helpers/app_store_page.html')));
                             process.nextTick(done);
                         });
 
@@ -1895,6 +1906,7 @@ describe('collateralScrape-scraper (UT)', function() {
                                 extID: response.results[0].trackId,
                                 ratingCount: response.results[0].userRatingCount,
                                 bundleId: response.results[0].bundleId,
+                                websites: ['http://www.facebook.com/mobile', 'http://www.facebook.com/help/?page=18834', 'https://itunes.apple.com/WebObjects/MZStore.woa/wa/viewEula?id=284882215'],
                                 images: [].concat(
                                     response.results[0].screenshotUrls.map(function(uri) {
                                         return {

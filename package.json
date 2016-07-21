@@ -52,11 +52,11 @@
     "request-promise": "^3.0.0",
     "spidey.js": "git+ssh://git@github.com:cinema6/spidey.js#v0.2.0",
     "ssl-root-cas": "^1.1.10",
-    "vastacular": "^0.1.0"
+    "vastacular": "^0.1.0",
+    "cheerio": "~0.20.0"
   },
   "devDependencies": {
     "bluebird": "^2.10.0",
-    "cheerio": "^0.19.0",
     "filewatcher": "^3.0.0",
     "grunt": "~0.4.1",
     "grunt-c6-util": "git+ssh://git@github.com:cinema6/c6-grunt-util#master",
