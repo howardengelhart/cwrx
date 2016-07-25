@@ -1,5 +1,8 @@
 # Vote Service Changelog
 
+### 1.5.2 Mon Jul 25 13:50:07 EDT 2016
+* [FIX]: Fix for an issue that prevented making app authenticated requests with query parameters containing '!': [#978](https://github.com/cinema6/cwrx/pull/978)
+
 ### 1.5.1: Tue Mar 15 19:44:01 EDT 2016
 * [FIX]: Fix characters of uuids to be url-safe: [#822](https://github.com/cinema6/cwrx/pull/822)
 * Extra deployment steps:

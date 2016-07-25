@@ -912,6 +912,21 @@ describe('collateral (E2E):', function() {
                         expect(apiResponse.body).toBe('Unauthorized');
                     });
                 });
+
+                describe('when using app authentication', function() {
+                    it('should work with an exclaimation mark in query params', function(done) {
+                        options.qs.uri = 'https://itunes.apple.com/us/app/facebook/id284882215?mt=8';
+                        options.qs.excitedParam = '!!!';
+                        requestUtils.makeSignedRequest(appCreds, 'get', options).then(function(apiResponse) {
+                            expect(apiResponse.response.statusCode).toBe(200);
+                            expect(apiResponse.body).toEqual(jasmine.objectContaining({
+                                type: 'app',
+                                platform: 'iOS',
+                                name: 'Facebook'
+                            }));
+                        }).then(done, done.fail);
+                    });
+                });
             }
 
             describe('with no URI', function() {

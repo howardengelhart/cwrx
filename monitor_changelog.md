@@ -1,5 +1,8 @@
 # Monitor Service Changelog
 
+### 1.1.3 Mon Jul 25 13:50:07 EDT 2016
+* [FIX]: Fix for an issue that prevented making app authenticated requests with query parameters containing '!': [#978](https://github.com/cinema6/cwrx/pull/978)
+
 ### 1.1.2: Thu Dec 24 14:01:59 EST 2015
 * Add delayed retry if checking a service fails: [#535](https://github.com/cinema6/cwrx/issues/535)
 * Extra deployment steps:

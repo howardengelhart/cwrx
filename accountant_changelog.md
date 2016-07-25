@@ -1,5 +1,8 @@
 # Accountant Service Changelog
 
+### 1.6.1 Mon Jul 25 13:50:07 EDT 2016
+* [FIX]: Fix for an issue that prevented making app authenticated requests with query parameters containing '!': [#978](https://github.com/cinema6/cwrx/pull/978)
+
 ### 1.6.0: Tue Jul 19 12:27:19 EDT 2016
 * [FEATURE]: Add `GET /api/transactions/showcase/current-payment`
 
@@ -36,4 +39,3 @@
 ### 1.0.0: Wed Mar 30 14:41:02 EDT 2016
 * Initial commit of accountant service: [#816](https://github.com/cinema6/cwrx/issues/816)
 * Extra deployment steps: [#826](https://github.com/cinema6/cwrx/issues/826)
-

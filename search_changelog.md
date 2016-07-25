@@ -1,5 +1,8 @@
 # Search Service Changelog
 
+### 1.6.1 Mon Jul 25 13:50:07 EDT 2016
+* [FIX]: Fix for an issue that prevented making app authenticated requests with query parameters containing '!': [#978](https://github.com/cinema6/cwrx/pull/978)
+
 ### 1.6.0: Tue May 24 15:00:42 EDT 2016
 * Add new `GET /api/public/search/apps` endpoint: [#908](https://github.com/cinema6/cwrx/pull/908)
 * Extra deployment steps:

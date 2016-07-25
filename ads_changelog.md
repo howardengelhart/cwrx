@@ -1,5 +1,8 @@
 # Ads Service Changelog
 
+### 5.4.1 Mon Jul 25 13:50:07 EDT 2016
+* [FIX]: Fix for an issue that prevented making app authenticated requests with query parameters containing '!': [#978](https://github.com/cinema6/cwrx/pull/978)
+
 ### 5.4.0: Fri Jul  1 10:55:47 EDT 2016
 * [FEATURE]: Adding ext query param for ads placements, to turn of default behavior of creating external Beeswax placements.
 

@@ -1,5 +1,8 @@
 # User Service Changelog
 
+### 4.1.2 Mon Jul 25 13:50:07 EDT 2016
+* [FIX]: Fix for an issue that prevented making app authenticated requests with query parameters containing '!': [#978](https://github.com/cinema6/cwrx/pull/978)
+
 ### 4.1.1: Tue Jun 21 10:37:56 EDT 2016
 * Require `firstName` and `lastName` on signup: [#945](https://github.com/cinema6/cwrx/issues/945)
 * Extra deployment steps: None

@@ -1,5 +1,8 @@
 # Content Service Changelog
 
+### 4.1.5 Mon Jul 25 13:50:07 EDT 2016
+* [FIX]: Fix for an issue that prevented making app authenticated requests with query parameters containing '!': [#978](https://github.com/cinema6/cwrx/pull/978)
+
 ### 4.1.4 Mon Jun  6 11:30:15 EDT 2016
 * Update the version of metagetta that is used: [#926](https://github.com/cinema6/cwrx/pull/926)
 
