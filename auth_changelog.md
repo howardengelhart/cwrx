@@ -1,5 +1,8 @@
 # Auth Service Changelog
 
+### 2.0.2 Mon Jul 25 13:50:07 EDT 2016
+* [FIX]: Fix for an issue that prevented making app authenticated requests with query parameters containing '!': [#978](https://github.com/cinema6/cwrx/pull/978)
+
 ### 2.0.1: Tue Jun 21 10:37:56 EDT 2016
 * [FIX]: Allow users with `status === 'new'` to user forgot+reset password endpoints: [#918](https://github.com/cinema6/cwrx/issues/918)
 * Extra deployment steps: None
@@ -97,7 +100,7 @@
 
 ### 1.3.0: Thu Jul 24 10:05:01 EDT 2014
 * [FEATURE]: Forgotten password retrieval: [#215](https://github.com/cinema6/cwrx/pull/215)
-* Extra deployment steps: 
+* Extra deployment steps:
     * Deploy new auth cookbook to staging/production envs
     * Verify that staging/production IAM roles have proper access to SES
 

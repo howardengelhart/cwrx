@@ -1,5 +1,8 @@
 # Org Service Changelog
 
+### 1.14.1 Mon Jul 25 13:50:07 EDT 2016
+* [FIX]: Fix for an issue that prevented making app authenticated requests with query parameters containing '!': [#978](https://github.com/cinema6/cwrx/pull/978)
+
 ### 1.14.0: Tue Jul 19 13:59:37 EDT 2016
 * Support validating new `freeTrial` promotion format (where config is
   keyed by a payment plan id.): [#975](https://github.com/cinema6/cwrx/pull/975)

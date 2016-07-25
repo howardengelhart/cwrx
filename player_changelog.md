@@ -1,5 +1,8 @@
 # Player Service Changelog
 
+### 2.8.1 Mon Jul 25 13:50:07 EDT 2016
+* [FIX]: Fix for an issue that prevented making app authenticated requests with query parameters containing '!': [#978](https://github.com/cinema6/cwrx/pull/978)
+
 ### 2.8.0: Thu Jul 14 10:08:17 EDT 2016
 * [FEATURE]: Add support for tracking coordinates of clickthroughs: [#972](https://github.com/cinema6/cwrx/pull/972)
 
