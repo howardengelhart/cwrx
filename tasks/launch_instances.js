@@ -1,6 +1,7 @@
 var aws     = require('aws-sdk'),
     path    = require('path'),
     q       = require('q'),
+    util    = require('util'),
     helpers = require('./resources/helpers');
 
 module.exports = function(grunt) {
