@@ -1,5 +1,8 @@
 # Collateral Service Changelog
 
+### 2.6.2 Wed Jul 27 15:53:02 EDT 2016
+* [FIX]: Fix for an issue where signed app requests including object query parameters would fail: [#980](https://github.com/cinema6/cwrx/pull/980)
+
 ### 2.6.1 Mon Jul 25 13:50:07 EDT 2016
 * [FIX]: Fix for an issue that prevented making app authenticated requests with query parameters containing '!': [#978](https://github.com/cinema6/cwrx/pull/978)
 

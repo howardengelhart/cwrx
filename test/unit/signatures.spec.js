@@ -166,12 +166,12 @@ describe('signatures', function() {
 
         describe('when handling the query string', function() {
             it('should be able to use the qs property in the reqOpts', function() {
-                reqOpts.qs = { decorated: true, a: 1, foo: 'bar' };
+                reqOpts.qs = { decorated: true, a: 1, foo: 'bar', object: { key: 'value' } };
                 signatures.setAuthHeaders(creds, 'get', reqOpts);
 
                 expect(reqOpts).toEqual({
                     url: 'http://staging.cinema6.com/api/campaigns/cam-1234',
-                    qs: { decorated: true, a: 1, foo: 'bar' },
+                    qs: { decorated: true, a: 1, foo: 'bar', object: { key: 'value' } },
                     headers: jasmine.objectContaining({
                         'x-rc-auth-signature'   : 'johnhancock'
                     })
@@ -181,7 +181,10 @@ describe('signatures', function() {
                     qs          : {
                         a: '1',
                         decorated: 'true',
-                        foo: 'bar'
+                        foo: 'bar',
+                        object: {
+                            key: 'value'
+                        }
                     },
                 }), 'SHA256', 'ipoopmypants');
             });
@@ -219,6 +222,65 @@ describe('signatures', function() {
                         decorated: 'false',
                         orgs: 'o-1,o-2,o-3',
                         status: 'active'
+                    },
+                }), 'SHA256', 'ipoopmypants');
+            });
+
+            it('should be able to properly format all kinds of query parameters', function() {
+                reqOpts.qs = {
+                    foo: 'bar',
+                    number: 1,
+                    floating: 0.5,
+                    bool: true,
+                    emptyStr: '',
+                    suchNull: null,
+                    muchUndefined: undefined,
+                    veryEmpty: [ ],
+                    wow: { },
+                    nan: NaN,
+                    array: [ ],
+                    complexArray: [ { foo: 'bar' }, 1 ],
+                    object: {
+                        foo: 'bar',
+                        number: 1,
+                        floating: 0.5,
+                        bool: true,
+                        emptyStr: '',
+                        suchNull: null,
+                        muchUndefined: undefined,
+                        veryEmpty: [ ],
+                        wow: { },
+                        nan: NaN
+                    }
+                };
+                signatures.setAuthHeaders(creds, 'get', reqOpts);
+                expect(reqOpts).toEqual({
+                    url: 'http://staging.cinema6.com/api/campaigns/cam-1234',
+                    qs: reqOpts.qs,
+                    headers: jasmine.objectContaining({
+                        'x-rc-auth-signature'   : 'johnhancock'
+                    })
+                });
+                expect(signatures.signData).toHaveBeenCalledWith(jasmine.objectContaining({
+                    endpoint    : 'GET /api/campaigns/cam-1234',
+                    qs          : {
+                        foo: 'bar',
+                        number: '1',
+                        floating: '0.5',
+                        bool: 'true',
+                        emptyStr: '',
+                        suchNull: '',
+                        nan: 'NaN',
+                        complexArray: [ { foo: 'bar' }, '1' ],
+                        object: {
+                            foo: 'bar',
+                            number: '1',
+                            floating: '0.5',
+                            bool: 'true',
+                            emptyStr: '',
+                            suchNull: '',
+                            nan: 'NaN'
+                        }
                     },
                 }), 'SHA256', 'ipoopmypants');
             });

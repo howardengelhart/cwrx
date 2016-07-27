@@ -1,5 +1,6 @@
 var q               = require('q'),
     util            = require('util'),
+    ld              = require('lodash'),
     fs              = require('fs-extra'),
     path            = require('path'),
     testUtils       = require('./testUtils'),
@@ -914,9 +915,35 @@ describe('collateral (E2E):', function() {
                 });
 
                 describe('when using app authentication', function() {
-                    it('should work with an exclaimation mark in query params', function(done) {
+                    it('should work with all kinds of query params including exclaimation marks', function(done) {
                         options.qs.uri = 'https://itunes.apple.com/us/app/facebook/id284882215?mt=8';
-                        options.qs.excitedParam = '!!!';
+                        ld.assign(options.qs, {
+                            excitedParam: '!!!',
+                            foo: 'bar',
+                            number: 1,
+                            floating: 0.5,
+                            bool: true,
+                            emptyStr: '',
+                            suchNull: null,
+                            muchUndefined: undefined,
+                            veryEmpty: [ ],
+                            wow: { },
+                            nan: NaN,
+                            array: [ ],
+                            complexArray: [ { foo: 'bar' }, 1 ],
+                            object: {
+                                foo: 'bar',
+                                number: 1,
+                                floating: 0.5,
+                                bool: true,
+                                emptyStr: '',
+                                suchNull: null,
+                                muchUndefined: undefined,
+                                veryEmpty: [ ],
+                                wow: { },
+                                nan: NaN
+                            }
+                        });
                         requestUtils.makeSignedRequest(appCreds, 'get', options).then(function(apiResponse) {
                             expect(apiResponse.response.statusCode).toBe(200);
                             expect(apiResponse.body).toEqual(jasmine.objectContaining({
