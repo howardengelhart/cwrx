@@ -139,7 +139,7 @@ describe('signatures', function() {
                 bodyHash    : 'hashbrowns',
                 endpoint    : 'GET /api/campaigns/cam-1234',
                 nonce       : 'uuuuuuuuuuuuuuuuuuid',
-                qs          : { },
+                qs          : null,
                 timestamp   : 1453929767464
             }, 'SHA256', 'ipoopmypants');
         });
@@ -166,8 +166,161 @@ describe('signatures', function() {
 
         describe('when handling the query string', function() {
             it('should be able to use the qs property in the reqOpts', function() {
-                reqOpts.qs = { decorated: true, a: 1, foo: 'bar', object: { key: 'value' } };
+                reqOpts.qs = { decorated: true, a: 1, foo: 'bar' };
                 signatures.setAuthHeaders(creds, 'get', reqOpts);
+
+                expect(reqOpts).toEqual({
+                    url: 'http://staging.cinema6.com/api/campaigns/cam-1234',
+                    qs: { decorated: true, a: 1, foo: 'bar' },
+                    headers: jasmine.objectContaining({
+                        'x-rc-auth-signature'   : 'johnhancock'
+                    })
+                });
+                expect(signatures.signData).toHaveBeenCalledWith(jasmine.objectContaining({
+                    endpoint    : 'GET /api/campaigns/cam-1234',
+                    qs          : 'decorated=true&a=1&foo=bar',
+                }), 'SHA256', 'ipoopmypants');
+            });
+
+            it('should handle an empty qs property', function() {
+                reqOpts.qs = {};
+                signatures.setAuthHeaders(creds, 'get', reqOpts);
+
+                expect(reqOpts).toEqual({
+                    url: 'http://staging.cinema6.com/api/campaigns/cam-1234',
+                    qs: {},
+                    headers: jasmine.objectContaining({
+                        'x-rc-auth-signature'   : 'johnhancock'
+                    })
+                });
+                expect(signatures.signData).toHaveBeenCalledWith(jasmine.objectContaining({
+                    endpoint    : 'GET /api/campaigns/cam-1234',
+                    qs          : null,
+                }), 'SHA256', 'ipoopmypants');
+            });
+
+            it('should be able to use the query string in the url', function() {
+                reqOpts.url = 'http://localhost:9000/api/account/user?decorated=false&orgs=o-1,o-2,o-3&status=active';
+                signatures.setAuthHeaders(creds, 'PoSt', reqOpts);
+
+                expect(reqOpts).toEqual({
+                    url: 'http://localhost:9000/api/account/user?decorated=false&orgs=o-1,o-2,o-3&status=active',
+                    headers: jasmine.objectContaining({
+                        'x-rc-auth-signature'   : 'johnhancock'
+                    })
+                });
+                expect(signatures.signData).toHaveBeenCalledWith(jasmine.objectContaining({
+                    endpoint    : 'POST /api/account/user',
+                    qs          : 'decorated=false&orgs=o-1,o-2,o-3&status=active',
+                }), 'SHA256', 'ipoopmypants');
+            });
+        });
+
+        describe('when handling the body', function() {
+            it('should just hash the body if it is a string', function() {
+                reqOpts.body = 'dis body is hot';
+                signatures.setAuthHeaders(creds, 'get', reqOpts);
+
+                expect(reqOpts.body).toEqual('dis body is hot');
+                expect(reqOpts.headers['x-rc-auth-signature']).toBe('johnhancock');
+                expect(hashUtils.hashText).toHaveBeenCalledWith('dis body is hot', 'SHA256');
+            });
+
+            it('should stringify and hash the body if it is an object', function() {
+                reqOpts.body = { foo: 'bar', num: 123, nest: { birds: 'yes' }, arr: [1,3] };
+                signatures.setAuthHeaders(creds, 'get', reqOpts);
+
+                expect(reqOpts.body).toEqual({ foo: 'bar', num: 123, nest: { birds: 'yes' }, arr: [1,3] });
+                expect(reqOpts.headers['x-rc-auth-signature']).toBe('johnhancock');
+                expect(hashUtils.hashText).toHaveBeenCalledWith('{"foo":"bar","num":123,"nest":{"birds":"yes"},"arr":[1,3]}', 'SHA256');
+            });
+
+            it('should be able to take the body from the json prop', function() {
+                reqOpts.json = { foo: 'bar' };
+                signatures.setAuthHeaders(creds, 'get', reqOpts);
+
+                expect(reqOpts.json).toEqual({ foo: 'bar' });
+                expect(reqOpts.body).not.toBeDefined();
+                expect(reqOpts.headers['x-rc-auth-signature']).toBe('johnhancock');
+                expect(hashUtils.hashText).toHaveBeenCalledWith('{"foo":"bar"}', 'SHA256');
+            });
+
+            it('should ignore the json prop if it is not an object', function() {
+                reqOpts.json = true;
+                signatures.setAuthHeaders(creds, 'get', reqOpts);
+
+                expect(reqOpts.json).toEqual(true);
+                expect(reqOpts.body).not.toBeDefined();
+                expect(reqOpts.headers['x-rc-auth-signature']).toBe('johnhancock');
+                expect(hashUtils.hashText).toHaveBeenCalledWith('{}', 'SHA256');
+            });
+        });
+    });
+
+    describe('setAuthHeadersV2', function() {
+        var creds, reqOpts;
+        beforeEach(function() {
+            creds = { key: 'ads-service', secret: 'ipoopmypants' };
+            spyOn(hashUtils, 'hashText').and.returnValue('hashbrowns');
+            spyOn(uuid, 'randomUuid').and.returnValue('uuuuuuuuuuuuuuuuuuid');
+            spyOn(signatures, 'signData').and.returnValue('johnhancock');
+            reqOpts = {
+                url: 'http://staging.cinema6.com/api/campaigns/cam-1234',
+            };
+        });
+
+        it('should throw an error if the creds object is incomplete', function() {
+            [null, {}, { key: 'foo' }, { secret: 'bar' }].forEach(function(obj) {
+                expect(function() { signatures.setAuthHeadersV2(obj, 'get', reqOpts); }).toThrow(new Error('Must provide creds object with key + secret'));
+            });
+        });
+
+        it('should set auth headers on the request opts', function() {
+            signatures.setAuthHeadersV2(creds, 'get', reqOpts);
+            expect(reqOpts).toEqual({
+                url: 'http://staging.cinema6.com/api/campaigns/cam-1234',
+                headers: {
+                    'x-rc-auth-app-key'     : 'ads-service',
+                    'x-rc-auth-timestamp'   : 1453929767464,
+                    'x-rc-auth-nonce'       : 'uuuuuuuuuuuuuuuuuuid',
+                    'x-rc-auth-signature'   : 'johnhancock'
+                }
+            });
+            expect(hashUtils.hashText).toHaveBeenCalledWith('{}', 'SHA256');
+            expect(signatures.signData).toHaveBeenCalledWith({
+                appKey      : 'ads-service',
+                bodyHash    : 'hashbrowns',
+                endpoint    : 'GET /api/campaigns/cam-1234',
+                nonce       : 'uuuuuuuuuuuuuuuuuuid',
+                qs          : { },
+                timestamp   : 1453929767464
+            }, 'SHA256', 'ipoopmypants');
+        });
+
+        it('should not overwrite any existing headers', function() {
+            reqOpts.headers = {
+                'x-gone-give-it-to-ya'      : 'yeaaaaah',
+                cookie                      : 'chocolate'
+            };
+            signatures.setAuthHeadersV2(creds, 'get', reqOpts);
+
+            expect(reqOpts).toEqual({
+                url: 'http://staging.cinema6.com/api/campaigns/cam-1234',
+                headers: {
+                    'x-rc-auth-app-key'     : 'ads-service',
+                    'x-rc-auth-timestamp'   : 1453929767464,
+                    'x-rc-auth-nonce'       : 'uuuuuuuuuuuuuuuuuuid',
+                    'x-rc-auth-signature'   : 'johnhancock',
+                    'x-gone-give-it-to-ya'  : 'yeaaaaah',
+                    cookie                  : 'chocolate'
+                }
+            });
+        });
+
+        describe('when handling the query string', function() {
+            it('should be able to use the qs property in the reqOpts', function() {
+                reqOpts.qs = { decorated: true, a: 1, foo: 'bar', object: { key: 'value' } };
+                signatures.setAuthHeadersV2(creds, 'get', reqOpts);
 
                 expect(reqOpts).toEqual({
                     url: 'http://staging.cinema6.com/api/campaigns/cam-1234',
@@ -191,7 +344,7 @@ describe('signatures', function() {
 
             it('should handle an empty qs property', function() {
                 reqOpts.qs = {};
-                signatures.setAuthHeaders(creds, 'get', reqOpts);
+                signatures.setAuthHeadersV2(creds, 'get', reqOpts);
 
                 expect(reqOpts).toEqual({
                     url: 'http://staging.cinema6.com/api/campaigns/cam-1234',
@@ -208,7 +361,7 @@ describe('signatures', function() {
 
             it('should be able to use the query string in the url', function() {
                 reqOpts.url = 'http://localhost:9000/api/account/user?decorated=false&orgs=o-1,o-2,o-3&status=active';
-                signatures.setAuthHeaders(creds, 'PoSt', reqOpts);
+                signatures.setAuthHeadersV2(creds, 'PoSt', reqOpts);
 
                 expect(reqOpts).toEqual({
                     url: 'http://localhost:9000/api/account/user?decorated=false&orgs=o-1,o-2,o-3&status=active',
@@ -253,7 +406,7 @@ describe('signatures', function() {
                         nan: NaN
                     }
                 };
-                signatures.setAuthHeaders(creds, 'get', reqOpts);
+                signatures.setAuthHeadersV2(creds, 'get', reqOpts);
                 expect(reqOpts).toEqual({
                     url: 'http://staging.cinema6.com/api/campaigns/cam-1234',
                     qs: reqOpts.qs,
@@ -289,7 +442,7 @@ describe('signatures', function() {
         describe('when handling the body', function() {
             it('should just hash the body if it is a string', function() {
                 reqOpts.body = 'dis body is hot';
-                signatures.setAuthHeaders(creds, 'get', reqOpts);
+                signatures.setAuthHeadersV2(creds, 'get', reqOpts);
 
                 expect(reqOpts.body).toEqual('dis body is hot');
                 expect(reqOpts.headers['x-rc-auth-signature']).toBe('johnhancock');
@@ -298,7 +451,7 @@ describe('signatures', function() {
 
             it('should stringify and hash the body if it is an object', function() {
                 reqOpts.body = { foo: 'bar', num: 123, nest: { birds: 'yes' }, arr: [1,3] };
-                signatures.setAuthHeaders(creds, 'get', reqOpts);
+                signatures.setAuthHeadersV2(creds, 'get', reqOpts);
 
                 expect(reqOpts.body).toEqual({ foo: 'bar', num: 123, nest: { birds: 'yes' }, arr: [1,3] });
                 expect(reqOpts.headers['x-rc-auth-signature']).toBe('johnhancock');
@@ -307,7 +460,7 @@ describe('signatures', function() {
 
             it('should be able to take the body from the json prop', function() {
                 reqOpts.json = { foo: 'bar' };
-                signatures.setAuthHeaders(creds, 'get', reqOpts);
+                signatures.setAuthHeadersV2(creds, 'get', reqOpts);
 
                 expect(reqOpts.json).toEqual({ foo: 'bar' });
                 expect(reqOpts.body).not.toBeDefined();
@@ -317,7 +470,7 @@ describe('signatures', function() {
 
             it('should ignore the json prop if it is not an object', function() {
                 reqOpts.json = true;
-                signatures.setAuthHeaders(creds, 'get', reqOpts);
+                signatures.setAuthHeadersV2(creds, 'get', reqOpts);
 
                 expect(reqOpts.json).toEqual(true);
                 expect(reqOpts.body).not.toBeDefined();
