@@ -914,6 +914,7 @@ describe('collateral (E2E):', function() {
                     });
                 });
 
+                /* Will be added back in the next version supporting updated app signing
                 describe('when using app authentication', function() {
                     it('should work with all kinds of query params including exclaimation marks', function(done) {
                         options.qs.uri = 'https://itunes.apple.com/us/app/facebook/id284882215?mt=8';
@@ -954,6 +955,7 @@ describe('collateral (E2E):', function() {
                         }).then(done, done.fail);
                     });
                 });
+                */
             }
 
             describe('with no URI', function() {
