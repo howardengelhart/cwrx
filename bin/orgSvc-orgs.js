@@ -2,12 +2,15 @@
     'use strict';
 
     var q               = require('q'),
-        express         = require('express'),
+        urlUtils        = require('url'),
         util            = require('util'),
+        moment          = require('moment'),
+        express         = require('express'),
         logger          = require('../lib/logger'),
         CrudSvc         = require('../lib/crudSvc'),
         objUtils        = require('../lib/objUtils'),
         authUtils       = require('../lib/authUtils'),
+        requestUtils    = require('../lib/requestUtils'),
         enums           = require('../lib/enums'),
         ld              = require('lodash'),
         Status          = enums.Status,
@@ -229,14 +232,157 @@
         });
     };
 
-    orgModule.getPaymentPlan = function(svc, req) {
+    orgModule.getEffectiveDate = function (req, org) {
+        var currentPaymentEndpoint = urlUtils.resolve(orgModule.config.api.transactions.baseUrl,
+            'showcase/current-payment');
+
+        // If the org does not have a next payment plan
+        if (!org.nextPaymentPlanId) {
+            return q.resolve(null);
+        }
+
+        // Make a request to get the end date of the billing cycle
+        return requestUtils.proxyRequest(req, 'get', {
+            url: currentPaymentEndpoint,
+            qs: { org: org.id }
+        }).then(function (response) {
+            // If getting the end date of the billing cycle failed
+            if (response.response.statusCode !== 200) {
+                throw new Error('there was an error finding the current payment cycle');
+            }
+
+            // Calculate the effective date of the next payment plan
+            return moment(response.body.cycleEnd).add(1, 'day').startOf('day').utcOffset(0)
+                .toDate();
+        });
+    };
+
+    orgModule.getPaymentPlan = function (svc, req) {
+        var orgId = req.params.id;
+
+        // Get the org
+        return svc.getObjs({
+            id: orgId
+        }, ld.set(req, 'query', {
+            fields: ['paymentPlanId','nextPaymentPlanId'].join(',')
+        }), false).then(function (orgResponse) {
+            var orgBody = orgResponse.body;
+            var org = ld.isArray(orgBody) ? orgBody[0] : orgBody;
+
+            // If getting the org failed
+            if (orgResponse.code !== 200) {
+                return orgResponse;
+            }
+
+            // Construct the response
+            return orgModule.getEffectiveDate(req, org).then(function (date) {
+                return ld.chain(orgResponse).set('body', org)
+                    .set('body.effectiveDate', date).value();
+            });
+        });
+    };
+
+    orgModule.setPaymentPlan = function (svc, req) {
+        // If an id is not provided in the request body
+        if (!req.body.id) {
+            return q.resolve({
+                code: 400,
+                body: 'Must provide the id of the payment plan'
+            });
+        }
+
+        // Get the org
         return svc.getObjs({
             id: req.params.id
         }, ld.set(req, 'query', {
-            fields: ['paymentPlanId','nextPaymentPlanId'].join(',')
+            fields: [
+                'paymentPlanId',
+                'nextPaymentPlanId'
+            ].join(',')
         }), false).then(function(result) {
-            return ld.update(result, 'body', function(body) {
-                return ld.isArray(body) ? body[0] : body;
+            // If getting the org failed
+            if (result.code !== 200) {
+                return result;
+            }
+
+            // Reference payment plan ids
+            var now = new Date();
+            var org = result.body;
+            var newPaymentPlanId = req.body.id;
+            var currentPaymentPlanId = org.paymentPlanId;
+
+            function composeResponse(code, org, date) {
+                return {
+                    code: code,
+                    body: ld.chain(org).pick([
+                        'id',
+                        'paymentPlanId',
+                        'nextPaymentPlanId'
+                    ]).assign({
+                        effectiveDate: date
+                    }).value()
+                };
+            }
+
+            // If the payment plan is not changing
+            if (newPaymentPlanId === currentPaymentPlanId) {
+                return composeResponse(304, org, null);
+            }
+
+            // Get relevent payment plan entities from mongo
+            var paymentPlanIds = ld.compact([newPaymentPlanId, currentPaymentPlanId]);
+            return svc._db.collection('paymentPlans').find({
+                id: { $in: paymentPlanIds }
+            }, {
+                price: 1
+            }).toArray().then(function (paymentPlans) {
+                function findPaymentPlan(id) {
+                    return ld.find(paymentPlans, function (paymentPlan) {
+                        return paymentPlan.id === id;
+                    });
+                }
+
+                // Organize payment plan entities
+                var newPaymentPlan = findPaymentPlan(newPaymentPlanId);
+                var currentPaymentPlan = findPaymentPlan(currentPaymentPlanId);
+
+                // If the requested payment plan does not exist
+                if (!newPaymentPlan) {
+                    return {
+                        code: 400,
+                        body: 'that payment plan does not exist'
+                    };
+                }
+
+                // If the existing payment plan does not exist
+                if (currentPaymentPlanId && !currentPaymentPlan) {
+                    throw new Error('there is a problem with the current payment plan');
+                }
+
+                // Calculate updates to the org
+                var effectiveImmediately = !currentPaymentPlanId ||
+                    (newPaymentPlan.price >= currentPaymentPlan.price);
+                var updates = effectiveImmediately ? {
+                    paymentPlanId: newPaymentPlanId,
+                    nextPaymentPlanId: null
+                } : {
+                    paymentPlanId: currentPaymentPlanId,
+                    nextPaymentPlanId: newPaymentPlanId
+                };
+                updates.id = org.id;
+
+                // Get the effective date of the next payment plan
+                return orgModule.getEffectiveDate(req, updates).then(function (date) {
+
+                    // Edit the org with the necessary updates
+                    return svc.editObj(ld.assign(req, {
+                        body: updates
+                    })).then(function (response) {
+                        var org = response.body;
+
+                        return composeResponse(200, org, date || now);
+                    });
+                });
             });
         });
     };
@@ -319,6 +465,16 @@
                 jobManager.endJob(req, res, promise.inspect())
                 .catch(function(error) {
                     res.send(500, { error: 'Error getting org payment plan', detail: error });
+                });
+            });
+        });
+
+        router.post('/:id/payment-plan', sessions, authMidware.create, audit, function(req, res) {
+            var promise = orgModule.setPaymentPlan(svc, req);
+            promise.finally(function() {
+                jobManager.endJob(req, res, promise.inspect())
+                .catch(function(error) {
+                    res.send(500, { error: 'Error setting org payment plan', detail: error });
                 });
             });
         });

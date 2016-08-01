@@ -1,9 +1,11 @@
 var flush = true;
 var objUtils = require('../../lib/objUtils');
+var util = require('util');
+var ld = require('lodash');
 
 describe('orgSvc-orgs (UT)', function() {
     var orgModule, q, mockLog, mockLogger, logger, CrudSvc, Model, enums, Status, Scope,
-        mockDb, mockGateway, req, nextSpy, doneSpy, errorSpy;
+        mockDb, mockGateway, req, nextSpy, doneSpy, errorSpy, requestUtils, moment;
 
     beforeEach(function() {
         if (flush) { for (var m in require.cache){ delete require.cache[m]; } flush = false; }
@@ -13,6 +15,8 @@ describe('orgSvc-orgs (UT)', function() {
         CrudSvc         = require('../../lib/crudSvc');
         Model           = require('../../lib/model');
         enums           = require('../../lib/enums');
+        requestUtils    = require('../../lib/requestUtils');
+        moment          = require('moment');
         Status          = enums.Status;
         Scope           = enums.Scope;
 
@@ -36,6 +40,14 @@ describe('orgSvc-orgs (UT)', function() {
             collection: jasmine.createSpy('db.collection()').and.callFake(function(objName) {
                 return { collectionName: objName };
             })
+        };
+        orgModule.config = { };
+        orgModule.config.api = {
+            root: 'https://test.com',
+            transactions: {
+                baseUrl: 'https://test.com/api/transactions/',
+                endpoint: '/api/transactions/'
+            }
         };
         mockGateway = {
             customer: {
@@ -627,6 +639,14 @@ describe('orgSvc-orgs (UT)', function() {
                 code: 200,
                 body: [this.mockOrg]
             }));
+            spyOn(requestUtils, 'proxyRequest').and.returnValue(q.resolve({
+                response: {
+                    statusCode: 200
+                },
+                body: {
+                    cycleEnd: new Date()
+                }
+            }));
         });
 
         it('should get the requested org\'s payment plan from mongo', function(done) {
@@ -643,12 +663,43 @@ describe('orgSvc-orgs (UT)', function() {
             }).then(done, done.fail);
         });
 
-        it('should be able to resolve with a 200 and any current and pending payment plan', function(done) {
+        it('should proxy a request to the accountant service to get the billing cycle end', function(done) {
             var self = this;
             orgModule.getPaymentPlan(self.svc, self.req).then(function(result) {
+                expect(requestUtils.proxyRequest).toHaveBeenCalledWith(self.req, 'get', {
+                    url: 'https://test.com/api/transactions/showcase/current-payment',
+                    qs: {
+                        org: 'o-123'
+                    }
+                });
+            }).then(done, done.fail);
+        });
+
+        it('should be able to resolve with a 200 and any current and pending payment plan', function(done) {
+            orgModule.getPaymentPlan(this.svc, this.req).then(function(result) {
                 expect(result).toEqual({
                     code: 200,
-                    body: self.mockOrg
+                    body: {
+                        id: 'o-123',
+                        paymentPlanId: 'pp-123',
+                        nextPaymentPlanId: 'pp-456',
+                        effectiveDate: moment().add(1, 'day').startOf('day').utcOffset(0).toDate()
+                    }
+                });
+            }).then(done, done.fail);
+        });
+
+        it('should properly set the effective date in the response when there is not a next payment plan', function(done) {
+            this.mockOrg.nextPaymentPlanId = null;
+            orgModule.getPaymentPlan(this.svc, this.req).then(function(result) {
+                expect(result).toEqual({
+                    code: 200,
+                    body: {
+                        id: 'o-123',
+                        paymentPlanId: 'pp-123',
+                        nextPaymentPlanId: null,
+                        effectiveDate: null
+                    }
                 });
             }).then(done, done.fail);
         });
@@ -671,6 +722,413 @@ describe('orgSvc-orgs (UT)', function() {
             orgModule.getPaymentPlan(this.svc, this.req).then(done.fail, function(error) {
                 expect(error.message).toBe('epic fail');
             }).then(done, done.fail);
+        });
+
+        it('should reject if the request to the accountant service did not respond with a successful status code', function(done) {
+            requestUtils.proxyRequest.and.returnValue(q.resolve({
+                response: {
+                    statusCode: 404
+                },
+                body: 'epic fail'
+            }));
+            orgModule.getPaymentPlan(this.svc, this.req).then(done.fail, function(error) {
+                expect(error.message).toBe('there was an error finding the current payment cycle');
+            }).then(done, done.fail);
+        });
+
+        it('should reject if an error occurs proxying a request to the accountant service', function(done) {
+            requestUtils.proxyRequest.and.returnValue(q.reject(new Error('epic fail')));
+            orgModule.getPaymentPlan(this.svc, this.req).then(done.fail, function(error) {
+                expect(error.message).toBe('epic fail');
+            }).then(done, done.fail);
+        });
+    });
+
+    describe('setPaymentPlan', function() {
+        beforeEach(function() {
+            var self = this;
+
+            jasmine.clock().install();
+            var now = new Date();
+            jasmine.clock().mockDate(now);
+            self.mockDate = now;
+
+            self.req = {
+                body: { },
+                params: {
+                    id: 'o-123'
+                },
+                query: {
+                    foo: 'bar'
+                }
+            };
+            self.svc = orgModule.setupSvc(mockDb, mockGateway);
+            self.paymentPlans = [
+                { id: 'pp-123', price: 10 },
+                { id: 'pp-456', price: 20 },
+                { id: 'pp-789', price: 30 }
+            ];
+            mockColl = {
+                find: jasmine.createSpy('find').and.callFake(function (query) {
+                    var ids = query.id.$in ? query.id.$in : [query.id];
+                    var docs = ids.map(function (id) {
+                        return ld.find(self.paymentPlans, function (paymentPlan) {
+                            return paymentPlan.id === id;
+                        });
+                    }).filter(function (found) {
+                        return found;
+                    });
+                    return {
+                        toArray: function () {
+                            return q.resolve(docs);
+                        }
+                    };
+                })
+            };
+            mockDb.collection.and.returnValue(mockColl);
+            var futureDate = new Date(2100);
+            self.mockOrg = {
+                id: 'o-123',
+                paymentPlanId: null,
+                nextPaymentPlanId: null,
+                nextPaymentDate: futureDate
+            };
+            spyOn(self.svc, 'getObjs').and.returnValue(q.resolve({
+                code: 200,
+                body: self.mockOrg
+            }));
+            spyOn(self.svc, 'editObj').and.callFake(function (req) {
+                return q.resolve({
+                    code: 200,
+                    body: ld.assign(self.mockOrg, req.body)
+                });
+            });
+            spyOn(requestUtils, 'proxyRequest').and.returnValue(q.resolve({
+                response: {
+                    statusCode: 200
+                },
+                body: {
+                    cycleEnd: new Date()
+                }
+            }));
+        });
+
+        afterEach(function() {
+            jasmine.clock().uninstall();
+        });
+
+        it('should resolve with a 400 if not given a payment plan id', function(done) {
+            orgModule.setPaymentPlan(this.svc, this.req).then(function(result) {
+                expect(result).toEqual({
+                    code: 400,
+                    body: 'Must provide the id of the payment plan'
+                });
+            }).then(done, done.fail);
+        });
+
+        describe('getting the org', function() {
+            beforeEach(function() {
+                this.req.body.id = 'pp-456';
+                this.mockOrg.paymentPlanId = 'pp-456';
+            });
+
+            it('should work', function(done) {
+                var self = this;
+                orgModule.setPaymentPlan(self.svc, self.req).then(function() {
+                    var args = self.svc.getObjs.calls.mostRecent().args;
+                    expect(args.length).toBe(3);
+                    expect(args[0]).toEqual({ id: 'o-123' });
+                    expect(args[1]).toEqual(jasmine.objectContaining({
+                        query: {
+                            fields: 'paymentPlanId,nextPaymentPlanId'
+                        }
+                    }));
+                    expect(args[2]).toBe(false);
+                }).then(done, done.fail);
+            });
+
+            it('should exit if the org does not exist', function(done) {
+                var getObjsResult = {
+                    code: 404,
+                    body: 'Object not found'
+                };
+                this.svc.getObjs.and.returnValue(q.resolve(getObjsResult));
+                orgModule.setPaymentPlan(this.svc, this.req).then(function(result) {
+                    expect(result).toEqual(getObjsResult);
+                }).then(done, done.fail);
+            });
+
+            it('should reject if getting the org fails', function(done) {
+                this.svc.getObjs.and.returnValue(q.reject(new Error('epic fail')));
+                orgModule.setPaymentPlan(this.svc, this.req).then(function(value) {
+                    done.fail('should not have fulfilled with ' + util.inspect(value));
+                }).catch(function(error) {
+                    expect(error.message).toBe('epic fail');
+                }).then(done, done.fail);
+            });
+        });
+
+        describe('getting the payment plans from mongo', function() {
+            it('should not happen if the payment plans are identical', function(done) {
+                this.req.body.id = 'pp-456';
+                this.mockOrg.paymentPlanId = 'pp-456';
+                orgModule.setPaymentPlan(this.svc, this.req).then(function(result) {
+                    expect(mockDb.collection).not.toHaveBeenCalledWith('paymentPlans');
+                    expect(mockColl.find).not.toHaveBeenCalled();
+                }).then(done, done.fail);
+            });
+
+            it('should happen if the payment plans are different', function(done) {
+                this.req.body.id = 'pp-456';
+                this.mockOrg.paymentPlanId = 'pp-789';
+                orgModule.setPaymentPlan(this.svc, this.req).then(function(result) {
+                    expect(mockDb.collection).toHaveBeenCalledWith('paymentPlans');
+                    expect(mockColl.find).toHaveBeenCalledWith({
+                        id: {
+                            $in: ['pp-456', 'pp-789']
+                        }
+                    }, {
+                        price: 1
+                    });
+                }).then(done, done.fail);
+            });
+
+            it('should 400 if the given payment plan does not exist in mongo', function(done) {
+                this.req.body.id = 'pp-456';
+                this.mockOrg.paymentPlanId = 'pp-789';
+                this.paymentPlans = [{ id: 'pp-789' }];
+                orgModule.setPaymentPlan(this.svc, this.req).then(function(result) {
+                    expect(result).toEqual({
+                        code: 400,
+                        body: 'that payment plan does not exist'
+                    });
+                }).then(done, done.fail);
+            });
+
+            it('should reject if the payment plan on the org does not exist in mongo', function(done) {
+                this.req.body.id = 'pp-456';
+                this.mockOrg.paymentPlanId = 'pp-789';
+                this.paymentPlans = [{ id: 'pp-456' }];
+                orgModule.setPaymentPlan(this.svc, this.req).then(function () {
+                    done.fail('the promise should not have resolved');
+                }).catch(function(error) {
+                    expect(error.message).toBe('there is a problem with the current payment plan');
+                }).then(done, done.fail);
+            });
+
+            it('should reject if there is a problem querying mongo for the payment plans', function(done) {
+                this.req.body.id = 'pp-456';
+                this.mockOrg.paymentPlanId = 'pp-789';
+                mockColl.find.and.returnValue({
+                    toArray: function () {
+                        return q.reject(new Error('epic fail'));
+                    }
+                });
+                orgModule.setPaymentPlan(this.svc, this.req).then(done.fail, function(error) {
+                    expect(error.message).toBe('epic fail');
+                }).then(done, done.fail);
+            });
+        });
+
+        describe('when upgrading the payment plan', function() {
+            beforeEach(function() {
+                this.mockOrg.paymentPlanId = 'pp-456';
+                this.req.body.id = 'pp-789';
+            });
+
+            it('should edit the org with payment plan ids', function(done) {
+                var self = this;
+                orgModule.setPaymentPlan(self.svc, self.req).then(function() {
+                    expect(self.svc.editObj).toHaveBeenCalledWith(jasmine.objectContaining({
+                        body: {
+                            id: 'o-123',
+                            paymentPlanId: 'pp-789',
+                            nextPaymentPlanId: null
+                        }
+                    }));
+                }).then(done, done.fail);
+            });
+
+            it('should be able to resolve with a 200', function(done) {
+                var self = this;
+                orgModule.setPaymentPlan(self.svc, self.req).then(function(result) {
+                    expect(result).toEqual({
+                        code: 200,
+                        body: {
+                            id: 'o-123',
+                            paymentPlanId: 'pp-789',
+                            nextPaymentPlanId: null,
+                            effectiveDate: self.mockDate
+                        }
+                    });
+                }).then(done, done.fail);
+            });
+
+            it('should not make a request to get the end date of the billing cycle', function(done) {
+                orgModule.setPaymentPlan(this.svc, this.req).then(function(result) {
+                    expect(requestUtils.proxyRequest).not.toHaveBeenCalled();
+                }).then(done, done.fail);
+            });
+
+            it('should reject if editing the org fails', function(done) {
+                this.svc.editObj.and.returnValue(q.reject(new Error('epic fail')));
+                orgModule.setPaymentPlan(this.svc, this.req).then(done.fail, function(error) {
+                    expect(error.message).toBe('epic fail');
+                }).then(done, done.fail);
+            });
+        });
+
+        describe('when downgrading the payment plan', function() {
+            beforeEach(function() {
+                this.mockOrg.paymentPlanId = 'pp-456';
+                this.req.body.id = 'pp-123';
+            });
+
+            it('should edit the org with payment plan ids', function(done) {
+                var self = this;
+                orgModule.setPaymentPlan(self.svc, self.req).then(function() {
+                    expect(self.svc.editObj).toHaveBeenCalledWith(jasmine.objectContaining({
+                        body: {
+                            id: 'o-123',
+                            paymentPlanId: 'pp-456',
+                            nextPaymentPlanId: 'pp-123'
+                        }
+                    }));
+                }).then(done, done.fail);
+            });
+
+            it('should be able to resolve with a 200', function(done) {
+                var self = this;
+                orgModule.setPaymentPlan(self.svc, self.req).then(function(result) {
+                    expect(result).toEqual({
+                        code: 200,
+                        body: {
+                            id: 'o-123',
+                            paymentPlanId: 'pp-456',
+                            nextPaymentPlanId: 'pp-123',
+                            effectiveDate: moment().add(1, 'day').startOf('day').utcOffset(0).toDate()
+                        }
+                    });
+                }).then(done, done.fail);
+            });
+
+            it('should make a request to get the end date of the billing cycle', function(done) {
+                var self = this;
+                orgModule.setPaymentPlan(self.svc, self.req).then(function(result) {
+                    expect(requestUtils.proxyRequest).toHaveBeenCalledWith(self.req, 'get', {
+                        url: 'https://test.com/api/transactions/showcase/current-payment',
+                        qs: {
+                            org: 'o-123'
+                        }
+                    });
+                }).then(done, done.fail);
+            });
+
+            it('should reject if the billing cycle response indicates a failure', function(done) {
+                requestUtils.proxyRequest.and.returnValue(q.resolve({
+                    response: {
+                        statusCode: 500
+                    }
+                }));
+                orgModule.setPaymentPlan(this.svc, this.req).then(done.fail, function (error) {
+                    expect(error.message).toBe('there was an error finding the current payment cycle');
+                }).then(done, done.fail);
+            });
+
+            it('should reject if the request for the billing cycle fails', function(done) {
+                requestUtils.proxyRequest.and.returnValue(q.reject(new Error('epic fail')));
+                orgModule.setPaymentPlan(this.svc, this.req).then(done.fail, function (error) {
+                    expect(error.message).toBe('epic fail');
+                }).then(done, done.fail);
+            });
+
+            it('should reject if editing the org fails', function(done) {
+                this.svc.editObj.and.returnValue(q.reject(new Error('epic fail')));
+                orgModule.setPaymentPlan(this.svc, this.req).then(done.fail, function(error) {
+                    expect(error.message).toBe('epic fail');
+                }).then(done, done.fail);
+            });
+        });
+
+        describe('when setting the payment plan for the first time', function() {
+            beforeEach(function() {
+                this.mockOrg.paymentPlanId = null;
+                this.req.body.id = 'pp-123';
+            });
+
+            it('should edit the org with payment plan ids', function(done) {
+                var self = this;
+                orgModule.setPaymentPlan(self.svc, self.req).then(function() {
+                    expect(self.svc.editObj).toHaveBeenCalledWith(jasmine.objectContaining({
+                        body: {
+                            id: 'o-123',
+                            paymentPlanId: 'pp-123',
+                            nextPaymentPlanId: null
+                        }
+                    }));
+                }).then(done, done.fail);
+            });
+
+            it('should be able to resolve with a 200', function(done) {
+                orgModule.setPaymentPlan(this.svc, this.req).then(function(result) {
+                    expect(result).toEqual({
+                        code: 200,
+                        body: {
+                            id: 'o-123',
+                            paymentPlanId: 'pp-123',
+                            nextPaymentPlanId: null,
+                            effectiveDate: new Date()
+                        }
+                    });
+                }).then(done, done.fail);
+            });
+
+            it('should not make a request to get the end date of the billing cycle', function(done) {
+                orgModule.setPaymentPlan(this.svc, this.req).then(function(result) {
+                    expect(requestUtils.proxyRequest).not.toHaveBeenCalled();
+                }).then(done, done.fail);
+            });
+
+            it('should reject if editing the org fails', function(done) {
+                this.svc.editObj.and.returnValue(q.reject(new Error('epic fail')));
+                orgModule.setPaymentPlan(this.svc, this.req).then(done.fail, function(error) {
+                    expect(error.message).toBe('epic fail');
+                }).then(done, done.fail);
+            });
+        });
+
+        describe('when setting a payment plan which is already set', function() {
+            beforeEach(function() {
+                this.mockOrg.paymentPlanId = 'pp-456';
+                this.req.body.id = 'pp-456';
+            });
+
+            it('should not edit the org', function(done) {
+                var self = this;
+                orgModule.setPaymentPlan(self.svc, self.req).then(function(result) {
+                    expect(self.svc.editObj).not.toHaveBeenCalled();
+                }).then(done, done.fail);
+            });
+
+            it('should not make a request to get the end date of the billing cycle', function(done) {
+                orgModule.setPaymentPlan(this.svc, this.req).then(function(result) {
+                    expect(requestUtils.proxyRequest).not.toHaveBeenCalled();
+                }).then(done, done.fail);
+            });
+
+            it('should be able to resolve with a 304', function(done) {
+                orgModule.setPaymentPlan(this.svc, this.req).then(function(result) {
+                    expect(result).toEqual({
+                        code: 304,
+                        body: {
+                            id: 'o-123',
+                            paymentPlanId: 'pp-456',
+                            nextPaymentPlanId: null,
+                            effectiveDate: null
+                        }
+                    });
+                }).then(done, done.fail);
+            });
         });
     });
 });
