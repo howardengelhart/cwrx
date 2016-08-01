@@ -1,5 +1,8 @@
 # Collateral Service Changelog
 
+### 2.6.3 Mon Aug  1 10:02:35 EDT 2016
+* Transition to the updated method of signing authenticated app requests: [#983](https://github.com/cinema6/cwrx/pull/983)
+
 ### 2.6.2 Wed Jul 27 15:53:02 EDT 2016
 * [FIX]: Fix for an issue where signed app requests including object query parameters would fail: [#980](https://github.com/cinema6/cwrx/pull/980)
 
