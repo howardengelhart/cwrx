@@ -233,7 +233,7 @@
     };
 
     orgModule.getEffectiveDate = function (req, org) {
-        var currentPaymentEndpoint = urlUtils.resolve(orgModule.config.api.transactions.baseUrl,
+        var currentPaymentEndpoint = urlUtils.resolve(orgModule.api.transactions.baseUrl,
             'showcase/current-payment');
 
         // If the org does not have a next payment plan
@@ -387,9 +387,11 @@
         });
     };
 
-    orgModule.setupEndpoints = function(app, svc, sessions, audit, jobManager) {
+    orgModule.setupEndpoints = function(app, svc, sessions, audit, jobManager, config) {
         var router      = express.Router(),
             mountPath   = '/api/account/orgs?'; // prefix to all endpoints declared here
+
+        orgModule.api = config.api;
 
         router.use(jobManager.setJobTimeout.bind(jobManager));
 

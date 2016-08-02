@@ -41,8 +41,7 @@ describe('orgSvc-orgs (UT)', function() {
                 return { collectionName: objName };
             })
         };
-        orgModule.config = { };
-        orgModule.config.api = {
+        orgModule.api = {
             root: 'https://test.com',
             transactions: {
                 baseUrl: 'https://test.com/api/transactions/',

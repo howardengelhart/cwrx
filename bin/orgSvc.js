@@ -97,7 +97,7 @@
             cacheTTL: 60*60*1000,
         }
     };
-    
+
     var main = function(state) {
         var log = logger.getLog(),
             started = new Date();
@@ -106,14 +106,14 @@
             return state;
         }
         log.info('Running as cluster worker, proceed with setting up web server.');
-        
+
         var gateway = braintree.connect({
             environment : braintree.Environment[state.secrets.braintree.environment],
             merchantId  : state.secrets.braintree.merchantId,
             publicKey   : state.secrets.braintree.publicKey,
             privateKey  : state.secrets.braintree.privateKey
         });
-            
+
         var app             = express(),
             orgSvc          = orgModule.setupSvc(state.dbs.c6Db, gateway),
             refSvc          = refModule.setupSvc(state.dbs.c6Db),
@@ -123,7 +123,7 @@
             auditJournal    = new journal.AuditJournal(state.dbs.c6Journal.collection('audit'),
                                                     state.config.appVersion, state.config.appName);
         authUtils._db = state.dbs.c6Db;
-        
+
         payModule.extendSvc(orgSvc, gateway, state.config);
 
         app.set('trust proxy', 1);
@@ -147,7 +147,7 @@
             };
             res.send(200, data);
         });
-        
+
         app.get('/api/account/org/version',function(req, res) {
             res.send(200, state.config.appVersion);
         });
@@ -156,19 +156,19 @@
 
         payModule.setupEndpoints(app, orgSvc, gateway, state.rcAppCreds, state.sessions,
                                  audit, jobManager);
-        orgModule.setupEndpoints(app, orgSvc, state.sessions, audit, jobManager);
+        orgModule.setupEndpoints(app, orgSvc, state.sessions, audit, jobManager, state.config);
         refModule.setupEndpoints(app, refSvc, state.sessions, audit, jobManager);
         promModule.setupEndpoints(app, promSvc, state.sessions, audit, jobManager);
         ppModule.setupEndpoints(app, ppSvc, state.sessions, audit, jobManager);
 
         app.use(expressUtils.errorHandler());
-        
+
         app.listen(state.cmdl.port);
         log.info('Service is listening on port: ' + state.cmdl.port);
 
         return state;
     };
-    
+
 
     if (!__ut__){
         service.start(state)
