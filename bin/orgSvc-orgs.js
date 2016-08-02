@@ -10,6 +10,7 @@
         CrudSvc         = require('../lib/crudSvc'),
         objUtils        = require('../lib/objUtils'),
         authUtils       = require('../lib/authUtils'),
+        mongoUtils      = require('../lib/mongoUtils'),
         requestUtils    = require('../lib/requestUtils'),
         enums           = require('../lib/enums'),
         ld              = require('lodash'),
@@ -318,13 +319,14 @@
 
             // Reference payment plan ids
             var now = new Date();
-            var org = result.body;
+            var body = result.body;
+            var org = ld.isArray(body) ? body[0] : body;
             var newPaymentPlanId = req.body.id;
             var currentPaymentPlanId = org.paymentPlanId;
 
-            function composeResponse(code, org, date) {
+            function composeResponse(org, date) {
                 return {
-                    code: code,
+                    code: 200,
                     body: ld.chain(org).pick([
                         'id',
                         'paymentPlanId',
@@ -340,7 +342,7 @@
 
             // If the payment plan is not changing
             if (newPaymentPlanId === currentPaymentPlanId) {
-                return composeResponse(304, org, null);
+                return composeResponse(org, null);
             }
 
             // Get relevent payment plan entities from mongo
@@ -348,6 +350,7 @@
             return svc._db.collection('paymentPlans').find({
                 id: { $in: paymentPlanIds }
             }, {
+                id: 1,
                 price: 1
             }).toArray().then(function (paymentPlans) {
                 function findPaymentPlan(id) {
@@ -391,16 +394,9 @@
                 return orgModule.getEffectiveDate(req, updates).then(function (date) {
 
                     // Edit the org with the necessary updates
-                    return svc.editObj(ld.assign(req, {
-                        body: updates
-                    })).then(function (response) {
-                        var org = response.body;
-
-                        if (response.code !== 200) {
-                            return response;
-                        }
-
-                        return composeResponse(200, org, date || now);
+                    return mongoUtils.editObject(svc._coll, updates, orgId)
+                    .then(function (org) {
+                        return composeResponse(org, date || now);
                     });
                 });
             });
@@ -491,7 +487,7 @@
             });
         });
 
-        router.post('/:id/payment-plan', sessions, authMidware.create, audit, function(req, res) {
+        router.post('/:id/payment-plan', sessions, authMidware.edit, audit, function(req, res) {
             var promise = orgModule.setPaymentPlan(svc, req);
             promise.finally(function() {
                 jobManager.endJob(req, res, promise.inspect())

@@ -5,7 +5,7 @@ var ld = require('lodash');
 
 describe('orgSvc-orgs (UT)', function() {
     var orgModule, q, mockLog, mockLogger, logger, CrudSvc, Model, enums, Status, Scope,
-        mockDb, mockGateway, req, nextSpy, doneSpy, errorSpy, requestUtils, moment;
+        mockDb, mockGateway, req, nextSpy, doneSpy, errorSpy, requestUtils, moment, mongoUtils;
 
     beforeEach(function() {
         if (flush) { for (var m in require.cache){ delete require.cache[m]; } flush = false; }
@@ -15,6 +15,7 @@ describe('orgSvc-orgs (UT)', function() {
         CrudSvc         = require('../../lib/crudSvc');
         Model           = require('../../lib/model');
         enums           = require('../../lib/enums');
+        mongoUtils      = require('../../lib/mongoUtils');
         requestUtils    = require('../../lib/requestUtils');
         moment          = require('moment');
         Status          = enums.Status;
@@ -795,13 +796,10 @@ describe('orgSvc-orgs (UT)', function() {
             };
             spyOn(self.svc, 'getObjs').and.returnValue(q.resolve({
                 code: 200,
-                body: self.mockOrg
+                body: [self.mockOrg]
             }));
-            spyOn(self.svc, 'editObj').and.callFake(function (req) {
-                return q.resolve({
-                    code: 200,
-                    body: ld.assign(self.mockOrg, req.body)
-                });
+            spyOn(mongoUtils, 'editObject').and.callFake(function (coll, updates) {
+                return q.resolve(ld.assign(self.mockOrg, updates));
             });
             spyOn(requestUtils, 'proxyRequest').and.returnValue(q.resolve({
                 response: {
@@ -888,6 +886,7 @@ describe('orgSvc-orgs (UT)', function() {
                             $in: ['pp-456', 'pp-789']
                         }
                     }, {
+                        id: 1,
                         price: 1
                     });
                 }).then(done, done.fail);
@@ -940,13 +939,11 @@ describe('orgSvc-orgs (UT)', function() {
             it('should edit the org with payment plan ids', function(done) {
                 var self = this;
                 orgModule.setPaymentPlan(self.svc, self.req).then(function() {
-                    expect(self.svc.editObj).toHaveBeenCalledWith(jasmine.objectContaining({
-                        body: {
-                            id: 'o-123',
-                            paymentPlanId: 'pp-789',
-                            nextPaymentPlanId: null
-                        }
-                    }));
+                    expect(mongoUtils.editObject).toHaveBeenCalledWith(self.svc._coll, {
+                        id: 'o-123',
+                        paymentPlanId: 'pp-789',
+                        nextPaymentPlanId: null
+                    }, 'o-123');
                 }).then(done, done.fail);
             });
 
@@ -972,7 +969,7 @@ describe('orgSvc-orgs (UT)', function() {
             });
 
             it('should reject if editing the org fails', function(done) {
-                this.svc.editObj.and.returnValue(q.reject(new Error('epic fail')));
+                mongoUtils.editObject.and.returnValue(q.reject(new Error('epic fail')));
                 orgModule.setPaymentPlan(this.svc, this.req).then(done.fail, function(error) {
                     expect(error.message).toBe('epic fail');
                 }).then(done, done.fail);
@@ -988,13 +985,11 @@ describe('orgSvc-orgs (UT)', function() {
             it('should edit the org with payment plan ids', function(done) {
                 var self = this;
                 orgModule.setPaymentPlan(self.svc, self.req).then(function() {
-                    expect(self.svc.editObj).toHaveBeenCalledWith(jasmine.objectContaining({
-                        body: {
-                            id: 'o-123',
-                            paymentPlanId: 'pp-456',
-                            nextPaymentPlanId: 'pp-123'
-                        }
-                    }));
+                    expect(mongoUtils.editObject).toHaveBeenCalledWith(self.svc._coll, {
+                        id: 'o-123',
+                        paymentPlanId: 'pp-456',
+                        nextPaymentPlanId: 'pp-123'
+                    }, 'o-123');
                 }).then(done, done.fail);
             });
 
@@ -1045,7 +1040,7 @@ describe('orgSvc-orgs (UT)', function() {
             });
 
             it('should reject if editing the org fails', function(done) {
-                this.svc.editObj.and.returnValue(q.reject(new Error('epic fail')));
+                mongoUtils.editObject.and.returnValue(q.reject(new Error('epic fail')));
                 orgModule.setPaymentPlan(this.svc, this.req).then(done.fail, function(error) {
                     expect(error.message).toBe('epic fail');
                 }).then(done, done.fail);
@@ -1061,13 +1056,11 @@ describe('orgSvc-orgs (UT)', function() {
             it('should edit the org with payment plan ids', function(done) {
                 var self = this;
                 orgModule.setPaymentPlan(self.svc, self.req).then(function() {
-                    expect(self.svc.editObj).toHaveBeenCalledWith(jasmine.objectContaining({
-                        body: {
-                            id: 'o-123',
-                            paymentPlanId: 'pp-123',
-                            nextPaymentPlanId: null
-                        }
-                    }));
+                    expect(mongoUtils.editObject).toHaveBeenCalledWith(self.svc._coll, {
+                        id: 'o-123',
+                        paymentPlanId: 'pp-123',
+                        nextPaymentPlanId: null
+                    }, 'o-123');
                 }).then(done, done.fail);
             });
 
@@ -1092,7 +1085,7 @@ describe('orgSvc-orgs (UT)', function() {
             });
 
             it('should reject if editing the org fails', function(done) {
-                this.svc.editObj.and.returnValue(q.reject(new Error('epic fail')));
+                mongoUtils.editObject.and.returnValue(q.reject(new Error('epic fail')));
                 orgModule.setPaymentPlan(this.svc, this.req).then(done.fail, function(error) {
                     expect(error.message).toBe('epic fail');
                 }).then(done, done.fail);
@@ -1108,7 +1101,7 @@ describe('orgSvc-orgs (UT)', function() {
             it('should not edit the org', function(done) {
                 var self = this;
                 orgModule.setPaymentPlan(self.svc, self.req).then(function(result) {
-                    expect(self.svc.editObj).not.toHaveBeenCalled();
+                    expect(mongoUtils.editObject).not.toHaveBeenCalled();
                 }).then(done, done.fail);
             });
 
@@ -1118,10 +1111,10 @@ describe('orgSvc-orgs (UT)', function() {
                 }).then(done, done.fail);
             });
 
-            it('should be able to resolve with a 304', function(done) {
+            it('should be able to resolve with a 200', function(done) {
                 orgModule.setPaymentPlan(this.svc, this.req).then(function(result) {
                     expect(result).toEqual({
-                        code: 304,
+                        code: 200,
                         body: {
                             id: 'o-123',
                             paymentPlanId: 'pp-456',
