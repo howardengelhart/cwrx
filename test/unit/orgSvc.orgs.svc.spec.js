@@ -723,7 +723,7 @@ describe('orgSvc-orgs (UT)', function() {
             }).then(done, done.fail);
         });
 
-        it('should reject if the request to the accountant service did not respond with a successful status code', function(done) {
+        it('should handle when the request for the billing cycle responds with an unsuccessful status code', function(done) {
             requestUtils.proxyRequest.and.returnValue(q.resolve({
                 response: {
                     statusCode: 404
@@ -732,6 +732,7 @@ describe('orgSvc-orgs (UT)', function() {
             }));
             orgModule.getPaymentPlan(this.svc, this.req).then(done.fail, function(error) {
                 expect(error.message).toBe('there was an error finding the current payment cycle');
+                expect(mockLog.warn).toHaveBeenCalled();
             }).then(done, done.fail);
         });
 
@@ -904,7 +905,7 @@ describe('orgSvc-orgs (UT)', function() {
                 }).then(done, done.fail);
             });
 
-            it('should reject if the payment plan on the org does not exist in mongo', function(done) {
+            it('should handle if the payment plan on the org does not exist in mongo', function(done) {
                 this.req.body.id = 'pp-456';
                 this.mockOrg.paymentPlanId = 'pp-789';
                 this.paymentPlans = [{ id: 'pp-456' }];
@@ -912,6 +913,7 @@ describe('orgSvc-orgs (UT)', function() {
                     done.fail('the promise should not have resolved');
                 }).catch(function(error) {
                     expect(error.message).toBe('there is a problem with the current payment plan');
+                    expect(mockLog.error).toHaveBeenCalled();
                 }).then(done, done.fail);
             });
 
@@ -1023,7 +1025,7 @@ describe('orgSvc-orgs (UT)', function() {
                 }).then(done, done.fail);
             });
 
-            it('should reject if the billing cycle response indicates a failure', function(done) {
+            it('should handle if the billing cycle response indicates a failure', function(done) {
                 requestUtils.proxyRequest.and.returnValue(q.resolve({
                     response: {
                         statusCode: 500
@@ -1031,6 +1033,7 @@ describe('orgSvc-orgs (UT)', function() {
                 }));
                 orgModule.setPaymentPlan(this.svc, this.req).then(done.fail, function (error) {
                     expect(error.message).toBe('there was an error finding the current payment cycle');
+                    expect(mockLog.warn).toHaveBeenCalled();
                 }).then(done, done.fail);
             });
 

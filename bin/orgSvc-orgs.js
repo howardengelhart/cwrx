@@ -235,6 +235,7 @@
     orgModule.getEffectiveDate = function (req, org) {
         var currentPaymentEndpoint = urlUtils.resolve(orgModule.api.transactions.baseUrl,
             'showcase/current-payment');
+        var log = logger.getLog();
 
         // If the org does not have a next payment plan
         if (!org.nextPaymentPlanId) {
@@ -247,7 +248,10 @@
             qs: { org: org.id }
         }).then(function (response) {
             // If getting the end date of the billing cycle failed
-            if (response.response.statusCode !== 200) {
+            var code = response.response.statusCode;
+            if (code !== 200) {
+                log.warn('[%1] Error requesting billing cycle for org %2: %3', req.uuid, org.id,
+                    util.inspect({ code: code, body: response.body }));
                 throw new Error('there was an error finding the current payment cycle');
             }
 
@@ -259,6 +263,7 @@
 
     orgModule.getPaymentPlan = function (svc, req) {
         var orgId = req.params.id;
+        var log = logger.getLog();
 
         // Get the org
         return svc.getObjs({
@@ -271,6 +276,8 @@
 
             // If getting the org failed
             if (orgResponse.code !== 200) {
+                log.info('[%1] Problem getting org %2: %3', req.uuid, orgId,
+                    util.inspect(orgResponse));
                 return orgResponse;
             }
 
@@ -283,6 +290,8 @@
     };
 
     orgModule.setPaymentPlan = function (svc, req) {
+        var log = logger.getLog();
+
         // If an id is not provided in the request body
         if (!req.body.id) {
             return q.resolve({
@@ -292,8 +301,9 @@
         }
 
         // Get the org
+        var orgId = req.params.id;
         return svc.getObjs({
-            id: req.params.id
+            id: orgId
         }, ld.set(req, 'query', {
             fields: [
                 'paymentPlanId',
@@ -302,6 +312,7 @@
         }), false).then(function(result) {
             // If getting the org failed
             if (result.code !== 200) {
+                log.info('[%1] Problem getting org %2: %3', req.uuid, orgId, util.inspect(result));
                 return result;
             }
 
@@ -323,6 +334,9 @@
                     }).value()
                 };
             }
+
+            log.trace('[%1] Switching payment plan of org %2 from %3 to %4', req.uuid, orgId,
+                currentPaymentPlanId, newPaymentPlanId);
 
             // If the payment plan is not changing
             if (newPaymentPlanId === currentPaymentPlanId) {
@@ -356,6 +370,8 @@
 
                 // If the existing payment plan does not exist
                 if (currentPaymentPlanId && !currentPaymentPlan) {
+                    log.error('[%1] Payment plan %2 on org %3 does not exist', req.uuid,
+                        currentPaymentPlan, orgId);
                     throw new Error('there is a problem with the current payment plan');
                 }
 
@@ -369,7 +385,7 @@
                     paymentPlanId: currentPaymentPlanId,
                     nextPaymentPlanId: newPaymentPlanId
                 };
-                updates.id = org.id;
+                updates.id = orgId;
 
                 // Get the effective date of the next payment plan
                 return orgModule.getEffectiveDate(req, updates).then(function (date) {
@@ -379,6 +395,10 @@
                         body: updates
                     })).then(function (response) {
                         var org = response.body;
+
+                        if (response.code !== 200) {
+                            return response;
+                        }
 
                         return composeResponse(200, org, date || now);
                     });
