@@ -3,12 +3,8 @@
 
     var q               = require('q'),
         util            = require('util'),
-        path            = require('path'),
         ld              = require('lodash'),
         express         = require('express'),
-        fs              = require('fs-extra'),
-        querystring     = require('querystring'),
-        url             = require('url'),
         logger          = require('../lib/logger'),
         historian       = require('../lib/historian'),
         QueryCache      = require('../lib/queryCache'),
@@ -61,10 +57,6 @@
             __type: 'objectArray',
             __locked: true
         },
-        beeswaxIds: {
-            __allowed: false,
-            __type: 'object'
-        },
         tagParams: {
             __type: 'object',
             __required: true,
@@ -99,9 +91,8 @@
         }
     };
 
-    placeModule.setupSvc = function(db, config, beeswax) {
+    placeModule.setupSvc = function(db, config ) {
         placeModule.config.cacheTTLs = config.cacheTTLs;
-        placeModule.config.beeswax = config.beeswax;
     
         var svc = new CrudSvc(db.collection('placements'), 'pl', {}, placeModule.placeSchema);
         svc._db = db;
@@ -111,11 +102,9 @@
         
         svc.use('create', validateExtRefs);
         svc.use('create', costHistory);
-        svc.use('create', placeModule.createBeeswaxCreative.bind(placeModule, beeswax));
 
         svc.use('edit', validateExtRefs);
         svc.use('edit', costHistory);
-        svc.use('edit', placeModule.editBeeswaxCreative.bind(placeModule, beeswax));
         
         var cache = new QueryCache(
             config.cacheTTLs.placements.freshTTL,
@@ -200,314 +189,6 @@
         });
     };
 
-    /* jshint camelcase: false */
-    
-    // Format pixel url to add to beeswax creative content
-    placeModule.formatPixelUrl = function(tagParams, c6Id) {
-        var pixelUrl = placeModule.config.beeswax.trackingPixel + '?';
-
-        pixelUrl += querystring.stringify(ld.pickBy({
-            placement       : c6Id,
-            campaign        : tagParams.campaign,
-            container       : tagParams.container,
-            event           : 'impression'
-        }));
-
-        [
-            { field: 'hostApp', qp: 'hostApp' },
-            { field: 'network', qp: 'network' },
-            { field: 'uuid', qp: 'extSessionId' },
-            { field: 'ex', qp: 'ex' },
-            { field: 'vr', qp: 'vr' },
-            { field: 'branding', qp: 'branding' },
-            { field: 'domain', qp: 'domain' },
-        ].forEach(function(obj) {
-            var val;
-            if (tagParams[obj.field]) {
-                // Do not url-encode the field if it's a beeswax macro
-                if (/{{.+}}/.test(tagParams[obj.field])) {
-                    val = tagParams[obj.field];
-                } else {
-                    val = encodeURIComponent(tagParams[obj.field]);
-                }
-                pixelUrl += '&' + obj.qp + '=' + val;
-            }
-        });
-        pixelUrl += '&cb={{CACHEBUSTER}}';
-        
-        return pixelUrl;
-    };
-   
-    placeModule.appStoreToIABCats = function(asCats){
-        return (asCats || []).map(function(cat){
-            if (cat === 'Books')			 { return 'IAB1_1'; }    // (Books & Literature)
-            if (cat === 'Business')			 { return 'IAB3_4'; }    // (Business Software)
-            if (cat === 'Catalogs')			 { return 'IAB22'; }     // (Shopping)
-            if (cat === 'Education')	     { return 'IAB5'; }      // (Education)
-            if (cat === 'Entertainment')     { return 'IAB1'; }      // (Arts &Entertainment)
-            if (cat === 'Finance')			 { return 'IAB13'; }     // (Personal Finance)
-            if (cat === 'Food & Drink')	     { return 'IAB8'; }      // (Food & Drink)
-            if (cat === 'Games')			 { return 'IAB9_30'; }   // (Video & Computer Games)
-            if (cat === 'Health & Fitness')  { return 'IAB7'; }      // (Health & Fitness)
-            if (cat === 'Lifestyle')	     { return 'IAB9'; }      // (Hobbies  & Interests)
-            if (cat === 'Medical')			 { return 'IAB7'; }      // (Health & Medicine)
-            if (cat === 'Music')			 { return 'IAB1_6'; }    // (Music)
-            if (cat === 'Navigation')	     { return 'IAB19'; }     // (Tech & Computing)
-            if (cat === 'News')			     { return 'IAB12'; }     // (News)
-            if (cat === 'Photo & Video')     { return 'IAB9_23'; }   // (Photography)
-            if (cat === 'Productivity')		 { return 'IAB3_4'; }    // (Business Software)
-            if (cat === 'Reference')		 { return 'IAB5'; }      // (Education)
-            if (cat === 'Social Networking') { return 'IAB24'; }     // (Uncategorized)
-            if (cat === 'Sports')			 { return 'IAB17'; }     // (Sports)
-            if (cat === 'Travel')			 { return 'IAB20'; }     // (Travel)
-            if (cat === 'Utilities')		 { return 'IAB19'; }     // (Tech & Computing)
-            if (cat === 'Weather')			 { return 'IAB15_10'; }  // (Science-Weather)
-            return 'IAB24';     // (Uncategorized)
-        });
-    };
-
-    // Format + return beeswax creative body. Returns null if tagType is unsupported
-    placeModule.formatBeeswaxBody = function(req) {
-        var log = logger.getLog(),
-            origObj = req.origObj || {},
-            c6Id = req.body.id || origObj.id,
-            tagType = req.body.tagType || origObj.tagType;
-            
-        if (tagType !== 'mraid') {
-            log.info('[%1] Can\'t create beeswax creative for tagType %2', req.uuid, tagType);
-            return null;
-        }
-
-        if (!req.campaign) {
-            log.error('[%1] Can\'t create beeswax creative without campaign for placement %2',
-                req.uuid, c6Id);
-            return null;
-        }
-
-        // Ensure that beeswax creative has {{CLICK_URL}} macro
-        req.body.tagParams.clickUrls = req.body.tagParams.clickUrls || [];
-        if (req.body.tagParams.clickUrls.indexOf('{{CLICK_URL}}') === -1) {
-            req.body.tagParams.clickUrls.push('{{CLICK_URL}}');
-        }
-        req.body.showInTag.clickUrls = true;
-        
-        var beesBody = {
-            advertiser_id: req.advertiser.beeswaxIds.advertiser,
-            alternative_id: c6Id,
-            creative_name: req.body.label || origObj.label || 'Untitled (' + c6Id + ')',
-            creative_type: 0,
-            creative_template_id: 13,
-            sizeless: true,
-            secure: true,
-            active: true,
-            width: 320,
-            height: 480,
-            creative_content: {
-                ADDITIONAL_PIXELS: [{
-                    PIXEL_URL: placeModule.formatPixelUrl(req.body.tagParams, c6Id)
-                }]
-            },
-            creative_attributes: {
-                mobile: {
-                    mraid_playable: [true]
-                },
-                technical : {
-                    banner_mime : ['text/javascript','application/javascript']
-                }
-            }
-        }, adUri;
-
-        if ( req.campaign.product) {
-            if (req.campaign.product.uri) {
-                adUri = url.parse(req.campaign.product.uri);
-                beesBody.creative_attributes.advertiser = {
-                    advertiser_domain : [adUri.protocol + '//' + adUri.hostname ],
-                    landing_page_url: [adUri.protocol + '//' + adUri.host + adUri.pathname],
-                };
-            } else {
-                log.warn('[%1] Placement %2, campaign %3 has no product uri, beeswax creative' +
-                    ' will likely not be approved.', req.uuid, c6Id, req.campaign.id);
-            }
-
-            if (req.campaign.product.categories) {
-                if (!beesBody.creative_attributes.advertiser){
-                    beesBody.creative_attributes.advertiser = {};
-                }
-                beesBody.creative_attributes.advertiser.advertiser_category =
-                    placeModule.appStoreToIABCats(req.campaign.product.categories);
-            } else {
-                log.warn('[%1] Placement %2, campaign %3 has no categories, beeswax creative' +
-                    ' will likely not be approved on Mopub.', req.uuid, c6Id, req.campaign.id);
-            }
-        } else {
-            log.warn('[%1] Placement %2, campaign %3 has no product, beeswax creative' +
-                ' will likely not be approved.', req.uuid, c6Id, req.campaign.id);
-        }
-
-        var templatePath = path.join(__dirname, '../templates/beeswaxCreatives/mraid.html'),
-            tagHtml = fs.readFileSync(templatePath, 'utf8'),
-            opts = { placement: c6Id };
-        
-        Object.keys(req.body.showInTag || {}).forEach(function(key) {
-            if (req.body.showInTag[key] === true && !!req.body.tagParams[key]) {
-                opts[key] = req.body.tagParams[key];
-            }
-        });
-        beesBody.creative_content.TAG = tagHtml.replace('%OPTIONS%', JSON.stringify(opts));
-        
-        return beesBody;
-    };
-
-    placeModule.attachBeeswaxThumbnail = function(beeswax, req, beesBody){
-        var log = logger.getLog(),
-            origObj = req.origObj,
-            c6Id = (origObj || req.body).id,
-            thumbnailUrl;
-
-        if (!req.campaign) {
-            log.warn('[%1] Can\'t attach beeswax thumbnail without campaign for placement %2',
-                req.uuid, c6Id);
-            return q(beesBody);
-        }
-
-        if (!req.campaign.product){
-            log.warn('[%1] Can\'t find product in campaign %2 on placement %3',
-                req.uuid, req.campaign.id, c6Id);
-            return q(beesBody);
-        }
-
-        (req.campaign.product.images || []).forEach(function(img){
-            if (img.type === 'thumbnail') {
-                thumbnailUrl = img.uri;
-            }
-        });
-
-        if (!thumbnailUrl){
-            log.warn('[%1] Can\'t find thumbnail in campaign %2 on placement %3',
-                req.uuid, req.campaign.id, c6Id);
-            return q(beesBody);
-        }
-
-        if (thumbnailUrl === (origObj || req.body).thumbnailSourceUrl){
-            return q(beesBody);
-        }
-
-        return beeswax.uploadCreativeAsset({
-            sourceUrl    : thumbnailUrl,
-            advertiser_id: req.advertiser.beeswaxIds.advertiser
-        })
-        .then(function(asset){
-            log.info('[%1] Created asset %2 for placement %3',
-                req.uuid, asset.path_to_asset, c6Id);
-            beesBody.creative_thumbnail_url = asset.path_to_asset;
-            req.body.thumbnailSourceUrl = thumbnailUrl;
-            return beesBody;
-        })
-        .catch(function(e){
-            log.warn('[%1] uploadCreativeAsset failed on placement %2 with: %3',
-               req.uuid, c6Id, (e.message  ? e.message : util.inspect(e)));
-            return beesBody;
-        });
-
-    };
-    
-    // Create a new Creative in Beeswax, if tagParams.container === 'beeswax'
-    placeModule.createBeeswaxCreative = function(beeswax, req, next, done) {
-        var log = logger.getLog(),
-            c6Id = req.body.id;
-      
-        if ((req.query.ext !== undefined) &&
-            ( (req.query.ext === '0') ||
-            ( (req.query.ext.toLowerCase() === 'false') ||
-              (req.query.ext.toLowerCase && req.query.ext.toLowerCase() === 'off') ))){
-            log.info('[%1] Advert %2 set ext=%3, not creating creative',
-                     req.uuid, req.advertiser.id, req.query.ext);
-            return q(next());
-        }
-
-        if (req.body.tagParams.container !== 'beeswax') {
-            log.trace('[%1] Not setting up beeswax creative for %2 placement',
-                      req.uuid, req.body.tagParams.container);
-            return q(next());
-        }
-        if (!ld.get(req.advertiser, 'beeswaxIds.advertiser', null)) {
-            log.info('[%1] Advert %2 has no beeswax id, not creating creative',
-                     req.uuid, req.advertiser.id);
-            return q(next());
-        }
-        
-        var beesBody = placeModule.formatBeeswaxBody(req);
-        if (!beesBody) {
-            return q(next());
-        }
-    
-        return placeModule.attachBeeswaxThumbnail(beeswax, req, beesBody)
-        .then(beeswax.creatives.create)
-        .then(function(resp) {
-            if (!resp.success) {
-                log.warn('[%1] Creating beeswax creative failed: %2', req.uuid, resp.message);
-                return done({
-                    code: resp.code || 400,
-                    body: 'Could not create beeswax creative'
-                });
-            }
-
-            var beesId = resp.payload.creative_id;
-            log.info('[%1] Created beeswax creative %2 for %3', req.uuid, beesId, c6Id);
-            
-            req.body.beeswaxIds = { creative: beesId };
-            return next();
-        })
-        .catch(function(error) {
-            log.error('[%1] Error creating beeswax creative for %2: %3',
-                      req.uuid, c6Id, error.message || util.inspect(error));
-            return q.reject('Error creating beeswax creative');
-        });
-    };
-    
-    // Edit the creative in Beeswax, if one exists for this placement
-    placeModule.editBeeswaxCreative = function(beeswax, req, next, done) {
-        var log = logger.getLog(),
-            c6Id = req.origObj.id,
-            beesId = ld.get(req.origObj, 'beeswaxIds.creative', null);
-        
-        if (!beesId) {
-            log.trace('[%1] C6 placement %2 has no beeswax creative', req.uuid, c6Id);
-            return q(next());
-        }
-        if (!req.body.tagParams) { // skip if not editing tagParams
-            return q(next());
-        }
-        
-        var beesBody = placeModule.formatBeeswaxBody(req);
-        if (!beesBody) {
-            return q(next());
-        }
-        
-        return placeModule.attachBeeswaxThumbnail(beeswax, req, beesBody)
-        .then(function(bb){
-            return beeswax.creatives.edit(beesId, bb);
-        })
-        .then(function(resp) {
-            if (!resp.success) {
-                log.warn('[%1] Editing beeswax creative %2 failed: %3',
-                         req.uuid, beesId, resp.message);
-                return done({
-                    code: resp.code || 400,
-                    body: 'Could not edit beeswax creative'
-                });
-            }
-            log.info('[%1] Edited beeswax creative %2 for %3', req.uuid, beesId, c6Id);
-            return next();
-        })
-        .catch(function(error) {
-            log.error('[%1] Error editing beeswax creative %2 for %3: %4',
-                      req.uuid, beesId, c6Id, error.message || util.inspect(error));
-            return q.reject('Error editing beeswax creative');
-        });
-    };
-    
-    /* jshint camelcase: true */
     
     placeModule.getPublicPlacement = function(svc, cache, id, req) {
         var log = logger.getLog(),

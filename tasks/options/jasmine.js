@@ -17,6 +17,7 @@ module.exports = {
     },
     e2e: {
         options: {
+            stopOnFailure : true,
             configure: function(jasmine) {
                 var junitReporter = new JUnitXmlReporter({
                     savePath: path.resolve(__dirname, '../../reports/e2e'),

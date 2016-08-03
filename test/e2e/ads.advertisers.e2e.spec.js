@@ -3,7 +3,6 @@ var q               = require('q'),
     util            = require('util'),
     ld              = require('lodash'),
     request         = require('request'),
-    BeeswaxClient   = require('beeswax-client'),
     testUtils       = require('./testUtils'),
     requestUtils    = require('../../lib/requestUtils'),
     uuid            = require('rc-uuid'),
@@ -12,13 +11,6 @@ var q               = require('q'),
         adsUrl  : 'http://' + (host === 'localhost' ? host + ':3900' : host) + '/api',
         authUrl : 'http://' + (host === 'localhost' ? host + ':3200' : host) + '/api/auth'
     };
-
-var beeswax = new BeeswaxClient({
-    creds: {
-        email: 'ops@cinema6.com',
-        password: '07743763902206f2b511bead2d2bf12292e2af82'
-    }
-});
 
 describe('ads advertisers endpoints (E2E):', function() {
     var cookieJar, nonAdminJar, mockApp, appCreds;
@@ -391,9 +383,8 @@ describe('ads advertisers endpoints (E2E):', function() {
     });
 
     describe('POST /api/account/advertisers', function() {
-        var options, beesAdvertIds, nowStr;
+        var options, nowStr;
         beforeEach(function(done) {
-            beesAdvertIds = [];
             nowStr = String(Date.now()) + ' - ';
             options = {
                 url: config.adsUrl + '/account/advertisers/',
@@ -411,16 +402,8 @@ describe('ads advertisers endpoints (E2E):', function() {
             testUtils.resetCollection('advertisers').done(done);
         });
 
-        afterEach(function(done) {
-            q.all(beesAdvertIds.map(function(id) {
-                return beeswax.advertisers.delete(id);
-            })).then(function(results) {
-                done();
-            }).catch(done.fail);
-        });
-
         it('should be able to create an advertiser', function(done) {
-            var createdAdvert, beesId;
+            var createdAdvert ;
             requestUtils.qRequest('post', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(201);
                 expect(resp.body._id).not.toBeDefined();
@@ -436,20 +419,7 @@ describe('ads advertisers endpoints (E2E):', function() {
                 expect(new Date(resp.body.created).toString()).not.toEqual('Invalid Date');
                 expect(resp.body.lastUpdated).toEqual(resp.body.created);
                 expect(resp.body.status).toBe('active');
-                expect(resp.body.beeswaxIds).toEqual({ advertiser: jasmine.any(Number) });
                 createdAdvert = resp.body;
-                beesId = ld.get(resp.body, 'beeswaxIds.advertiser', null);
-                beesAdvertIds.push(beesId);
-
-                // Check that advertiser created in Beeswax successfully
-                return beeswax.advertisers.find(beesId);
-            }).then(function(resp) {
-                expect(resp.success).toBe(true);
-                expect(resp.payload).toEqual(jasmine.objectContaining({
-                    advertiser_id: beesId,
-                    advertiser_name: nowStr + 'post advert 1',
-                    alternative_id: createdAdvert.id
-                }));
             }).catch(function(error) {
                 expect(error.message || util.inspect(error)).not.toBeDefined();
             }).done(done);
@@ -458,7 +428,6 @@ describe('ads advertisers endpoints (E2E):', function() {
         it('should write an entry to the audit collection', function(done) {
             requestUtils.qRequest('post', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(201);
-                beesAdvertIds.push(ld.get(resp.body, 'beeswaxIds.advertiser', null));
                 return testUtils.mongoFind('audit', {}, {$natural: -1}, 1, 0, {db: 'c6Journal'});
             }).then(function(results) {
                 expect(results[0].user).toBe('u-admin');
@@ -485,41 +454,10 @@ describe('ads advertisers endpoints (E2E):', function() {
             }).done(done);
         });
 
-        it('should handle naming conflicts in beeswax', function(done) {
-            var createdAdverts = [];
-            requestUtils.qRequest('post', options).then(function(resp) {
-                expect(resp.response.statusCode).toBe(201);
-                expect(resp.body.name).toBe(nowStr + 'post advert 1');
-                expect(resp.body.beeswaxIds).toEqual({ advertiser: jasmine.any(Number) });
-                createdAdverts.push(resp.body);
-                beesAdvertIds.push(ld.get(resp.body, 'beeswaxIds.advertiser', null));
-
-                return requestUtils.qRequest('post', options);
-            }).then(function(resp) {
-                expect(resp.response.statusCode).toBe(201);
-                expect(resp.body.name).toBe(nowStr + 'post advert 1');
-                expect(resp.body.name).toEqual(createdAdverts[0].name);
-                createdAdverts.push(resp.body);
-                beesAdvertIds.push(ld.get(resp.body, 'beeswaxIds.advertiser', null));
-
-                return q.all(beesAdvertIds.map(function(id) {
-                    return beeswax.advertisers.find(id);
-                }));
-            }).then(function(results) {
-                expect(results[0].payload.alternative_id).toBe(createdAdverts[0].id);
-                expect(results[1].payload.alternative_id).toBe(createdAdverts[1].id);
-                expect(results[0].payload.advertiser_name).toBe(nowStr + 'post advert 1');
-                expect(results[1].payload.advertiser_name).toBe(nowStr + 'post advert 1 (' + createdAdverts[1].id + ')');
-            }).catch(function(error) {
-                expect(error.message || util.inspect(error)).not.toBeDefined();
-            }).done(done);
-        });
-
         it('should trim off forbidden fields', function(done) {
             options.json.id = 'a-fake';
             options.json._id = '_WEORIULSKJF';
             options.json.org = 'o-fake';
-            options.json.beesaxIds = { advertiser: 'foo', campaign: 'bar' };
             options.json.created = new Date(Date.now() - 99999999);
             requestUtils.qRequest('post', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(201);
@@ -528,8 +466,6 @@ describe('ads advertisers endpoints (E2E):', function() {
                 expect(resp.body.id).not.toBe('a-fake');
                 expect(resp.body.org).toBe('o-admin');
                 expect(new Date(resp.body.created)).toBeGreaterThan(options.json.created);
-                expect(resp.body.beeswaxIds).toEqual({ advertiser: jasmine.any(Number) });
-                beesAdvertIds.push(ld.get(resp.body, 'beeswaxIds.advertiser', null));
             }).catch(function(error) {
                 expect(error.message || util.inspect(error)).not.toBeDefined();
             }).done(done);
@@ -548,7 +484,7 @@ describe('ads advertisers endpoints (E2E):', function() {
 
         it('should allow an app to create an advertiser', function(done) {
             delete options.jar;
-            var createdAdvert, beesId;
+            var createdAdvert;
             requestUtils.makeSignedRequest(appCreds, 'post', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(201);
                 expect(resp.body.id).toBeDefined();
@@ -560,20 +496,7 @@ describe('ads advertisers endpoints (E2E):', function() {
                 expect(resp.body.defaultLogos).toEqual({
                     square: 'square.png'
                 });
-                expect(resp.body.beeswaxIds).toEqual({ advertiser: jasmine.any(Number) });
                 createdAdvert = resp.body;
-                beesId = ld.get(resp.body, 'beeswaxIds.advertiser', null);
-                beesAdvertIds.push(beesId);
-
-                // Check that advertiser created in Beeswax successfully
-                return beeswax.advertisers.find(beesId);
-            }).then(function(resp) {
-                expect(resp.success).toBe(true);
-                expect(resp.payload).toEqual(jasmine.objectContaining({
-                    advertiser_id: beesId,
-                    advertiser_name: nowStr + 'post advert 1',
-                    alternative_id: createdAdvert.id
-                }));
             }).catch(function(error) {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
@@ -582,7 +505,7 @@ describe('ads advertisers endpoints (E2E):', function() {
 
     describe('PUT /api/account/advertisers/:id', function() {
         var createdAdverts, mockAdverts, options, nowStr;
-        beforeAll(function(done) { // create new adverts with beeswax entities
+        beforeAll(function(done) { // create new adverts
             createdAdverts = [];
             nowStr = String(Date.now()) + ' - ';
             q.all(['put advert 1', 'put advert 2'].map(function(nameSuffix) {
@@ -603,17 +526,6 @@ describe('ads advertisers endpoints (E2E):', function() {
                 createdAdverts = results;
                 done();
             }).catch(done.fail);
-        });
-
-        afterAll(function(done) { // clean up created beeswax advertisers
-            q.all(createdAdverts.map(function(advert) {
-                var beesId = advert.beeswaxIds.advertiser;
-                return beeswax.advertisers.delete(beesId);
-            })).then(function(results) {
-                done();
-            })
-            .timeout(jasmine.DEFAULT_TIMEOUT_INTERVAL - 100, 'Timed out in afterAll of ' + path.basename(__filename))
-            .catch(done.fail);
         });
 
         beforeEach(function(done) {
@@ -648,39 +560,6 @@ describe('ads advertisers endpoints (E2E):', function() {
             }).done(done);
         });
 
-        it('should create a beeswax representation for a pre-existing advertiser', function (done) {
-            var newId = uuid.createUuid(),
-                beesId;
-            // first update advert with unique name
-            options.json.name = 'my advertiser-' + newId;
-            requestUtils.qRequest('put', options).then(function(resp) {
-                expect(resp.response.statusCode).toBe(200);
-                expect(resp.body.name).toBe('my advertiser-' + newId);
-                
-                // then use initBeeswax to create beeswax advert on PUT
-                options.json = {};
-                options.qs = { initBeeswax: 'true' };
-                return requestUtils.qRequest('put', options);
-            }).then(function(resp) {
-                expect(resp.response.statusCode).toBe(200);
-                expect(resp.body.name).toBe('my advertiser-' + newId);
-
-                // check that beeswax advertiser created properly
-                beesId = resp.body.beeswaxIds.advertiser;
-                expect(beesId).toEqual(jasmine.any(Number));
-                return beeswax.advertisers.find(beesId);
-            }).then(function(beesResp) {
-                expect(beesResp.success).toBeTruthy();
-                expect(beesResp.payload).toEqual(jasmine.objectContaining({
-                    advertiser_id: beesId,
-                    advertiser_name: 'my advertiser-' + newId,
-                    alternative_id: 'e2e-a-1'
-                }));
-                // cleaup beeswax advertiser manually
-                return beeswax.advertisers.delete(beesId);
-            }).done(done);
-        });
-
         it('should write an entry to the audit collection', function(done) {
             requestUtils.qRequest('put', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
@@ -699,55 +578,6 @@ describe('ads advertisers endpoints (E2E):', function() {
             }).catch(function(error) {
                 expect(error.message || util.inspect(error)).not.toBeDefined();
             }).done(done);
-        });
-
-        describe('if the advertiser has a beeswax representation', function() {
-            beforeEach(function() {
-                options = {
-                    url: config.adsUrl + '/account/advertisers/' + createdAdverts[0].id,
-                    json: { name: nowStr + 'updated advert 1' },
-                    jar: cookieJar
-                };
-            });
-
-            it('should be able to edit the entity in beeswax', function(done) {
-                requestUtils.qRequest('put', options).then(function(resp) {
-                    expect(resp.response.statusCode).toBe(200);
-                    expect(resp.body.name).toBe(nowStr + 'updated advert 1');
-                    expect(resp.body.beeswaxIds).toEqual(createdAdverts[0].beeswaxIds);
-
-                    // Check that advertiser updated in Beeswax successfully
-                    return beeswax.advertisers.find(resp.body.beeswaxIds.advertiser);
-                }).then(function(resp) {
-                    expect(resp.success).toBe(true);
-                    expect(resp.payload).toEqual(jasmine.objectContaining({
-                        advertiser_name: nowStr + 'updated advert 1',
-                        alternative_id: createdAdverts[0].id
-                    }));
-                }).catch(function(error) {
-                    expect(error.message || util.inspect(error)).not.toBeDefined();
-                }).done(done);
-            });
-
-            it('should resolve unique name conflicts if necessary', function(done) {
-                options.json.name = createdAdverts[1].name;
-                requestUtils.qRequest('put', options).then(function(resp) {
-                    expect(resp.response.statusCode).toBe(200);
-                    expect(resp.body.name).toBe(createdAdverts[1].name);
-                    expect(resp.body.beeswaxIds).toEqual(createdAdverts[0].beeswaxIds);
-
-                    // Check that advertiser updated in Beeswax successfully
-                    return beeswax.advertisers.find(resp.body.beeswaxIds.advertiser);
-                }).then(function(resp) {
-                    expect(resp.success).toBe(true);
-                    expect(resp.payload).toEqual(jasmine.objectContaining({
-                        advertiser_name: nowStr + 'put advert 2 (' + createdAdverts[0].id + ')',
-                        alternative_id: createdAdverts[0].id
-                    }));
-                }).catch(function(error) {
-                    expect(error.message || util.inspect(error)).not.toBeDefined();
-                }).done(done);
-            });
         });
 
         it('should trim off forbidden fields', function(done) {

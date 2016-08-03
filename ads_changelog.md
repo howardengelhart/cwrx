@@ -1,5 +1,11 @@
 # Ads Service Changelog
 
+### 5.5.0 Wed Aug  3 16:57:15 EDT 2016
+* Waxing beeswax out of cwrx
+
+### 5.4.2 Mon Aug  1 10:02:35 EDT 2016
+* Transition to the updated method of signing authenticated app requests: [#983](https://github.com/cinema6/cwrx/pull/983)
+
 ### 5.4.2 Mon Aug  1 10:02:35 EDT 2016
 * Transition to the updated method of signing authenticated app requests: [#983](https://github.com/cinema6/cwrx/pull/983)
 
