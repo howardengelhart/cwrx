@@ -1,5 +1,8 @@
 # Org Service Changelog
 
+### 1.15.0 Wed Aug  3 11:25:45 EDT 2016
+* [FEATURE] GET and POST `/api/account/orgs/:id/payment-plan` endpoint to get or modify payment plan of an org [#984](https://github.com/cinema6/cwrx/pull/984)
+
 ### 1.14.2 Mon Aug  1 10:02:35 EDT 2016
 * Transition to the updated method of signing authenticated app requests: [#983](https://github.com/cinema6/cwrx/pull/983)
 
