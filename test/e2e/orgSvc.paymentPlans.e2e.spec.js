@@ -7,12 +7,14 @@ var clone = require('lodash').cloneDeep;
 var find = require('lodash').find;
 var reject = require('lodash').reject;
 var assign = require('lodash').assign;
+var moment = require('moment');
 var _ = require('lodash');
 
 var HOST = (process.env.host || 'localhost');
 var config = {
     paymentPlansUrl: 'http://' + (HOST === 'localhost' ? HOST + ':3700' : HOST) + '/api/payment-plans',
-    authUrl: 'http://' + (HOST === 'localhost' ? HOST + ':3200' : HOST) + '/api/auth'
+    authUrl: 'http://' + (HOST === 'localhost' ? HOST + ':3200' : HOST) + '/api/auth',
+    orgUrl: 'http://' + (HOST === 'localhost' ? HOST + ':3700' : HOST) + '/api/account/orgs'
 };
 
 
@@ -51,8 +53,19 @@ describe('orgSvc payment-plans endpoints', function() {
             status: 'active',
             priority: 1,
             permissions: {
-                paymentPlans: { read: 'all', create: 'all', edit: 'all', delete: 'all' }
+                paymentPlans: { read: 'all', create: 'all', edit: 'all', delete: 'all' },
+                transactions: { read: 'all', create: 'all', edit: 'all', delete: 'all' },
+                orgs: { read: 'all', create: 'all', edit: 'all', delete: 'all' }
             }
+        };
+        this.mockOrg = {
+            id: 'o-' + createUuid(),
+            status: 'active',
+            name: 'cybOrg'
+        };
+
+        this.isCloseToNow = function(date) {
+            return moment(date).diff(moment(), 'days') === 0;
         };
 
         options = {
@@ -72,8 +85,66 @@ describe('orgSvc payment-plans endpoints', function() {
         ]).then(done, done.fail);
     });
 
-    afterEach(function() {
+    // Mock relevent Postgres data
+    beforeEach(function(done) {
+        var transCounter = 9999,
+            transFields = ['rec_ts','transaction_id','transaction_ts','org_id','amount','sign',
+                           'units','campaign_id','braintree_id','promotion_id','description',
+                           'view_target','paymentplan_id','application',
+                           'cycle_start','cycle_end'];
+
+        function creditRecordShowcase(org, amount, braintreeId, promotion, desc,
+                viewTarget,paymentPlan, app, transTs, cycleStart, cycleEnd ) {
+            var recKey = transCounter++,
+                id = 't-e2e-' + String(recKey);
+
+            var s =  testUtils.stringifyRecord({
+                rec_ts: transTs,
+                transaction_id: id,
+                transaction_ts: transTs,
+                org_id: org,
+                amount: amount,
+                sign: 1,
+                units: 1,
+                campaign_id: null,
+                braintree_id: braintreeId,
+                promotion_id: promotion,
+                description: desc,
+                view_target : viewTarget,
+                paymentplan_id : paymentPlan,
+                application: app,
+                cycle_start: cycleStart,
+                cycle_end: cycleEnd
+            }, transFields);
+            return s;
+        }
+
+        var testTransactions = [
+            creditRecordShowcase(this.mockOrg.id, 49.99, 'pay13',null,null,2000,'plan9','showcase',
+                    'current_timestamp - \'30 days\'::interval',
+                    'current_timestamp - \'30 days\'::interval',
+                    'current_timestamp'),
+            creditRecordShowcase(this.mockOrg.id, 59.99, 'pay14',null,null,3000,'plan9','showcase',
+                    'current_timestamp','current_timestamp',
+                    'current_timestamp + \'30 days\'::interval'),
+            creditRecordShowcase(this.mockOrg.id, 59.99, 'pay14','promo1',null,400,null,'showcase',
+                    'current_timestamp - \'10 days\'::interval'),
+            creditRecordShowcase(this.mockOrg.id, 59.99, 'pay14','promo1',null,500,null,'showcase',
+                    'current_timestamp + \'10 days\'::interval'),
+            creditRecordShowcase(this.mockOrg.id, 59.99, 'pay14','promo1',null,600,null,'showcase',
+                    'current_timestamp + \'15 days\'::interval'),
+            creditRecordShowcase(this.mockOrg.id, 59.99, 'pay14','promo1',null,500,null,'showcase',
+                    'current_timestamp + \'10 days\'::interval')
+        ];
+
+        q.all([
+            testUtils.resetPGTable('fct.billing_transactions', testTransactions, null, transFields)
+        ]).then(done, done.fail);
+    });
+
+    afterEach(function(done) {
         apiResponse = null;
+        testUtils.closeDbs().then(done, done.fail);
     });
 
     describe('GET /api/payment-plans/:id', function() {
@@ -1071,6 +1142,259 @@ describe('orgSvc payment-plans endpoints', function() {
                 expect(apiResponse.response.statusCode).toBe(401);
                 expect(apiResponse.body).toBe('Unauthorized');
             });
+        });
+    });
+
+    describe('GET /:id/payment-plan', function() {
+        beforeEach(function() {
+            this.endpoint = config.orgUrl + '/' + this.mockOrg.id + '/payment-plan';
+            this.login = function () {
+                return requestUtils.qRequest('post', {
+                    url: config.authUrl + '/login',
+                    json: {
+                        email: user.email,
+                        password: 'password'
+                    },
+                    jar: jar
+                });
+            };
+            this.mockOrg.paymentPlanId = 'pp-' + createUuid();
+            this.mockOrg.nextPaymentPlanId = 'pp-' + createUuid();
+        });
+
+        it('should 401 if unauthenticated', function(done) {
+            requestUtils.qRequest('get', _.assign(options, {
+                url: this.endpoint
+            })).then(function(response) {
+                expect(response.response.statusCode).toBe(401);
+                expect(response.body).toBe('Unauthorized');
+            }).then(done, done.fail);
+        });
+
+        it('should 404 if no such org exists', function(done) {
+            var self = this;
+            this.login().then(function () {
+                return requestUtils.qRequest('get', _.assign(options, {
+                    url: self.endpoint
+                }));
+            }).then(function(response) {
+                expect(response.response.statusCode).toBe(404);
+                expect(response.body).toBe('Object not found');
+            }).then(done, done.fail);
+        });
+
+        it('should be able to 200 with the proper response body', function(done) {
+            var self = this;
+            testUtils.resetCollection('orgs', [self.mockOrg]).then(function () {
+                return self.login();
+            }).then(function () {
+                return requestUtils.qRequest('get', _.assign(options, {
+                    url: self.endpoint
+                }));
+            }).then(function(response) {
+                var date = new Date(response.body.effectiveDate);
+
+                expect(response.response.statusCode).toBe(200);
+                expect(response.body).toEqual({
+                    id: self.mockOrg.id,
+                    paymentPlanId: self.mockOrg.paymentPlanId,
+                    nextPaymentPlanId: self.mockOrg.nextPaymentPlanId,
+                    effectiveDate: jasmine.any(String)
+                });
+                expect(self.isCloseToNow(moment(date).subtract(30, 'days'))).toBe(true);
+            }).then(done, done.fail);
+        });
+    });
+
+    describe('POST /:id/payment-plan', function() {
+        // Initialize payment plans
+        beforeEach(function(done) {
+            this.paymentPlans = [
+                {
+                    id: 'pp-' + createUuid(),
+                    status: 'active',
+                    label: '--canceled--',
+                    price: 0,
+                    maxCampaigns: 0,
+                    viewsPerMonth: 0
+                },
+                {
+                    id: 'pp-' + createUuid(),
+                    status: 'active',
+                    label: 'Starter',
+                    price: 49.99,
+                    maxCampaigns: 1,
+                    viewsPerMonth: 2000
+                },
+                {
+                    id: 'pp-' + createUuid(),
+                    status: 'active',
+                    label: 'Pro',
+                    price: 149.99,
+                    maxCampaigns: 3,
+                    viewsPerMonth: 7500
+                },
+                {
+                    id: 'pp-' + createUuid(),
+                    status: 'active',
+                    label: 'Business',
+                    price: 499.99,
+                    maxCampaigns: 10,
+                    viewsPerMonth: 25500
+                },
+                {
+                    id: 'pp-' + createUuid(),
+                    status: 'deleted',
+                    label: 'Enterprise',
+                    price: 2000,
+                    maxCampaigns: 500,
+                    viewsPerMonth: 1000000
+                }
+            ];
+
+            testUtils.resetCollection('paymentPlans', this.paymentPlans).then(done, done.fail);
+        });
+
+        beforeEach(function () {
+            this.endpoint = config.orgUrl + '/' + this.mockOrg.id + '/payment-plan';
+            this.login = function () {
+                return requestUtils.qRequest('post', {
+                    url: config.authUrl + '/login',
+                    json: {
+                        email: user.email,
+                        password: 'password'
+                    },
+                    jar: jar
+                });
+            };
+            this.mockOrg.paymentPlanId = this.paymentPlans[2].id;
+            this.mockOrg.nextPaymentPlanId = null;
+        });
+
+
+        it('should 401 if unauthenticated', function(done) {
+            requestUtils.qRequest('post', _.assign(options, {
+                url: this.endpoint
+            })).then(function(response) {
+                expect(response.response.statusCode).toBe(401);
+                expect(response.body).toBe('Unauthorized');
+            }).then(done, done.fail);
+        });
+
+        it('should 400 if the payment plan id is not provided in the request body', function(done) {
+            var self = this;
+            this.login().then(function () {
+                return requestUtils.qRequest('post', _.assign(options, {
+                    url: self.endpoint
+                }));
+            }).then(function(response) {
+                expect(response.response.statusCode).toBe(400);
+                expect(response.body).toBe('Must provide the id of the payment plan');
+            }).then(done, done.fail);
+        });
+
+        it('should 404 if no such org exists', function(done) {
+            var self = this;
+            this.login().then(function () {
+                return requestUtils.qRequest('post', _.assign(options, {
+                    url: self.endpoint,
+                    json: {
+                        id: self.mockOrg.paymentPlanId
+                    }
+                }));
+            }).then(function(response) {
+                expect(response.response.statusCode).toBe(404);
+                expect(response.body).toBe('Object not found');
+            }).then(done, done.fail);
+        });
+
+        it('should 400 if the given payment plan does not exist', function(done) {
+            var self = this;
+            testUtils.resetCollection('orgs', [self.mockOrg]).then(function () {
+                return self.login();
+            }).then(function () {
+                return requestUtils.qRequest('post', _.assign(options, {
+                    url: self.endpoint,
+                    json: {
+                        id: 'pp-' + createUuid()
+                    }
+                }));
+            }).then(function(response) {
+                expect(response.response.statusCode).toBe(400);
+                expect(response.body).toEqual('that payment plan does not exist');
+            }).then(done, done.fail);
+        });
+
+        it('should be able to 200 when setting the existing payment plan', function(done) {
+            var self = this;
+            testUtils.resetCollection('orgs', [self.mockOrg]).then(function () {
+                return self.login();
+            }).then(function () {
+                return requestUtils.qRequest('post', _.assign(options, {
+                    url: self.endpoint,
+                    json: {
+                        id: self.mockOrg.paymentPlanId
+                    }
+                }));
+            }).then(function(response) {
+                expect(response.response.statusCode).toBe(200);
+                expect(response.body).toEqual({
+                    id: self.mockOrg.id,
+                    paymentPlanId: self.mockOrg.paymentPlanId,
+                    nextPaymentPlanId: null,
+                    effectiveDate: null
+                });
+            }).then(done, done.fail);
+        });
+
+        it('should be able to 200 when upgrading the payment plan', function(done) {
+            var self = this;
+            testUtils.resetCollection('orgs', [self.mockOrg]).then(function () {
+                return self.login();
+            }).then(function () {
+                return requestUtils.qRequest('post', _.assign(options, {
+                    url: self.endpoint,
+                    json: {
+                        id: self.paymentPlans[3].id
+                    }
+                }));
+            }).then(function(response) {
+                var date = new Date(response.body.effectiveDate);
+
+                expect(response.response.statusCode).toBe(200);
+                expect(response.body).toEqual({
+                    id: self.mockOrg.id,
+                    paymentPlanId: self.paymentPlans[3].id,
+                    nextPaymentPlanId: null,
+                    effectiveDate: jasmine.any(String)
+                });
+                expect(self.isCloseToNow(date)).toBe(true);
+            }).then(done, done.fail);
+        });
+
+        it('should be able to 200 when downgrading the payment plan', function(done) {
+            var self = this;
+            testUtils.resetCollection('orgs', [self.mockOrg]).then(function () {
+                return self.login();
+            }).then(function () {
+                return requestUtils.qRequest('post', _.assign(options, {
+                    url: self.endpoint,
+                    json: {
+                        id: self.paymentPlans[1].id
+                    }
+                }));
+            }).then(function(response) {
+                var date = new Date(response.body.effectiveDate);
+
+                expect(response.response.statusCode).toBe(200);
+                expect(response.body).toEqual({
+                    id: self.mockOrg.id,
+                    paymentPlanId: self.paymentPlans[2].id,
+                    nextPaymentPlanId: self.paymentPlans[1].id,
+                    effectiveDate: jasmine.any(String)
+                });
+                expect(self.isCloseToNow(moment(date).subtract(30, 'days'))).toBe(true);
+            }).then(done, done.fail);
         });
     });
 });

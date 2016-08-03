@@ -1027,49 +1027,6 @@ describe('orgSvc orgs (E2E):', function() {
         });
     });
 
-    describe('GET /api/account/orgs/:id/payment-plan', function() {
-        beforeEach(function() {
-            this.mockOrg = {
-                id: 'o-' + uuid.createUuid(),
-                name: 'e2e-org',
-                status: 'active',
-                paymentPlanId: 'pp' + uuid.createUuid(),
-                nextPaymentPlanId: 'pp' + uuid.createUuid()
-            };
-            this.options = {
-                url: config.orgSvcUrl + '/' + this.mockOrg.id + '/payment-plan',
-                jar: cookieJar
-            };
-        });
-
-        it('should be able to get payment plans', function(done) {
-            var self = this;
-            testUtils.resetCollection('orgs', [self.mockOrg]).then(function() {
-                return requestUtils.qRequest('get', self.options);
-            }).then(function(resp) {
-                expect(resp.response.statusCode).toBe(200);
-                expect(resp.body).toEqual({
-                    id: self.mockOrg.id,
-                    paymentPlanId: self.mockOrg.paymentPlanId,
-                    nextPaymentPlanId: self.mockOrg.nextPaymentPlanId
-                });
-            }).then(done, function(error) {
-                done.fail(util.inspect(error));
-            });
-        });
-
-        it('should not get payment plans for deleted orgs', function(done) {
-            var self = this;
-            self.mockOrg.status = 'deleted';
-            testUtils.resetCollection('orgs', [self.mockOrg]).then(function() {
-                return requestUtils.qRequest('get', self.options);
-            }).then(function(resp) {
-                expect(resp.response.statusCode).toBe(404);
-                expect(resp.body).toBe('Object not found');
-            }).then(done, done.fail);
-        });
-    });
-
     afterAll(function(done) {
         testUtils.closeDbs().done(done);
     });
