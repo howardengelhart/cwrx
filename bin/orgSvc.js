@@ -115,7 +115,7 @@
         });
 
         var app             = express(),
-            orgSvc          = orgModule.setupSvc(state.dbs.c6Db, gateway),
+            orgSvc          = orgModule.setupSvc(state.dbs.c6Db, gateway, state.config),
             refSvc          = refModule.setupSvc(state.dbs.c6Db),
             promSvc         = promModule.setupSvc(state.dbs.c6Db, state.config),
             ppSvc           = ppModule.setupSvc(state.dbs.c6Db),

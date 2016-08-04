@@ -11,6 +11,7 @@
         objUtils        = require('../lib/objUtils'),
         authUtils       = require('../lib/authUtils'),
         mongoUtils      = require('../lib/mongoUtils'),
+        streamUtils     = require('../lib/streamUtils'),
         requestUtils    = require('../lib/requestUtils'),
         enums           = require('../lib/enums'),
         ld              = require('lodash'),
@@ -77,11 +78,13 @@
         }
     };
 
-    orgModule.setupSvc = function(db, gateway) {
+    orgModule.setupSvc = function(db, gateway, config) {
         var opts = { userProp: false, orgProp: false, ownedByUser: false },
             svc = new CrudSvc(db.collection('orgs'), 'o', opts, orgModule.orgSchema);
 
         svc._db = db;
+
+        streamUtils.createProducer(config.kinesis);
 
         svc.use('create', orgModule.createPermCheck);
         svc.use('create', svc.validateUniqueProp.bind(svc, 'name', null));
@@ -262,6 +265,33 @@
         });
     };
 
+    orgModule.producePaymentPlanChanged = function (req, resp, updatedOrg) {
+        var log = logger.getLog();
+        var event = 'paymentPlanChanged';
+
+        if(resp.code !== 200 || typeof resp.body !== 'object') {
+            return q.resolve(resp);
+        }
+
+        var paymentPlanChanged = (req.origObj.paymentPlanId !== resp.body.paymentPlanId);
+
+        if (paymentPlanChanged) {
+            return streamUtils.produceEvent(event, {
+                date: new Date(),
+                org: updatedOrg,
+                previousPaymentPlanId: req.origObj.paymentPlanId,
+                currentPaymentPlanId: resp.body.paymentPlanId
+            }).then(function () {
+                log.info('[%1] Produced %2 event for org %3', req.uuid, event, updatedOrg.id);
+            }).catch(function (error) {
+                log.error('[%1] Failed producing %2 event: %3', req.uuid, event,
+                    util.inspect(error));
+            }).thenResolve(resp);
+        }
+
+        return q.resolve(resp);
+    };
+
     orgModule.getPaymentPlan = function (svc, req) {
         var orgId = req.params.id;
         var log = logger.getLog();
@@ -323,6 +353,8 @@
             var org = ld.isArray(body) ? body[0] : body;
             var newPaymentPlanId = req.body.id;
             var currentPaymentPlanId = org.paymentPlanId;
+
+            req.origObj = org;
 
             function composeResponse(org, date) {
                 return {
@@ -394,9 +426,13 @@
                 return orgModule.getEffectiveDate(req, updates).then(function (date) {
 
                     // Edit the org with the necessary updates
-                    return mongoUtils.editObject(svc._coll, updates, orgId)
-                    .then(function (org) {
-                        return composeResponse(org, date || now);
+                    return mongoUtils.editObject(svc._coll, updates, orgId).then(function (object) {
+                        return svc.transformMongoDoc(object);
+                    }).then(function (doc) {
+                        var org = svc.formatOutput(doc);
+                        var response = composeResponse(org, date || now);
+
+                        return orgModule.producePaymentPlanChanged(req, response, org);
                     });
                 });
             });
@@ -458,7 +494,9 @@
         });
 
         router.put('/:id', sessions, authMidware.edit, audit, function(req, res) {
-            var promise = svc.editObj(req);
+            var promise = svc.editObj(req).then(function(resp) {
+                return orgModule.producePaymentPlanChanged(req, resp, resp.body);
+            });
             promise.finally(function() {
                 jobManager.endJob(req, res, promise.inspect())
                 .catch(function(error) {

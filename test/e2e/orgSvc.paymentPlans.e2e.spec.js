@@ -17,13 +17,23 @@ var config = {
     orgUrl: 'http://' + (HOST === 'localhost' ? HOST + ':3700' : HOST) + '/api/account/orgs'
 };
 
-
 describe('orgSvc payment-plans endpoints', function() {
-    var jar, app, appCreds, user, policy;
+    var jar, app, appCreds, user, policy, mockman;
     var options;
     var success, failure, apiResponse;
 
+    beforeAll(function (done) {
+        mockman = new testUtils.Mockman();
+        mockman.start().then(done, done.fail);
+    });
+
+    afterAll(function() {
+        mockman.stop();
+    });
+
     beforeEach(function(done) {
+        jasmine.DEFAULT_TIMEOUT_INTERVAL = 60000;
+
         apiResponse = null;
 
         jar = request.jar();
@@ -144,6 +154,7 @@ describe('orgSvc payment-plans endpoints', function() {
 
     afterEach(function(done) {
         apiResponse = null;
+        mockman.removeAllListeners();
         testUtils.closeDbs().then(done, done.fail);
     });
 
@@ -1327,6 +1338,7 @@ describe('orgSvc payment-plans endpoints', function() {
 
         it('should be able to 200 when setting the existing payment plan', function(done) {
             var self = this;
+            mockman.on('paymentPlanChanged', done.fail);
             testUtils.resetCollection('orgs', [self.mockOrg]).then(function () {
                 return self.login();
             }).then(function () {
@@ -1352,15 +1364,24 @@ describe('orgSvc payment-plans endpoints', function() {
             testUtils.resetCollection('orgs', [self.mockOrg]).then(function () {
                 return self.login();
             }).then(function () {
-                return requestUtils.qRequest('post', _.assign(options, {
-                    url: self.endpoint,
-                    json: {
-                        id: self.paymentPlans[3].id
-                    }
-                }));
-            }).then(function(response) {
-                var date = new Date(response.body.effectiveDate);
+                return q.all([
+                    requestUtils.qRequest('post', _.assign(options, {
+                        url: self.endpoint,
+                        json: {
+                            id: self.paymentPlans[3].id
+                        }
+                    })),
+                    q.Promise(function (resolve) {
+                        mockman.on('paymentPlanChanged', function (event) {
+                            resolve(event);
+                        });
+                    })
+                ]);
+            }).then(function (results) {
+                var response = results[0];
+                var event = results[1];
 
+                var date = new Date(response.body.effectiveDate);
                 expect(response.response.statusCode).toBe(200);
                 expect(response.body).toEqual({
                     id: self.mockOrg.id,
@@ -1369,11 +1390,28 @@ describe('orgSvc payment-plans endpoints', function() {
                     effectiveDate: jasmine.any(String)
                 });
                 expect(self.isCloseToNow(date)).toBe(true);
-            }).then(done, done.fail);
+
+                expect(event.data).toEqual({
+                    date: jasmine.any(String),
+                    org: {
+                        id: self.mockOrg.id,
+                        status: 'active',
+                        name: 'cybOrg',
+                        paymentPlanId: self.paymentPlans[3].id,
+                        nextPaymentPlanId: null,
+                        lastUpdated: jasmine.any(String)
+                    },
+                    previousPaymentPlanId: self.paymentPlans[2].id,
+                    currentPaymentPlanId: self.paymentPlans[3].id
+                });
+            }).then(done).catch(function (error) {
+                done.fail(util.inspect(error));
+            });
         });
 
         it('should be able to 200 when downgrading the payment plan', function(done) {
             var self = this;
+            mockman.on('paymentPlanChanged', done.fail);
             testUtils.resetCollection('orgs', [self.mockOrg]).then(function () {
                 return self.login();
             }).then(function () {

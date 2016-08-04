@@ -18,7 +18,19 @@ var q               = require('q'),
     });
 
 describe('orgSvc orgs (E2E):', function() {
-    var cookieJar, nonAdminJar, mockRequester, nonAdminUser, testPolicies, mockApp, appCreds;
+    var cookieJar, nonAdminJar, mockRequester, nonAdminUser, testPolicies, mockApp, appCreds, mockman;
+
+    beforeAll(function (done) {
+        mockman = new testUtils.Mockman();
+        mockman.start().then(done, done.fail);
+    });
+
+    afterAll(function(done) {
+        q.all([
+            testUtils.closeDbs(),
+            mockman.stop()
+        ]).then(done, done.fail);
+    });
 
     beforeEach(function(done) {
         jasmine.DEFAULT_TIMEOUT_INTERVAL = 30000;
@@ -77,6 +89,11 @@ describe('orgSvc orgs (E2E):', function() {
             secret: 'wowsuchsecretverysecureamaze',
             permissions: {
                 orgs: { read: 'all', create: 'all', edit: 'all', delete: 'all' }
+            },
+            fieldValidation: {
+                orgs: {
+                    paymentPlanId: { __allowed: true }
+                }
             }
         };
         appCreds = { key: mockApp.key, secret: mockApp.secret };
@@ -97,6 +114,9 @@ describe('orgSvc orgs (E2E):', function() {
         });
     });
 
+    afterEach(function() {
+        mockman.removeAllListeners();
+    });
 
     describe('GET /api/account/orgs/:id', function() {
         var mockOrgs, options;
@@ -765,6 +785,29 @@ describe('orgSvc orgs (E2E):', function() {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
+
+        it('should produce an event when the payment plan has changed', function(done) {
+            delete options.jar;
+            mockOrgs[0].paymentPlanId = 'pp-' + uuid.createUuid();
+            options.json.paymentPlanId = 'pp-' + uuid.createUuid();
+            testUtils.resetCollection('orgs', mockOrgs).then(function () {
+                return requestUtils.makeSignedRequest(appCreds, 'put', options);
+            }).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                mockman.on('paymentPlanChanged', function (event) {
+                    expect(event.data).toEqual({
+                        date: jasmine.any(String),
+                        org: resp.response.body,
+                        previousPaymentPlanId: mockOrgs[0].paymentPlanId,
+                        currentPaymentPlanId: resp.response.body.paymentPlanId
+                    });
+                    done();
+                });
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+                done();
+            });
+        });
     });
 
     describe('DELETE /api/account/orgs/:id', function() {
@@ -1025,9 +1068,5 @@ describe('orgSvc orgs (E2E):', function() {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
-    });
-
-    afterAll(function(done) {
-        testUtils.closeDbs().done(done);
     });
 });

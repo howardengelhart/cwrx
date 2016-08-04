@@ -5,7 +5,7 @@ var ld = require('lodash');
 
 describe('orgSvc-orgs (UT)', function() {
     var orgModule, q, mockLog, mockLogger, logger, CrudSvc, Model, enums, Status, Scope,
-        mockDb, mockGateway, req, nextSpy, doneSpy, errorSpy, requestUtils, moment, mongoUtils;
+        mockDb, mockGateway, req, nextSpy, doneSpy, errorSpy, requestUtils, moment, mongoUtils, mockConfig;
 
     beforeEach(function() {
         if (flush) { for (var m in require.cache){ delete require.cache[m]; } flush = false; }
@@ -16,6 +16,7 @@ describe('orgSvc-orgs (UT)', function() {
         Model           = require('../../lib/model');
         enums           = require('../../lib/enums');
         mongoUtils      = require('../../lib/mongoUtils');
+        streamUtils     = require('../../lib/streamUtils');
         requestUtils    = require('../../lib/requestUtils');
         moment          = require('moment');
         Status          = enums.Status;
@@ -31,6 +32,14 @@ describe('orgSvc-orgs (UT)', function() {
         };
         spyOn(logger, 'createLog').and.returnValue(mockLog);
         spyOn(logger, 'getLog').and.returnValue(mockLog);
+        spyOn(streamUtils, 'createProducer');
+        spyOn(streamUtils, 'produceEvent');
+        spyOn(orgModule, 'producePaymentPlanChanged').and.callFake(function (req, resp) {
+            return q.resolve(resp);
+        });
+
+        jasmine.clock().install();
+        jasmine.clock().mockDate(new Date());
 
         req = { uuid: '1234', user: { id: 'u-1', org: 'o-1' }, requester: { id: 'u-1', permissions: {} } };
         nextSpy = jasmine.createSpy('next()');
@@ -54,6 +63,15 @@ describe('orgSvc-orgs (UT)', function() {
                 delete: jasmine.createSpy('gateway.customer.delete()')
             }
         };
+        mockConfig = {
+            kinesis: {
+                foo: 'bar'
+            }
+        };
+    });
+
+    afterEach(function () {
+        jasmine.clock().uninstall();
     });
 
     describe('setupSvc', function() {
@@ -63,7 +81,7 @@ describe('orgSvc-orgs (UT)', function() {
                 spyOn(fn, 'bind').and.returnValue(fn);
             });
 
-            svc = orgModule.setupSvc(mockDb, mockGateway);
+            svc = orgModule.setupSvc(mockDb, mockGateway, mockConfig);
         });
 
         it('should return a CrudSvc', function() {
@@ -101,12 +119,16 @@ describe('orgSvc-orgs (UT)', function() {
             expect(svc._middleware.delete).toContain(orgModule.activeUserCheck);
             expect(orgModule.activeUserCheck.bind).toHaveBeenCalledWith(orgModule, svc);
         });
+
+        it('should create a producer', function () {
+            expect(streamUtils.createProducer).toHaveBeenCalledWith(mockConfig.kinesis);
+        });
     });
 
     describe('org validation', function() {
         var svc, newObj, origObj, requester;
         beforeEach(function() {
-            svc = orgModule.setupSvc(mockDb, mockGateway);
+            svc = orgModule.setupSvc(mockDb, mockGateway, mockConfig);
             newObj = { name: 'test' };
             origObj = {};
             requester = { fieldValidation: { orgs: {} } };
@@ -221,15 +243,6 @@ describe('orgSvc-orgs (UT)', function() {
 
         ['paymentPlanStart'].forEach(function(field) {
             describe('when handling ' + field, function() {
-                beforeEach(function() {
-                    jasmine.clock().install();
-                    jasmine.clock().mockDate();
-                });
-
-                afterEach(function() {
-                    jasmine.clock().uninstall();
-                });
-
                 it('should trim the field if set', function() {
                     newObj[field] = new Date().toISOString();
                     expect(svc.model.validate('create', newObj, origObj, requester))
@@ -447,7 +460,7 @@ describe('orgSvc-orgs (UT)', function() {
             };
             mockDb.collection.and.returnValue(mockColl);
 
-            orgSvc = orgModule.setupSvc(mockDb, mockGateway);
+            orgSvc = orgModule.setupSvc(mockDb, mockGateway, mockConfig);
         });
 
         it('should call done if the org still has active users', function(done) {
@@ -500,7 +513,7 @@ describe('orgSvc-orgs (UT)', function() {
             };
             mockDb.collection.and.returnValue(mockColl);
 
-            orgSvc = orgModule.setupSvc(mockDb, mockGateway);
+            orgSvc = orgModule.setupSvc(mockDb, mockGateway, mockConfig);
         });
 
         it('should call done if the org still has unfinished campaigns', function(done) {
@@ -621,6 +634,69 @@ describe('orgSvc-orgs (UT)', function() {
         });
     });
 
+    describe('producePaymentPlanChanged', function () {
+        beforeEach(function () {
+            this.org = {
+                id: 'o-123',
+                status: 'active',
+                paymentPlanId: 'pp-456'
+            };
+            this.resp = {
+                code: 200,
+                body: { }
+            }
+            req.origObj = {
+                id: 'o-123',
+                status: 'active',
+                paymentPlanId: 'pp-123'
+            };
+            orgModule.producePaymentPlanChanged.and.callThrough();
+        });
+
+        it('should produce an event if the payment plan changed', function (done) {
+            var self = this;
+            self.resp.body.paymentPlanId = 'pp-456';
+            streamUtils.produceEvent.and.returnValue(q.resolve());
+            orgModule.producePaymentPlanChanged(req, self.resp, self.org).then(function (resp) {
+                expect(streamUtils.produceEvent).toHaveBeenCalledWith('paymentPlanChanged', {
+                    date: new Date(),
+                    org: self.org,
+                    previousPaymentPlanId: 'pp-123',
+                    currentPaymentPlanId: 'pp-456'
+                });
+                expect(resp).toBe(self.resp);
+            }).then(done, done.fail);
+        });
+
+        it('should not produce an event if the payment plan did not change', function(done) {
+            var self = this;
+            self.resp.body.paymentPlanId = 'pp-123';
+            streamUtils.produceEvent.and.returnValue(q.resolve());
+            orgModule.producePaymentPlanChanged(req, self.resp, self.org).then(function (resp) {
+                expect(streamUtils.produceEvent).not.toHaveBeenCalled();
+                expect(resp).toBe(self.resp);
+            }).then(done, done.fail);
+        });
+
+        it('should handle a failure to produce the event', function (done) {
+            var self = this;
+            streamUtils.produceEvent.and.returnValue(q.reject('epic fail'));
+            orgModule.producePaymentPlanChanged(req, self.resp, self.org).then(function (resp) {
+                expect(mockLog.error).toHaveBeenCalled();
+                expect(resp).toBe(self.resp);
+            }).then(done, done.fail);
+        });
+
+        it('should not produce an event if the resposne has an unsuccessful status code', function (done) {
+            var self = this;
+            self.resp.code = 500;
+            orgModule.producePaymentPlanChanged(req, self.resp, self.org).then(function (resp) {
+                expect(streamUtils.produceEvent).not.toHaveBeenCalled();
+                expect(resp).toBe(self.resp);
+            }).then(done, done.fail);
+        });
+    });
+
     describe('getPaymentPlan', function() {
         beforeEach(function() {
             this.req = {
@@ -634,7 +710,7 @@ describe('orgSvc-orgs (UT)', function() {
                 paymentPlanId: 'pp-123',
                 nextPaymentPlanId: 'pp-456'
             };
-            this.svc = orgModule.setupSvc(mockDb, mockGateway);
+            this.svc = orgModule.setupSvc(mockDb, mockGateway, mockConfig);
             spyOn(this.svc, 'getObjs').and.returnValue(q.resolve({
                 code: 200,
                 body: [this.mockOrg]
@@ -749,11 +825,6 @@ describe('orgSvc-orgs (UT)', function() {
         beforeEach(function() {
             var self = this;
 
-            jasmine.clock().install();
-            var now = new Date();
-            jasmine.clock().mockDate(now);
-            self.mockDate = now;
-
             self.req = {
                 body: { },
                 params: {
@@ -763,7 +834,7 @@ describe('orgSvc-orgs (UT)', function() {
                     foo: 'bar'
                 }
             };
-            self.svc = orgModule.setupSvc(mockDb, mockGateway);
+            self.svc = orgModule.setupSvc(mockDb, mockGateway, mockConfig);
             self.paymentPlans = [
                 { id: 'pp-123', price: 10 },
                 { id: 'pp-456', price: 20 },
@@ -809,10 +880,6 @@ describe('orgSvc-orgs (UT)', function() {
                     cycleEnd: new Date()
                 }
             }));
-        });
-
-        afterEach(function() {
-            jasmine.clock().uninstall();
         });
 
         it('should resolve with a 400 if not given a payment plan id', function(done) {
@@ -862,6 +929,13 @@ describe('orgSvc-orgs (UT)', function() {
                     done.fail('should not have fulfilled with ' + util.inspect(value));
                 }).catch(function(error) {
                     expect(error.message).toBe('epic fail');
+                }).then(done, done.fail);
+            });
+
+            it('should store the original object on the request', function (done) {
+                var self = this;
+                orgModule.setPaymentPlan(self.svc, self.req).then(function () {
+                    expect(self.req.origObj).toEqual(self.mockOrg);
                 }).then(done, done.fail);
             });
         });
@@ -956,7 +1030,7 @@ describe('orgSvc-orgs (UT)', function() {
                             id: 'o-123',
                             paymentPlanId: 'pp-789',
                             nextPaymentPlanId: null,
-                            effectiveDate: self.mockDate
+                            effectiveDate: new Date()
                         }
                     });
                 }).then(done, done.fail);
@@ -972,6 +1046,21 @@ describe('orgSvc-orgs (UT)', function() {
                 mongoUtils.editObject.and.returnValue(q.reject(new Error('epic fail')));
                 orgModule.setPaymentPlan(this.svc, this.req).then(done.fail, function(error) {
                     expect(error.message).toBe('epic fail');
+                }).then(done, done.fail);
+            });
+
+            it('should potentially produce an event', function (done) {
+                var self = this;
+                orgModule.setPaymentPlan(self.svc, self.req).then(function(result) {
+                    expect(orgModule.producePaymentPlanChanged).toHaveBeenCalledWith(self.req, {
+                        code: 200,
+                        body: {
+                            id: 'o-123',
+                            paymentPlanId: 'pp-789',
+                            nextPaymentPlanId: null,
+                            effectiveDate: new Date()
+                        }
+                    }, self.mockOrg);
                 }).then(done, done.fail);
             });
         });
@@ -1045,6 +1134,21 @@ describe('orgSvc-orgs (UT)', function() {
                     expect(error.message).toBe('epic fail');
                 }).then(done, done.fail);
             });
+
+            it('should potentially produce an event', function (done) {
+                var self = this;
+                orgModule.setPaymentPlan(self.svc, self.req).then(function(result) {
+                    expect(orgModule.producePaymentPlanChanged).toHaveBeenCalledWith(self.req, {
+                        code: 200,
+                        body: {
+                            id: 'o-123',
+                            paymentPlanId: 'pp-456',
+                            nextPaymentPlanId: 'pp-123',
+                            effectiveDate: moment().add(1, 'day').startOf('day').utcOffset(0).toDate()
+                        }
+                    }, self.mockOrg);
+                }).then(done, done.fail);
+            });
         });
 
         describe('when setting the payment plan for the first time', function() {
@@ -1090,6 +1194,21 @@ describe('orgSvc-orgs (UT)', function() {
                     expect(error.message).toBe('epic fail');
                 }).then(done, done.fail);
             });
+
+            it('should potentially produce an event', function (done) {
+                var self = this;
+                orgModule.setPaymentPlan(self.svc, self.req).then(function(result) {
+                    expect(orgModule.producePaymentPlanChanged).toHaveBeenCalledWith(self.req, {
+                        code: 200,
+                        body: {
+                            id: 'o-123',
+                            paymentPlanId: 'pp-123',
+                            nextPaymentPlanId: null,
+                            effectiveDate: new Date()
+                        }
+                    }, self.mockOrg);
+                }).then(done, done.fail);
+            });
         });
 
         describe('when setting a payment plan which is already set', function() {
@@ -1122,6 +1241,12 @@ describe('orgSvc-orgs (UT)', function() {
                             effectiveDate: null
                         }
                     });
+                }).then(done, done.fail);
+            });
+
+            it('should not produce an event', function (done) {
+                orgModule.setPaymentPlan(this.svc, this.req).then(function(result) {
+                    expect(orgModule.producePaymentPlanChanged).not.toHaveBeenCalled();
                 }).then(done, done.fail);
             });
         });
