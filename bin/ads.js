@@ -7,7 +7,6 @@
         path            = require('path'),
         express         = require('express'),
         bodyParser      = require('body-parser'),
-        BeeswaxClient   = require('beeswax-client'),
         authUtils       = require('../lib/authUtils'),
         service         = require('../lib/service'),
         expressUtils    = require('../lib/expressUtils'),
@@ -18,10 +17,9 @@
         updateModule    = require('./ads-campaignUpdates'),
         campModule      = require('./ads-campaigns'),
         conModule       = require('./ads-containers'),
-        placeModule     = require('./ads-placements'),
-        beesCamps       = require('./ads-externalCampaigns/beeswax'),
+        placeModule     = require('./ads-placements');
         
-        state   = {},
+    var state = {},
         ads = {}; // for exporting functions to unit tests
 
     state.defaultConfig = {
@@ -66,10 +64,6 @@
             zipcodes: {
                 endpoint: '/api/geo/zipcodes'
             }
-        },
-        beeswax: {
-            apiRoot: 'https://stingersbx.api.beeswax.com',
-            trackingPixel: 'https://s3.amazonaws.com/c6.dev/e2e/1x1-pixel.gif'
         },
         sessions: {
             key: 'c6Auth',
@@ -127,22 +121,14 @@
         }
         log.info('Running as cluster worker, proceed with setting up web server.');
 
-        var beeswax = new BeeswaxClient({
-            apiRoot: state.config.beeswax.apiRoot,
-            creds: state.secrets.beeswax
-        });
-        var externSvcs = {
-            beeswax: beesCamps.setupSvc(state.dbs.c6Db, state.config, beeswax)
-        };
-
         var app          = express(),
             appCreds     = state.rcAppCreds,
             jobManager   = new JobManager(state.cache, state.config.jobTimeouts),
-            advertSvc    = advertModule.setupSvc(state.dbs.c6Db.collection('advertisers'), beeswax),
-            campSvc      = campModule.setupSvc(state.dbs.c6Db, state.config, externSvcs),
+            advertSvc    = advertModule.setupSvc(state.dbs.c6Db.collection('advertisers')),
+            campSvc      = campModule.setupSvc(state.dbs.c6Db, state.config ),
             updateSvc    = updateModule.setupSvc(state.dbs.c6Db, campSvc, state.config, appCreds),
             conSvc       = conModule.setupSvc(state.dbs.c6Db),
-            placeSvc     = placeModule.setupSvc(state.dbs.c6Db, state.config, beeswax),
+            placeSvc     = placeModule.setupSvc(state.dbs.c6Db, state.config ),
             auditJournal = new journal.AuditJournal(state.dbs.c6Journal.collection('audit'),
                                                     state.config.appVersion, state.config.appName);
         authUtils._db = state.dbs.c6Db;
@@ -181,7 +167,6 @@
         advertModule.setupEndpoints(app, advertSvc, state.sessions, audit, jobManager);
         
         // These endpoints MUST be added before campaign endpoints!
-        beesCamps.setupEndpoints(app, externSvcs.beeswax, state.sessions, audit, jobManager);
         updateModule.setupEndpoints(app, updateSvc, state.sessions, audit, jobManager);
 
         campModule.setupEndpoints(app, campSvc, state.sessions, audit, jobManager);

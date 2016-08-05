@@ -427,7 +427,7 @@ describe('campaign validation', function() {
         });
     });
     
-    ['staticCardMap', 'externalCampaigns'].forEach(function(field) {
+    ['staticCardMap'].forEach(function(field) {
         describe('when handling ' + field, function() {
             it('should trim the field if set', function() {
                 newObj[field] = { cards: 'yes' };
