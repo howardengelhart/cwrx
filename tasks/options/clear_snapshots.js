@@ -1,3 +1,3 @@
 module.exports = {
-    maxAge: 90  // days
+    maxAge: 30  // days
 };
