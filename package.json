@@ -36,6 +36,7 @@
     "mailparser": "~0.4.4",
     "memcached": "2.2.2",
     "metagetta": "^0.4.1",
+    "moment": "^2.14.1",
     "mongodb": "~2.0.53",
     "multer": "~0.1.8",
     "nodemailer": "~1.0.3",

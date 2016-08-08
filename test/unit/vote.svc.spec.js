@@ -1,12 +1,12 @@
 describe('vote (UT)',function(){
     var VotingBooth, mockLog, resolveSpy, rejectSpy, q, logger, app, enums, Status, Scope, fv,
         mongoUtils, elections, req, uuid, flush = true;
-    
+
     beforeEach(function() {
         if (flush){ for (var m in require.cache){ delete require.cache[m]; } flush = false; }
 
         jasmine.clock().install();
-        
+
         q             = require('q');
         logger        = require('../../lib/logger');
         uuid          = require('rc-uuid');
@@ -26,9 +26,9 @@ describe('vote (UT)',function(){
             fatal : jasmine.createSpy('log_fatal'),
             log   : jasmine.createSpy('log_log')
         };
-        
+
         elections = {};
-        
+
         spyOn(logger,'createLog').and.returnValue(mockLog);
         spyOn(logger,'getLog').and.returnValue(mockLog);
         spyOn(mongoUtils, 'escapeKeys').and.callThrough();
@@ -57,20 +57,20 @@ describe('vote (UT)',function(){
                         { id: 'el-2', user: 'u-4567', org: 'o-1234'},
                         { id: 'el-3', user: 'u-1234', org: 'o-4567'},
                         { id: 'el-4', user: 'u-4567', org: 'o-4567'}];
-            
+
             expect(elections.filter(function(election) {
                 return app.checkScope(user, election, 'read');
             })).toEqual(elections);
-            
+
             expect(elections.filter(function(election) {
                 return app.checkScope(user, election, 'edit');
             })).toEqual([elections[0], elections[1], elections[2]]);
-            
+
             expect(elections.filter(function(election) {
                 return app.checkScope(user, election, 'delete');
             })).toEqual([elections[0], elections[2]]);
         });
-    
+
         it('should sanity-check the user permissions object', function() {
             var election = { id: 'el-1' };
             expect(app.checkScope({}, election, 'read')).toBe(false);
@@ -87,13 +87,13 @@ describe('vote (UT)',function(){
             expect(app.checkScope(user, election, 'read')).toBe(true);
         });
     });
-    
+
     describe('createValidator', function() {
         it('should have initialized correctly', function() {
             expect(app.createValidator._forbidden).toEqual(['id', 'created']);
             expect(typeof app.createValidator._condForbidden.org).toBe('function');
         });
-        
+
         it('should prevent setting forbidden fields', function() {
             var exp = { id: 'foo', a: 'b' };
             expect(app.createValidator.validate(exp, {}, {})).toBe(false);
@@ -102,7 +102,7 @@ describe('vote (UT)',function(){
             exp = { bar: 'foo', a: 'b' };
             expect(app.createValidator.validate(exp, {}, {})).toBe(true);
         });
-        
+
         it('should conditionally prevent setting the org field', function() {
             var user = {
                 id: 'u-1234',
@@ -112,21 +112,21 @@ describe('vote (UT)',function(){
                 }
             };
             var exp = { a: 'b', org: 'o-1234' };
-            
+
             expect(app.createValidator.validate(exp, {}, user)).toBe(true);
-            
+
             exp.org = 'o-4567';
             expect(app.createValidator.validate(exp, {}, user)).toBe(false);
             user.permissions.elections.create = Scope.All;
             expect(app.createValidator.validate(exp, {}, user)).toBe(true);
         });
     });
-    
+
     describe('updateValidator', function() {
         it('should have initalized correctly', function() {
             expect(app.updateValidator._forbidden).toEqual(['id', 'org', 'created', '_id']);
         });
-        
+
         it('should prevent illegal updates', function() {
             var updates = { id: 'foo', a: 'b' };
             expect(app.updateValidator.validate(updates, {}, {})).toBe(false);
@@ -162,7 +162,7 @@ describe('vote (UT)',function(){
                 vb.voteForBallotItem('item1','happy');
                 expect(vb._items['item1']).toEqual({happy: 1});
             });
-            
+
             it('will increment the ballot item choice vote count if they do exist',function(){
                 vb.voteForBallotItem('item1','happy');
                 vb.voteForBallotItem('item1','happy');
@@ -260,7 +260,7 @@ describe('vote (UT)',function(){
                 expect(eachSpy.calls.allArgs()[1]).toEqual(['item1','sad',1]);
                 expect(eachSpy.calls.allArgs()[4]).toEqual(['item2','blue',1]);
             });
-            
+
             it('works for ballot items that are arrays or objects', function() {
                 vb._items = { item1: mockVotes.item1, item3: [1, 2] };
                 vb.each(eachSpy);
@@ -290,7 +290,7 @@ describe('vote (UT)',function(){
             it('creates a copy of the objct and does not modify the original',function(){
                 var obj = { 'a' : 25, 'b' : 50, 'c' : 25 },
                     res = app.convertObjectValsToPercents(obj);
-                
+
                 expect(obj.a).toEqual(25);
                 expect(res.a).toEqual(0.25);
             });
@@ -303,7 +303,7 @@ describe('vote (UT)',function(){
                 expect(app.convertObjectValsToPercents({ a : 0, b : 30, c : 70}))
                     .toEqual({ a : 0.0, b : 0.30, c : 0.70});
             });
-            
+
             it('handles a ballotItem that is an array instead of a hash', function() {
                 expect(app.convertObjectValsToPercents([25, 75])).toEqual([0.25, 0.75]);
             });
@@ -336,7 +336,7 @@ describe('vote (UT)',function(){
                 spyOn(uuid, 'createUuid').and.returnValue('1234');
                 spyOn(app.createValidator, 'validate').and.returnValue(true);
             });
-            
+
             it('should fail with a 400 if no election is provided', function(done) {
                 delete req.body;
                 app.createElection(req, elections).then(function(resp) {
@@ -349,7 +349,7 @@ describe('vote (UT)',function(){
                     done();
                 });
             });
-            
+
             it('should successfully create an election', function(done) {
                 app.createElection(req, elections).then(function(resp) {
                     expect(resp).toBeDefined();
@@ -370,7 +370,7 @@ describe('vote (UT)',function(){
                     done();
                 });
             });
-            
+
             it('should fail with a 400 if the request body contains illegal fields', function(done) {
                 app.createValidator.validate.and.returnValue(false);
                 app.createElection(req, elections).then(function(resp) {
@@ -384,7 +384,7 @@ describe('vote (UT)',function(){
                     done();
                 });
             });
-            
+
             it('should fail with a 400 if the ballot is empty or undefined', function(done) {
                 q.all([
                     app.createElection({uuid:'1234', user:req.user, body:{foo:'bar'}}, elections),
@@ -403,7 +403,7 @@ describe('vote (UT)',function(){
                     done();
                 });
             });
-            
+
             it('should fail with an error if inserting the record fails', function(done) {
                 mongoUtils.createObject.and.returnValue(q.reject('Error!'));
                 app.createElection(req, elections).then(function(resp) {
@@ -416,7 +416,7 @@ describe('vote (UT)',function(){
                 });
             });
         });
-        
+
         describe('updateElection', function() {
             var start = new Date(),
                 oldElec;
@@ -443,7 +443,7 @@ describe('vote (UT)',function(){
                     done();
                 });
             });
-            
+
             it('should successfully update an election', function(done) {
                 app.updateElection(req, elections).then(function(resp) {
                     expect(resp.code).toBe(200);
@@ -480,11 +480,11 @@ describe('vote (UT)',function(){
                     done();
                 });
             });
-            
+
             it('should permit ballot updates only if they create new items', function(done) {
                 oldElec.ballot = { b1: [0, 3], b2: [2, 5] };
                 req.body.ballot = { b1: [1, 4], b2: 'foo', b4: [10, 20] };
-                
+
                 app.updateElection(req, elections).then(function(resp) {
                     expect(resp.code).toBe(200);
                     expect(resp.body).toEqual({id: 'el-1234', updated: true});
@@ -507,7 +507,7 @@ describe('vote (UT)',function(){
                     done();
                 });
             });
-            
+
             it('should only let a user edit elections they are authorized to edit', function(done) {
                 app.checkScope.and.returnValue(false);
                 app.updateElection(req, elections).then(function(resp) {
@@ -522,7 +522,7 @@ describe('vote (UT)',function(){
                     done();
                 });
             });
-            
+
             it('should not create an election if it does not already exist', function(done) {
                 mongoUtils.findObject.and.returnValue(q());
                 app.updateElection(req, elections).then(function(resp) {
@@ -536,7 +536,7 @@ describe('vote (UT)',function(){
                     done();
                 });
             });
-            
+
             it('should fail with an error if modifying the record fails', function(done) {
                 elections.findOneAndUpdate.and.returnValue(q.reject('Error!'));
                 app.updateElection(req, elections).then(function(resp) {
@@ -548,7 +548,7 @@ describe('vote (UT)',function(){
                     done();
                 });
             });
-            
+
             it('should fail with an error if looking up the record fails', function(done) {
                 mongoUtils.findObject.and.returnValue(q.reject('Error!'));
                 app.updateElection(req, elections).then(function(resp) {
@@ -562,7 +562,7 @@ describe('vote (UT)',function(){
                 });
             });
         });
-        
+
         describe('deleteElection', function() {
             var start = new Date(),
                 oldElec;
@@ -574,7 +574,7 @@ describe('vote (UT)',function(){
                 spyOn(mongoUtils, 'editObject').and.returnValue(q());
                 spyOn(app, 'checkScope').and.returnValue(true);
             });
-            
+
             it('should successfully delete an election', function(done) {
                 app.deleteElection(req, elections).then(function(resp) {
                     expect(resp).toBeDefined();
@@ -589,7 +589,7 @@ describe('vote (UT)',function(){
                     done();
                 });
             });
-            
+
             it('should not do anything if the election does not exist', function(done) {
                 mongoUtils.findObject.and.returnValue(q());
                 app.deleteElection(req, elections).then(function(resp) {
@@ -604,7 +604,7 @@ describe('vote (UT)',function(){
                     done();
                 });
             });
-            
+
             it('should not do anything if the election has been deleted', function(done) {
                 oldElec.status = Status.Deleted;
                 app.deleteElection(req, elections).then(function(resp) {
@@ -619,7 +619,7 @@ describe('vote (UT)',function(){
                     done();
                 });
             });
-            
+
             it('should only let a user delete elections they are authorized to delete', function(done) {
                 app.checkScope.and.returnValue(false);
                 app.deleteElection(req, elections).then(function(resp) {
@@ -635,7 +635,7 @@ describe('vote (UT)',function(){
                     done();
                 });
             });
-            
+
             it('should fail with an error if modifying the record fails', function(done) {
                 mongoUtils.editObject.and.returnValue(q.reject('Error!'));
                 app.deleteElection(req, elections).then(function(resp) {
@@ -647,7 +647,7 @@ describe('vote (UT)',function(){
                     done();
                 });
             });
-            
+
             it('should fail with an error if looking up the record fails', function(done) {
                 mongoUtils.findObject.and.returnValue(q.reject('Error!'));
                 app.deleteElection(req, elections).then(function(resp) {
