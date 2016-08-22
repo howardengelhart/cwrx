@@ -858,6 +858,7 @@ describe('orgSvc-orgs (UT)', function() {
                 })
             };
             mockDb.collection.and.returnValue(mockColl);
+            streamUtils.produceEvent.and.returnValue(q.resolve());
             var futureDate = new Date(2100);
             self.mockOrg = {
                 id: 'o-123',
@@ -960,8 +961,7 @@ describe('orgSvc-orgs (UT)', function() {
                             $in: ['pp-456', 'pp-789']
                         }
                     }, {
-                        id: 1,
-                        price: 1
+                        _id: 0
                     });
                 }).then(done, done.fail);
             });
@@ -1063,6 +1063,16 @@ describe('orgSvc-orgs (UT)', function() {
                     }, self.mockOrg);
                 }).then(done, done.fail);
             });
+
+            it('should not produce a payment plan pending event', function (done) {
+                var self = this;
+                orgModule.setPaymentPlan(self.svc, self.req).then(function(result) {
+                    var calls = streamUtils.produceEvent.calls.all();
+                    calls.forEach(function (call) {
+                        expect(call.args[0]).not.toBe('paymentPlanPending');
+                    });
+                }).then(done, done.fail);
+            });
         });
 
         describe('when downgrading the payment plan', function() {
@@ -1149,6 +1159,27 @@ describe('orgSvc-orgs (UT)', function() {
                     }, self.mockOrg);
                 }).then(done, done.fail);
             });
+
+            it('should produce a payment plan pending event', function (done) {
+                var self = this;
+                orgModule.setPaymentPlan(self.svc, self.req).then(function(result) {
+                    expect(streamUtils.produceEvent).toHaveBeenCalledWith('paymentPlanPending', {
+                        date: jasmine.any(Date),
+                        org: jasmine.any(Object),
+                        currentPaymentPlan: self.paymentPlans[1],
+                        pendingPaymentPlan: self.paymentPlans[0],
+                        effectiveDate: moment().add(1, 'day').startOf('day').utcOffset(0).toDate()
+                    });
+                }).then(done, done.fail);
+            });
+
+            it('should handle if producing the payment plan pending event fails', function (done) {
+                var self = this;
+                streamUtils.produceEvent.and.returnValue(q.reject('epic fail'));
+                orgModule.setPaymentPlan(self.svc, self.req).then(function(result) {
+                    expect(mockLog.error).toHaveBeenCalled();
+                }).then(done, done.fail);
+            });
         });
 
         describe('when setting the payment plan for the first time', function() {
@@ -1209,6 +1240,16 @@ describe('orgSvc-orgs (UT)', function() {
                     }, self.mockOrg);
                 }).then(done, done.fail);
             });
+
+            it('should not produce a payment plan pending event', function (done) {
+                var self = this;
+                orgModule.setPaymentPlan(self.svc, self.req).then(function(result) {
+                    var calls = streamUtils.produceEvent.calls.all();
+                    calls.forEach(function (call) {
+                        expect(call.args[0]).not.toBe('paymentPlanPending');
+                    });
+                }).then(done, done.fail);
+            });
         });
 
         describe('when setting a payment plan which is already set', function() {
@@ -1247,6 +1288,16 @@ describe('orgSvc-orgs (UT)', function() {
             it('should not produce an event', function (done) {
                 orgModule.setPaymentPlan(this.svc, this.req).then(function(result) {
                     expect(orgModule.producePaymentPlanChanged).not.toHaveBeenCalled();
+                }).then(done, done.fail);
+            });
+
+            it('should not produce a payment plan pending event', function (done) {
+                var self = this;
+                orgModule.setPaymentPlan(self.svc, self.req).then(function(result) {
+                    var calls = streamUtils.produceEvent.calls.all();
+                    calls.forEach(function (call) {
+                        expect(call.args[0]).not.toBe('paymentPlanPending');
+                    });
                 }).then(done, done.fail);
             });
         });

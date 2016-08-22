@@ -292,6 +292,35 @@
         return q.resolve(resp);
     };
 
+    orgModule.produceOnPaymentPlanPending = function (req, resp, updatedOrg,
+                                                        currentPlan, nextPlan) {
+        var log = logger.getLog();
+        var event = 'paymentPlanPending';
+
+        if(resp.code !== 200 || typeof resp.body !== 'object') {
+            return q.resolve(resp);
+        }
+
+        var paymentPlanPending = !!resp.body.nextPaymentPlanId;
+
+        if (paymentPlanPending) {
+            return streamUtils.produceEvent(event, {
+                date: new Date(),
+                org: updatedOrg,
+                currentPaymentPlan: currentPlan,
+                pendingPaymentPlan: nextPlan,
+                effectiveDate: resp.body.effectiveDate
+            }).then(function () {
+                log.info('[%1] Produced %2 event for org %3', req.uuid, event, updatedOrg.id);
+            }).catch(function (error) {
+                log.error('[%1] Failed producing %2 event: %3', req.uuid, event,
+                    util.inspect(error));
+            }).thenResolve(resp);
+        }
+
+        return q.resolve(resp);
+    };
+
     orgModule.getPaymentPlan = function (svc, req) {
         var orgId = req.params.id;
         var log = logger.getLog();
@@ -381,10 +410,7 @@
             var paymentPlanIds = ld.compact([newPaymentPlanId, currentPaymentPlanId]);
             return svc._db.collection('paymentPlans').find({
                 id: { $in: paymentPlanIds }
-            }, {
-                id: 1,
-                price: 1
-            }).toArray().then(function (paymentPlans) {
+            }, { _id: 0 }).toArray().then(function (paymentPlans) {
                 function findPaymentPlan(id) {
                     return ld.find(paymentPlans, function (paymentPlan) {
                         return paymentPlan.id === id;
@@ -432,7 +458,13 @@
                         var org = svc.formatOutput(doc);
                         var response = composeResponse(org, date || now);
 
-                        return orgModule.producePaymentPlanChanged(req, response, org);
+                        return q.all([
+                            orgModule.producePaymentPlanChanged(req, response, org),
+                            orgModule.produceOnPaymentPlanPending(req, response, org,
+                                currentPaymentPlan, newPaymentPlan)
+                        ]).then(ld.spread(function (response) {
+                            return response;
+                        }));
                     });
                 });
             });
