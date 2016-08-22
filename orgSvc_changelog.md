@@ -1,5 +1,8 @@
 # Org Service Changelog
 
+### 1.16.0 Mon Aug 22 14:52:05 EDT 2016
+* [FEATURE] Produce `paymentPlanPending` event when a payment plan is pending [#986](https://github.com/cinema6/cwrx/pull/986)
+
 ### 1.15.0 Wed Aug  3 11:25:45 EDT 2016
 * [FEATURE] GET and POST `/api/account/orgs/:id/payment-plan` endpoint to get or modify payment plan of an org [#984](https://github.com/cinema6/cwrx/pull/984)
 
