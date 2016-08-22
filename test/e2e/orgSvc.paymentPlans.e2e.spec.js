@@ -1220,7 +1220,9 @@ describe('orgSvc payment-plans endpoints', function() {
     describe('POST /:id/payment-plan', function() {
         // Initialize payment plans
         beforeEach(function(done) {
-            this.paymentPlans = [
+            var self = this;
+
+            self.paymentPlans = [
                 {
                     id: 'pp-' + createUuid(),
                     status: 'active',
@@ -1263,7 +1265,11 @@ describe('orgSvc payment-plans endpoints', function() {
                 }
             ];
 
-            testUtils.resetCollection('paymentPlans', this.paymentPlans).then(done, done.fail);
+            testUtils.resetCollection('paymentPlans', self.paymentPlans).then(function () {
+                self.paymentPlans.forEach(function (paymentPlan) {
+                    delete paymentPlan._id;
+                });
+            }).then(done, done.fail);
         });
 
         beforeEach(function () {
@@ -1339,6 +1345,7 @@ describe('orgSvc payment-plans endpoints', function() {
         it('should be able to 200 when setting the existing payment plan', function(done) {
             var self = this;
             mockman.on('paymentPlanChanged', done.fail);
+            mockman.on('paymentPlanPending', done.fail);
             testUtils.resetCollection('orgs', [self.mockOrg]).then(function () {
                 return self.login();
             }).then(function () {
@@ -1361,6 +1368,7 @@ describe('orgSvc payment-plans endpoints', function() {
 
         it('should be able to 200 when upgrading the payment plan', function(done) {
             var self = this;
+            mockman.on('paymentPlanPending', done.fail);
             testUtils.resetCollection('orgs', [self.mockOrg]).then(function () {
                 return self.login();
             }).then(function () {
@@ -1415,15 +1423,24 @@ describe('orgSvc payment-plans endpoints', function() {
             testUtils.resetCollection('orgs', [self.mockOrg]).then(function () {
                 return self.login();
             }).then(function () {
-                return requestUtils.qRequest('post', _.assign(options, {
-                    url: self.endpoint,
-                    json: {
-                        id: self.paymentPlans[1].id
-                    }
-                }));
-            }).then(function(response) {
-                var date = new Date(response.body.effectiveDate);
+                return q.all([
+                    requestUtils.qRequest('post', _.assign(options, {
+                        url: self.endpoint,
+                        json: {
+                            id: self.paymentPlans[1].id
+                        }
+                    })),
+                    q.Promise(function (resolve) {
+                        mockman.on('paymentPlanPending', function (event) {
+                            resolve(event);
+                        });
+                    })
+                ]);
+            }).then(function(results) {
+                var response = results[0];
+                var event = results[1];
 
+                var date = new Date(response.body.effectiveDate);
                 expect(response.response.statusCode).toBe(200);
                 expect(response.body).toEqual({
                     id: self.mockOrg.id,
@@ -1432,6 +1449,21 @@ describe('orgSvc payment-plans endpoints', function() {
                     effectiveDate: jasmine.any(String)
                 });
                 expect(self.isCloseToNow(moment(date).subtract(30, 'days'))).toBe(true);
+
+                expect(event.data).toEqual({
+                    date: jasmine.any(String),
+                    org: {
+                        id: self.mockOrg.id,
+                        status: 'active',
+                        name: 'cybOrg',
+                        paymentPlanId: self.paymentPlans[2].id,
+                        nextPaymentPlanId: self.paymentPlans[1].id,
+                        lastUpdated: jasmine.any(String)
+                    },
+                    currentPaymentPlan: self.paymentPlans[2],
+                    pendingPaymentPlan: self.paymentPlans[1],
+                    effectiveDate: jasmine.any(String)
+                });
             }).then(done, done.fail);
         });
     });
