@@ -866,10 +866,12 @@ describe('orgSvc-orgs (UT)', function() {
                 nextPaymentPlanId: null,
                 nextPaymentDate: futureDate
             };
-            spyOn(self.svc, 'getObjs').and.returnValue(q.resolve({
-                code: 200,
-                body: [self.mockOrg]
-            }));
+            spyOn(self.svc, 'getObjs').and.callFake(function () {
+                return q.resolve({
+                    code: 200,
+                    body: [ld.assign({ }, self.mockOrg)]
+                });
+            });
             spyOn(mongoUtils, 'editObject').and.callFake(function (coll, updates) {
                 return q.resolve(ld.assign(self.mockOrg, updates));
             });
@@ -935,8 +937,9 @@ describe('orgSvc-orgs (UT)', function() {
 
             it('should store the original object on the request', function (done) {
                 var self = this;
+                var origOrg = ld.assign({ }, self.mockOrg);
                 orgModule.setPaymentPlan(self.svc, self.req).then(function () {
-                    expect(self.req.origObj).toEqual(self.mockOrg);
+                    expect(self.req.origObj).toEqual(origOrg);
                 }).then(done, done.fail);
             });
         });
@@ -1069,7 +1072,7 @@ describe('orgSvc-orgs (UT)', function() {
                 orgModule.setPaymentPlan(self.svc, self.req).then(function(result) {
                     var calls = streamUtils.produceEvent.calls.all();
                     calls.forEach(function (call) {
-                        expect(call.args[0]).not.toBe('paymentPlanPending');
+                        expect(call.args[0]).not.toBe('pendingPaymentPlanChanged');
                     });
                 }).then(done, done.fail);
             });
@@ -1162,13 +1165,25 @@ describe('orgSvc-orgs (UT)', function() {
 
             it('should produce a payment plan pending event', function (done) {
                 var self = this;
+
                 orgModule.setPaymentPlan(self.svc, self.req).then(function(result) {
-                    expect(streamUtils.produceEvent).toHaveBeenCalledWith('paymentPlanPending', {
+                    expect(streamUtils.produceEvent).toHaveBeenCalledWith('pendingPaymentPlanChanged', {
                         date: jasmine.any(Date),
                         org: jasmine.any(Object),
                         currentPaymentPlan: self.paymentPlans[1],
                         pendingPaymentPlan: self.paymentPlans[0],
                         effectiveDate: moment().add(1, 'day').startOf('day').utcOffset(0).toDate()
+                    });
+                }).then(done, done.fail);
+            });
+
+            it('should not produce a payment plan pending event if the pending payment plan is not being changed', function (done) {
+                var self = this;
+                this.mockOrg.nextPaymentPlanId = 'pp-123';
+                orgModule.setPaymentPlan(self.svc, self.req).then(function (result) {
+                    var calls = streamUtils.produceEvent.calls.all();
+                    calls.forEach(function (call) {
+                        expect(call.args[0]).not.toBe('pendingPaymentPlanChanged');
                     });
                 }).then(done, done.fail);
             });
@@ -1246,7 +1261,7 @@ describe('orgSvc-orgs (UT)', function() {
                 orgModule.setPaymentPlan(self.svc, self.req).then(function(result) {
                     var calls = streamUtils.produceEvent.calls.all();
                     calls.forEach(function (call) {
-                        expect(call.args[0]).not.toBe('paymentPlanPending');
+                        expect(call.args[0]).not.toBe('pendingPaymentPlanChanged');
                     });
                 }).then(done, done.fail);
             });
@@ -1296,7 +1311,7 @@ describe('orgSvc-orgs (UT)', function() {
                 orgModule.setPaymentPlan(self.svc, self.req).then(function(result) {
                     var calls = streamUtils.produceEvent.calls.all();
                     calls.forEach(function (call) {
-                        expect(call.args[0]).not.toBe('paymentPlanPending');
+                        expect(call.args[0]).not.toBe('pendingPaymentPlanChanged');
                     });
                 }).then(done, done.fail);
             });

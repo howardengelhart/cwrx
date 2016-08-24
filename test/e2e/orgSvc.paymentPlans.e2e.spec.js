@@ -1345,7 +1345,7 @@ describe('orgSvc payment-plans endpoints', function() {
         it('should be able to 200 when setting the existing payment plan', function(done) {
             var self = this;
             mockman.on('paymentPlanChanged', done.fail);
-            mockman.on('paymentPlanPending', done.fail);
+            mockman.on('pendingPaymentPlanChanged', done.fail);
             testUtils.resetCollection('orgs', [self.mockOrg]).then(function () {
                 return self.login();
             }).then(function () {
@@ -1368,7 +1368,7 @@ describe('orgSvc payment-plans endpoints', function() {
 
         it('should be able to 200 when upgrading the payment plan', function(done) {
             var self = this;
-            mockman.on('paymentPlanPending', done.fail);
+            mockman.on('pendingPaymentPlanChanged', done.fail);
             testUtils.resetCollection('orgs', [self.mockOrg]).then(function () {
                 return self.login();
             }).then(function () {
@@ -1431,7 +1431,7 @@ describe('orgSvc payment-plans endpoints', function() {
                         }
                     })),
                     q.Promise(function (resolve) {
-                        mockman.on('paymentPlanPending', function (event) {
+                        mockman.on('pendingPaymentPlanChanged', function (event) {
                             resolve(event);
                         });
                     })
@@ -1464,6 +1464,29 @@ describe('orgSvc payment-plans endpoints', function() {
                     pendingPaymentPlan: self.paymentPlans[1],
                     effectiveDate: jasmine.any(String)
                 });
+            }).then(done, done.fail);
+        });
+
+        it('should not produce a pending payment plan changed event if the pending payment plan did not change', function (done) {
+            var self = this;
+            mockman.on('paymentPlanChanged', done.fail);
+            mockman.on('pendingPaymentPlanChanged', done.fail);
+            self.mockOrg.nextPaymentPlanId = self.paymentPlans[1].id;
+            testUtils.resetCollection('orgs', [self.mockOrg]).then(function () {
+                return self.login();
+            }).then(function () {
+                return requestUtils.qRequest('post', _.assign(options, {
+                    url: self.endpoint,
+                    json: {
+                        id: self.paymentPlans[1].id
+                    }
+                }));
+            }).then(function(response) {
+                // Wait to check if any events have been produced
+                return q.delay(5000).thenResolve(response);
+            }).then(function (response) {
+                expect(response.response.statusCode).toBe(200);
+                expect(response.body.nextPaymentPlanId).toBe(self.paymentPlans[1].id);
             }).then(done, done.fail);
         });
     });

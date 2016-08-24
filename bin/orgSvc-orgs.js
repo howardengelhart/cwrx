@@ -295,15 +295,16 @@
     orgModule.produceOnPaymentPlanPending = function (req, resp, updatedOrg,
                                                         currentPlan, nextPlan) {
         var log = logger.getLog();
-        var event = 'paymentPlanPending';
+        var event = 'pendingPaymentPlanChanged';
 
         if(resp.code !== 200 || typeof resp.body !== 'object') {
             return q.resolve(resp);
         }
 
         var paymentPlanPending = !!resp.body.nextPaymentPlanId;
+        var pendingPlanChanged = (req.origObj.nextPaymentPlanId !== resp.body.nextPaymentPlanId);
 
-        if (paymentPlanPending) {
+        if (paymentPlanPending && pendingPlanChanged) {
             return streamUtils.produceEvent(event, {
                 date: new Date(),
                 org: updatedOrg,
