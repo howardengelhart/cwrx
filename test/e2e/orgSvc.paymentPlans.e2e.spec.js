@@ -1346,6 +1346,7 @@ describe('orgSvc payment-plans endpoints', function() {
             var self = this;
             mockman.on('paymentPlanChanged', done.fail);
             mockman.on('pendingPaymentPlanChanged', done.fail);
+            self.mockOrg.nextPaymentPlanId = this.paymentPlans[1].id;
             testUtils.resetCollection('orgs', [self.mockOrg]).then(function () {
                 return self.login();
             }).then(function () {
@@ -1361,7 +1362,7 @@ describe('orgSvc payment-plans endpoints', function() {
                     id: self.mockOrg.id,
                     paymentPlanId: self.mockOrg.paymentPlanId,
                     nextPaymentPlanId: null,
-                    effectiveDate: null
+                    effectiveDate: jasmine.any(String)
                 });
             }).then(done, done.fail);
         });

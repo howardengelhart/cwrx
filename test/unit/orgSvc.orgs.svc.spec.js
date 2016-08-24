@@ -1273,10 +1273,12 @@ describe('orgSvc-orgs (UT)', function() {
                 this.req.body.id = 'pp-456';
             });
 
-            it('should not edit the org', function(done) {
+            it('should set the next payment plan id to null', function (done) {
                 var self = this;
-                orgModule.setPaymentPlan(self.svc, self.req).then(function(result) {
-                    expect(mongoUtils.editObject).not.toHaveBeenCalled();
+                orgModule.setPaymentPlan(self.svc, self.req).then(function() {
+                    expect(mongoUtils.editObject).toHaveBeenCalledWith(self.svc._coll, {
+                        nextPaymentPlanId: null
+                    }, 'o-123');
                 }).then(done, done.fail);
             });
 
@@ -1294,7 +1296,7 @@ describe('orgSvc-orgs (UT)', function() {
                             id: 'o-123',
                             paymentPlanId: 'pp-456',
                             nextPaymentPlanId: null,
-                            effectiveDate: null
+                            effectiveDate: new Date()
                         }
                     });
                 }).then(done, done.fail);
