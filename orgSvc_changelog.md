@@ -1,5 +1,8 @@
 # Org Service Changelog
 
+### 1.17.0 Wed Aug 24 11:32:51 EDT 2016
+* [FEATURE] Produce `pendingPaymentPlanChanged` event when a pending payment plan has changed [#987](https://github.com/cinema6/cwrx/pull/987)
+
 ### 1.16.0 Mon Aug 22 14:52:05 EDT 2016
 * [FEATURE] Produce `paymentPlanPending` event when a payment plan is pending [#986](https://github.com/cinema6/cwrx/pull/986)
 
