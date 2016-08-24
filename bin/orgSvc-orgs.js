@@ -404,7 +404,15 @@
 
             // If the payment plan is not changing
             if (newPaymentPlanId === currentPaymentPlanId) {
-                return composeResponse(org, null);
+                return mongoUtils.editObject(svc._coll, {
+                    nextPaymentPlanId: null
+                }, orgId).then(function (object) {
+                    return svc.transformMongoDoc(object);
+                }).then(function (doc) {
+                    var org = svc.formatOutput(doc);
+                    var response = composeResponse(org, now);
+                    return response;
+                });
             }
 
             // Get relevent payment plan entities from mongo
