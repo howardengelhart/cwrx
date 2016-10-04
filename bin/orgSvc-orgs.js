@@ -246,6 +246,14 @@
             return q.resolve(null);
         }
 
+        // Using this prop isn't the best thing, but it's the best way to get this date right now.
+        // The problem with the method below is that this endpoint will stop working when the user
+        // stops making payments. Ideally, there should be an endpoint to fetch ALL billing payments
+        // and this endpoint would just look at the most recent one.
+        if (org.nextPaymentDate) {
+            return q.resolve(new Date(org.nextPaymentDate));
+        }
+
         // Make a request to get the end date of the billing cycle
         return requestUtils.proxyRequest(req, 'get', {
             url: currentPaymentEndpoint,
