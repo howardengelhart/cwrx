@@ -733,7 +733,7 @@ describe('orgSvc-orgs (UT)', function() {
                         id: 'o-123'
                     },
                     query: {
-                        fields: 'paymentPlanId,nextPaymentPlanId'
+                        fields: 'paymentPlanId,nextPaymentPlanId,nextPaymentDate'
                     }
                 }, false);
             }).then(done, done.fail);
@@ -877,7 +877,7 @@ describe('orgSvc-orgs (UT)', function() {
                 id: 'o-123',
                 paymentPlanId: null,
                 nextPaymentPlanId: null,
-                nextPaymentDate: futureDate
+                nextPaymentDate: null
             };
             spyOn(self.svc, 'getObjs').and.callFake(function () {
                 return q.resolve({
@@ -921,7 +921,7 @@ describe('orgSvc-orgs (UT)', function() {
                     expect(args[0]).toEqual({ id: 'o-123' });
                     expect(args[1]).toEqual(jasmine.objectContaining({
                         query: {
-                            fields: 'paymentPlanId,nextPaymentPlanId'
+                            fields: 'paymentPlanId,nextPaymentPlanId,nextPaymentDate'
                         }
                     }));
                     expect(args[2]).toBe(false);
@@ -1119,6 +1119,19 @@ describe('orgSvc-orgs (UT)', function() {
                             nextPaymentPlanId: 'pp-123',
                             effectiveDate: moment().add(1, 'day').startOf('day').utcOffset(0).toDate()
                         }
+                    });
+                }).then(done, done.fail);
+            });
+
+            it('should use the org\'s nextPaymentDate if present', function(done) {
+                var self = this;
+                this.mockOrg.nextPaymentDate = '2016-09-22T00:00:00Z';
+                orgModule.setPaymentPlan(self.svc, self.req).then(function(result) {
+                    expect(result).toEqual({
+                        code: 200,
+                        body: jasmine.objectContaining({
+                            effectiveDate: new Date(self.mockOrg.nextPaymentDate)
+                        })
                     });
                 }).then(done, done.fail);
             });

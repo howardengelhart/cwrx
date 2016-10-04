@@ -338,7 +338,7 @@
         return svc.getObjs({
             id: orgId
         }, ld.set(req, 'query', {
-            fields: ['paymentPlanId','nextPaymentPlanId'].join(',')
+            fields: ['paymentPlanId','nextPaymentPlanId','nextPaymentDate'].join(',')
         }), false).then(function (orgResponse) {
             var orgBody = orgResponse.body;
             var org = ld.isArray(orgBody) ? orgBody[0] : orgBody;
@@ -376,7 +376,8 @@
         }, ld.set(req, 'query', {
             fields: [
                 'paymentPlanId',
-                'nextPaymentPlanId'
+                'nextPaymentPlanId',
+                'nextPaymentDate'
             ].join(',')
         }), false).then(function(result) {
             // If getting the org failed
@@ -466,8 +467,9 @@
                 updates.id = orgId;
 
                 // Get the effective date of the next payment plan
-                return orgModule.getEffectiveDate(req, updates).then(function (date) {
-
+                return orgModule.getEffectiveDate(req, ld.assign(
+                    {}, org, updates
+                )).then(function (date) {
                     // Edit the org with the necessary updates
                     return mongoUtils.editObject(svc._coll, updates, orgId).then(function (object) {
                         return svc.transformMongoDoc(object);
