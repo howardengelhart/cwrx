@@ -1,5 +1,9 @@
 # Org Service Changelog
 
+### 1.17.1 Tue Oct  4 13:48:05 EDT 2016
+* [FIX]: Make payment plan status lookup succeed after the end of the
+  user's billing period: [#989](https://github.com/cinema6/cwrx/pull/989)
+
 ### 1.17.0 Wed Aug 24 11:32:51 EDT 2016
 * [FIX]: Fix for an issue where pending payment plans may not be properly reset
 [#988](https://github.com/cinema6/cwrx/pull/988)
