@@ -765,6 +765,19 @@ describe('orgSvc-orgs (UT)', function() {
             }).then(done, done.fail);
         });
 
+        it('should use the org\'s nextPaymentDate as the effectiveDate if it is present', function(done) {
+            this.mockOrg.nextPaymentDate = '2016-09-22T00:00:00Z';
+
+            orgModule.getPaymentPlan(this.svc, this.req).then(function(result) {
+                expect(result).toEqual({
+                    code: 200,
+                    body: jasmine.objectContaining({
+                        effectiveDate: new Date('2016-09-22T00:00:00Z')
+                    })
+                });
+            }).then(done, done.fail);
+        });
+
         it('should properly set the effective date in the response when there is not a next payment plan', function(done) {
             this.mockOrg.nextPaymentPlanId = null;
             orgModule.getPaymentPlan(this.svc, this.req).then(function(result) {
